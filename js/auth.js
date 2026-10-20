@@ -20,15 +20,19 @@ document.documentElement.classList.add('turma-locked');
 (() => {
   const st = document.createElement('style');
   st.textContent = `html.turma-locked body>*:not(#turma-login){display:none!important}
-#turma-login{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 600px at 50% -10%,#1d2a55 0%,#0b0d12 60%);font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#e9ecf3}
-#turma-login .tl-card{width:min(400px,calc(100vw - 32px));background:#151821;border:1px solid #262b38;border-radius:18px;padding:30px 26px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5)}
-#turma-login .tl-logo{width:58px;height:58px;border-radius:16px;margin:0 auto 14px;background:linear-gradient(135deg,#3d8bff,#19d3f0);display:flex;align-items:center;justify-content:center}
-#turma-login h1{font-size:21px;margin:0 0 4px}#turma-login p{margin:0 0 18px;color:#9aa3b5;font-size:13.5px;line-height:1.5}
-#turma-login a.tl-menu{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;background:#3d8bff;color:#fff;font-weight:600;font-size:14px;text-decoration:none}
-#turma-login a.tl-menu:hover{filter:brightness(1.08)}
-#turma-login .tl-msg{margin-top:14px;font-size:12.5px;min-height:18px;color:#9aa3b5}#turma-login .tl-msg.err{color:#ff8a9a}
-#turma-login .tl-out{margin-top:10px;background:none;border:0;color:#7fb0ff;font-size:12px;cursor:pointer;text-decoration:underline}
-#turma-login .tl-spin{display:inline-block;width:14px;height:14px;border:2px solid #3d8bff;border-top-color:transparent;border-radius:50%;animation:tlspin .8s linear infinite;vertical-align:-2px;margin-right:6px}@keyframes tlspin{to{transform:rotate(360deg)}}`;
+#turma-login{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:radial-gradient(1100px 700px at 50% 35%,#1d2030,#111216 70%);font:14px/1.5 'Segoe UI',system-ui,-apple-system,sans-serif;color:#e9ebef;padding:16px;-webkit-user-select:none;user-select:none}
+#turma-login .ep-c{width:min(380px,100%);text-align:center;display:grid;justify-items:center;gap:4px}
+#turma-login .ep-lg{width:68px;height:68px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(135deg,#3d8bff,#19d3f0);box-shadow:0 14px 40px rgba(61,139,255,.35);margin-bottom:12px;animation:epPulso 1.6s ease-in-out infinite}
+#turma-login .ep-nm{font:800 26px/1.05 'Segoe UI',system-ui,sans-serif;letter-spacing:1.5px}
+#turma-login .ep-sb{color:#9aa0ab;font-size:12.5px;letter-spacing:.4px}
+#turma-login .ep-br{width:180px;height:4px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden;margin:18px 0 8px;position:relative}
+#turma-login .ep-br::after{content:'';position:absolute;top:0;bottom:0;left:0;width:40%;border-radius:4px;background:linear-gradient(90deg,#3d8bff,#19d3f0);animation:epBarra 1.1s ease-in-out infinite}
+#turma-login.ep-erro .ep-br{display:none}#turma-login.ep-erro .ep-lg{animation:none;background:linear-gradient(135deg,#ff6b6b,#ff9a62)}
+#turma-login .ep-m{color:#b9bdc6;font-size:13px;min-height:20px;max-width:340px}#turma-login .ep-m .e,#turma-login .ep-m.err{color:#ff8a9a}
+#turma-login [hidden]{display:none!important}#turma-login a.ep-bt{display:inline-flex;margin-top:12px;padding:9px 18px;border-radius:10px;background:#3d8bff;color:#fff;text-decoration:none;font-weight:600}#turma-login a.ep-bt:hover{filter:brightness(1.08)}
+@keyframes epBarra{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}@keyframes epPulso{50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){#turma-login .ep-lg,#turma-login .ep-br::after{animation:none}}
+#turma-login .tl-out{margin-top:10px;background:none;border:0;color:#7fb0ff;font-size:12px;cursor:pointer;text-decoration:underline}`;
   document.head.appendChild(st);
 })();
 
@@ -70,14 +74,13 @@ const TurmaAuth = {
     let el = document.getElementById('turma-login');
     if (!el) {
       el = document.createElement('div'); el.id = 'turma-login';
-      el.innerHTML = `<div class="tl-card"><div class="tl-logo"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5" fill="#fff" fill-opacity=".18"/><path d="m15.5 10.2 5-3v9.6l-5-3z" fill="#fff"/></svg></div>
-        <h1>Estúdio Problems</h1><p>Acesso restrito. O login com Google é feito no menu do Estúdio Problems.</p>
-        <div class="tl-msg" data-msg></div><a class="tl-menu" data-menu hidden>Ir para o menu</a></div>`;
+      el.innerHTML = `<div class="ep-c"><div class="ep-lg"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5" fill="#fff" fill-opacity=".18"/><path d="m15.5 10.2 5-3v9.6l-5-3z" fill="#fff"/></svg></div><div class="ep-nm">ANIMADOR</div><div class="ep-sb">Estúdio Problems</div><div class="ep-br"></div>
+        <div class="ep-m" data-msg></div><a class="ep-bt" data-menu hidden>Ir para o menu</a></div>`;
       document.body.appendChild(el);
     }
     return el;
   },
-  msg(t, err, spin) { const m = this.ui().querySelector('[data-msg]'); m.className = 'tl-msg' + (err ? ' err' : ''); m.innerHTML = (spin ? '<span class="tl-spin"></span>' : '') + t; },
+  msg(t, err, spin) { const el = this.ui(), m = el.querySelector('[data-msg]'); el.classList.toggle('ep-erro', !!err); m.className = 'ep-m' + (err ? ' err' : ''); m.innerHTML = t; },
   status(t) { this.msg(t, false, true); },
   // sessão do Google (feita no menu) — usado pela IA e pela mídia da equipe; se caiu, volta para o menu
   async loginOnly() {
