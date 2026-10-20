@@ -110,6 +110,8 @@ const TURMA_CONFIG = {
    da turma (Cloudflare) confirmar que o e-mail está liberado. No site publicado, o código do
    editor fica CRIPTOGRAFADO (app.enc) e a chave só é entregue pelo servidor para quem passou. */
 'use strict';
+// o Animador mora no endereço único do Estúdio Problems; quem abrir a cópia do GitHub Pages vai para lá
+if (location.hostname === 'problemsbloxcreate-lab.github.io') location.replace('https://estudio.problemsraiz.workers.dev/animador/' + location.pathname.replace(/^\/animador\/?/, '') + location.search + location.hash);
 document.documentElement.classList.add('turma-locked');
 (() => {
   const st = document.createElement('style');
@@ -181,6 +183,14 @@ const TurmaAuth = {
     setTimeout(() => this.irParaMenu(), 1600); return null;
   },
   get logged() { return !!this.fb?.currentUser; },
+  // nome e foto da "Minha conta" do menu (porteiro: /conta); se não tiver nada mudado lá, os do Google
+  perfil() {
+    return this._perfil || (this._perfil = (async () => {
+      const u = this.fb?.currentUser, base = { email: this.email, nome: u?.displayName || String(this.email || '').split('@')[0], foto: u?.photoURL || null };
+      try { const r = await fetch('/conta', { credentials: 'same-origin', cache: 'no-store' }); if (r.ok && r.headers.get('x-porteiro')) return { ...base, ...(await r.json()) }; } catch { }
+      return base;
+    })());
+  },
   // tela de entrada: só resolve quando há sessão do Google E a conta está liberada pelo servidor
   _esc(t) { return String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
   gate() {
@@ -215,7 +225,7 @@ const TurmaAuth = {
     const r = await fetch(TURMA_CONFIG.iaServidor + '/app-key', { headers: { authorization: 'Bearer ' + await TurmaAuth.token() }, cache: 'no-store' });
     const j = await r.json().catch(() => ({})); if (!r.ok || !j.key) throw new Error(j.error?.message || 'O servidor não liberou o editor.');
     const key = await crypto.subtle.importKey('raw', Uint8Array.from(atob(j.key), c => c.charCodeAt(0)), 'AES-GCM', false, ['decrypt']);
-    const enc = new Uint8Array(await (await fetch('anim.enc?v=02831b319e', { cache: 'no-cache' })).arrayBuffer());
+    const enc = new Uint8Array(await (await fetch('anim.enc?v=4001442254', { cache: 'no-cache' })).arrayBuffer());
     let gz; try { gz = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: enc.slice(0, 12) }, key, enc.slice(12)); } catch { throw new Error('A chave do servidor (APP_KEY) não confere com esta versão do site. Confira o Secret APP_KEY na Cloudflare.'); }
     const app = JSON.parse(await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
     const st = document.createElement('style'); st.textContent = app.css; document.head.appendChild(st);
