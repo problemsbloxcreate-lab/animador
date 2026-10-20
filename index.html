@@ -159,7 +159,7 @@ const TurmaAuth = {
     const u = new URL(base, location.href); if (volta !== false) u.searchParams.set('volta', location.href); return u.href;
   },
   irParaMenu(volta) { location.href = this.menuUrl(volta); },
-  async signOut() { try { await this.fb?.signOut(); } catch { } this.irParaMenu(false); },
+  async signOut() { try { await fetch('/sair', { method: 'POST', credentials: 'same-origin' }); } catch { } try { await this.fb?.signOut(); } catch { } this.irParaMenu(false); }, // /sair: apaga a sessão do porteiro (se houver)
   ui() {
     let el = document.getElementById('turma-login');
     if (!el) {
@@ -215,7 +215,7 @@ const TurmaAuth = {
     const r = await fetch(TURMA_CONFIG.iaServidor + '/app-key', { headers: { authorization: 'Bearer ' + await TurmaAuth.token() }, cache: 'no-store' });
     const j = await r.json().catch(() => ({})); if (!r.ok || !j.key) throw new Error(j.error?.message || 'O servidor não liberou o editor.');
     const key = await crypto.subtle.importKey('raw', Uint8Array.from(atob(j.key), c => c.charCodeAt(0)), 'AES-GCM', false, ['decrypt']);
-    const enc = new Uint8Array(await (await fetch('app.enc?v=b670c603d4', { cache: 'no-cache' })).arrayBuffer());
+    const enc = new Uint8Array(await (await fetch('app.enc?v=05c2ad23c4', { cache: 'no-cache' })).arrayBuffer());
     let gz; try { gz = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: enc.slice(0, 12) }, key, enc.slice(12)); } catch { throw new Error('A chave do servidor (APP_KEY) não confere com esta versão do site. Confira o Secret APP_KEY na Cloudflare.'); }
     const app = JSON.parse(await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
     const st = document.createElement('style'); st.textContent = app.css; document.head.appendChild(st);
