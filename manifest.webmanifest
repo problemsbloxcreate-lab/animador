@@ -1,0 +1,18 @@
+{
+  "name": "Estúdio Problems — Animação",
+  "short_name": "Estúdio Problems",
+  "description": "Editor de vídeo e animação",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#0f1013",
+  "theme_color": "#17181c",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icones/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "file_handlers": [{ "action": "./index.html", "accept": { "application/octet-stream": [".toon"] } }]
+}
