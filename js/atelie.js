@@ -67,6 +67,7 @@ const Atelie = {
     $('#at-so-img').onclick = () => { this.soImagem = !this.soImagem; this.pinta(); };
     $('#at-enq').onclick = () => this.enquadrar();
     addEventListener('keydown', e => this.teclas(e));
+    Pintura.liga();
   },
   tamanho() { const r = this.cv.getBoundingClientRect(), d = devicePixelRatio || 1; this.cv.width = Math.max(2, r.width * d); this.cv.height = Math.max(2, r.height * d); this.desenha(); },
   enquadrar() {
@@ -98,6 +99,7 @@ const Atelie = {
       ctx.beginPath(); ctx.arc(piv.x, piv.y, 5 * d, 0, 7); ctx.fillStyle = '#ff6b6b'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * d; ctx.stroke();
       ctx.beginPath(); ctx.moveTo(piv.x - 9 * d, piv.y); ctx.lineTo(piv.x + 9 * d, piv.y); ctx.moveTo(piv.x, piv.y - 9 * d); ctx.lineTo(piv.x, piv.y + 9 * d); ctx.stroke(); ctx.restore();
     } else this._giro = null;
+    Pintura.desenhaCursor(ctx);
   },
   mundoTela(x, y) { const v = this.vista; return { x: (x - v.x) / v.z, y: (y - v.y) / v.z }; },
   roda(e) { e.preventDefault(); const r = this.cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, v = this.vista, z = clamp(v.z * Math.exp(-e.deltaY * .0015), .05, 20); v.x = mx - (mx - v.x) * z / v.z; v.y = my - (my - v.y) * z / v.z; v.z = z; this.desenha(); },
@@ -114,6 +116,7 @@ const Atelie = {
     this.cv.setPointerCapture(e.pointerId); const d = devicePixelRatio || 1;
     const fim = (mov, up) => { const m = ev => mov(ev), u = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', u); up?.(ev); }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', u); };
     if (e.button === 1 || e.button === 2 || this.espaco) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); }
+    if (e.button === 0 && Pintura.ferr !== 'mover') return Pintura.desce(e); // pincel, borracha, balde, conta-gotas
     // girar pela alça
     if (this._giro && Math.hypot(e.offsetX * d - this._giro.x, e.offsetY * d - this._giro.y) < 12 * d) {
       const p = this.parte(), e0 = this.estado()[p.id], ang = ev => Math.atan2(ev.offsetY * d - this._giro.piv.y, ev.offsetX * d - this._giro.piv.x) * 180 / Math.PI, a0 = ang(e);
@@ -149,6 +152,7 @@ const Atelie = {
     if (ctrl && k.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
     if (ctrl && k.toLowerCase() === 's') { e.preventDefault(); return this.salvar(); }
     if (ctrl) return;
+    if (e.type === 'keydown' && Pintura.tecla(e)) return;
     if (k === 'Tab') { e.preventDefault(); const ps = this.def.partes; if (!ps.length) return; const i = ps.findIndex(x => x.id === this.sel); this.sel = ps[(i + (e.shiftKey ? -1 : 1) + ps.length) % ps.length].id; return this.pinta(); }
     if (!p) return; const est = this.estado()[p.id], passo = e.shiftKey ? 10 : 1, kk = k.toLowerCase();
     const leva = () => { clearTimeout(this._t); this.desenha(); this._t = setTimeout(() => this.commit(), 300); };
@@ -169,7 +173,7 @@ const Atelie = {
     $('#at-modo').innerHTML = pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
     $('#at-base').hidden = !pr; $('#at-so-img').classList.toggle('on', this.soImagem);
     this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
-    const lado = $('#at-lado'); lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.pintaSessoes(lado); this.desenha();
+    const lado = $('#at-lado'); lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.pintaSessoes(lado); this.desenha();
   },
   pintaPartes() {
     const el = $('#at-partes'), ps = this.def.partes; el.innerHTML = '';

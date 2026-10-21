@@ -276,3 +276,11 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .midia-pasta{display:flex;align-items:center;gap:6px;height:28px;margin:6px 8px 0;padding:0 8px;border-radius:6px;color:var(--tx2);cursor:pointer;user-select:none}.midia-pasta:hover{background:var(--bg2)}
 .midia-pasta b{color:var(--tx);font-weight:600;font-size:12px}.midia-pasta small{color:var(--tx3)}.midia-pasta.solta{cursor:default}.midia-pasta.solta:hover{background:none}
 .midia-pasta.drop-dentro,.midia-grade.drop-dentro{outline:1px dashed #bbb;outline-offset:-2px}
+
+/* ateliê › Pintar e cores */
+.pt-ferr{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:8px}
+.pt-ferr button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;border:1px solid var(--bd);border-radius:7px;background:var(--bg2);color:var(--tx2);cursor:pointer;font:inherit}
+.pt-ferr button small{font-size:10px}.pt-ferr button.on{background:var(--bg3);color:var(--tx);border-color:#bbb}
+.pt-pal{display:grid;grid-template-columns:repeat(9,1fr);gap:4px}
+.pt-cor{aspect-ratio:1;border-radius:5px;border:1px solid rgba(255,255,255,.15);cursor:pointer;padding:0}.pt-cor.on{outline:2px solid #fff;outline-offset:1px}
+.pt-selec{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:6px}.pt-selec i{width:20px;height:20px;border-radius:5px;border:1px solid rgba(255,255,255,.2)}
