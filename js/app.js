@@ -261,14 +261,15 @@ const App = {
     }
     const V = pc.vista(), c = Modelo.camera(P, this.q), cw = P.w / (c.zoom || 1), ch = P.h / (c.zoom || 1);
     const camM = new DOMMatrix().translate(c.x, c.y).rotate(c.r || 0), cantosCam = [[-cw / 2, -ch / 2], [cw / 2, -ch / 2], [cw / 2, ch / 2], [-cw / 2, ch / 2]].map(([x, y]) => camM.transformPoint(new DOMPoint(x, y)));
-    // fundo do quadro (dentro da câmera)
-    ctx.save(); ctx.setTransform(V); ctx.beginPath(); cantosCam.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.fillStyle = P.fundo || '#fff'; ctx.fill(); ctx.restore();
+    // canvas infinito: quadriculado cinza clarinho em toda a volta; a folha (cor do fundo) tem o tamanho da câmera, no lugar dela
+    this.quadriculado(ctx, V, W, H);
+    ctx.save(); ctx.setTransform(V); ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 18 * pc.dpr; ctx.fillStyle = P.fundo || '#fff'; ctx.fillRect(0, 0, P.w, P.h); ctx.restore();
     // casca de cebola: quadros vizinhos bem clarinhos
     if (this.onion && !this.tocando) for (const [d, a] of [[-2, .1], [-1, .22], [1, .16]]) { const qq = this.q + d; if (qq < 0 || qq > Modelo.ultimoQuadro(P)) continue; ctx.save(); ctx.filter = d < 0 ? 'sepia(1) hue-rotate(160deg) saturate(3)' : 'sepia(1) hue-rotate(-40deg) saturate(3)'; Render.camadas(ctx, P, qq, V, a); ctx.restore(); }
     ctx.save(); ctx.filter = Efeitos.filtro(P, this.q); Render.camadas(ctx, P, this.q, V); ctx.restore();
     // fora da câmera fica escurecido
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.beginPath(); ctx.rect(0, 0, W, H); const ct = cantosCam.map(p => V.transformPoint(p)); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();
-    ctx.fillStyle = 'rgba(21,21,21,.72)'; ctx.fill('evenodd');
+    ctx.fillStyle = 'rgba(21,21,21,.38)'; ctx.fill('evenodd');
     ctx.strokeStyle = this.sel === 'camera' ? '#9fc3ff' : 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5 * pc.dpr; ctx.beginPath(); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = `${11 * pc.dpr}px Segoe UI`; ctx.fillText(`Câmera · ${P.w}×${P.h}`, ct[0].x + 6 * pc.dpr, ct[0].y - 6 * pc.dpr);
     // seleção com alças (girar em cima, tamanho no canto)
@@ -283,6 +284,15 @@ const App = {
       }
       ctx.beginPath(); ctx.arc(al.cen.x * d, al.cen.y * d, 3.5 * d, 0, Math.PI * 2); ctx.fillStyle = '#9fc3ff'; ctx.fill();
     }
+  },
+  // quadradinhos no espaço do mundo (seguem o zoom e a mão); o tamanho dobra/divide para nunca ficar miúdo demais
+  quadriculado(ctx, V, W, H) {
+    const z = Math.hypot(V.a, V.b) || 1; let t = 32; while (t * z < 14) t *= 2; while (t * z > 56) t /= 2;
+    const inv = V.inverse(), cs = [[0, 0], [W, 0], [W, H], [0, H]].map(([x, y]) => inv.transformPoint(new DOMPoint(x, y)));
+    const x0 = Math.floor(Math.min(...cs.map(p => p.x)) / t) - 1, x1 = Math.ceil(Math.max(...cs.map(p => p.x)) / t) + 1, y0 = Math.floor(Math.min(...cs.map(p => p.y)) / t) - 1, y1 = Math.ceil(Math.max(...cs.map(p => p.y)) / t) + 1;
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#cfcfcf'; ctx.fillRect(0, 0, W, H); ctx.setTransform(V); ctx.fillStyle = '#dedede'; ctx.beginPath();
+    for (let y = y0; y <= y1; y++) for (let x = x0 + ((x0 + y) & 1); x <= x1; x += 2) ctx.rect(x * t, y * t, t + .02 / z, t + .02 / z);
+    ctx.fill(); ctx.restore();
   },
   enquadrar() { const pc = this.palco; if (!pc.cv || !this.P) return; const r = pc.cv.getBoundingClientRect(), c = Modelo.camera(this.P, this.q), z = Math.min(r.width / (this.P.w / c.zoom), r.height / (this.P.h / c.zoom)) * .86;
     this.vista = { z, x: r.width / 2 - c.x * z, y: r.height / 2 - c.y * z }; this.pinta(); this.zoomTxt(); },
