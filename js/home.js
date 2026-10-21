@@ -49,8 +49,12 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
     const body = h(`<div class="tela-p"><div data-pag="ajustes"></div>
       <div class="tela-ia"><label class="field">${ic('sparkles', 13)} Mais com a IA <small style="color:var(--tx3)">(opcional · vale junto com os ajustes ao criar)</small><textarea rows="3" placeholder="Ex.: deixa em 12 fps com cara de desenho antigo, fundo escuro, uma vinheta leve e um título &quot;Episódio 1&quot; no começo"></textarea></label><div class="ia-res" hidden></div></div></div>`);
     const pag = $('[data-pag=ajustes]', body), prev = () => { const k = 120 / Math.max(o.w, o.h); return `<i style="width:${Math.round(o.w * k)}px;height:${Math.round(o.h * k)}px;background:${o.semFolha ? 'transparent' : o.folha}"></i>`; };
+    // a prévia mostra o fundo escolhido (quadriculado na cor/intensidade, ou cor lisa), igual ao palco
+    const fundoPrev = () => { const pc = o.palco, c = pc.cor; if (pc.modo === 'cor') return `background:${c}`;
+      const [r, g, b] = rgbDe(c), claro = r * .3 + g * .59 + b * .11 > 140, a = claro ? pc.forca * .22 : pc.forca * .16, x = claro ? `rgba(0,0,0,${a})` : `rgba(255,255,255,${a})`;
+      return `background:repeating-conic-gradient(${x} 0 25%,transparent 0 50%) 0 0/16px 16px,${c}`; };
     const pinta = () => {
-      pag.innerHTML = `<div class="tela-prev" data-prev>${prev()}</div>
+      pag.innerHTML = `<div class="tela-prev" data-prev style="${fundoPrev()}">${prev()}</div>
         <label class="field">Nome<input type="text" data-k="nome" value="${esc(o.nome)}"></label>
         <label class="field">Tamanho pronto<select data-tam><option value="">Escolher…</option>${this.TAMANHOS.map(([n, w, hh], i) => `<option value="${i}" ${w === o.w && hh === o.h ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <div class="campo2"><span style="color:var(--tx2)">Largura</span><input type="number" data-k="w" value="${o.w}" min="64" max="4096" style="width:80px"><span style="color:var(--tx2)">Altura</span><input type="number" data-k="h" value="${o.h}" min="64" max="4096" style="width:80px"><button class="btn sm" data-girar title="Trocar largura e altura">${ic('redo', 13)} Girar</button></div>
@@ -61,7 +65,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       $('[data-tam]', pag).onchange = ev => { const t = this.TAMANHOS[+ev.target.value]; if (t) { o.w = t[1]; o.h = t[2]; pinta(); } };
       $('[data-girar]', pag).onclick = () => { [o.w, o.h] = [o.h, o.w]; pinta(); };
       $$('[data-m]', pag).forEach(b => b.onclick = () => { o.palco.modo = b.dataset.m; pinta(); });
-      $('[data-pc]', pag).oninput = ev => { o.palco.cor = ev.target.value; }; $('[data-fc]', pag).oninput = ev => { o.folha = ev.target.value; $('[data-prev]', pag).innerHTML = prev(); };
+      $('[data-pc]', pag).oninput = ev => { o.palco.cor = ev.target.value; $('[data-prev]', pag).style.cssText = fundoPrev(); }; $('[data-fc]', pag).oninput = ev => { o.folha = ev.target.value; $('[data-prev]', pag).innerHTML = prev(); };
       $('[data-folha]', pag).onchange = ev => { o.semFolha = !ev.target.checked; pinta(); };
     };
     pinta();
