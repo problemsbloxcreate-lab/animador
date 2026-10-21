@@ -411,3 +411,6 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .np-im img{max-width:90%;max-height:70%;object-fit:contain}.np-im span{position:absolute;left:0;right:0;bottom:0;font-size:10px;padding:2px 4px;background:rgba(0,0,0,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .np-im .ibtn{position:absolute;top:2px;right:2px;width:18px;height:18px;opacity:0;background:rgba(0,0,0,.6)}.np-im:hover .ibtn{opacity:1}
 .np-ia{display:flex;align-items:center;gap:6px;margin:6px 0}.np-ia svg{color:#7ff0ff}.novo-p textarea{width:100%}
+
+/* apagar da NUVEM sem ser ADM: discreto (abre o aviso para pedir a um ADM); apagar do computador continua em destaque */
+.ibtn.mn.so-adm{opacity:.55}.ibtn.mn.so-adm:hover{opacity:.9}

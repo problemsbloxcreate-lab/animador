@@ -104,6 +104,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
     return t;
   },
   async personagens(c) {
+    Nuvem.souAdm(); // o menu de cada personagem já sai certo (apagar da nuvem: só ADM)
     c.innerHTML = `<div class="novos"><button class="novo" data-novo><span class="fm">${ic('plus', 24)}</span><span><b>Personagem novo</b><small>montar pelas partes</small></span></button>
       <button class="novo" data-backup><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .atelieanimador</b><small>backup de um personagem</small></span></button></div>
       <div class="sec">${ic('cloud', 14)} Na nuvem da equipe <span class="sp"></span><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div>`;
@@ -129,7 +130,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
           $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
             { label: 'Abrir no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(it.id) },
             { label: 'Baixar .atelieanimador (backup)', icon: 'download', action: async () => { try { AtelieArq.baixar(await Nuvem.abrir(it.id)); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } } },
-            '-', { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome); if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
+            '-', !Nuvem.adm ? { label: 'Apagar da nuvem (só ADM)', icon: 'lock', action: () => Nuvem.pedeAdm(it.nome) } : { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome); if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
           ]); };
           g.appendChild(card);
         }

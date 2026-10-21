@@ -26,7 +26,8 @@ const Nuvem = {
   async baixar(k) { const b = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k))).blob(); await DB.put('arquivos', b, k); return b; },
   // salva: manda as imagens que ainda não estão na nuvem e depois o personagem.json
   // quem é ADM pode apagar da nuvem; os outros recebem o aviso para pedir a um ADM (o servidor também confere)
-  async souAdm() { try { return !!(await window.EstudioConta?.perfil?.())?.adm; } catch { return false; } },
+  adm: false, // guardado da última vez que perguntou (para o menu já sair certo)
+  async souAdm() { try { return (this.adm = !!(await window.EstudioConta?.perfil?.())?.adm); } catch { return false; } },
   async pedeAdm(nome) { if (window.EstudioConta?.nuvem?.pedeAdm) return window.EstudioConta.nuvem.pedeAdm(nome); return UI.modal({ title: 'Só um ADM pode apagar da nuvem', icon: 'cloud', width: 440, body: `<div>Peça para um ADM apagar <b>${esc(nome || 'isso')}</b> da nuvem da equipe (no menu, ADM › Nuvem).</div>`, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] }); },
   avisaEspaco() { try { window.EstudioConta?.nuvem?.atualizar?.(); } catch { } },
   // o que já está na nuvem de cada personagem fica guardado aqui depois da 1ª vez (o "salvar" automático não lista a nuvem toda a cada mudança)
@@ -74,11 +75,12 @@ const CenariosNuvem = {
     const body = h('<div><div class="vazio"><span class="spin-dot"></span> Carregando os cenários da equipe…</div></div>'), urls = [];
     const p = UI.modal({ title: 'Cenários da equipe', icon: 'cloud', width: 720, body, buttons: [{ label: 'Prontos e com a IA…', kind: 'ia', left: true, onClick: () => { setTimeout(() => Cenarios.abrir(), 50); return true; } }, { label: 'Fechar', value: null }] });
     const pinta = async () => {
+      await Nuvem.souAdm();
       let lista; try { lista = await Nuvem.cenarios(); } catch (e) { body.innerHTML = `<div class="vazio">Não consegui abrir: ${esc(e.message)}</div>`; return; }
       if (!lista.length) { body.innerHTML = '<div class="vazio">Nenhum cenário na nuvem ainda.<br>Ponha um cenário (pronto, da IA ou uma imagem) e use o botão direito › <b>Salvar na nuvem</b>.</div>'; return; }
       body.innerHTML = ''; const g = h('<div class="grade cen-g"></div>'); body.appendChild(g);
       for (const it of lista) {
-        const c = h(`<div class="pc"><div class="th" style="aspect-ratio:16/10"><span class="spin-dot"></span></div><div class="in"><b>${esc(it.nome || 'Cenário')}${it.ia ? ' <span class="tag-ia">IA</span>' : ''}</b><small>${it.em ? fmtDate(Date.parse(it.em)) : ''}${it.por ? ` · <span data-quem="${esc(it.por)}"></span>` : ''}</small></div><button class="ibtn mn" title="Apagar da nuvem">${ic('trash', 14)}</button></div>`);
+        const c = h(`<div class="pc"><div class="th" style="aspect-ratio:16/10"><span class="spin-dot"></span></div><div class="in"><b>${esc(it.nome || 'Cenário')}${it.ia ? ' <span class="tag-ia">IA</span>' : ''}</b><small>${it.em ? fmtDate(Date.parse(it.em)) : ''}${it.por ? ` · <span data-quem="${esc(it.por)}"></span>` : ''}</small></div><button class="ibtn mn${Nuvem.adm ? '' : ' so-adm'}" title="${Nuvem.adm ? 'Apagar da nuvem' : 'Só um ADM pode apagar da nuvem'}">${ic(Nuvem.adm ? 'trash' : 'lock', 14)}</button></div>`);
         Nuvem.baixarCenario(it.k).then(b => { const u = URL.createObjectURL(b); urls.push(u); const th = $('.th', c); th.innerHTML = ''; th.style.backgroundImage = `url('${u}')`; }).catch(() => { $('.th', c).innerHTML = ic('alert', 18); });
         c.onclick = async e => {
           if (e.target.closest('.mn')) return; c.style.opacity = .5;
