@@ -30,21 +30,49 @@ const Atelie = {
   },
   async abrir(id, o = {}) {
     this.volta = !!o.volta; let def;
+    let doRascunho = false;
     if (o.def) def = o.def; // veio de um arquivo .atelieanimador
-    else if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }); try { def = await Nuvem.abrir(id); } catch (e) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } t.remove(); }
+    else if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }), r = await DB.get('arquivos', this.chaveRascunho(id)).catch(() => null);
+      try { def = await Nuvem.abrir(id); } catch (e) { if (!r?.def) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } } t.remove();
+      if (r?.def && !def) { def = r.def; doRascunho = true; } // ainda não foi para a nuvem: só existe o rascunho deste computador
+      else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def)) {
+        const usa = await UI.modal({ title: 'Tem um rascunho neste computador', icon: 'save', width: 460, body: `<div>As mudanças de <b>${esc(r.def.nome)}</b> feitas neste computador (guardadas ${fmtDate(r.em)}) <b>ainda não foram para a nuvem</b>.<br><br>A versão da nuvem é de ${def.modificado ? fmtDate(def.modificado) : 'antes'}.</div>`,
+          buttons: [{ label: 'Abrir a da nuvem (descartar o rascunho)', value: 'nuvem' }, { label: 'Continuar o rascunho', kind: 'primary', value: 'rascunho' }] });
+        if (usa === 'rascunho') { def = r.def; doRascunho = true; } else if (usa === 'nuvem') await this.apagarRascunho(id); else return;
+      } }
     else { const nome = await UI.prompt({ title: 'Personagem novo', label: 'Nome do personagem', value: '', ok: 'Criar' }); if (!nome) return; def = Modelo.novoPersonagem(nome); }
-    this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.sujo = !id || !!o.def; this.teste = null; clearInterval(this._roda);
+    this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; this.teste = null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
     await Arq.garantir(def.partes.flatMap(p => p.imgs.map(i => i.k)));
-    Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
+    Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho(); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
   },
   async sair() {
-    if (this.sujo && !(await UI.confirm({ title: 'Sair sem salvar na nuvem?', msg: 'As mudanças deste personagem ainda não foram salvas na nuvem da equipe.', ok: 'Sair sem salvar', danger: true }))) return;
+    if (this.sujo && !(await UI.confirm({ title: 'Sair sem salvar na nuvem?', msg: 'As mudanças ficam guardadas <b>só neste computador</b> (como rascunho): a equipe não vê até alguém clicar em "Salvar na nuvem". Ao abrir este personagem de novo aqui, dá para continuar.', ok: 'Sair', danger: true }))) return;
     if (this.emAba) { this.sujo = false; window.close(); setTimeout(() => { if (!window.closed) { history.replaceState(null, '', location.pathname); this.emAba = false; Telas.mostra('home'); Home.aba('personagens'); } }, 300); return; }
     if (this.volta && App.P) { Telas.mostra('editor'); App.titulo(); App.atualiza(); } else { Telas.mostra('home'); Home.aba('personagens'); }
   },
-  commit(o = {}) { const s = JSON.stringify(this.def); if (s !== this.ultimo) { this.pilha.push(this.ultimo); if (this.pilha.length > 120) this.pilha.shift(); this.refazer = []; this.ultimo = s; this.sujo = true; } if (!o.soDesenho) this.pinta(); else this.desenha(); },
-  undo() { if (!this.pilha.length) return; this.refazer.push(this.ultimo); this.ultimo = this.pilha.pop(); this.def = JSON.parse(this.ultimo); this.sujo = true; this.pinta(); },
-  redo() { if (!this.refazer.length) return; this.pilha.push(this.ultimo); this.ultimo = this.refazer.pop(); this.def = JSON.parse(this.ultimo); this.pinta(); },
+  commit(o = {}) { const s = JSON.stringify(this.def); if (s !== this.ultimo) { this.pilha.push(this.ultimo); if (this.pilha.length > 120) this.pilha.shift(); this.refazer = []; this.ultimo = s; this.sujo = true; this.rascunho(); } if (!o.soDesenho) this.pinta(); else this.desenha(); },
+  undo() { if (!this.pilha.length) return; this.refazer.push(this.ultimo); this.ultimo = this.pilha.pop(); this.def = JSON.parse(this.ultimo); this.sujo = true; this.rascunho(); this.pinta(); },
+  redo() { if (!this.refazer.length) return; this.pilha.push(this.ultimo); this.ultimo = this.refazer.pop(); this.def = JSON.parse(this.ultimo); this.sujo = true; this.rascunho(); this.pinta(); },
+
+  /* ---------- RASCUNHO: toda mudança fica guardada NESTE navegador (se cair a energia, nada se perde). Só "Salvar na nuvem" manda para a equipe.
+     Guardado em arquivos["rascunho:<id do personagem>"] = { def, em, thumb }. As imagens novas já ficam no navegador (Arq). ---------- */
+  chaveRascunho(id = this.def?.id) { return 'rascunho:' + id; },
+  rascunho() {
+    if (!this.def) return; this.salvandoLocal = true; this.pintaEstado(); clearTimeout(this._tr);
+    this._tr = setTimeout(async () => { try { const def = JSON.parse(this.ultimo || JSON.stringify(this.def)); let thumb = null; try { thumb = this.miniatura(); } catch { }
+      await DB.put('arquivos', { tipo: 'rascunho-atelie', def, em: Date.now(), thumb }, this.chaveRascunho(def.id)); this.rascunhoEm = Date.now(); } catch (e) { UI.toast('Não consegui guardar no navegador: ' + esc(e.message), { kind: 'err' }); }
+      this.salvandoLocal = false; this.pintaEstado(); window.EstudioConta?.espaco?.atualizar?.(); }, 500);
+  },
+  async apagarRascunho(id = this.def?.id) { clearTimeout(this._tr); this.salvandoLocal = false; this.rascunhoEm = null; try { await DB.del('arquivos', this.chaveRascunho(id)); } catch { } },
+  async rascunhos() { try { const ks = (await DB.keys('arquivos')).filter(k => String(k).startsWith('rascunho:')); return (await Promise.all(ks.map(k => DB.get('arquivos', k)))).filter(r => r?.def).sort((a, b) => b.em - a.em); } catch { return []; } },
+  // selo ao lado do Salvar: salvo na nuvem / só neste computador
+  pintaEstado() {
+    const el = $('#at-estado'); if (!el || !this.def) return; const hora = t => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const [cls, ico, txt, dica] = !this.sujo ? ['nuvem', 'cloud', 'Salvo na nuvem', 'Esta versão é a que está na nuvem da equipe.']
+      : this.salvandoLocal ? ['local', 'save', 'Guardando no computador…', 'Guardando neste navegador para não perder nada.']
+      : ['local', 'save', 'Só neste computador' + (this.rascunhoEm ? ' · ' + hora(this.rascunhoEm) : ''), 'As mudanças estão guardadas NESTE navegador (não se perdem se cair a energia), mas a equipe ainda não vê. Clique em "Salvar na nuvem" (Ctrl+S).'];
+    el.className = 'at-estado ' + cls; el.title = dica; el.innerHTML = `${ic(ico, 13)}<span>${esc(txt)}</span>`;
+  },
 
   /* ---------- estado que está na tela (base ou preset em edição) ---------- */
   parte(id = this.sel) { return this.def.partes.find(p => p.id === id) || null; },
@@ -85,23 +113,27 @@ const Atelie = {
   },
   tamanho() { const r = this.cv.getBoundingClientRect(), d = devicePixelRatio || 1; this.cv.width = Math.max(2, r.width * d); this.cv.height = Math.max(2, r.height * d); this.desenha(); },
   enquadrar() {
-    if (!this.cv) return; const r = this.cv.getBoundingClientRect(), b = Modelo.caixaPersonagem(this.def, this.estado()); const z = Math.min(r.width / (b.w + 200), r.height / (b.h + 200), 2.5);
-    this.vista = { z, x: r.width / 2 - (b.x + b.w / 2) * z, y: r.height / 2 - (b.y + b.h / 2) * z }; this.desenha();
+    if (!this.cv) return; const r = this.cv.getBoundingClientRect(), b = Modelo.caixaPersonagem(this.def, this.estado()), livre = this.teste && !this.testeMin ? 320 : 0, W = Math.max(200, r.width - livre); // o painel do Testar não cobre o personagem
+    const z = Math.min(W / (b.w + 200), r.height / (b.h + 200), 2.5);
+    this.vista = { z, x: W / 2 - (b.x + b.w / 2) * z, y: r.height / 2 - (b.y + b.h / 2) * z }; this.desenha();
   },
   V() { const d = devicePixelRatio || 1, v = this.vista; return new DOMMatrix().scale(d).translate(v.x, v.y).scale(v.z); },
   mundo(e) { const r = this.cv.getBoundingClientRect(), v = this.vista; return { x: (e.clientX - r.left - v.x) / v.z, y: (e.clientY - r.top - v.y) / v.z }; },
   desenha() {
     if (!this.ctx || !this.def) return; const ctx = this.ctx, W = this.cv.width, H = this.cv.height, d = devicePixelRatio || 1, V = this.V();
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#151515'; ctx.fillRect(0, 0, W, H);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); const fundo = Animacoes.corFundo();
+    if (fundo === 'cenario') { const gr = ctx.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#9fd3f0'); gr.addColorStop(.62, '#9fd3f0'); gr.addColorStop(.62, '#8cc56b'); gr.addColorStop(1, '#8cc56b'); ctx.fillStyle = gr; } else ctx.fillStyle = fundo || '#151515';
+    ctx.fillRect(0, 0, W, H);
     // grade xadrez (fundo transparente)
     ctx.save(); ctx.setTransform(V); const g = 50; ctx.fillStyle = '#1b1b1b'; const a = this.mundoTela(0, 0), b2 = this.mundoTela(W / d, H / d);
-    for (let x = Math.floor(a.x / g) * g; x < b2.x; x += g) for (let y = Math.floor(a.y / g) * g; y < b2.y; y += g) if (((x + y) / g) % 2 === 0) ctx.fillRect(x, y, g, g);
-    ctx.strokeStyle = '#2c2c2c'; ctx.lineWidth = 1 / this.vista.z; ctx.beginPath(); ctx.moveTo(-5000, 0); ctx.lineTo(5000, 0); ctx.moveTo(0, -5000); ctx.lineTo(0, 5000); ctx.stroke(); ctx.restore();
+    if (!fundo) for (let x = Math.floor(a.x / g) * g; x < b2.x; x += g) for (let y = Math.floor(a.y / g) * g; y < b2.y; y += g) if (((x + y) / g) % 2 === 0) ctx.fillRect(x, y, g, g);
+    ctx.strokeStyle = fundo ? 'rgba(0,0,0,.1)' : '#2c2c2c'; ctx.lineWidth = 1 / this.vista.z; ctx.beginPath(); ctx.moveTo(-5000, 0); ctx.lineTo(5000, 0); ctx.moveTo(0, -5000); ctx.lineTo(0, 5000); ctx.stroke(); ctx.restore();
     const est = this.estado(), itens = Modelo.montar(this.def, est);
     for (const it of itens) { if (!it.img) continue; const bm = Arq.bitmap(it.img.k, () => this.desenha()); if (!bm) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
       ctx.save(); ctx.setTransform(V.multiply(it.m)); ctx.globalAlpha = this.sel && it.parte.id !== this.sel && this.destacar ? .45 : 1; ctx.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); ctx.restore(); }
-    // parte escolhida: caixa, pivô (ponto de giro) e a ligação com o pai
-    const it = itens.find(x => x.parte.id === this.sel);
+    ctx.save(); ctx.setTransform(V); Animacoes.desenhaFantasma(ctx); ctx.restore();
+    // parte escolhida: caixa, pivô (ponto de giro) e a ligação com o pai (testando: nada disso, só o personagem)
+    const it = this.teste ? null : itens.find(x => x.parte.id === this.sel);
     if (it) {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); const T = V.multiply(it.m), piv = T.transformPoint(new DOMPoint(0, 0));
       if (it.img) { const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, ax = it.img.ajuste?.x || 0, ay = it.img.ajuste?.y || 0;
@@ -166,11 +198,13 @@ const Atelie = {
     if (k === ' ') { this.espaco = e.type === 'keydown'; e.preventDefault(); return; }
     if (ctrl && k.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
     if (ctrl && k.toLowerCase() === 's') { e.preventDefault(); return this.salvar(); }
-    if (ctrl) return;
+    if (ctrl) { Pintura.teclaCtrl(e); return; }
     if (this.teste) { if (k === 'Escape' || k.toLowerCase() === 't') { e.preventDefault(); this.testar(false); } return; } // testando: nada mexe nas peças
     if (k.toLowerCase() === 't' && !e.shiftKey && !e.altKey) { e.preventDefault(); return this.testar(true); }
     if (e.type === 'keydown' && Pintura.tecla(e)) return;
+    if ((k === 'Delete' || k === 'Backspace') && Pintura.temSelecao()) { e.preventDefault(); return Pintura.mexeDentro('apagar'); } // área selecionada na imagem
     if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); return this.apagarSelecao(); }
+    if (k === 'Escape' && Pintura.selecao) { e.preventDefault(); return Pintura.desmarcar(); }
     if (k === 'Escape' && (this.multi.size || this.focoImg)) { this.multi.clear(); this.focoImg = null; return this.pinta(); }
     if (k === 'Tab') { e.preventDefault(); const ps = this.def.partes; if (!ps.length) return; const i = ps.findIndex(x => x.id === this.sel); this.multi.clear(); this.focoImg = null; this.sel = ps[(i + (e.shiftKey ? -1 : 1) + ps.length) % ps.length].id; return this.pinta(); }
     if (!p) return; const est = this.estado()[p.id], passo = e.shiftKey ? 10 : 1, kk = k.toLowerCase();
@@ -187,14 +221,14 @@ const Atelie = {
   /* ---------- painéis ---------- */
   pinta() {
     if (!this.def) return; $('#at-nome').value = this.def.nome; $('#at-pasta').value = this.def.pasta || 'Personagens';
-    $('#at-salvar').innerHTML = `${ic('upload', 14)} ${this.sujo ? 'Salvar na nuvem' : 'Salvo'}`;
+    $('#at-salvar').innerHTML = `${ic('upload', 14)} ${this.sujo ? 'Salvar na nuvem' : 'Salvo'}`; this.pintaEstado();
     const au = $('#at-autores'); if (au && au._de !== this.def.autor?.em + '/' + (this.def.edicoes || []).length) { au._de = this.def.autor?.em + '/' + (this.def.edicoes || []).length; au.innerHTML = ''; const sl = Autores.selo(this.def); if (sl) au.appendChild(sl); }
     const pr = this.preset(), s = this.sessao();
-    $('#at-modo').innerHTML = this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
+    $('#at-modo').innerHTML = Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
     $('#at-base').hidden = !pr; $('#at-so-img').classList.toggle('on', this.soImagem); $('#at-so-img').hidden = !!this.teste;
     $('#at-testar').classList.toggle('on', !!this.teste); $('#at-testar').innerHTML = `${ic(this.teste ? 'x' : 'play', 13)} ${this.teste ? 'Sair do teste' : 'Testar'}`; this.pintaTeste();
     this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
-    const lado = $('#at-lado'); lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.pintaSessoes(lado); this.desenha();
+    const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
   },
   pintaPartes() {
     const el = $('#at-partes'), ps = this.def.partes; el.innerHTML = '';
@@ -311,7 +345,7 @@ const Atelie = {
   },
   // partes que entraram sem querer viram IMAGENS (trocáveis) de outra parte. Ex.: 3 partes "olho aberto/fechado/bravo" → imagens de "Olhos".
   // Parte com 1 imagem: a imagem leva o nome da parte. Com várias: vão juntas numa pasta com o nome da parte.
-  virarImagens(lista, alvo, pasta = null) {
+  virarImagens(lista, alvo, pasta = null, o = {}) {
     lista = lista.filter(p => p && p.id !== alvo.id); if (!lista.length) return;
     const vazias = lista.filter(p => !p.imgs.length), comImg = lista.filter(p => p.imgs.length); let n = 0;
     for (const p of comImg) {
@@ -321,7 +355,7 @@ const Atelie = {
     }
     if (pasta) { alvo.pastas = alvo.pastas || []; if (!alvo.pastas.includes(pasta)) alvo.pastas.push(pasta); }
     if (!alvo.base.img && alvo.imgs.length) alvo.base.img = alvo.imgs[0].id;
-    this.tirarPartes(comImg); this.escolhe(alvo.id); this.commit();
+    this.tirarPartes(comImg); if (o.semCommit) return; this.escolhe(alvo.id); this.commit();
     UI.toast(n ? `${comImg.length > 1 ? comImg.length + ' partes viraram' : '"' + esc(comImg[0].nome) + '" virou'} ${n} imagem(ns) de <b>${esc(alvo.nome)}</b>. Clique numa imagem para trocar; dois cliques renomeiam (o editor troca pelo nome).${vazias.length ? ' Partes sem imagem ficaram como estavam.' : ''}` : 'Essas partes não têm imagens para mover.', { kind: n ? 'ok' : 'warn', time: 7000 });
   },
   novaParte(pai = null) { const p = Modelo.novaParte('Parte ' + (this.def.partes.length + 1), pai ?? (this.parte()?.id || null)); p.z = this.def.partes.length; this.def.partes.push(p); this.sel = p.id; this.commit(); setTimeout(() => this.addImagens(null, false), 50); },
@@ -503,9 +537,9 @@ const Atelie = {
   /* ---------- TESTAR: os mesmos botões do editor (sessões, presets e imagens por nome), para ver se tudo funciona.
      Nada muda o personagem; achou algo errado, "Arrumar" abre o preset (ou a parte) para corrigir. ---------- */
   testar(on) {
-    clearInterval(this._roda); this._roda = null;
-    this.teste = on ? { sessoes: {}, partes: {} } : null; if (on) { this.edit = null; this.multi.clear(); this.focoImg = null; }
-    this.pinta();
+    clearInterval(this._roda); this._roda = null; Animacoes.parar(true); Animacoes.passo = null;
+    const antes = !!this.teste; this.teste = on ? { sessoes: {}, partes: {} } : null; if (on) { this.edit = null; this.multi.clear(); this.focoImg = null; }
+    this.pinta(); if (antes !== !!on) this.enquadrar();
   },
   // problemas de um preset: vazio, parte que não existe mais, imagem que não existe mais
   problemas(pr) {
@@ -515,17 +549,17 @@ const Atelie = {
   },
   pintaTeste() {
     let el = $('#at-teste'); if (!this.teste) { el?.remove(); return; }
-    if (!el) { el = h('<div id="at-teste" class="at-teste"></div>'); $('.at-palco').appendChild(el); }
+    if (!el) { el = h('<div id="at-teste" class="at-teste"></div>'); $('.at-palco').appendChild(el); } el.classList.toggle('min', !!this.testeMin);
     const T = this.teste, def = this.def, rol = el.scrollTop; el.innerHTML = '';
-    el.appendChild(h(`<div class="tt-cab"><b>${ic('play', 13)} Testar os botões</b><span class="sp"></span><button class="btn sm" data-zera title="Tudo na base">Base</button><button class="ibtn" data-x title="Sair do teste (Esc)">${ic('x', 13)}</button></div>`));
-    $('[data-zera]', el).onclick = () => { this.testar(true); }; $('[data-x]', el).onclick = () => this.testar(false);
+    el.appendChild(h(`<div class="tt-cab"><b>${ic('play', 13)} Testar os botões</b><span class="sp"></span><button class="btn sm" data-zera title="Tudo na base">Base</button><button class="ibtn" data-min title="${this.testeMin ? 'Abrir o painel' : 'Recolher o painel'}">${ic(this.testeMin ? 'down' : 'up', 13)}</button><button class="ibtn" data-x title="Sair do teste (Esc)">${ic('x', 13)}</button></div>`));
+    $('[data-zera]', el).onclick = () => { Animacoes.parar(true); this.teste = { sessoes: {}, partes: {} }; this.pinta(); }; $('[data-min]', el).onclick = () => { this.testeMin = !this.testeMin; this.pintaTeste(); this.enquadrar(); }; $('[data-x]', el).onclick = () => this.testar(false);
     el.appendChild(h('<div class="tt-dica">Clique como no editor e veja a peça mudar. Botão vermelho = tem problema (passe o mouse). Errado? Clique em <b>Arrumar</b>.</div>'));
     if (!def.sessoes.length) el.appendChild(h('<div class="vazio">Ainda não tem sessões (olhos, boca, poses…). Crie na aba <b>Sessões e poses</b>.</div>'));
     for (const s of def.sessoes) {
       const esc1 = T.sessoes[s.id], box = h(`<div class="tt-s"><div class="tt-t"><b>${esc(s.nome)}</b><span class="sp"></span><button class="ibtn" data-roda title="Passar por todos os presets">${ic('loop', 13)}</button><button class="btn sm" data-arruma ${esc1 ? '' : 'disabled'} title="Editar o preset escolhido">${ic('edit', 12)} Arrumar</button></div><div class="lista presets"></div></div>`);
       const l = $('.lista', box);
       for (const pr of s.presets) { const pb = this.problemas(pr), b = h(`<button class="${esc1 === pr.id ? 'on' : ''} ${pb.length ? 'ruim' : ''}" title="${pb.length ? esc('Problema: ' + pb.join('; ')) : 'Clique para ver'}">${esc(pr.nome)}</button>`);
-        b.onclick = () => { clearInterval(this._roda); this._roda = null; if (T.sessoes[s.id] === pr.id) delete T.sessoes[s.id]; else T.sessoes[s.id] = pr.id; this.pinta(); };
+        b.onclick = () => { clearInterval(this._roda); this._roda = null; Animacoes.parar(true); if (T.sessoes[s.id] === pr.id) delete T.sessoes[s.id]; else T.sessoes[s.id] = pr.id; this.pinta(); };
         b.ondblclick = () => this.arrumar(s, pr); b.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [{ label: 'Arrumar este preset', icon: 'edit', action: () => this.arrumar(s, pr) }]); };
         l.appendChild(b); }
       if (!s.presets.length) l.appendChild(h('<span class="tt-nada">sem presets</span>'));
@@ -537,7 +571,7 @@ const Atelie = {
     if (varias.length) { el.appendChild(h('<div class="tt-t" style="margin-top:6px"><b>Imagens por nome</b></div>'));
       const est = this.estado();
       for (const p of varias) { const box = h(`<div class="tt-s"><div class="tt-t"><small>${esc(p.nome)}</small><span class="sp"></span><button class="btn sm" data-arruma title="Ir para a parte">${ic('edit', 12)} Arrumar</button></div><div class="lista presets"></div></div>`), l = $('.lista', box);
-        for (const img of p.imgs) { const b = h(`<button class="${est[p.id]?.img === img.id ? 'on' : ''}">${esc(img.nome)}</button>`); b.onclick = () => { T.partes[p.id] = { img: img.id }; this.pinta(); }; l.appendChild(b); }
+        for (const img of p.imgs) { const b = h(`<button class="${est[p.id]?.img === img.id ? 'on' : ''}">${esc(img.nome)}</button>`); b.onclick = () => { Animacoes.parar(true); T.partes[p.id] = { ...(T.partes[p.id] || {}), img: img.id }; this.pinta(); }; l.appendChild(b); }
         $('[data-arruma]', box).onclick = () => { this.testar(false); this.escolhe(p.id); this.aba = 'peca'; this.pinta(); };
         el.appendChild(box); } }
     el.scrollTop = rol;
@@ -545,20 +579,27 @@ const Atelie = {
   arrumar(s, pr) { this.testar(false); this.edit = { s: s.id, p: pr.id }; this.aba = 'sessoes'; const p1 = Object.keys(pr.estado || {}).find(id => this.parte(id)); if (p1) this.escolhe(p1); this.pinta(); UI.toast(`Arrumando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>. O que você mexer vale só para este preset.`, { kind: 'ok' }); },
 
   /* ---------- IA no Ateliê: cria um preset novo numa sessão, ou preenche de uma vez os presets que estão vazios ---------- */
-  async ia() {
+  async ia(modoIni) {
     const def = this.def; if (!def.partes.length) return UI.toast('Ponha as partes do personagem antes de usar a IA.', { kind: 'warn' });
     const atual = this.edit?.s || def.sessoes[0]?.id || '';
-    const body = h(`<div><label class="field">Sessão<select data-s>${def.sessoes.map(s => `<option value="${s.id}" ${s.id === atual ? 'selected' : ''}>${esc(s.nome)} (${s.presets.length})</option>`).join('')}<option value="__nova">+ Sessão nova…</option></select></label>
-      <label class="field">O que a IA deve criar<textarea rows="3" data-p placeholder="Ex.: olhos de susto, bem abertos · chutando para a frente · acenando com a mão direita"></textarea></label>
-      <label class="chk"><input type="checkbox" data-vazios> Preencher os presets vazios desta sessão (usa o nome de cada um)</label></div>`);
-    const r = await UI.modal({ title: 'IA do Ateliê', icon: 'sparkles', kind: 'ia', body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary ia', icon: 'sparkles', collect: a => ({ s: $('[data-s]', a.body).value, pedido: $('[data-p]', a.body).value.trim(), vazios: $('[data-vazios]', a.body).checked }) }] });
+    const body = h(`<div><label class="field">O que a IA deve fazer<select data-modo>
+        <option value="organizar">Organizar tudo automaticamente (partes, raiz, encaixes, camadas, sessões, presets e animações de teste)</option>
+        <option value="animacoes">Criar animações de teste (andar, falar, piscar…)</option>
+        <option value="preset">Criar um preset numa sessão</option><option value="vazios">Preencher os presets vazios de uma sessão</option></select></label>
+      <label class="field" data-so-s>Sessão<select data-s>${def.sessoes.map(s => `<option value="${s.id}" ${s.id === atual ? 'selected' : ''}>${esc(s.nome)} (${s.presets.length})</option>`).join('')}<option value="__nova">+ Sessão nova…</option></select></label>
+      <label class="field">Pedido <small data-dica></small><textarea rows="3" data-p></textarea></label>
+      <div data-aviso style="color:var(--tx3);font-size:11.5px"></div></div>`);
+    const modo = $('[data-modo]', body), troca = () => { const m = modo.value; $('[data-so-s]', body).hidden = !['preset', 'vazios'].includes(m);
+      $('[data-p]', body).placeholder = { organizar: 'Opcional. Ex.: "a raiz é o corpo", "as bocas são para falar"', animacoes: 'Opcional. Ex.: "andar, falar e acenar feliz"', preset: 'Ex.: olhos de susto, bem abertos · chutando para a frente', vazios: 'Opcional' }[m];
+      $('[data-aviso]', body).innerHTML = m === 'organizar' ? 'A IA vê as peças e monta tudo de uma vez. Depois você só ajusta à mão o que precisar (um <b>Ctrl+Z</b> desfaz tudo).' : ''; };
+    modo.value = modoIni || (def.sessoes.length || def.animacoes?.length ? 'preset' : 'organizar'); modo.onchange = troca; troca();
+    const r = await UI.modal({ title: 'IA do Ateliê', icon: 'sparkles', kind: 'ia', width: 520, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Fazer', kind: 'primary ia', icon: 'sparkles', collect: a => ({ modo: modo.value, s: $('[data-s]', a.body).value, pedido: $('[data-p]', a.body).value.trim() }) }] });
     if (!r) return;
+    if (r.modo === 'organizar' || r.modo === 'animacoes') return this.iaOrganizar(r.modo, r.pedido);
     let s = def.sessoes.find(x => x.id === r.s);
-    if (r.s === '__nova') { const nome = await UI.prompt({ title: 'Sessão nova', label: 'Nome (ex.: Olhos, Boca, Pose)', ok: 'Criar' }); if (!nome) return; s = { id: uid('s'), nome, partes: [], presets: [] }; def.sessoes.push(s); this.commit(); }
-    if (!s) return;
-    const fila = r.vazios ? s.presets.filter(p => !Object.keys(p.estado || {}).length).map(p => ({ pr: p, pedido: p.nome })) : [];
-    if (r.pedido) fila.push({ pr: null, pedido: r.pedido });
-    if (!fila.length) return UI.toast(r.vazios ? 'Essa sessão não tem presets vazios. Escreva o que a IA deve criar.' : 'Escreva o que a IA deve criar.', { kind: 'warn' });
+    if (r.s === '__nova' || !s) { const nome = await UI.prompt({ title: 'Sessão nova', label: 'Nome (ex.: Olhos, Boca, Pose)', ok: 'Criar' }); if (!nome) return; s = { id: uid('s'), nome, partes: [], presets: [] }; def.sessoes.push(s); this.commit(); }
+    const fila = r.modo === 'vazios' ? s.presets.filter(p => !Object.keys(p.estado || {}).length).map(p => ({ pr: p, pedido: p.nome + (r.pedido ? ' — ' + r.pedido : '') })) : r.pedido ? [{ pr: null, pedido: r.pedido }] : [];
+    if (!fila.length) return UI.toast(r.modo === 'vazios' ? 'Essa sessão não tem presets vazios.' : 'Escreva o que a IA deve criar.', { kind: 'warn' });
     const t = UI.toast(`<span class="spin-dot"></span> <span data-p>A IA está montando…</span>`, { time: 600000 }); let feitos = 0, ultimo = null;
     try {
       for (const it of fila) { const e = t.querySelector('[data-p]'); if (e) e.textContent = `A IA está montando "${it.pedido}"… (${feitos + 1}/${fila.length})`;
@@ -567,12 +608,49 @@ const Atelie = {
       UI.toast(`${feitos} preset(s) feitos pela IA em <b>${esc(s.nome)}</b>. Está no modo <b>Testar</b>: clique nos botões para conferir e em Arrumar se precisar.`, { kind: 'ok', time: 7000 });
     } catch (e) { t.remove(); this.pinta(); UI.toast(`A IA parou${feitos ? ` depois de ${feitos}` : ''}: ` + esc(e.message), { kind: 'err' }); }
   },
+  async iaOrganizar(modo, pedido) {
+    const t = UI.toast(`<span class="spin-dot"></span> <span data-p>A IA está olhando as peças…</span>`, { time: 600000 });
+    try {
+      await Arq.garantir(this.def.partes.flatMap(p => p.imgs.map(i => i.k)));
+      const plano = await IA.organizar(this.def, modo, pedido, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = `A IA está organizando… (${Math.round(txt.length / 100) / 10} mil letras)`; });
+      t.remove(); const feito = this.aplicarPlano(plano, modo);
+      this.aba = (this.def.animacoes || []).length ? 'animacoes' : 'sessoes'; this.testar(true);
+      UI.toast(`<b>Pronto.</b> ${feito.join(' · ') || 'A IA achou que já estava tudo certo.'}<br>Confira no <b>Testar</b> e na aba <b>Animações</b>; ajuste à mão o que precisar (Ctrl+Z desfaz tudo).`, { kind: 'ok', time: 12000 });
+    } catch (e) { t.remove(); UI.toast('A IA não conseguiu organizar: ' + esc(e.message), { kind: 'err', time: 7000 }); }
+  },
+  // aplica o plano da IA (nomes → ids). Tudo num commit só.
+  aplicarPlano(pl, modo) {
+    const def = this.def, feito = [], nome = n => IA.acha(def.partes, n), img = (p, n) => p && n ? IA.acha(p.imgs, n) : null;
+    if (modo !== 'animacoes') {
+      let n = 0; for (const j of pl.juntar || []) { const alvo = nome(j.em), ps = (j.partes || []).map(nome).filter(p => p && p !== alvo); if (alvo && ps.length) { this.virarImagens(ps, alvo, null, { semCommit: true }); n += ps.length; } } if (n) feito.push(`${n} parte(s) viraram imagens`);
+      n = 0; for (const [de, para] of Object.entries(pl.renomear_partes || {})) { const p = nome(de); if (p && para) { p.nome = String(para).slice(0, 40); n++; } }
+      for (const r of pl.renomear_imagens || []) { const p = nome(r.parte), i = img(p, r.de); if (i && r.para) { i.nome = String(r.para).slice(0, 40); n++; } } if (n) feito.push(`${n} nome(s) arrumados`);
+      const rz = nome(pl.raiz); if (rz) { if (rz.pai) this.porNoPai(rz.id, null, { semCommit: true }); def.raiz = rz.id; feito.push(`raiz: ${rz.nome}`); }
+      n = 0; for (const [fi, pa] of Object.entries(pl.pais || {})) { const f = nome(fi), p = pa ? nome(pa) : null; if (f && f !== rz && (p?.id || null) !== (f.pai || null) && (!pa || p)) { let a = p?.id, ciclo = false; while (a) { if (a === f.id) { ciclo = true; break; } a = this.parte(a)?.pai; } if (!ciclo) { this.porNoPai(f.id, p?.id || null, { semCommit: true }); n++; } } } if (n) feito.push(`${n} encaixe(s)`);
+      if (Array.isArray(pl.camadas) && pl.camadas.length) { const L = pl.camadas.map(nome).filter(Boolean), resto = def.partes.filter(p => !L.includes(p)); const ordem = [...new Set([...resto, ...L])]; ordem.forEach((p, i) => p.z = i); feito.push('camadas'); }
+      n = 0; for (const s0 of pl.sessoes || []) {
+        let s = def.sessoes.find(x => x.nome.toLowerCase() === String(s0.nome || '').toLowerCase()); if (!s) { s = { id: uid('s'), nome: String(s0.nome || 'Sessão').slice(0, 30), partes: [], presets: [] }; def.sessoes.push(s); }
+        const ps = (s0.partes || []).map(nome).filter(Boolean).map(p => p.id); if (ps.length) s.partes = [...new Set([...(s.partes || []), ...ps])];
+        for (const pr0 of s0.presets || []) { const estado = {}; for (const [pn, e0] of Object.entries(pr0.estado || {})) { const p = nome(pn); if (!p) continue; const e = typeof e0 === 'string' ? { img: e0 } : e0 || {}, v = {}, im = img(p, e.img); if (im) v.img = im.id; for (const c of ['x', 'y', 'r', 's']) if (e[c] != null && isFinite(+e[c])) v[c] = +e[c]; if (Object.keys(v).length) estado[p.id] = v; }
+          let pr = s.presets.find(x => x.nome.toLowerCase() === String(pr0.nome || '').toLowerCase()); if (pr && Object.keys(pr.estado || {}).length) continue;
+          if (!pr) { pr = { id: uid('pr'), nome: String(pr0.nome || 'preset').slice(0, 40), estado: {} }; s.presets.push(pr); } pr.estado = estado; n++; } }
+      if (n) feito.push(`${n} preset(s)`);
+    }
+    let n = 0; for (const a0 of pl.animacoes || []) {
+      const trilhas = (a0.trilhas || []).map(t => (t || []).map(p0 => { const p = { s: {}, p: {} }; for (const [pn, v0] of Object.entries(p0 || {})) { const pt = nome(pn); if (!pt) continue; const v = typeof v0 === 'string' ? { img: v0 } : v0 || {}, im = img(pt, v.img); if (!im && !v.r) continue; p.p[pt.id] = { ...(im ? { img: im.id } : {}), ...(v.r ? { r: +v.r } : {}) }; } return p; }).filter(p => Object.keys(p.p).length)).filter(t => t.length);
+      if (!trilhas.length) continue; const L = def.animacoes ||= [], velha = L.find(x => x.nome.toLowerCase() === String(a0.nome || '').toLowerCase());
+      const a = { id: velha?.id || uid('an'), nome: String(a0.nome || 'Animação').slice(0, 40), vel: clamp(+a0.vel || 250, 60, 2000), trilhas };
+      if (velha) L[L.indexOf(velha)] = a; else L.push(a); n++;
+    }
+    if (n) feito.push(`${n} animação(ões) de teste`);
+    this.sel = def.raiz || this.sel; this.multi.clear(); this.commit(); return feito;
+  },
 
   /* ---------- salvar na nuvem da equipe ---------- */
   async salvar() {
     const def = this.def; if (!def.partes.length) return UI.toast('Ponha pelo menos uma parte antes de salvar.', { kind: 'warn' });
     def.thumb = this.miniatura(); const t = UI.toast('<span class="spin-dot"></span> <span data-p>Salvando na nuvem…</span>', { time: 600000 });
-    try { await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); this.sujo = false; this.ultimo = JSON.stringify(def); this.pinta();
+    try { await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.pinta();
       if (App.P?.personagens?.[def.id]) { App.P.personagens[def.id] = clone(def); App.commit('Personagem atualizado'); }
       try { new BroadcastChannel('animador').postMessage({ tipo: 'personagem', def: JSON.parse(JSON.stringify(def)) }); } catch { } // avisa as outras abas (a animação aberta atualiza o personagem)
       UI.toast(`<b>${esc(def.nome)}</b> salvo na nuvem da equipe (pasta "${esc(def.pasta)}").`, { kind: 'ok' }); }

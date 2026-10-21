@@ -3,14 +3,15 @@
    volta a imagem de antes e a nuvem só recebe as imagens novas quando alguém clica em "Salvar na nuvem". */
 'use strict';
 const Pintura = {
-  ferr: 'mover', cor: '#222222', tam: 14, tol: 48, escopo: 'imagem', selCores: [], paletaEscopo: 'tudo', mouse: null,
-  FERR: [['mover', 'Mover', 'move', 'V'], ['pincel', 'Pincel', 'brush', 'B'], ['borracha', 'Borracha', 'eraser', 'N'], ['balde', 'Balde', 'bucket', 'G'], ['conta', 'Conta-gotas', 'pipette', 'I']],
+  ferr: 'mover', cor: '#222222', tam: 14, tol: 48, opac: 1, escopo: 'imagem', selCores: [], paletaEscopo: 'tudo', mouse: null,
+  FERR: [['mover', 'Mover', 'move', 'V'], ['pincel', 'Pincel', 'brush', 'B'], ['borracha', 'Borracha', 'eraser', 'N'], ['balde', 'Balde', 'bucket', 'G'], ['conta', 'Conta-gotas', 'pipette', 'I'],
+    ['ret', 'Seleção', 'marquee', 'M'], ['laco', 'Laço', 'lasso', 'L'], ['varinha', 'Varinha', 'wand', 'W'], ['magica', 'Borr. mágica', 'magicEraser', 'Y']],
   liga() {
     if (this._ligado) return; this._ligado = true; const cv = Atelie.cv;
     cv.addEventListener('pointermove', e => { if (this.ferr === 'mover') { if (this.mouse) { this.mouse = null; Atelie.desenha(); } return; } this.mouse = { x: e.offsetX, y: e.offsetY }; Atelie.desenha(); });
     cv.addEventListener('pointerleave', () => { this.mouse = null; Atelie.desenha(); });
   },
-  usa(f) { this.ferr = f; Atelie.cv.style.cursor = f === 'mover' ? '' : f === 'conta' ? 'copy' : 'crosshair'; Atelie.pinta(); },
+  usa(f) { this.ferr = f; Atelie.cv.style.cursor = f === 'mover' ? '' : f === 'conta' ? 'copy' : 'crosshair'; if (Atelie.aba !== 'pintar' && f !== 'mover') Atelie.aba = 'pintar'; Atelie.pinta(); },
   tecla(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false; const k = e.key.toLowerCase(), f = this.FERR.find(x => x[3].toLowerCase() === k);
     if (f) { this.usa(f[0]); return true; }
@@ -22,10 +23,12 @@ const Pintura = {
     const p = Atelie.parte(); if (!p) return null; const it = Modelo.montar(Atelie.def, Atelie.estado()).find(x => x.parte.id === p.id); if (!it?.img) return null;
     const bm = Arq.img.get(it.img.k); if (!bm) return null;
     const img = it.img, px = img.pivo?.x ?? img.w / 2, py = img.pivo?.y ?? img.h / 2, inv = it.m.inverse(), kx = bm.width / img.w, ky = bm.height / img.h;
-    return { p, img, bm, para: w => { const l = inv.transformPoint(new DOMPoint(w.x, w.y)); return { x: (l.x + px - (img.ajuste?.x || 0)) * kx, y: (l.y + py - (img.ajuste?.y || 0)) * ky }; }, k: (kx + ky) / 2, escala: Math.hypot(it.m.a, it.m.b) };
+    const ajx = img.ajuste?.x || 0, ajy = img.ajuste?.y || 0;
+    return { p, img, bm, it, de: q => it.m.transformPoint(new DOMPoint(q.x / kx - px + ajx, q.y / ky - py + ajy)), mImg: it.m.translate(-px + ajx, -py + ajy).scale(1 / kx, 1 / ky), para: w => { const l = inv.transformPoint(new DOMPoint(w.x, w.y)); return { x: (l.x + px - (img.ajuste?.x || 0)) * kx, y: (l.y + py - (img.ajuste?.y || 0)) * ky }; }, k: (kx + ky) / 2, escala: Math.hypot(it.m.a, it.m.b) };
   },
   // círculo do pincel no palco
   desenhaCursor(ctx) {
+    this.desenhaSelecao(ctx);
     if (!this.mouse || !['pincel', 'borracha'].includes(this.ferr)) return; const a = this.alvo(), d = devicePixelRatio || 1;
     const r = Math.max(1.5, this.tam / 2 / (a?.k || 1) * (a?.escala || 1) * Atelie.vista.z * d);
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.beginPath(); ctx.arc(this.mouse.x * d, this.mouse.y * d, r, 0, 7); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * d; ctx.stroke();
@@ -44,13 +47,21 @@ const Pintura = {
       const d = devicePixelRatio || 1, px = Atelie.ctx.getImageData(Math.round(e.offsetX * d), Math.round(e.offsetY * d), 1, 1).data, hex = hexDe(px[0], px[1], px[2]);
       this.cor = hex; if (e.shiftKey) this.marca(hex, true); Atelie.pinta(); return;
     }
-    const { cv, c } = this.tela(a.bm), orig = a.bm, k0 = a.img.k;
-    if (this.ferr === 'balde') { this.balde(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.cor, this.tol); await this.gravar(a.img, cv); Atelie.commit(); return; }
-    // pincel / borracha: traço contínuo
-    c.lineCap = c.lineJoin = 'round'; c.lineWidth = this.tam; c.strokeStyle = c.fillStyle = this.cor; c.globalCompositeOperation = this.ferr === 'borracha' ? 'destination-out' : 'source-over';
-    let ult = pt; c.beginPath(); c.arc(pt.x, pt.y, this.tam / 2, 0, 7); c.fill(); Arq.img.set(k0, cv); Atelie.desenha();
+    if (['ret', 'laco', 'varinha'].includes(this.ferr)) return this.desceSelecao(e, a, pt);
+    const { cv, c } = this.tela(a.bm), orig = a.bm, k0 = a.img.k, mask = this.mascara(a);
+    if (this.ferr === 'balde' || this.ferr === 'magica') { // balde pinta a área parecida; borracha mágica apaga a área parecida
+      const antes = mask ? this.tela(a.bm) : null;
+      if (this.ferr === 'balde') this.balde(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.cor, this.tol);
+      else { const m = this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, e.shiftKey); if (!m) return; c.globalCompositeOperation = 'destination-out'; c.drawImage(m, 0, 0); c.globalCompositeOperation = 'source-over'; }
+      if (mask) this.soNaSelecao(c, antes.cv, mask); await this.gravar(a.img, cv); Atelie.commit(); return; }
+    // pincel / borracha: o traço vai numa camada à parte (opacidade sem manchar onde cruza; respeita a seleção)
+    const lay = new OffscreenCanvas(cv.width, cv.height), lc = lay.getContext('2d'), base = this.tela(a.bm).cv, apaga = this.ferr === 'borracha';
+    lc.lineCap = lc.lineJoin = 'round'; lc.lineWidth = this.tam; lc.strokeStyle = lc.fillStyle = apaga ? '#000' : this.cor;
+    const junta = () => { const l2 = mask ? (() => { const t = new OffscreenCanvas(cv.width, cv.height), x = t.getContext('2d'); x.drawImage(lay, 0, 0); x.globalCompositeOperation = 'destination-in'; x.drawImage(mask, 0, 0); return t; })() : lay;
+      c.globalCompositeOperation = 'copy'; c.globalAlpha = 1; c.drawImage(base, 0, 0); c.globalCompositeOperation = apaga ? 'destination-out' : 'source-over'; c.globalAlpha = this.opac; c.drawImage(l2, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; };
+    let ult = pt; lc.beginPath(); lc.arc(pt.x, pt.y, this.tam / 2, 0, 7); lc.fill(); junta(); Arq.img.set(k0, cv); Atelie.desenha();
     Atelie.cv.setPointerCapture(e.pointerId);
-    const mov = ev => { const p2 = a.para(Atelie.mundo(ev)); c.beginPath(); c.moveTo(ult.x, ult.y); c.lineTo(p2.x, p2.y); c.stroke(); ult = p2; Atelie.desenha(); };
+    const mov = ev => { const p2 = a.para(Atelie.mundo(ev)); lc.beginPath(); lc.moveTo(ult.x, ult.y); lc.lineTo(p2.x, p2.y); lc.stroke(); ult = p2; junta(); Atelie.desenha(); };
     const up = async () => { Atelie.cv.removeEventListener('pointermove', mov); Atelie.cv.removeEventListener('pointerup', up); Arq.img.set(k0, orig); await this.gravar(a.img, cv); Atelie.commit(); };
     Atelie.cv.addEventListener('pointermove', mov); Atelie.cv.addEventListener('pointerup', up);
   },
@@ -115,9 +126,10 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
     const box = h(`<div class="props"><div class="campo2"><span style="color:var(--tx2)">Cor</span><input type="color" value="${this.cor}" data-cor><code style="color:var(--tx3)">${this.cor}</code></div></div>`);
     $('[data-cor]', box).oninput = ev => { this.cor = ev.target.value; $('code', box).textContent = this.cor; };
     box.appendChild(Lado.campo('Tamanho', this.tam, 1, 300, 1, v => { this.tam = Math.round(v); Atelie.desenha(); }));
+    box.appendChild(Lado.campo('Opacidade', this.opac, .05, 1, .01, v => { this.opac = v; }));
     box.appendChild(Lado.campo('Tolerância', this.tol, 0, 160, 1, v => { this.tol = Math.round(v); }));
-    box.appendChild(h(`<div style="color:var(--tx3);font-size:11.5px">Pinta na imagem que está aparecendo na parte escolhida. <b>[ ]</b> muda o tamanho do pincel. Tolerância vale para o balde e para trocar cores. Ctrl+Z desfaz.</div>`));
-    el.appendChild(box);
+    box.appendChild(h(`<div style="color:var(--tx3);font-size:11.5px">Pinta na imagem que está aparecendo na parte escolhida. <b>[ ]</b> muda o tamanho do pincel. Tolerância vale para o balde, a varinha, a borracha mágica e para trocar cores. Com uma seleção, o pincel e a borracha só mexem dentro dela. Ctrl+Z desfaz.</div>`));
+    el.appendChild(box); el.appendChild(this.pintaSelecao());
     // cores base
     const pb = h(`<div class="sessao"><h4>Cores base <span class="sp"></span><select data-esc title="De onde tirar as cores"><option value="tudo">personagem todo</option><option value="parte">esta parte</option><option value="imagem">esta imagem</option></select></h4><div class="pt-pal"><span class="spin-dot"></span></div>
       <div style="color:var(--tx3);font-size:11.5px;margin-top:6px">Clique: pinta com ela e seleciona · Shift+clique: junta mais cores na seleção · conta-gotas + Shift também seleciona.</div></div>`);

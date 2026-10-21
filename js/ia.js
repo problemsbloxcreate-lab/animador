@@ -109,4 +109,42 @@ Use só partes e imagens que existem; r em graus (rotação no encaixe); x/y sã
     }
     return { id: uid('pr'), nome: String(j.nome || pedido).slice(0, 40), estado };
   },
+
+  /* ---------- ateliê: ORGANIZAR TUDO (ou só criar animações de teste) ----------
+     A IA vê miniaturas das peças (não só os nomes) e devolve um plano; o Ateliê aplica o plano de uma vez (um Ctrl+Z desfaz). */
+  SIS_ORGANIZAR: `Você organiza um personagem 2D de animação por ENCAIXE (partes trocáveis montadas quadro a quadro, estilo cartoon).
+Você recebe a lista de PARTES (nome, pai, camada z, imagens com nome e tamanho) e MINIATURAS de cada imagem (rotuladas "Parte › imagem").
+Monte um plano para deixar o personagem pronto para animar. Responda SÓ um JSON, com só as chaves que precisar:
+{
+ "juntar":[{"em":"Parte que fica","partes":["parte que virou parte sem querer", ...]}],   // partes que na verdade são outra imagem da mesma peça (ex.: olho fechado separado de Olhos)
+ "renomear_partes":{"nome atual":"nome bom"},
+ "renomear_imagens":[{"parte":"Olhos","de":"img 3","para":"fechados"}],
+ "raiz":"Corpo",                                   // a parte principal (normalmente corpo/tronco)
+ "pais":{"Olhos":"Cabeça","Mão direita":"Braço direito"},   // quem encaixa em quem (filho:pai). Não mude se já estiver certo.
+ "camadas":["mais atrás", "...", "mais na frente"],  // ordem de todas as partes, só se a atual estiver errada
+ "sessoes":[{"nome":"Olhos","partes":["Olhos"],"presets":[{"nome":"fechados","estado":{"Olhos":{"img":"fechados"}}}]}],
+ "animacoes":[{"nome":"Piscar","vel":250,"trilhas":[[{"Olhos":"abertos"},{"Olhos":"meio"},{"Olhos":{"img":"fechados","r":0}}]]}]
+}
+Regras: use SÓ partes e imagens que existem (nomes exatos, ou os novos nomes que você mesmo deu). Sessões por grupo de peça (Olhos, Boca, Braço direito, Pernas, Pose…),
+um preset por imagem útil + poses combinadas que façam sentido. Animações de teste curtas e úteis: piscar, falar (bocas A/E/O/U/M…), andar (pernas alternando), acenar, gesticular.
+Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":graus}}; trilhas diferentes andam juntas (ex.: pernas + boca + olhos). vel em ms (120 a 700).
+"juntar" só quando tiver certeza (a peça é claramente outra versão da mesma parte). Não invente coisas que as imagens não mostram.`,
+  async miniaturas(def, max = 70) {
+    const out = []; const todas = def.partes.flatMap(p => p.imgs.map(i => ({ p, i }))), pega = todas.length > max ? def.partes.flatMap(p => p.imgs.slice(0, Math.max(1, Math.floor(max / def.partes.length))).map(i => ({ p, i }))).slice(0, max) : todas;
+    for (const { p, i } of pega) {
+      const bm = Arq.img.get(i.k) || await new Promise(ok => { const b = Arq.bitmap(i.k, ok); if (b) ok(b); }); if (!bm) continue;
+      const S = 112, k = Math.min(S / bm.width, S / bm.height, 1), c = new OffscreenCanvas(Math.max(1, Math.round(bm.width * k)), Math.max(1, Math.round(bm.height * k))), x = c.getContext('2d');
+      x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(bm, 0, 0, c.width, c.height);
+      const b = await c.convertToBlob({ type: 'image/jpeg', quality: .8 }), u8 = new Uint8Array(await b.arrayBuffer()); let bin = ''; for (let j = 0; j < u8.length; j += 8192) bin += String.fromCharCode(...u8.subarray(j, j + 8192));
+      out.push({ type: 'text', text: `${p.nome} › ${i.nome}` }, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: btoa(bin) } });
+    }
+    return out;
+  },
+  async organizar(def, modo, pedido, aoEscrever) {
+    const partes = def.partes.map(p => ({ parte: p.nome, pai: def.partes.find(x => x.id === p.pai)?.nome || null, raiz: p.id === def.raiz || undefined, z: p.z || 0, imagens: p.imgs.map(i => `${i.nome} (${i.w}x${i.h})`) }));
+    const sess = def.sessoes.map(s => ({ sessao: s.nome, presets: s.presets.map(pr => pr.nome) })), anims = (def.animacoes || []).map(a => a.nome);
+    const foco = modo === 'animacoes' ? 'Crie SÓ "animacoes" (de teste) com as peças que existem; não mexa no resto.' : 'Organize TUDO (juntar, nomes, raiz, pais, camadas, sessões, presets e animações de teste).';
+    const content = [{ type: 'text', text: `PERSONAGEM: ${def.nome}\nPARTES: ${JSON.stringify(partes)}\nSESSÕES QUE JÁ EXISTEM: ${JSON.stringify(sess)}\nANIMAÇÕES QUE JÁ EXISTEM: ${JSON.stringify(anims)}\n\n${foco}${pedido ? '\nPEDIDO DA PESSOA: ' + pedido : ''}\n\nMINIATURAS:` }, ...(await this.miniaturas(def))];
+    return this.json(await this.chama(this.SIS_ORGANIZAR, content, aoEscrever));
+  },
 };

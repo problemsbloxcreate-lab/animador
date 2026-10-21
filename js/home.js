@@ -109,6 +109,15 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       <div class="sec">Biblioteca da equipe <span class="sp"></span><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div>`;
     $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-backup]', c).onclick = () => AtelieArq.escolher(); $('[data-atu]', c).onclick = () => this.pinta();
     const l = $('[data-l]', c);
+    // rascunhos: mudanças guardadas só neste computador (ainda não foram para a nuvem)
+    Atelie.rascunhos().then(rs => { if (!rs.length) return; const sec = h(`<div><div class="sec">${ic('save', 14)} Só neste computador <small style="color:var(--tx3);font-weight:400;margin-left:6px">mudanças que ainda não foram para a nuvem</small></div><div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div></div>`), g = $('.grade', sec);
+      for (const r of rs) { const card = h(`<div class="pc rasc"><div class="th" style="aspect-ratio:1;${r.thumb ? `background-image:url('${r.thumb}')` : ''}">${r.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(r.def.nome)}</b><small>guardado ${fmtDate(r.em)}</small></div><span class="tag-local">${ic('save', 11)} só aqui</span><button class="ibtn mn">${ic('dots', 15)}</button></div>`);
+        card.onclick = e => { if (!e.target.closest('.mn')) Atelie.abrirAba(r.def.id); };
+        $('.mn', card).onclick = e => { e.stopPropagation(); const b = e.currentTarget.getBoundingClientRect(); UI.ctx(b.right - 200, b.bottom + 4, [
+          { label: 'Continuar no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(r.def.id) }, { label: 'Baixar .atelieanimador', icon: 'download', action: () => AtelieArq.baixar(r.def) },
+          '-', { label: 'Descartar o rascunho', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Descartar o rascunho de "${esc(r.def.nome)}"?`, msg: 'As mudanças que não foram para a nuvem somem deste computador.', ok: 'Descartar', danger: true })) { await Atelie.apagarRascunho(r.def.id); this.pinta(); } } }]); };
+        g.appendChild(card); }
+      l.before(sec); });
     try {
       const lista = await Nuvem.lista(); if (!lista.length) { l.innerHTML = '<div class="vazio">Ninguém criou personagens ainda. Clique em <b>Personagem novo</b>.</div>'; return; }
       l.innerHTML = ''; for (const pa of [...new Set(lista.map(x => x.pasta))]) {
@@ -170,6 +179,6 @@ addEventListener('DOMContentLoaded', async () => {
   window.EstudioConta?.espaco.registrar({ programa: 'Animador', async listar() {
     if (App.P) await App.salvarJa();
     const ps = await DB.all('projetos');
-    return ps.sort((a, b) => b.modificado - a.modificado).map(p => ({ nome: p.nome, bytes: JSON.stringify(p).length, data: p.modificado, thumb: p.thumb, info: `${p.duracao} quadros`, rotuloBaixar: 'Baixar .animador', baixar: () => Toon.baixar(p), apagar: async () => { await DB.del('projetos', p.id); Home.pinta(); }, }));
+    return ps.sort((a, b) => b.modificado - a.modificado).map(p => ({ nome: p.nome, bytes: JSON.stringify(p).length, data: p.modificado, thumb: p.thumb, info: `${p.duracao} quadros`, rotuloBaixar: 'Baixar .animador', baixar: () => Toon.baixar(p), apagar: async () => { await DB.del('projetos', p.id); Home.pinta(); }, })).concat((await Atelie.rascunhos()).map(r => ({ nome: r.def.nome + ' (rascunho do Ateliê)', bytes: JSON.stringify(r.def).length, data: r.em, thumb: r.thumb, info: 'só neste computador', rotuloBaixar: 'Baixar .atelieanimador', baixar: () => AtelieArq.baixar(r.def), apagar: async () => { await Atelie.apagarRascunho(r.def.id); Home.pinta(); } })));
   } });
 });

@@ -345,3 +345,23 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .tela-prev i{display:block;border:2px solid #bbb;border-radius:3px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 .tela-p .campo2{margin-top:8px;flex-wrap:wrap}
 .tela-ia{margin-top:12px;padding:10px;border:1px solid rgba(25,211,240,.3);border-radius:8px;background:linear-gradient(100deg,rgba(25,211,240,.06),rgba(61,107,255,.05))}.tela-ia .field{display:block}.tela-ia svg{color:#7ff0ff;vertical-align:-2px}
+/* ateliê: animações de teste */
+.anims-at{padding:8px}.anims-at>.campo2{margin-bottom:8px}
+.anim{border:1px solid var(--bd);border-radius:8px;margin-bottom:6px;background:var(--bg1)}
+.anim .cab{display:flex;align-items:center;gap:6px;padding:5px 6px;cursor:pointer}.anim .cab b{font-weight:600}.anim .cab small{color:var(--tx3);font-size:11px}
+.anim .cab select{height:24px;font-size:11.5px;padding:0 4px}.anim .cab .ibtn{width:24px;height:24px}
+.anim.toca{border-color:var(--ok)}.anim.toca .play{color:var(--ok)}.anim.aberta{border-color:var(--bd2)}
+.trilha{padding:4px 8px 6px;border-top:1px solid var(--bd)}.tr-t{display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3);margin-bottom:4px}.tr-t .ibtn{width:18px;height:18px}
+.passos{display:flex;flex-wrap:wrap;gap:4px}
+.passo{display:flex;align-items:center;gap:5px;max-width:100%;height:26px;padding:0 8px 0 4px;border-radius:6px;border:1px solid var(--bd2);background:var(--bg2);color:var(--tx);font:inherit;font-size:11.5px;cursor:pointer}
+.passo i{font-style:normal;font-size:10px;min-width:16px;height:16px;border-radius:4px;background:var(--bg3);display:grid;place-items:center;color:var(--tx2)}
+.passo span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}.passo.on{background:#e8e8e8;color:#151515;border-color:#e8e8e8}.passo.on i{background:#cfcfcf;color:#151515}
+.passo.add{border-style:dashed;color:var(--tx2);padding:0 8px}.dica-a{font-size:11px;color:var(--tx3)}
+/* ateliê: seleção e recorte */
+.pt-acoes{display:flex;flex-wrap:wrap;gap:4px}.pt-ferr button small{white-space:nowrap}
+/* ateliê: salvo na nuvem / só neste computador */
+.at-estado{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:13px;font-size:11.5px;white-space:nowrap;cursor:default}
+.at-estado.nuvem{color:var(--ok);background:rgba(123,216,143,.1);border:1px solid rgba(123,216,143,.3)}
+.at-estado.local{color:var(--warn);background:rgba(232,194,90,.1);border:1px solid rgba(232,194,90,.4)}
+.pc .tag-local{position:absolute;top:6px;left:6px;display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--warn);color:#1b1b1b}
+.at-teste.min{bottom:auto}.at-teste.min>:not(.tt-cab){display:none}.at-teste.min .tt-cab{padding-bottom:0}

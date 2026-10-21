@@ -35,6 +35,10 @@ const Lado = {
       const bt = (id, nome) => { const b = h(`<button class="${atual === id ? 'on' : ''} ${atual === id && temChave ? 'chave' : ''}" title="${esc(nome)} no quadro ${q + 1}">${esc(nome)}</button>`); b.onclick = () => this.escolhe(f, s.id, id); pr.appendChild(b); };
       bt(null, 'Padrão'); s.presets.forEach(p => bt(p.id, p.nome)); el.appendChild(box);
     }
+    // animações de teste do personagem (feitas no Ateliê): viram chaves a partir deste quadro
+    if (def.animacoes?.length) { const box = h(`<div class="sessao"><h4>Animações <small>pôr a partir do quadro ${q + 1}</small></h4><div class="presets"></div></div>`), pr = $('.presets', box);
+      for (const a of def.animacoes) { const b = h(`<button title="Escreve &quot;${esc(a.nome)}&quot; como chaves a partir deste quadro">${ic('play', 11)} ${esc(a.nome)}</button>`); b.onclick = () => Animacoes.porNoQuadro(f, def, a); pr.appendChild(b); }
+      el.appendChild(box); }
     // ajustar uma parte só neste trecho (quando uma pose precisa de um retoque)
     const partes = def.partes, ps = this.parteSel && partes.find(p => p.id === this.parteSel) ? this.parteSel : partes[0]?.id;
     if (partes.length) {
