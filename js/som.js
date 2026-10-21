@@ -18,6 +18,45 @@ const Som = {
     for (let i = 0; i < n; i++) { let s = 0; const a = Math.floor(i * por), z = Math.min(d.length, Math.floor((i + 1) * por)); for (let j = a; j < z; j += 4) s += d[j] * d[j]; out[i] = Math.sqrt(s / Math.max(1, (z - a) / 4)); mx = Math.max(mx, out[i]); }
     for (let i = 0; i < n; i++) out[i] /= mx; this._picos.set(k, out); return out;
   },
+  /* ---------- gravar a voz aqui mesmo (microfone): entra como áudio a partir do quadro atual ---------- */
+  async gravar() {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return UI.toast('Este navegador não grava áudio. Use o Chrome ou o Edge.', { kind: 'err' });
+    const P = App.P, q0 = App.q; App.pausa(); let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+    catch { return UI.toast('Não deu para usar o microfone. Libere o microfone para este site (cadeado ao lado do endereço).', { kind: 'err', time: 7000 }); }
+    const tipo = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+    const ac = this.ac(); try { await ac.resume(); } catch { } const src = ac.createMediaStreamSource(stream), an = ac.createAnalyser(); an.fftSize = 512; src.connect(an); const buf = new Uint8Array(an.fftSize);
+    const body = h(`<div class="grav"><div class="grav-st"><i class="grav-pt"></i><b data-t>Pronto para gravar</b><span class="sp"></span><code data-tempo>0:00</code></div>
+      <div class="grav-nivel"><i data-n></i></div>
+      <label class="chk"><input type="checkbox" data-tocar checked> Tocar a animação junto (começa no quadro ${q0 + 1}, para falar no tempo certo)</label>
+      <div style="color:var(--tx3);font-size:12px;margin-top:6px">A gravação entra na aba Voz a partir do quadro ${q0 + 1}. Depois dá para transcrever para legendas e usar a boca pela voz.</div></div>`);
+    let rec = null, pedacos = [], t0 = 0, raf = 0, fim = null;
+    const anda = () => { an.getByteTimeDomainData(buf); let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v - 128)); $('[data-n]', body).style.width = Math.min(100, m / 128 * 160) + '%';
+      if (rec) { const s = (performance.now() - t0) / 1000; $('[data-tempo]', body).textContent = `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; } raf = requestAnimationFrame(anda); };
+    anda();
+    const para = () => { cancelAnimationFrame(raf); stream.getTracks().forEach(t => t.stop()); try { src.disconnect(); } catch { } App.pausa(); };
+    const r = await UI.modal({ title: 'Gravar áudio', icon: 'mic', width: 480, body, buttons: [
+      { label: 'Cancelar', value: null },
+      { label: 'Gravar', kind: 'primary', onClick: api => {
+        const bt = api.foot.querySelector('.btn.primary');
+        if (!rec) { // começa
+          pedacos = []; rec = new MediaRecorder(stream, tipo ? { mimeType: tipo } : {}); rec.ondataavailable = e => { if (e.data.size) pedacos.push(e.data); };
+          fim = new Promise(ok => rec.onstop = ok); rec.start(250); t0 = performance.now(); body.classList.add('gravando'); $('[data-t]', body).textContent = 'Gravando…'; bt.textContent = 'Parar e pôr na animação';
+          if ($('[data-tocar]', body).checked) { App.setQ(q0); App.tocar(); }
+          return false;
+        }
+        rec.stop(); return 'ok';
+      } }] });
+    if (rec && rec.state !== 'inactive') rec.stop();
+    if (rec) await fim; para();
+    if (r !== 'ok' || !pedacos.length) return;
+    const blob = new Blob(pedacos, { type: rec.mimeType || tipo || 'audio/webm' }), id = await Arq.guardar(blob), b = await this.decod(id);
+    if (!b) return UI.toast('Não consegui abrir a gravação.', { kind: 'err' });
+    const nome = 'Gravação ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    P.audios.push({ id: uid('au'), nome, arq: id, de: q0, vol: 1 });
+    const ultimo = q0 + Math.ceil(b.duration * P.fps); if (ultimo > P.duracao) P.duracao = ultimo;
+    App.commit('Gravar áudio'); Lado.aba('som'); UI.toast(`<b>${esc(nome)}</b> entrou no quadro ${q0 + 1} (${b.duration.toFixed(1).replace('.', ',')} s).`, { kind: 'ok' });
+  },
   async importar() {
     const fs = await pickFiles('audio/*,video/mp4,video/webm', true); if (!fs.length) return;
     for (const f of fs) { const id = await Arq.guardar(f); const b = await this.decod(id); if (!b) { UI.toast(`Não consegui abrir o áudio "${esc(f.name)}"`, { kind: 'err' }); continue; }

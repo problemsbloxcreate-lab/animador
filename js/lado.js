@@ -199,8 +199,8 @@ const Lado = {
   /* ---------- Voz e legendas ---------- */
   som(el) {
     const P = App.P;
-    const top = h(`<div class="sessao"><h4>Voz e sons</h4><div class="campo2"><button class="btn sm" data-add>${ic('upload', 13)} Pôr áudio</button>${P.audios.length ? `<button class="btn sm" data-tr>${ic('text', 13)} Transcrever para legendas</button>` : ''}</div></div>`);
-    $('[data-add]', top).onclick = () => Som.importar(); if ($('[data-tr]', top)) $('[data-tr]', top).onclick = () => Som.transcrever();
+    const top = h(`<div class="sessao"><h4>Voz e sons</h4><div class="campo2"><button class="btn sm" data-gravar>${ic('mic', 13)} Gravar</button><button class="btn sm" data-add>${ic('upload', 13)} Pôr áudio</button>${P.audios.length ? `<button class="btn sm ia" data-tr>${ic('text', 13)} Transcrever para legendas</button>` : ''}</div></div>`);
+    $('[data-add]', top).onclick = () => Som.importar(); $('[data-gravar]', top).onclick = () => Som.gravar(); if ($('[data-tr]', top)) $('[data-tr]', top).onclick = () => Som.transcrever();
     el.appendChild(top);
     for (const a of P.audios) {
       const b = h(`<div class="sessao" style="${App.sel === a.id ? 'background:var(--bg2)' : ''}"><h4>${ic('mic', 12)} ${esc(a.nome)}<span class="sp"></span><button class="ibtn" data-x title="Tirar">${ic('trash', 13)}</button></h4>

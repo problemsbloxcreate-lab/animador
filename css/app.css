@@ -453,3 +453,9 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .ord-antes{box-shadow:inset 0 2px 0 #5fa8ff!important}.ord-depois{box-shadow:inset 0 -2px 0 #5fa8ff!important}
 .ord-h.ord-antes{box-shadow:inset 2px 0 0 #5fa8ff!important}.ord-h.ord-depois{box-shadow:inset -2px 0 0 #5fa8ff!important}
 .anim .cab,.sess .cab{cursor:grab}.tr-t{cursor:grab}.tr-t .ibtn:disabled{opacity:.3}
+
+/* gravar áudio */
+.grav-st{display:flex;align-items:center;gap:8px;margin-bottom:8px}.grav-st code{font:600 15px var(--mono);color:var(--tx)}
+.grav-pt{width:10px;height:10px;border-radius:50%;background:#666}.grav.gravando .grav-pt{background:#ff4d4d;animation:pisca 1s steps(2) infinite}
+@keyframes pisca{50%{opacity:.2}}
+.grav-nivel{height:8px;border-radius:4px;background:var(--bg0);overflow:hidden;margin-bottom:10px}.grav-nivel i{display:block;height:100%;width:0;background:linear-gradient(90deg,#57ab5a,#e3b341 70%,#e5534b);transition:width .06s}

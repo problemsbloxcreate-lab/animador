@@ -35,7 +35,7 @@ const Midia = {
   async novaPasta() { const n = (await UI.prompt({ title: 'Pasta nova na Mídia', label: 'Ex.: árvores, móveis, céus', value: '' }))?.trim().slice(0, 40); if (!n) return null; const ps = this.pastas(); if (!ps.some(p => p.nome === n)) { ps.push({ nome: n }); this.salvaPastas(ps); } Lado.pinta(); return n; },
   pinta(el) {
     const l = this.lista(), ps = this.pastas(), fechadas = this.fechadas || (this.fechadas = new Set());
-    const topo = h(`<div class="sessao"><div class="campo2"><button class="btn sm" data-add>${ic('plus', 13)} Do computador</button><button class="btn sm" data-cen>${ic('paisagem', 13)} Cenários</button><button class="btn sm" data-pasta>${ic('folder', 13)} Pasta</button></div></div>`);
+    const topo = h(`<div class="sessao"><div class="campo2"><button class="btn sm" data-add>${ic('plus', 13)} Do computador</button><button class="btn sm ia" data-cen>${ic('paisagem', 13)} Cenários</button><button class="btn sm" data-pasta>${ic('folder', 13)} Pasta</button></div></div>`);
     $('[data-add]', topo).onclick = () => this.doComputador(); $('[data-cen]', topo).onclick = () => Cenarios.abrir(); $('[data-pasta]', topo).onclick = () => this.novaPasta(); el.appendChild(topo);
     if (!l.length && !ps.length) { el.appendChild(h('<div class="vazio">A Mídia está vazia.<br>Mande peças de um cenário para cá (janela <b>Cenário</b> → Peças) ou traga imagens do computador.</div>')); return; }
     const solta = (alvo, pasta) => {
