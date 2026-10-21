@@ -38,22 +38,70 @@ const Render = {
   },
   // desenha as camadas no ctx (que já está com a transformação do "mundo" aplicada em base)
   camadas(ctx, P, q, base, alfa = 1) {
-    this.cadaVisivel(P, q, (n, m, a) => {
-      ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a));
-      if (n.tipo === 'personagem') {
-        for (const it of this.pecasPersonagem(P, n, q, m)) {
-          if (!it.img) continue; const bm = this.bm(it.img.k); if (!bm) continue;
-          const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
-          ctx.setTransform(base.multiply(it.m)); const x = -px + (it.img.ajuste?.x || 0), y = -py + (it.img.ajuste?.y || 0);
-          if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, x, y, it.img.w, it.img.h); else ctx.drawImage(bm, x, y, it.img.w, it.img.h);
-        }
-      } else if (n.tipo === 'imagem') {
-        const bm = this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(m)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
-      } else if (n.tipo === 'texto') {
-        ctx.setTransform(base.multiply(m)); this.texto(ctx, n);
+    let fr; try { fr = base.multiply(this.matCamera(P, q, P.w, P.h).inverse()); } catch { fr = base; } // quadro da câmera (px do vídeo) → tela
+    this.lista(ctx, P, q, base, P.raiz, new DOMMatrix(), alfa, fr, 0);
+  },
+  vivo(P, n, q) { return n.vis !== false && Modelo.aparece(P, n, q); },
+  // uma lista (raiz ou pasta), do fundo para a frente. Camadas de efeito dividem a lista em trechos:
+  // cada trecho é desenhado à parte e recebe SÓ o efeito logo acima dele (o de cima não soma com o de baixo).
+  lista(ctx, P, q, base, lista, m, alfa, fr, nivel) {
+    const efs = n => n.tipo === 'efeito' && this.vivo(P, n, q) && (n.efeitos || []).some(e => Efeitos.ativoEf(e, q));
+    if (!lista.some(efs)) { for (let i = lista.length - 1; i >= 0; i--) this.umNo(ctx, P, q, base, lista[i], m, alfa, fr, nivel); return; }
+    const seg = this.buf(nivel, ctx.canvas), sc = seg.getContext('2d'); let sujo = false;
+    const limpa = () => { sc.setTransform(1, 0, 0, 1, 0, 0); sc.clearRect(0, 0, seg.width, seg.height); sujo = false; };
+    limpa();
+    for (let i = lista.length - 1; i >= 0; i--) {
+      const n = lista[i];
+      if (n.tipo === 'efeito') { if (efs(n) && sujo) { this.aplica(ctx, seg, n, P, q, fr, nivel); limpa(); } continue; }
+      if (this.umNo(sc, P, q, base, n, m, alfa, fr, nivel)) sujo = true;
+    }
+    if (sujo) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.drawImage(seg, 0, 0); ctx.restore(); }
+  },
+  _bufs: [],
+  buf(nivel, cv) { let b = this._bufs[nivel]; if (!b || b.width !== cv.width || b.height !== cv.height) b = this._bufs[nivel] = new OffscreenCanvas(cv.width, cv.height); return b; },
+  // desenha um nó (pasta: os filhos). Devolve true se desenhou algo
+  umNo(ctx, P, q, base, n, m, alfa, fr, nivel) {
+    if (!this.vivo(P, n, q) || n.tipo === 'efeito') return false;
+    const t = Modelo.transf(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
+    if (n.filhos) { this.lista(ctx, P, q, base, n.filhos, mm, a, fr, nivel + 1); return true; }
+    ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a));
+    if (n.tipo === 'personagem') {
+      for (const it of this.pecasPersonagem(P, n, q, mm)) {
+        if (!it.img) continue; const bm = this.bm(it.img.k); if (!bm) continue;
+        const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
+        ctx.setTransform(base.multiply(it.m)); const x = -px + (it.img.ajuste?.x || 0), y = -py + (it.img.ajuste?.y || 0);
+        if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, x, y, it.img.w, it.img.h); else ctx.drawImage(bm, x, y, it.img.w, it.img.h);
       }
-      ctx.restore();
-    }, new DOMMatrix(), alfa);
+    } else if (n.tipo === 'imagem') {
+      const bm = this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(mm)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
+    } else if (n.tipo === 'texto') {
+      ctx.setTransform(base.multiply(mm)); this.texto(ctx, n);
+    }
+    ctx.restore(); return true;
+  },
+  // passa o trecho (seg) para o ctx com os efeitos da camada n: por cima (tinta, vinheta…), filtro de cor, tremor/trêmulo
+  aplica(ctx, seg, n, P, q, fr, nivel = 0) {
+    const lista = n.efeitos.filter(e => Efeitos.ativoEf(e, q)), k = Math.hypot(fr.a, fr.b) || 1, de = n.de || 0, ate = Modelo.fimNo(P, n);
+    const tela = e => ['cinema', 'flash'].includes(e.tipo); // cobrem o quadro (por cima de tudo o que já está desenhado)
+    // 1) cor/desfoque no trecho  2) tinta, vinheta, granulado, VHS só onde o trecho tem desenho
+    const pos = this.buf('p' + nivel, seg), pc = pos.getContext('2d'); pc.setTransform(1, 0, 0, 1, 0, 0); pc.clearRect(0, 0, pos.width, pos.height);
+    const f = Efeitos.filtroDe(lista, k); pc.filter = f || 'none'; pc.drawImage(seg, 0, 0); pc.filter = 'none';
+    pc.save(); pc.setTransform(fr); for (const e of lista) if (!tela(e)) Efeitos.umPorCima(pc, e, q, P.w, P.h, e.de ?? de, e.ate ?? ate, true); pc.restore();
+    // 3) tremor / trêmulo: o trecho inteiro mexe
+    let mt = new DOMMatrix(), ond = null; const c = fr.transformPoint(new DOMPoint(P.w / 2, P.h / 2));
+    for (const e of lista) {
+      if (e.tipo === 'tremor') { const am = e.forca * 26 * k; mt = mt.translate((hash(q * 1.7 + 3) - .5) * 2 * am, (hash(q * 2.3 + 9) - .5) * 2 * am); }
+      if (e.tipo === 'tremulo') { const fo = e.forca ?? .4, kk = Math.floor(q / Math.max(1, e.ritmo || 2)), r = i => this.sorte(n.id, kk, i);
+        if (e.modo === 'ondular') ond = { f: fo, kk }; else mt = mt.translate(c.x, c.y).translate(r(1) * fo * 16 * k, r(2) * fo * 16 * k).rotate(r(3) * fo * 2.4).scale(1 + r(4) * fo * .03).translate(-c.x, -c.y); }
+    }
+    ctx.save(); ctx.setTransform(mt); ctx.globalAlpha = 1;
+    if (ond) { // faixas deslocadas por uma onda (como o "turbulento")
+      const fase = this.sorte(n.id, ond.kk, 9) * 40, amp = (1.5 + ond.f * 7) * k, freq = (.045 + (this.sorte(n.id, ond.kk, 8) + .5) * .03) / k, fx = Math.max(2, Math.round(3 * k));
+      for (let y = 0; y < pos.height; y += fx) { const sh = Math.min(fx * 2, pos.height - y), dx = Math.sin(y * freq + fase) * amp + Math.sin(y * freq * 2.3 - fase) * amp * .35; ctx.drawImage(pos, 0, y, pos.width, sh, dx, y, pos.width, sh); }
+    } else ctx.drawImage(pos, 0, 0);
+    // 4) faixas de cinema e flash: por cima, no quadro da câmera
+    ctx.setTransform(fr); for (const e of lista) if (tela(e)) Efeitos.umPorCima(ctx, e, q, P.w, P.h, e.de ?? de, e.ate ?? ate, false);
+    ctx.restore();
   },
   texto(ctx, n) {
     ctx.font = `${n.negrito ? '800 ' : ''}${n.tam || 72}px ${n.fonte || 'Segoe UI'}, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';

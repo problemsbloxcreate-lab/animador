@@ -25,11 +25,12 @@ const Modelo = {
       audios: [], legendas: [], personagens: {}, modificado: Date.now() };
   },
   novoNo(tipo, o = {}) {
-    const n = { id: uid('n'), tipo, nome: o.nome || { pasta: 'Pasta', personagem: 'Personagem', imagem: 'Imagem', texto: 'Texto' }[tipo], vis: true, trava: false,
+    const n = { id: uid('n'), tipo, nome: o.nome || { pasta: 'Pasta', personagem: 'Personagem', imagem: 'Imagem', texto: 'Texto', efeito: 'Efeito' }[tipo], vis: true, trava: false,
       de: o.de ?? 0, ate: o.ate ?? null, interp: tipo !== 'personagem' ? true : true, chaves: { [o.de ?? 0]: { x: o.x ?? 0, y: o.y ?? 0, r: 0, s: o.s ?? 1, sx: 1, op: 1 } } };
     if (tipo === 'pasta') { n.filhos = []; n.aberto = true; }
     if (tipo === 'personagem') n.ref = o.ref;
     if (tipo === 'imagem') n.arq = o.arq;
+    if (tipo === 'efeito') { n.efeitos = o.efeitos || []; n.nomeAuto = true; }
     if (tipo === 'texto') Object.assign(n, { texto: o.texto || 'Texto', cor: '#111111', tam: 72, fonte: 'Segoe UI', borda: '#ffffff', bordaL: 0, negrito: true });
     return n;
   },

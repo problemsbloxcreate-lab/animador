@@ -80,9 +80,9 @@ Regras: use só nomes de sessões e presets que existem. Para atuação pela fal
             for (const [sn, pn] of Object.entries(a.sessoes || {})) { const s = this.acha(def.sessoes, sn); const p = s && (pn ? this.acha(s.presets, pn) : null); if (s) { k.sessoes[s.id] = p ? p.id : null; } } n++; }
           if (a.tipo === 'mover') { const v = {}; for (const c of ['x', 'y', 'r', 's', 'op']) if (a[c] != null && isFinite(+a[c])) v[c] = +a[c]; Modelo.poeTransf(no, q(a.quadro), v); n++; }
         } else if (a.tipo === 'camera') { const k = q(a.quadro); P.camera.chaves[k] = { ...Modelo.camera(P, k), ...Object.fromEntries(['x', 'y', 'zoom', 'r'].filter(c => a[c] != null).map(c => [c, +a[c]])) }; n++; }
-        else if (a.tipo === 'efeito' && Efeitos.TELA.some(e => e.id === a.efeito)) { P.efeitos.tela.push({ id: uid('ef'), tipo: a.efeito, de: q(a.de), ate: Math.max(q(a.de), q(a.ate)), forca: clamp(+a.forca || .5, 0, 1) }); n++; }
+        else if (a.tipo === 'efeito' && Efeitos.TELA.some(e => e.id === a.efeito)) { const t = App.efeitoTopo(); t.efeitos.push({ id: uid('ef'), tipo: a.efeito, de: q(a.de), ate: Math.max(q(a.de), q(a.ate)), forca: clamp(+a.forca || .5, 0, 1) }); App.nomeEfeito(t); n++; }
         else if (a.tipo === 'tremulo') { const no = this.acha(todos, a.camada); if (no) { if (a.modo === 'nenhum') delete no.tremulo; else no.tremulo = { modo: a.modo === 'ondular' ? 'ondular' : 'tremer', forca: clamp(+a.forca || .4, .05, 1), ritmo: 2 }; n++; } }
-        else if (a.tipo === 'visual' && Efeitos.VISUAIS.some(v => v.id === a.visual)) { P.efeitos.visual = a.visual; n++; }
+        else if (a.tipo === 'visual' && Efeitos.VISUAIS.some(v => v.id === a.visual)) { const t = App.efeitoTopo(); t.efeitos = t.efeitos.filter(e => e.tipo !== 'cor'); if (a.visual !== 'normal') t.efeitos.push({ id: uid('ef'), tipo: 'cor', visual: a.visual }); App.nomeEfeito(t); n++; }
         else if (a.tipo === 'cenario' && a.descricao) this.cenariosPedidos.push(a);
       } catch (e) { console.warn('ação da IA', a, e); }
     }

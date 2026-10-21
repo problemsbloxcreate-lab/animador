@@ -1,6 +1,6 @@
 /* ===================== arvore.js — hierarquia: camadas e pastas (arrastar para ordenar ou pôr dentro), mostrar/travar, renomear ===================== */
 'use strict';
-const TIPO_IC = { pasta: 'folder', personagem: 'layers', imagem: 'image', texto: 'text' };
+const TIPO_IC = { pasta: 'folder', personagem: 'layers', imagem: 'image', texto: 'text', efeito: 'sparkles' };
 const Arvore = {
   arrastando: null,
   pinta() {
@@ -9,7 +9,7 @@ const Arvore = {
     el.innerHTML = linhas.length ? '' : '<div class="vazio">Nada na cena ainda.<br>Use <b>+</b> aqui em cima para pôr um personagem, imagem ou texto.</div>';
     for (const { no: n, nivel } of linhas) {
       const fora = !Modelo.aparece(P, n, App.q);
-      const r = h(`<div class="no ${App.sel === n.id ? 'sel' : ''} ${fora ? 'fora' : ''}" draggable="true" data-id="${n.id}" style="padding-left:${6 + nivel * 14}px" title="${fora ? 'Não aparece neste quadro' : ''}">
+      const r = h(`<div class="no ${App.sel === n.id ? 'sel' : ''} ${fora ? 'fora' : ''} ${n.tipo === 'efeito' ? 'efeito' : ''}" draggable="true" data-id="${n.id}" style="padding-left:${6 + nivel * 14}px" title="${fora ? 'Não aparece neste quadro' : ''}">
         <button class="ab" data-ab>${n.filhos ? ic(n.aberto === false ? 'right' : 'down', 12) : ''}</button>
         <span class="ti">${ic(TIPO_IC[n.tipo] || 'file', 14)}</span><span class="nm">${esc(n.nome)}</span>
         <button class="ibtn ${n.vis === false ? 'off' : ''}" data-vis title="Mostrar/esconder">${ic(n.vis === false ? 'eyeOff' : 'eye', 14)}</button>
@@ -53,7 +53,8 @@ const Arvore = {
       { label: 'Renomear', icon: 'edit', action: () => this.renomear(n, $(`.no[data-id="${n.id}"]`)) },
       { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
       { label: 'Pôr numa pasta nova', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },
-      App.menuTremulo(n),
+      n.tipo !== 'efeito' && App.menuTremulo(n),
+      n.tipo === 'efeito' && { label: 'Na timeline toda', icon: 'film', action: () => { n.de = 0; n.ate = null; App.commit('Na timeline toda'); } },
       n.tipo === 'imagem' && '-',
       n.tipo === 'imagem' && (n.nuvem ? { label: 'Já está na nuvem da equipe', icon: 'check', disabled: true } : { label: 'Salvar na nuvem', icon: 'cloud', action: () => App.salvarNaNuvem(n) }),
       n.filhos && { label: 'Tirar tudo da pasta', icon: 'layers', action: () => { const r = Modelo.achar(App.P, n.id); r.lista.splice(r.lista.indexOf(n), 1, ...n.filhos); App.sel = null; App.commit('Desfazer a pasta'); } },

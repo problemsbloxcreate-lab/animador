@@ -51,15 +51,33 @@ const Efeitos = {
   porCima(ctx, P, q, W, H) {
     const v = this.visual(P.efeitos?.visual);
     if (v.tinta) { ctx.save(); ctx.fillStyle = v.tinta; ctx.fillRect(0, 0, W, H); ctx.restore(); }
-    for (const e of this.ativos(P, q)) {
-      ctx.save();
+    for (const e of this.ativos(P, q)) this.umPorCima(ctx, e, q, W, H, e.de, e.ate);
+  },
+  umPorCima(ctx, e, q, W, H, de, ate, soNoConteudo) {
+      ctx.save(); if (soNoConteudo && !['cinema', 'flash'].includes(e.tipo)) ctx.globalCompositeOperation = 'source-atop';
+      if (e.tipo === 'cor') { const v = this.visual(e.visual); if (v.tinta) { ctx.fillStyle = v.tinta; ctx.fillRect(0, 0, W, H); } }
       if (e.tipo === 'vinheta') { const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .32, W / 2, H / 2, Math.hypot(W, H) * .58); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${e.forca})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
-      if (e.tipo === 'granulado') { const n = this.ruido(q); ctx.globalAlpha = e.forca * .55; ctx.globalCompositeOperation = 'overlay'; const pat = ctx.createPattern(n, 'repeat'); ctx.fillStyle = pat; ctx.fillRect(0, 0, W, H); }
+      if (e.tipo === 'granulado') { const n = this.ruido(q); ctx.globalAlpha = e.forca * .55; if (!soNoConteudo) ctx.globalCompositeOperation = 'overlay'; const pat = ctx.createPattern(n, 'repeat'); ctx.fillStyle = pat; ctx.fillRect(0, 0, W, H); }
       if (e.tipo === 'cinema') { const b = H * e.forca; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, b); ctx.fillRect(0, H - b, W, b); }
-      if (e.tipo === 'flash') { const dur = Math.max(1, e.ate - e.de), t = (q - e.de) / dur; ctx.fillStyle = `rgba(255,255,255,${(e.forca * (1 - t)).toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+      if (e.tipo === 'flash') { const dur = Math.max(1, ate - de), t = (q - de) / dur; ctx.fillStyle = `rgba(255,255,255,${(e.forca * (1 - t)).toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
       if (e.tipo === 'vhs') { ctx.globalAlpha = e.forca * .35; ctx.fillStyle = '#000'; for (let y = q % 4; y < H; y += 4) ctx.fillRect(0, y, W, 1); ctx.globalAlpha = e.forca * .18; ctx.fillStyle = '#ff2a6d'; ctx.fillRect(0, (q * 13) % H, W, H * .03); }
       ctx.restore();
+  },
+
+  /* ---------- CAMADA DE EFEITO (na hierarquia e na timeline): vale para o que está ABAIXO dela, até a próxima camada de efeito.
+     O que está abaixo de outra camada de efeito só obedece a ela (não somam). n.efeitos = [{ tipo, forca, visual?, modo?, ritmo?, de?, ate? }] */
+  nomeEf(e) { return e.tipo === 'cor' ? this.visual(e.visual).nome : e.tipo === 'tremulo' ? (e.modo === 'ondular' ? 'Ondular' : 'Trêmulo') : (this.TELA.find(t => t.id === e.tipo)?.nome || e.tipo); },
+  ativoEf(e, q) { return (e.de == null || q >= e.de) && (e.ate == null || q <= e.ate); },
+  filtroDe(lista, k = 1) {
+    let f = '';
+    for (const e of lista) {
+      if (e.tipo === 'cor') f += ' ' + (this.visual(e.visual).f || '').replace(/blur\(([\d.]+)px\)/, (m, v) => `blur(${(v * k).toFixed(2)}px)`);
+      if (e.tipo === 'desfoque') f += ` blur(${(e.forca * 8 * k).toFixed(1)}px)`;
+      if (e.tipo === 'brilho') f += ` brightness(${(1 + e.forca * .25).toFixed(2)}) saturate(${(1 + e.forca * .3).toFixed(2)})`;
+      if (e.tipo === 'escurecer') f += ` brightness(${(1 - e.forca * .7).toFixed(2)})`;
+      if (e.tipo === 'clarear') f += ` brightness(${(1 + e.forca * .6).toFixed(2)})`;
     }
+    return f.trim();
   },
   _ruido: [],
   ruido(q) { const i = q % 6; if (!this._ruido[i]) { const c = new OffscreenCanvas(160, 160), x = c.getContext('2d'), d = x.createImageData(160, 160); for (let k = 0; k < d.data.length; k += 4) { const v = Math.random() * 255; d.data[k] = d.data[k + 1] = d.data[k + 2] = v; d.data[k + 3] = 255; } x.putImageData(d, 0, 0); this._ruido[i] = c; } return this._ruido[i]; },

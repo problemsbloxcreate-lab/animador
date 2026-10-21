@@ -20,7 +20,9 @@ const Folha = {
   zoom(cw) { const q = App.q, x = q * this.CW - this.grade.scrollLeft; this.CW = clamp(Math.round(cw), 6, 48); $('#tl-zoom').value = this.CW; this.pinta(); this.grade.scrollLeft = Math.max(0, q * this.CW - x); },
   // linhas da folha: camadas (como na hierarquia), câmera, efeitos, legendas e áudios
   linhas() {
-    const P = App.P, out = Modelo.linhas(P).map(l => ({ tipo: 'no', no: l.no, nivel: l.nivel, nome: l.no.nome }));
+    const P = App.P, out = [];
+    for (const l of Modelo.linhas(P)) { out.push({ tipo: 'no', no: l.no, nivel: l.nivel, nome: l.no.nome });
+      if (l.no.tipo === 'efeito') for (const e of l.no.efeitos || []) if (e.de != null) out.push({ tipo: 'efeito', ef: e, pai: l.no, nivel: l.nivel + 1, nome: Efeitos.nomeEf(e) }); } // efeito com tempo próprio dentro da camada
     out.push({ tipo: 'camera', nome: 'Câmera' });
     (P.efeitos.tela || []).forEach(ef => out.push({ tipo: 'efeito', ef, nome: (Efeitos.TELA.find(t => t.id === ef.tipo)?.nome || ef.tipo) }));
     if ((P.legendas || []).length) out.push({ tipo: 'legenda', nome: 'Legendas' });
@@ -33,7 +35,7 @@ const Folha = {
     this.nomes.innerHTML = '<div class="regua"></div>' + L.map((l, i) => {
       const sel = (l.tipo === 'no' && App.sel === l.no.id) || (l.tipo === 'camera' && App.sel === 'camera') || (l.tipo === 'efeito' && App.sel === l.ef.id) || (l.tipo === 'audio' && App.sel === l.a.id);
       const icn = l.tipo === 'no' ? TIPO_IC[l.no.tipo] : { camera: 'camera', efeito: 'sparkles', legenda: 'text', audio: 'mic' }[l.tipo];
-      return `<div class="reg ${sel ? 'sel' : ''}" data-i="${i}" style="padding-left:${6 + (l.nivel || 0) * 12}px">${ic(icn, 13)}<span class="nm">${esc(l.nome)}</span></div>`;
+      return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''}" data-i="${i}" style="padding-left:${6 + (l.nivel || 0) * 12}px">${ic(icn, 13)}<span class="nm">${esc(l.nome)}</span></div>`;
     }).join('');
     $$('.reg', this.nomes).forEach(r => r.onclick = () => this.selLinha(L[+r.dataset.i]));
     const tq = P.duracao, W = tq * this.CW + 200, H = this.REG + L.length * this.RH + 30;
@@ -44,7 +46,7 @@ const Folha = {
     // a cabeça de leitura sempre visível
     const x = App.q * this.CW; if (x < this.grade.scrollLeft || x > this.grade.scrollLeft + r.width - 40) this.grade.scrollLeft = Math.max(0, x - r.width / 3);
   },
-  selLinha(l) { if (!l) return; if (l.tipo === 'no') App.selecionar(l.no.id); else if (l.tipo === 'camera') App.selecionar('camera'); else if (l.tipo === 'efeito') { App.selecionar(l.ef.id); Lado.aba('efeitos'); } else if (l.tipo === 'audio') { App.selecionar(l.a.id); Lado.aba('som'); } else if (l.tipo === 'legenda') Lado.aba('som'); },
+  selLinha(l) { if (!l) return; if (l.tipo === 'no') App.selecionar(l.no.id); else if (l.tipo === 'camera') App.selecionar('camera'); else if (l.tipo === 'efeito') { App.selecionar(l.pai ? l.pai.id : l.ef.id); Lado.aba('efeitos'); } else if (l.tipo === 'audio') { App.selecionar(l.a.id); Lado.aba('som'); } else if (l.tipo === 'legenda') Lado.aba('som'); },
   barra() {
     const P = App.P, s = (App.q / P.fps).toFixed(2).replace('.', ',');
     $('#tl-q').innerHTML = `<b>${App.q + 1}</b> / ${P.duracao} · ${s}s`;
@@ -66,7 +68,7 @@ const Folha = {
       c.fillStyle = '#2a2a2a'; c.fillRect(0, y + RH - 1, W, 1);
       if (l.tipo === 'no') this.linhaNo(c, P, l.no, y, sx, sel);
       else if (l.tipo === 'camera') this.chaves(c, P.camera.chaves, y, sx, '#9fc3ff');
-      else if (l.tipo === 'efeito') this.bloco(c, l.ef.de, l.ef.ate, y, sx, sel ? '#9a7ad8' : '#6d5a94', l.nome);
+      else if (l.tipo === 'efeito') this.bloco(c, l.ef.de, l.ef.ate ?? (l.pai ? Modelo.fimNo(P, l.pai) : l.ef.de), y, sx, sel ? '#9a7ad8' : '#6d5a94', l.nome);
       else if (l.tipo === 'legenda') (P.legendas || []).forEach(g => this.bloco(c, g.de, g.ate, y, sx, '#4f6a58', g.texto));
       else if (l.tipo === 'audio') this.onda(c, P, l.a, y, sx, sel);
     });
@@ -80,10 +82,21 @@ const Folha = {
     c.fillStyle = '#ff6b6b'; c.beginPath(); c.roundRect(px - 2, 2, CW + 4, REG - 5, 4); c.fill(); c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText(String(App.q + 1), px + CW / 2, REG / 2 - 1); c.textAlign = 'start';
   },
   linhaNo(c, P, n, y, sx, sel) {
+    if (n.tipo === 'efeito') return this.linhaEfeito(c, P, n, y, sx, sel);
     const de = n.de || 0, ate = Modelo.fimNo(P, n), CW = this.CW, cor = n.tipo === 'pasta' ? '#4b4b4b' : n.tipo === 'personagem' ? '#56657a' : n.tipo === 'texto' ? '#6b6150' : '#4f6562';
     c.fillStyle = n.vis === false ? '#333' : cor; c.globalAlpha = sel ? 1 : .85; c.beginPath(); c.roundRect(de * CW - sx + 1, y + 4, (ate - de + 1) * CW - 2, this.RH - 9, 4); c.fill(); c.globalAlpha = 1;
     c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(de * CW - sx + 1, y + 4, 3, this.RH - 9); c.fillRect((ate + 1) * CW - sx - 4, y + 4, 3, this.RH - 9);
     this.chaves(c, n.chaves, y, sx, '#f0f0f0', k => n.chaves[k].sessoes || n.chaves[k].partes);
+  },
+  // camada de efeito em destaque: barra em gradiente com o nome dos efeitos
+  linhaEfeito(c, P, n, y, sx, sel) {
+    const de = n.de || 0, ate = Modelo.fimNo(P, n), CW = this.CW, x = de * CW - sx + 1, w = (ate - de + 1) * CW - 2, g = c.createLinearGradient(x, 0, x + Math.max(60, w), 0);
+    g.addColorStop(0, sel ? '#8f6bff' : '#6a4fc4'); g.addColorStop(1, sel ? '#19c8e6' : '#1b8aa8');
+    c.globalAlpha = n.vis === false ? .3 : 1; c.fillStyle = g; c.beginPath(); c.roundRect(x, y + 3, w, this.RH - 7, 5); c.fill();
+    if (sel) { c.strokeStyle = '#bff6ff'; c.lineWidth = 1; c.stroke(); }
+    c.fillStyle = 'rgba(255,255,255,.6)'; c.fillRect(x, y + 3, 3, this.RH - 7); c.fillRect(x + w - 3, y + 3, 3, this.RH - 7);
+    if (w > 40) { c.save(); c.beginPath(); c.rect(x, y, w, this.RH); c.clip(); c.fillStyle = '#fff'; c.font = '600 11px Segoe UI'; c.fillText('✦ ' + (n.efeitos || []).map(e => Efeitos.nomeEf(e)).join(' + '), x + 7, y + this.RH / 2); c.restore(); }
+    c.globalAlpha = 1;
   },
   chaves(c, ch, y, sx, cor, ehPose) {
     const CW = this.CW, yy = y + this.RH / 2 - .5;
@@ -112,7 +125,7 @@ const Folha = {
     const perto = (q, borda) => Math.abs(p.x - (borda === 'fim' ? (q + 1) * this.CW : q * this.CW)) < 6;
     if (l.tipo === 'no' || l.tipo === 'camera') {
       const ch = l.tipo === 'no' ? l.no.chaves : P.camera.chaves, k = Object.keys(ch).map(Number).find(k => k === p.q);
-      if (k != null && !(l.no?.trava)) { // arrastar a chave
+      if (k != null && !(l.no?.trava) && l.no?.tipo !== 'efeito') { // arrastar a chave
         let atual = k; const dados = clone(ch[k]), copia = e.altKey; App.setQ(k);
         mov(pp => { const nq = clamp(pp.q, 0, P.duracao - 1); if (nq === atual || (ch[nq] && nq !== k)) return; if (!copia || atual !== k) delete ch[atual]; ch[nq] = clone(dados); atual = nq; App.setQ(nq); App.pinta(); });
         this.fimArr = () => { if (atual !== k || copia) App.commit(copia ? 'Copiar chave' : 'Mover chave'); }; return;
@@ -121,6 +134,11 @@ const Folha = {
         const n = l.no, ponta = perto(n.de || 0, 'ini') ? 'de' : 'ate';
         mov(pp => { const nq = clamp(pp.q, 0, P.duracao - 1); if (ponta === 'de') n.de = Math.min(nq, Modelo.fimNo(P, n)); else n.ate = nq >= P.duracao - 1 ? null : Math.max(nq, n.de || 0); this.pinta(); App.pinta(); Arvore.pinta(); });
         this.fimArr = () => App.commit(ponta === 'de' ? 'Começo da camada' : 'Fim da camada'); return;
+      }
+      if (l.tipo === 'no' && l.no.tipo === 'efeito' && !l.no.trava && p.q >= (l.no.de || 0) && p.q <= Modelo.fimNo(P, l.no)) { // arrastar a camada de efeito inteira no tempo
+        const n = l.no, de0 = n.de || 0, ate0 = n.ate, q0 = p.q, ch0 = clone(n.chaves);
+        mov(pp => { const dq = clamp(pp.q - q0, -de0, P.duracao - 1 - (ate0 ?? de0)); n.de = de0 + dq; if (ate0 != null) n.ate = ate0 + dq; n.chaves = Object.fromEntries(Object.entries(ch0).map(([k, v]) => [+k + dq, v])); this.desenha(); App.pinta(); });
+        this.fimArr = () => { if ((n.de || 0) !== de0) App.commit('Mexer no tempo'); }; return;
       }
     }
     if (l.tipo === 'efeito' || l.tipo === 'audio') { // mover o bloco (ou só a ponta, nos efeitos)

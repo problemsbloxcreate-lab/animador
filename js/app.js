@@ -102,6 +102,39 @@ const App = {
     const poe = m => () => { if (!m) delete n.tremulo; else n.tremulo = { forca: .4, ritmo: 2, ...(n.tremulo || {}), modo: m }; this.commit(m ? 'Trêmulo' : 'Sem trêmulo'); };
     return { label: 'Trêmulo', icon: 'wave', sub: [{ label: 'Tremer', checked: n.tremulo?.modo === 'tremer', action: poe('tremer') }, { label: 'Ondular', checked: n.tremulo?.modo === 'ondular', action: poe('ondular') }, { label: 'Desligado', checked: !n.tremulo, action: poe('') }] };
   },
+  /* ---------- camada de efeito: vale para o que está abaixo dela (até a próxima camada de efeito) ---------- */
+  nomeEfeito(n) { if (n.nomeAuto !== false) n.nome = n.efeitos.length ? 'Efeito: ' + n.efeitos.map(e => Efeitos.nomeEf(e)).join(' + ') : 'Efeito'; },
+  addEfeito(e, o = {}) {
+    const P = this.P, q = this.q, s = this.noSel(), toda = o.toda ?? (Lado.toda ?? true);
+    e = { id: uid('ef'), ...e };
+    let n = s?.tipo === 'efeito' ? s : null;
+    if (n) { // na camada escolhida: clicar de novo no mesmo tira; cor: uma só por camada (troca)
+      const igual = x => x.tipo === e.tipo && (e.tipo !== 'tremulo' || x.modo === e.modo) && (e.tipo !== 'cor' || x.visual === e.visual);
+      const i = n.efeitos.findIndex(igual);
+      if (i >= 0) { n.efeitos.splice(i, 1); this.nomeEfeito(n); return this.commit('Tirar ' + Efeitos.nomeEf(e)); }
+      if (e.tipo === 'cor') n.efeitos = n.efeitos.filter(x => x.tipo !== 'cor');
+      n.efeitos.push(e);
+    } else {
+      const curto = { flash: Math.round(P.fps / 3), tremor: Math.round(P.fps * .7) }[e.tipo], de = q, ate = Math.min(P.duracao - 1, q + (curto || P.fps * 2));
+      const r = s ? Modelo.achar(P, s.id) : null, lista = r ? r.lista : P.raiz, i = r ? lista.indexOf(s) : 0, abaixo = lista[i];
+      if (abaixo?.tipo === 'efeito') { // logo abaixo já tem uma camada de efeito: uma nova aqui não pegaria nada, então entra nela (com o tempo dele)
+        n = abaixo; if (!toda || curto) { e.de = de; e.ate = ate; } if (e.tipo === 'cor') n.efeitos = n.efeitos.filter(x => x.tipo !== 'cor'); n.efeitos.push(e);
+      } else {
+        n = Modelo.novoNo('efeito', { efeitos: [e] });
+        if (!toda || curto) { n.de = de; n.ate = ate; n.chaves = { [q]: n.chaves[0] }; }
+        lista.splice(i, 0, n); // logo acima da escolhida (ou no topo)
+      }
+    }
+    this.nomeEfeito(n); this.sel = n.id; this.commit(Efeitos.nomeEf(e));
+  },
+  converterEfeitosAntigos() {
+    const P = this.P, n = Modelo.novoNo('efeito', { efeitos: [] });
+    if (P.efeitos.visual && P.efeitos.visual !== 'normal') n.efeitos.push({ id: uid('ef'), tipo: 'cor', visual: P.efeitos.visual });
+    for (const e of P.efeitos.tela || []) n.efeitos.push({ id: uid('ef'), tipo: e.tipo, forca: e.forca, de: e.de, ate: e.ate });
+    P.efeitos = { visual: 'normal', tela: [] }; this.nomeEfeito(n); P.raiz.unshift(n); this.sel = n.id; this.commit('Efeitos viram camada');
+  },
+  // a camada de efeito do topo que vale a animação toda (a IA põe as coisas dela aqui)
+  efeitoTopo() { const P = this.P; let n = P.raiz[0]; if (n?.tipo === 'efeito' && !(n.de > 0) && n.ate == null) return n; n = Modelo.novoNo('efeito', { efeitos: [] }); P.raiz.unshift(n); return n; },
   menuCenario(x, y) {
     UI.ctx(x, y, [
       { label: 'Prontos e com a IA (estilo da casa)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() },
@@ -210,7 +243,7 @@ const App = {
         s && { label: 'Chave neste quadro', icon: 'diamond', key: 'K', action: () => App.chaveAqui() },
         s && { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
         s && { label: 'Pôr numa pasta', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },
-        s && App.menuTremulo(s),
+        s && s.tipo !== 'efeito' && App.menuTremulo(s),
         s && { label: 'Apagar', icon: 'trash', danger: true, key: 'Del', action: () => App.apagarSel() },
         '-', { label: 'Enquadrar a câmera', icon: 'crop', key: 'F', action: () => App.enquadrar() },
       ].filter(Boolean));

@@ -255,3 +255,11 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .midia-it .th{aspect-ratio:4/3;border-radius:4px;background-image:repeating-conic-gradient(#3a3a3a 0 25%,#2e2e2e 0 50%);background-size:contain,12px 12px;background-repeat:no-repeat,repeat;background-position:center,0 0}
 .midia-it .th.falta{opacity:.3}.midia-it span{display:block;font-size:11.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
 .midia-it .ac{position:absolute;top:6px;right:6px;display:none;gap:2px;background:var(--bg1);border-radius:5px}.midia-it:hover .ac{display:flex}
+
+/* camadas de efeito: destaque roxo→ciano na hierarquia, na timeline e no painel */
+.no.efeito{background:linear-gradient(90deg,rgba(143,107,255,.16),rgba(25,200,230,.06));border-left-color:#8f6bff}.no.efeito .ti{color:#9fe9ff}.no.efeito.sel{background:linear-gradient(90deg,rgba(143,107,255,.32),rgba(25,200,230,.14))}
+.reg.efeito{background:linear-gradient(90deg,rgba(143,107,255,.14),transparent);color:#d9ccff}.reg.efeito svg{color:#9fe9ff}
+.ef-topo{display:flex;flex-direction:column;gap:6px;padding:8px 10px;margin:6px 8px 0;border:1px solid rgba(143,107,255,.35);border-radius:8px;background:linear-gradient(100deg,rgba(143,107,255,.10),rgba(25,200,230,.05))}
+.ef-dica{font-size:12px;color:var(--tx2);line-height:1.35}.ef-dica b{color:var(--tx)}
+.ef-camada{border:1px solid rgba(143,107,255,.4);border-radius:8px;margin:8px;background:linear-gradient(100deg,rgba(143,107,255,.08),rgba(25,200,230,.03))}.ef-camada h4{display:flex;align-items:center;flex-wrap:wrap;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;line-height:1.3}.ef-camada h4 small{flex-basis:100%;order:3}
+.ef-item{padding:6px 0;border-top:1px solid var(--bd)}.ef-item:first-of-type{border-top:0}
