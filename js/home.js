@@ -15,9 +15,11 @@ const Home = {
   },
   async animacoes(c) {
     c.innerHTML = `<div class="novos">${FORMATOS.map(f => { const k = 34 / Math.max(f.w, f.h); return `<button class="novo" data-f="${f.id}"><span class="fm"><i style="width:${f.w * k}px;height:${f.h * k}px"></i></span><span><b>${f.nome}</b><small>${f.w}×${f.h} · ${f.fps} fps</small></span></button>`; }).join('')}
+      <button class="novo" data-pers><span class="fm">${ic('gear', 24)}</span><span><b>Personalizado</b><small>do seu jeito ou com a IA</small></span></button>
       <button class="novo" data-abrir><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .animador</b><small>arquivo de animação</small></span></button></div>
       <div class="sec">Animações <span class="sp"></span><input type="search" placeholder="Buscar" value="${esc(this.q)}"></div><div class="grade" data-g></div>`;
     $$('[data-f]', c).forEach(b => b.onclick = () => this.nova(FORMATOS.find(f => f.id === b.dataset.f)));
+    $('[data-pers]', c).onclick = () => this.personalizada();
     $('[data-abrir]', c).onclick = async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) this.importar(f); };
     const busca = $('input[type=search]', c); busca.oninput = () => { this.q = busca.value; this.grade(c); };
     this.grade(c);
@@ -37,8 +39,53 @@ const Home = {
       g.appendChild(card);
     }
   },
+  /* ---------- tela personalizada: tamanho, quadros por segundo, duração e fundo (à mão ou pedindo à IA) ---------- */
+  TAMANHOS: [['1920×1080 (YouTube)', 1920, 1080], ['1080×1920 (Shorts/TikTok)', 1080, 1920], ['1080×1080 (quadrado)', 1080, 1080], ['1080×1350 (Instagram 4:5)', 1080, 1350], ['2560×1440 (2K)', 2560, 1440], ['3840×2160 (4K)', 3840, 2160], ['1280×720 (HD)', 1280, 720], ['2048×858 (cinema 2.39)', 2048, 858]],
+  SIS_TELA: `Você configura uma animação 2D nova a partir do pedido em português. Responda SÓ um JSON:
+{"nome":"nome curto","w":1920,"h":1080,"fps":24,"segundos":4,"fundo":{"modo":"quadriculado|cor","cor":"#rrggbb","forca":0.35},"folha":"#rrggbb","semFolha":false,"explica":"uma frase"}
+Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma usar 12 ou 24); segundos entre 1 e 600. "folha" é a cor da folha do tamanho da câmera (Fundo padrão); semFolha=true se a pessoa não quiser folha. Se o pedido não falar de algo, use o comum (1920×1080, 24 fps, 4 s, fundo quadriculado #cfcfcf, folha #ffffff).`,
+  async personalizada() {
+    const o = { nome: 'Animação ' + new Date().toLocaleDateString('pt-BR'), w: 1920, h: 1080, fps: 24, segundos: 4, palco: { modo: 'quadriculado', cor: '#cfcfcf', forca: .35 }, folha: '#ffffff', semFolha: false };
+    const body = h(`<div class="tela-p"><div class="abas" data-abas style="margin:-4px 0 12px"><button data-t="ajustes" class="on">Ajustes</button><button data-t="ia">${ic('sparkles', 13)} Pedir à IA</button></div>
+      <div data-pag="ajustes"></div><div data-pag="ia" hidden>
+        <label class="field">Descreva a tela<textarea rows="3" placeholder="Ex.: vídeo vertical de 15 segundos em 12 fps, cara de desenho antigo, fundo escuro sem folha"></textarea></label>
+        <div class="campo2"><button class="btn sm ia" data-pedir>${ic('sparkles', 13)} Montar com a IA</button></div><div class="ia-res" hidden></div></div></div>`);
+    const pag = $('[data-pag=ajustes]', body), prev = () => { const k = 120 / Math.max(o.w, o.h); return `<i style="width:${Math.round(o.w * k)}px;height:${Math.round(o.h * k)}px;background:${o.semFolha ? 'transparent' : o.folha}"></i>`; };
+    const pinta = () => {
+      pag.innerHTML = `<div class="tela-prev" data-prev>${prev()}</div>
+        <label class="field">Nome<input type="text" data-k="nome" value="${esc(o.nome)}"></label>
+        <label class="field">Tamanho pronto<select data-tam><option value="">Escolher…</option>${this.TAMANHOS.map(([n, w, hh], i) => `<option value="${i}" ${w === o.w && hh === o.h ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <div class="campo2"><span style="color:var(--tx2)">Largura</span><input type="number" data-k="w" value="${o.w}" min="64" max="4096" style="width:80px"><span style="color:var(--tx2)">Altura</span><input type="number" data-k="h" value="${o.h}" min="64" max="4096" style="width:80px"><button class="btn sm" data-girar title="Trocar largura e altura">${ic('redo', 13)} Girar</button></div>
+        <div class="campo2"><span style="color:var(--tx2)">Quadros por segundo</span><select data-k="fps">${[8, 10, 12, 15, 24, 25, 30, 48, 50, 60].map(f => `<option ${f === o.fps ? 'selected' : ''}>${f}</option>`).join('')}</select><span style="color:var(--tx2)">Duração</span><input type="number" data-k="segundos" value="${o.segundos}" min="1" max="600" style="width:64px"><span style="color:var(--tx3)">s = ${Math.round(o.segundos * o.fps)} quadros</span></div>
+        <div class="campo2"><span style="color:var(--tx2)">Fundo</span><div class="presets" style="display:inline-flex"><button data-m="quadriculado" class="${o.palco.modo === 'quadriculado' ? 'on' : ''}">Quadriculado</button><button data-m="cor" class="${o.palco.modo === 'cor' ? 'on' : ''}">Cor lisa</button></div><input type="color" data-pc value="${o.palco.cor}"></div>
+        <div class="campo2"><label class="chk"><input type="checkbox" data-folha ${o.semFolha ? '' : 'checked'}> Folha do tamanho da câmera</label><input type="color" data-fc value="${o.folha}" ${o.semFolha ? 'disabled' : ''}></div>`;
+      $$('[data-k]', pag).forEach(i => i.onchange = () => { const k = i.dataset.k; o[k] = k === 'nome' ? i.value.trim() || o.nome : clamp(+i.value || 1, k === 'fps' ? 1 : k === 'segundos' ? 1 : 64, k === 'fps' ? 60 : k === 'segundos' ? 600 : 4096); if (k === 'w' || k === 'h') o[k] = Math.round(o[k] / 2) * 2; pinta(); });
+      $('[data-tam]', pag).onchange = ev => { const t = this.TAMANHOS[+ev.target.value]; if (t) { o.w = t[1]; o.h = t[2]; pinta(); } };
+      $('[data-girar]', pag).onclick = () => { [o.w, o.h] = [o.h, o.w]; pinta(); };
+      $$('[data-m]', pag).forEach(b => b.onclick = () => { o.palco.modo = b.dataset.m; pinta(); });
+      $('[data-pc]', pag).oninput = ev => { o.palco.cor = ev.target.value; }; $('[data-fc]', pag).oninput = ev => { o.folha = ev.target.value; $('[data-prev]', pag).innerHTML = prev(); };
+      $('[data-folha]', pag).onchange = ev => { o.semFolha = !ev.target.checked; pinta(); };
+    };
+    pinta();
+    $$('[data-t]', body).forEach(b => b.onclick = () => { $$('[data-t]', body).forEach(x => x.classList.toggle('on', x === b)); $$('[data-pag]', body).forEach(p => p.hidden = p.dataset.pag !== b.dataset.t); });
+    $('[data-pedir]', body).onclick = async () => {
+      const ped = $('textarea', body).value.trim(), res = $('.ia-res', body), bt = $('[data-pedir]', body); if (!ped) return $('textarea', body).focus();
+      bt.disabled = true; res.hidden = false; res.textContent = 'A IA está montando a tela…';
+      try {
+        const j = IA.json(await IA.chama(this.SIS_TELA, `ATUAL: ${JSON.stringify(o)}\nPEDIDO: ${ped}`)), par = v => Math.round(clamp(+v || 0, 64, 4096) / 2) * 2;
+        if (j.nome) o.nome = String(j.nome).slice(0, 60); if (j.w) o.w = par(j.w); if (j.h) o.h = par(j.h); if (j.fps) o.fps = clamp(Math.round(+j.fps), 1, 60); if (j.segundos) o.segundos = clamp(+j.segundos, 1, 600);
+        if (j.fundo) o.palco = { modo: j.fundo.modo === 'cor' ? 'cor' : 'quadriculado', cor: /^#[0-9a-f]{6}$/i.test(j.fundo.cor || '') ? j.fundo.cor : o.palco.cor, forca: Number.isFinite(+j.fundo.forca) ? clamp(+j.fundo.forca, 0, 1) : o.palco.forca };
+        if (/^#[0-9a-f]{6}$/i.test(j.folha || '')) o.folha = j.folha; if (typeof j.semFolha === 'boolean') o.semFolha = j.semFolha;
+        res.textContent = (j.explica || 'Pronto.') + ` → ${o.w}×${o.h}, ${o.fps} fps, ${o.segundos} s. Confira em Ajustes e clique em Criar.`; pinta();
+      } catch (e) { res.textContent = 'Não deu: ' + e.message; }
+      bt.disabled = false;
+    };
+    const ok = await UI.modal({ title: 'Tela personalizada', icon: 'gear', width: 560, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', value: true }] });
+    if (ok) this.nova({ w: o.w, h: o.h, fps: o.fps }, { nome: o.nome, duracao: Math.max(1, Math.round(o.segundos * o.fps)), palco: o.palco, folha: o.folha, semFolha: o.semFolha });
+  },
   async apagar(p) { if (!(await UI.confirm({ title: 'Apagar a animação?', msg: `"<b>${esc(p.nome)}</b>" sai deste computador. Baixe o .animador antes se quiser guardar.`, ok: 'Apagar', danger: true }))) return; await DB.del('projetos', p.id); this.pinta(); EstudioConta?.espaco?.atualizar?.(); },
-  async nova(f) { const P = Modelo.novoProjeto({ w: f.w, h: f.h, fps: f.fps, duracao: f.fps * 4, nome: 'Animação ' + new Date().toLocaleDateString('pt-BR') }); try { P.autor = { ...(await Autores.eu()), em: Date.now() }; } catch { } await DB.put('projetos', P); App.abrir(P); },
+  async nova(f, o = {}) { const P = Modelo.novoProjeto({ w: f.w, h: f.h, fps: f.fps, duracao: o.duracao || f.fps * 4, nome: o.nome || 'Animação ' + new Date().toLocaleDateString('pt-BR'), fundo: o.folha });
+    if (o.palco) P.palco = o.palco; if (o.semFolha) P.raiz = P.raiz.filter(n => !n.fundoPadrao); P.temFundoPadrao = true; try { P.autor = { ...(await Autores.eu()), em: Date.now() }; } catch { } await DB.put('projetos', P); App.abrir(P); },
   // abrir um .animador; se for um personagem do Ateliê (.atelieanimador), abre no Ateliê e avisa
   async importar(f) {
     if ((await AtelieArq.tipo(f)) === 'atelie') return AtelieArq.abrir(f, { errado: true });
