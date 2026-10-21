@@ -141,53 +141,122 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
   async sistema() {
     if (this._sis) return this._sis;
     const ex = await Promise.all(['sala', 'jardim', 'sala-de-aula'].map(id => this.pronto(id).then(j => JSON.stringify(j)).catch(() => '')));
-    return (this._sis = this.SIS + '\n' + ex.filter(Boolean).join('\n\n'));
+    const sis = this.SIS + '\n' + ex.filter(Boolean).join('\n\n');
+    if (ex.every(Boolean)) this._sis = sis; // só guarda se os exemplos vieram todos (sem internet, tenta de novo na próxima)
+    return sis;
+  },
+
+  /* ---------- segurança: o que vem da IA passa por aqui antes de desenhar ---------- */
+  LIM: { camadas: 160, formas: 40, pontos: 80, coord: 3000, tempo: 150000 },
+  // lê o JSON; se veio cortado no meio (resposta longa demais), aproveita as camadas que chegaram inteiras
+  lerJSON(txt) {
+    txt = String(txt || '');
+    try { return { j: IA.json(txt), cortado: false }; } catch { }
+    const i = txt.indexOf('"camadas"'), ini = i < 0 ? -1 : txt.indexOf('[', i);
+    if (ini < 0) throw new Error('A IA não devolveu um cenário que dê para ler.');
+    const camadas = []; let prof = 0, dentro = false, esc = false, comeco = -1;
+    for (let k = ini + 1; k < txt.length; k++) {
+      const ch = txt[k];
+      if (dentro) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') dentro = false; continue; }
+      if (ch === '"') { dentro = true; continue; }
+      if (ch === '{' || ch === '[') { if (prof === 0) comeco = k; prof++; }
+      else if (ch === '}' || ch === ']') { prof--; if (prof === 0 && comeco >= 0) { try { camadas.push(JSON.parse(txt.slice(comeco, k + 1))); } catch { } comeco = -1; } if (prof < 0) break; }
+    }
+    const nome = (txt.match(/"nome"\s*:\s*"([^"]{0,60})"/) || [])[1];
+    return { j: { nome, camadas }, cortado: true };
+  },
+  num(v, lim) { v = +v; return isFinite(v) ? clamp(Math.round(v * 10) / 10, -lim, lim) : null; },
+  // confere cada camada e cada forma: tira o que não presta, limita números, garante o fundo
+  limpar(j) {
+    const L = this.LIM, TIPOS = { ret: 4, red: 5, elipse: 4, poli: 6, linha: 5, anel: 5, arco: 7 }, out = []; let tirou = 0;
+    const corOk = c => /^#?[0-9a-f]{6}$/i.test(String(c || '').trim()) ? '#' + String(c).trim().replace('#', '').toUpperCase() : null;
+    for (const c of (Array.isArray(j?.camadas) ? j.camadas : []).slice(0, L.camadas)) {
+      if (!c || typeof c !== 'object') { tirou++; continue; }
+      if (c.degrade) { const g = c.degrade, cor = corOk(g.cor); if (!cor) { tirou++; continue; }
+        out.push({ degrade: { de: clamp(this.num(g.de, 2000) ?? 200, 0, this.H), ate: clamp(this.num(g.ate, 2000) ?? 600, 1, this.H), cor, forca: clamp(+g.forca || .5, 0, 1) } }); continue; }
+      const cor = corOk(c.c); if (!cor || !Array.isArray(c.f)) { tirou++; continue; }
+      const f = [];
+      for (const s of c.f.slice(0, L.formas)) {
+        if (!Array.isArray(s) || !(s[0] in TIPOS)) { tirou++; continue; }
+        const v = s.slice(1, 1 + (s[0] === 'poli' || s[0] === 'linha' ? L.pontos * 2 + 1 : TIPOS[s[0]])).map(x => this.num(x, L.coord));
+        if (v.some(x => x === null) || v.length < TIPOS[s[0]] - 1) { tirou++; continue; }
+        if (s[0] === 'poli' && v.length % 2) v.pop();
+        if (s[0] === 'linha' && !(v.length % 2)) v.pop();
+        if (s[0] === 'linha' || s[0] === 'anel' || s[0] === 'arco') { const ie = s[0] === 'linha' ? 0 : v.length - 1; v[ie] = clamp(v[ie], 1, 200); }
+        f.push([s[0], ...v]);
+      }
+      if (!f.length) { tirou++; continue; }
+      const n = { c: cor, f }; if (c.t != null && isFinite(+c.t)) n.t = clamp(+c.t, 0, 20); if (c.b != null && isFinite(+c.b)) n.b = clamp(+c.b, .5, 40);
+      out.push(n);
+    }
+    // sem um fundo cobrindo a tela inteira, sairiam buracos brancos: põe a parede da casa atrás
+    const cobre = c => c.f?.some(s => s[0] === 'ret' && s[1] <= 0 && s[2] <= 0 && s[3] >= this.W - 1 && s[4] >= this.H - 1);
+    if (!out.length || !cobre(out.find(c => !c.degrade) || {})) out.unshift({ c: '#E4DCCF', t: 9, b: 1, f: [['ret', 0, 0, this.W, this.H]] });
+    return { cena: { nome: String(j?.nome || 'Cenário').replace(/[<>]/g, '').slice(0, 40), camadas: out }, tirou, uteis: out.length };
   },
   async pedirIA(pedido, anterior, aoEscrever) {
-    const txt = anterior ? `CENÁRIO ATUAL:\n${JSON.stringify(anterior)}\n\nAJUSTE PEDIDO: ${pedido}\nDevolva o cenário inteiro já ajustado, no mesmo estilo.` : `PEDIDO DE CENÁRIO: ${pedido}`;
-    const out = await IA.chama(await this.sistema(), txt, aoEscrever), j = IA.json(out);
-    if (!Array.isArray(j.camadas) || !j.camadas.length) throw new Error('A IA não devolveu as camadas do cenário.');
-    return j;
+    pedido = String(pedido).slice(0, 600);
+    const base = anterior ? `CENÁRIO ATUAL:\n${JSON.stringify(anterior)}\n\nAJUSTE PEDIDO: ${pedido}\nDevolva o cenário inteiro já ajustado, no mesmo estilo.` : `PEDIDO DE CENÁRIO: ${pedido}`;
+    const sis = await this.sistema();
+    for (let tent = 0; tent < 2; tent++) {
+      const txt = tent ? base + '\n\nIMPORTANTE: a resposta anterior veio grande demais ou quebrada. Faça mais simples: no máximo 60 camadas, junte formas da mesma cor, só o JSON.' : base;
+      let limite; const tempo = new Promise((_, no) => { limite = setTimeout(() => no(new Error('A IA demorou demais para responder. Tente de novo ou peça algo mais simples.')), this.LIM.tempo); });
+      let out; try { out = await Promise.race([IA.chama(sis, txt, aoEscrever), tempo]); } finally { clearTimeout(limite); }
+      let lido; try { lido = this.lerJSON(out); } catch (e) { if (tent) throw e; continue; }
+      const r = this.limpar(lido.j);
+      if (r.uteis >= 4 && !(lido.cortado && tent === 0 && r.uteis < 12)) return { ...r, cortado: lido.cortado };
+      if (tent) { if (r.uteis >= 2) return { ...r, cortado: lido.cortado }; throw new Error('A IA não conseguiu montar o cenário. Tente descrever com menos coisas.'); }
+    }
   },
+  guardaUltimo(cena) { this.ultimo = cena; try { localStorage.setItem('animador-cenario-ultimo', JSON.stringify(cena)); } catch { } },
+  pegaUltimo() { if (this.ultimo) return this.ultimo; try { const j = JSON.parse(localStorage.getItem('animador-cenario-ultimo') || 'null'); return j?.camadas ? (this.ultimo = this.limpar(j).cena) : null; } catch { return null; } },
 
   /* ---------- janela "Cenário" ---------- */
   async abrir() {
+    if (!App?.P) return UI.toast('Abra uma animação primeiro.', { kind: 'err' });
     const body = h(`<div class="cen">
       <div class="cen-sub">Prontos</div><div class="cen-grade"></div>
       <div class="cen-sub">Pedir à IA <span>(mesmo estilo dos prontos)</span></div>
-      <textarea rows="2" placeholder="Ex.: um quarto de criança com cama, estante e janela à noite"></textarea>
+      <textarea rows="2" maxlength="600" placeholder="Ex.: um quarto de criança com cama, estante e janela à noite"></textarea>
       <div class="cen-prev" hidden><canvas></canvas><div class="cen-st"></div></div></div>`);
     const prev = $('.cen-prev', body), st = $('.cen-st', body), pc = $('canvas', prev), ta = $('textarea', body);
-    let atual = null, cvAtual = null, ocupado = false;
+    let atual = null, cvAtual = null, ocupado = false, btPor, btAjuste, btCriar;
+    const trava = sim => { ocupado = sim; [btPor, btAjuste, btCriar].forEach(b => b && (b.disabled = sim || (b === btPor && !cvAtual))); $$('.cen-item', body).forEach(b => b.disabled = sim); ta.disabled = sim; };
     const mostra = async (cena, rot) => {
-      prev.hidden = false; st.textContent = 'Desenhando…'; atual = cena;
-      cvAtual = await this.desenhar(cena, p => { st.textContent = 'Desenhando… ' + Math.round(p * 100) + '%'; });
-      pc.width = 960; pc.height = 540; const g = pc.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(cvAtual, 0, 0, 960, 540); st.textContent = rot || cena.nome || 'Cenário';
-      btPor.disabled = false; btAjuste.style.display = '';
+      prev.hidden = false; st.textContent = 'Desenhando…';
+      const cv = await this.desenhar(cena, p => { st.textContent = 'Desenhando… ' + Math.round(p * 100) + '%'; });
+      atual = cena; cvAtual = cv;
+      pc.width = 960; pc.height = 540; const g = pc.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(cv, 0, 0, 960, 540); st.textContent = rot || cena.nome || 'Cenário';
+      btAjuste.style.display = '';
     };
-    for (const p of this.PRONTOS) {
-      const b = h(`<button class="cen-item" title="Usar: ${esc(p.nome)}"><img src="cenarios/miniaturas/${p.id}.jpg" alt=""><span>${esc(p.nome)}</span></button>`);
-      b.onclick = async () => { if (ocupado) return; ocupado = true; try { await mostra(await this.pronto(p.id)); } catch (e) { st.textContent = 'Não deu: ' + e.message; } ocupado = false; };
-      $('.cen-grade', body).appendChild(b);
-    }
-    const ia = async ajuste => {
-      const txt = ta.value.trim(); if (!txt || ocupado) return; ocupado = true; prev.hidden = false; st.textContent = 'A IA está montando o cenário…';
-      try { const j = await this.pedirIA(txt, ajuste ? atual : null, t => { st.textContent = 'A IA está montando o cenário… (' + t.length + ' letras)'; }); await mostra(j, (j.nome || 'Cenário') + ' — feito pela IA. Gostou? "Pôr na cena", ou escreva um ajuste e clique em "Ajustar".'); }
-      catch (e) { st.textContent = 'Não deu: ' + e.message; }
-      ocupado = false;
-    };
-    let btPor, btAjuste;
-    await UI.modal({ title: 'Cenário', icon: 'paisagem', width: 720, body, onOpen: a => {
-      [btAjuste, , btPor] = a.foot.querySelectorAll('.btn'); btPor.disabled = true; btAjuste.style.display = 'none';
+    const usa = async fn => { if (ocupado) return; trava(true); try { await fn(); } catch (e) { prev.hidden = false; st.textContent = 'Não deu: ' + (e?.message || e); console.warn('cenário', e); } trava(false); };
+    const grade = $('.cen-grade', body), ult = this.pegaUltimo();
+    const item = (nome, mini, fn) => { const b = h(`<button class="cen-item" title="Usar: ${esc(nome)}">${mini ? `<img src="${mini}" alt="">` : '<i></i>'}<span>${esc(nome)}</span></button>`);
+      const im = $('img', b); if (im) im.onerror = () => im.replaceWith(h('<i></i>')); b.onclick = () => usa(fn); grade.appendChild(b); };
+    for (const p of this.PRONTOS) item(p.nome, `cenarios/miniaturas/${p.id}.jpg`, async () => mostra(await this.pronto(p.id)));
+    if (ult) item('Último da IA: ' + (ult.nome || 'cenário'), null, () => mostra(ult, (ult.nome || 'Cenário') + ' — o último que a IA fez.'));
+    const ia = ajuste => usa(async () => {
+      const txt = ta.value.trim(); if (!txt) { st.textContent = 'Escreva o que quer no campo acima.'; prev.hidden = false; return; }
+      if (ajuste && !atual) return;
+      prev.hidden = false; st.textContent = 'A IA está montando o cenário…';
+      const r = await this.pedirIA(txt, ajuste ? atual : null, t => { st.textContent = 'A IA está montando o cenário… (' + t.length + ' letras)'; });
+      this.guardaUltimo(r.cena);
+      const obs = [r.cortado && 'a resposta veio incompleta e aproveitei o que chegou', r.tirou && `ignorei ${r.tirou} peça(s) com erro`].filter(Boolean).join('; ');
+      await mostra(r.cena, (r.cena.nome || 'Cenário') + ' — feito pela IA' + (obs ? ` (${obs})` : '') + '. Gostou? "Pôr na cena", ou escreva um ajuste e clique em "Ajustar".');
+    });
+    await UI.modal({ title: 'Cenário', icon: 'paisagem', width: 720, body, sticky: true, onOpen: a => {
+      [btAjuste, btCriar, btPor] = a.foot.querySelectorAll('.btn'); btPor.disabled = true; btAjuste.style.display = 'none';
     }, buttons: [
       { label: 'Ajustar', left: true, onClick: () => { ia(true); return false; } },
       { label: 'Criar com a IA', icon: 'sparkles', onClick: () => { ia(false); return false; } },
-      { label: 'Pôr na cena', kind: 'primary', onClick: async () => { if (!cvAtual || ocupado) return false; await this.porNaCena(cvAtual, atual); return true; } },
+      { label: 'Pôr na cena', kind: 'primary', onClick: async () => { if (!cvAtual || ocupado) return false; let ok = false; await usa(async () => { await this.porNaCena(cvAtual, atual); ok = true; }); return ok; } },
     ] });
   },
   async porNaCena(cv, cena) {
-    const blob = await new Promise(ok => cv.toBlob(ok, 'image/png')), id = await Arq.guardar(blob), bm = await createImageBitmap(blob);
-    const P = App.P, s = round(Math.max(P.w / this.W, P.h / this.H), 3); // cobre o quadro todo (no vertical, corta os lados)
+    const P = App.P; if (!P) throw new Error('Nenhuma animação aberta.');
+    const blob = await new Promise(ok => cv.toBlob(ok, 'image/png')); if (!blob) throw new Error('Não consegui gerar a imagem do cenário (memória do navegador?).');
+    const id = await Arq.guardar(blob), bm = await createImageBitmap(blob);
+    const s = round(Math.max(P.w / this.W, P.h / this.H), 3); // cobre o quadro todo (no vertical, corta os lados)
     const n = Modelo.novoNo('imagem', { arq: id, nome: 'Cenário: ' + String(cena?.nome || 'novo').slice(0, 30), s }); n.cena = cena;
     n.de = 0; n.chaves = { 0: { x: Math.round(P.w / 2), y: Math.round(P.h / 2), r: 0, s, sx: 1, op: 1 } };
     Arq.img.set(id, bm); P.raiz.push(n); App.sel = n.id; App.commit('Cenário'); // último da lista = atrás de tudo

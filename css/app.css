@@ -203,3 +203,5 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .cen textarea{width:100%;resize:vertical}
 .cen-prev canvas{width:100%;max-width:520px;margin:0 auto;aspect-ratio:16/9;border-radius:6px;display:block;background:var(--bg2)}
 .cen-st{color:var(--tx2);font-size:12px;margin-top:6px}
+.cen-item i{display:block;width:100%;aspect-ratio:16/9;border-radius:4px;background:repeating-linear-gradient(45deg,var(--bg3) 0 8px,var(--bg2) 8px 16px)}
+.cen-item:disabled{opacity:.5;cursor:default}
