@@ -40,8 +40,8 @@ const Nuvem = {
   async salvar(def, aoAndar) {
     let existentes = this._ks.get(def.id);
     if (!existentes) { existentes = new Set(); try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); } catch { } this._ks.set(def.id, existentes); }
-    // NA NUVEM VAI EM WEBP (bem menor: na arte dos personagens fica ~5x menor que PNG). Neste computador a imagem original fica guardada.
-    const troca = await this.paraWebp(def, aoAndar); this.ultimaTroca = troca;
+    // PERSONAGENS VÃO EM PNG (sem perda nenhuma; decisão do dono). Imagens que chegaram a ir em webp voltam para a PNG original, se ela estiver neste computador.
+    const troca = await this.voltaPng(def, aoAndar); this.ultimaTroca = troca;
     const imgs = [...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k].filter(Boolean), falta = imgs.filter(k => !existentes.has(k));
     let n = 0;
     for (const k of falta) {
@@ -68,6 +68,15 @@ const Nuvem = {
         const nk = k.replace(/\.(png|jpe?g)$/i, '.webp'); await Arq.guardar(w, nk); Arq.img.set(nk, bm); await DB.put('arquivos', k, 'orig:' + nk).catch(() => { }); troca[k] = nk; // aqui continua valendo a ORIGINAL (sem perda): a webp é só para a nuvem
       } catch { }
     }
+    for (const p of def.partes) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k];
+    if (def.vis?.fantasma?.k && troca[def.vis.fantasma.k]) def.vis.fantasma.k = troca[def.vis.fantasma.k];
+    return troca;
+  },
+  // desfaz a conversão: webp → a PNG original guardada aqui (arquivos["orig:<webp>"])
+  async voltaPng(def, aoAndar) {
+    const troca = {}, alvos = [...new Set([...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k].filter(k => k && /\.webp$/i.test(k)))];
+    for (const k of alvos) { try { const o = await DB.get('arquivos', 'orig:' + k); if (o && await Arq.pegaBlob(o)) troca[k] = o; } catch { } }
+    if (Object.keys(troca).length) aoAndar?.('Voltando as imagens para PNG (sem perda)…');
     for (const p of def.partes) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k];
     if (def.vis?.fantasma?.k && troca[def.vis.fantasma.k]) def.vis.fantasma.k = troca[def.vis.fantasma.k];
     return troca;
