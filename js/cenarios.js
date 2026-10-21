@@ -404,7 +404,7 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
       const n = Modelo.novoNo('imagem', { arq: id, nome: p.nome }); n.de = q; n.chaves = { [q]: { x: p.x + p.w / 2, y: p.y + p.h / 2, r: 0, s: 1, sx: 1, op: 1 } };
       pasta.filhos.push(n);
     }
-    const i = P.raiz.findIndex(x => x.cenario); // na frente dos cenários que já existem e atrás do resto
+    const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); // na frente dos cenários (e do Fundo padrão) e atrás do resto
     if (i >= 0) P.raiz.splice(i, 0, pasta); else P.raiz.push(pasta); App.sel = pasta.id; App.commit('Cenário em camadas');
     UI.toast(`<b>${esc(cena?.nome || 'Cenário')}</b> entrou no fundo da cena com ${pecas.length} peças separadas na pasta. Cada peça dá para salvar na nuvem pelo botão direito.`, { kind: 'ok', time: 6000 });
   },

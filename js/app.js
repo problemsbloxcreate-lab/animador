@@ -6,6 +6,7 @@ const App = {
 
   /* ---------- abrir / fechar ---------- */
   async abrir(P) {
+    if (!P.temFundoPadrao) { P.temFundoPadrao = true; if (!Modelo.todos(P).some(n => n.fundoPadrao)) P.raiz.push(Modelo.fundoPadrao(P.w, P.h, P.fundo)); } // projetos de antes: a folha vira camada
     this.P = P; this.q = 0; this.sel = null; this.desfazer = []; this.refazer = []; this.ultimo = JSON.stringify(P);
     for (const def of Object.values(P.personagens || {})) Arq.garantir(def.partes.flatMap(p => p.imgs.map(i => i.k)));
     Telas.mostra('editor'); $('#proj-nome').textContent = P.nome; this.titulo();
@@ -88,6 +89,11 @@ const App = {
       Arq.img.set(id, bm); this.inserir(n, 'Imagem');
     }
   },
+  addForma(forma) {
+    const P = this.P, m = Math.round(Math.min(P.w, P.h) * .3), nomes = { ret: 'Retângulo', elipse: 'Círculo', tri: 'Triângulo', estrela: 'Estrela' };
+    this.inserir(Modelo.novoNo('forma', { forma, nome: nomes[forma], w: m, h: m, cor: ['#4a90e2', '#f5a623', '#7ed321', '#e94e77'][Object.keys(nomes).indexOf(forma)] }), nomes[forma]);
+  },
+  menuForma(x, y) { UI.ctx(x, y, [['ret', 'Retângulo', 'square'], ['elipse', 'Círculo', 'circle'], ['tri', 'Triângulo', 'shapes'], ['estrela', 'Estrela', 'star']].map(([f, l, i]) => ({ label: l, icon: i, action: () => this.addForma(f) }))); },
   addTexto() { this.inserir(Modelo.novoNo('texto', { texto: 'Texto' }), 'Texto', { dy: Math.round(this.P.h * .3) }); },
   // cenário: vai para o fundo de tudo e cobre a câmera inteira. Fica só nesta animação (salvar na nuvem é no botão direito)
   async addCenario(blob, nome, extra = {}) {
@@ -95,7 +101,7 @@ const App = {
     const c = Modelo.camera(P, q), z = c.zoom || 1, s = bm ? round(Math.max(P.w / z / bm.width, P.h / z / bm.height) * 1.02, 3) : 1;
     const n = Modelo.novoNo('imagem', { arq: id, nome: (nome || 'Cenário').slice(0, 40), s }); Object.assign(n, extra);
     n.de = q; n.chaves = { [q]: { x: Math.round(c.x), y: Math.round(c.y), r: 0, s, sx: 1, op: 1 } };
-    n.cenario = true; const i = P.raiz.findIndex(x => x.cenario); // fica na frente dos cenários que já existem e atrás do resto
+    n.cenario = true; const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); // fica na frente dos cenários que já existem e atrás do resto
     if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); this.sel = n.id; this.commit('Cenário ' + n.nome); return n;
   },
   menuTremulo(n) { // efeito "trêmulo" na camada (ver Render.tremor)
@@ -263,7 +269,9 @@ const App = {
     const camM = new DOMMatrix().translate(c.x, c.y).rotate(c.r || 0), cantosCam = [[-cw / 2, -ch / 2], [cw / 2, -ch / 2], [cw / 2, ch / 2], [-cw / 2, ch / 2]].map(([x, y]) => camM.transformPoint(new DOMPoint(x, y)));
     // canvas infinito: quadriculado cinza clarinho em toda a volta; a folha (cor do fundo) tem o tamanho da câmera, no lugar dela
     this.quadriculado(ctx, V, W, H);
-    ctx.save(); ctx.setTransform(V); ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 18 * pc.dpr; ctx.fillStyle = P.fundo || '#fff'; ctx.fillRect(0, 0, P.w, P.h); ctx.restore();
+    ctx.save(); ctx.setTransform(V); ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 18 * pc.dpr; // sombrinha embaixo do Fundo padrão
+    for (const n of Modelo.todos(P)) if (n.fundoPadrao && n.vis !== false && Modelo.aparece(P, n, this.q) && !Modelo.ancestrais(P, n.id).length) { const t = Modelo.transf(n, this.q); ctx.setTransform(Render.matNo(V, t)); ctx.fillStyle = n.cor; ctx.fillRect(-n.w / 2, -n.h / 2, n.w, n.h); }
+    ctx.restore();
     // casca de cebola: quadros vizinhos bem clarinhos
     if (this.onion && !this.tocando) for (const [d, a] of [[-2, .1], [-1, .22], [1, .16]]) { const qq = this.q + d; if (qq < 0 || qq > Modelo.ultimoQuadro(P)) continue; ctx.save(); ctx.filter = d < 0 ? 'sepia(1) hue-rotate(160deg) saturate(3)' : 'sepia(1) hue-rotate(-40deg) saturate(3)'; Render.camadas(ctx, P, qq, V, a); ctx.restore(); }
     ctx.save(); ctx.filter = Efeitos.filtro(P, this.q); Render.camadas(ctx, P, this.q, V); ctx.restore();

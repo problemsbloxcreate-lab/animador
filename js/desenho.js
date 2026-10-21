@@ -76,6 +76,8 @@ const Render = {
       const bm = this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(mm)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
     } else if (n.tipo === 'texto') {
       ctx.setTransform(base.multiply(mm)); this.texto(ctx, n);
+    } else if (n.tipo === 'forma') {
+      ctx.setTransform(base.multiply(mm)); this.forma(ctx, n);
     }
     ctx.restore(); return true;
   },
@@ -102,6 +104,14 @@ const Render = {
     // 4) faixas de cinema e flash: por cima, no quadro da câmera
     ctx.setTransform(fr); for (const e of lista) if (tela(e)) Efeitos.umPorCima(ctx, e, q, P.w, P.h, e.de ?? de, e.ate ?? ate, false);
     ctx.restore();
+  },
+  forma(ctx, n) {
+    const w = n.w || 100, h = n.h || 100; ctx.beginPath();
+    if (n.forma === 'elipse') ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+    else if (n.forma === 'tri') { ctx.moveTo(0, -h / 2); ctx.lineTo(w / 2, h / 2); ctx.lineTo(-w / 2, h / 2); ctx.closePath(); }
+    else if (n.forma === 'estrela') { for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? .42 : 1; ctx.lineTo(Math.cos(a) * w / 2 * r, Math.sin(a) * h / 2 * r); } ctx.closePath(); }
+    else if (n.raio > 0) ctx.roundRect(-w / 2, -h / 2, w, h, Math.min(n.raio, w / 2, h / 2)); else ctx.rect(-w / 2, -h / 2, w, h);
+    ctx.fillStyle = n.cor || '#fff'; ctx.fill(); if (n.bordaL > 0) { ctx.lineJoin = 'round'; ctx.lineWidth = n.bordaL; ctx.strokeStyle = n.borda || '#111'; ctx.stroke(); }
   },
   texto(ctx, n) {
     ctx.font = `${n.negrito ? '800 ' : ''}${n.tam || 72}px ${n.fonte || 'Segoe UI'}, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -138,6 +148,7 @@ const Render = {
       let b;
       if (n.tipo === 'personagem') { const def = P.personagens[n.ref]; if (!def) return; b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, Modelo.estadoPersonagem(n, q))); }
       else if (n.tipo === 'imagem') { const bm = this.bm(n.arq); const w = bm?.width || 200, h = bm?.height || 200; b = { x: -w / 2, y: -h / 2, w, h }; }
+      else if (n.tipo === 'forma') b = { x: -(n.w || 100) / 2, y: -(n.h || 100) / 2, w: n.w || 100, h: n.h || 100 };
       else if (n.tipo === 'texto') { const c = this._med || (this._med = new OffscreenCanvas(4, 4).getContext('2d')); c.font = `${n.negrito ? '800 ' : ''}${n.tam || 72}px ${n.fonte || 'Segoe UI'}`; const ls = String(n.texto || '').split('\n'); const w = Math.max(...ls.map(l => c.measureText(l).width)) + 10, h = ls.length * (n.tam || 72) * 1.15; b = { x: -w / 2, y: -h / 2, w, h }; }
       if (!b) return;
       const cantos = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]].map(([x, y]) => m.transformPoint(new DOMPoint(x, y)));

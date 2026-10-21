@@ -1,6 +1,6 @@
 /* ===================== arvore.js — hierarquia: camadas e pastas (arrastar para ordenar ou pôr dentro), mostrar/travar, renomear ===================== */
 'use strict';
-const TIPO_IC = { pasta: 'folder', personagem: 'layers', imagem: 'image', texto: 'text', efeito: 'sparkles' };
+const TIPO_IC = { pasta: 'folder', personagem: 'layers', imagem: 'image', texto: 'text', efeito: 'sparkles', forma: 'shapes' };
 const Arvore = {
   arrastando: null,
   pinta() {

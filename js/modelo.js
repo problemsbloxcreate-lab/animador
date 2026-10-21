@@ -22,15 +22,18 @@ const Modelo = {
     const w = o.w || 1920, h = o.h || 1080;
     return { v: 2, id: uid('p'), nome: o.nome || 'Animação nova', w, h, fps: o.fps || 24, duracao: o.duracao || 72, fundo: o.fundo || '#ffffff',
       raiz: [], camera: { chaves: { 0: { x: w / 2, y: h / 2, zoom: 1, r: 0 } } }, efeitos: { visual: 'normal', tela: [] },
-      audios: [], legendas: [], personagens: {}, modificado: Date.now() };
+      audios: [], legendas: [], personagens: {}, modificado: Date.now(), ...(o.semFundo ? {} : { raiz: [Modelo.fundoPadrao(w, h, o.fundo)] }) };
   },
+  // a folha branca do tamanho da câmera vira uma camada de verdade (dá para mudar cor, tamanho, mover ou apagar)
+  fundoPadrao(w, h, cor) { const n = Modelo.novoNo('forma', { nome: 'Fundo padrão', forma: 'ret', w, h, cor: cor || '#ffffff', x: w / 2, y: h / 2 }); n.fundoPadrao = true; return n; },
   novoNo(tipo, o = {}) {
-    const n = { id: uid('n'), tipo, nome: o.nome || { pasta: 'Pasta', personagem: 'Personagem', imagem: 'Imagem', texto: 'Texto', efeito: 'Efeito' }[tipo], vis: true, trava: false,
+    const n = { id: uid('n'), tipo, nome: o.nome || { pasta: 'Pasta', personagem: 'Personagem', imagem: 'Imagem', texto: 'Texto', efeito: 'Efeito', forma: 'Forma' }[tipo], vis: true, trava: false,
       de: o.de ?? 0, ate: o.ate ?? null, interp: tipo !== 'personagem' ? true : true, chaves: { [o.de ?? 0]: { x: o.x ?? 0, y: o.y ?? 0, r: 0, s: o.s ?? 1, sx: 1, op: 1 } } };
     if (tipo === 'pasta') { n.filhos = []; n.aberto = true; }
     if (tipo === 'personagem') n.ref = o.ref;
     if (tipo === 'imagem') n.arq = o.arq;
     if (tipo === 'efeito') { n.efeitos = o.efeitos || []; n.nomeAuto = true; }
+    if (tipo === 'forma') Object.assign(n, { forma: o.forma || 'ret', w: o.w || 400, h: o.h || 400, cor: o.cor || '#4a90e2', borda: o.borda || '#111111', bordaL: o.bordaL ?? 0, raio: o.raio ?? 0 });
     if (tipo === 'texto') Object.assign(n, { texto: o.texto || 'Texto', cor: '#111111', tam: 72, fonte: 'Segoe UI', borda: '#ffffff', bordaL: 0, negrito: true });
     return n;
   },

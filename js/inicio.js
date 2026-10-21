@@ -6,7 +6,7 @@
   poe('b-onion', 'onion', '', () => { App.onion = !App.onion; $('#b-onion').classList.toggle('on', App.onion); App.pinta(); });
   poe('b-ia', 'sparkles', 'IA', () => IA.abrir(Lado.foco())); poe('b-atelie', 'edit', 'Ateliê', () => Atelie.abrir(Lado.foco() ? App.P.personagens[Lado.foco().ref]?.id : null, { volta: true }));
   poe('b-exportar', 'download', 'Exportar', () => Exportar.abrir());
-  poe('h-pers', 'plus', '', () => App.addPersonagem()); poe('h-cen', 'paisagem', '', () => { const r = $('#h-cen').getBoundingClientRect(); App.menuCenario(r.left, r.bottom + 4); }); poe('h-img', 'image', '', () => App.addImagem()); poe('h-txt', 'text', '', () => App.addTexto()); poe('h-pasta', 'folder', '', () => App.addPasta());
+  poe('h-pers', 'plus', '', () => App.addPersonagem()); poe('h-cen', 'paisagem', '', () => { const r = $('#h-cen').getBoundingClientRect(); App.menuCenario(r.left, r.bottom + 4); }); poe('h-img', 'image', '', () => App.addImagem()); poe('h-forma', 'shapes', '', () => { const r = $('#h-forma').getBoundingClientRect(); App.menuForma(r.left, r.bottom + 4); }); poe('h-txt', 'text', '', () => App.addTexto()); poe('h-pasta', 'folder', '', () => App.addPasta());
   poe('t-ini', 'start', '', () => App.setQ(0)); poe('t-ant', 'prev', '', () => App.setQ(App.q - 1, { som: true })); poe('b-tocar', 'play', '', () => App.tocar());
   poe('t-prox', 'next', '', () => App.setQ(App.q + 1, { som: true })); poe('t-fim', 'end', '', () => App.setQ(Modelo.ultimoQuadro(App.P)));
   poe('t-loop', 'loop', '', () => { Folha.loop = !Folha.loop; $('#t-loop').classList.toggle('on', Folha.loop); });

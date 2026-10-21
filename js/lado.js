@@ -89,6 +89,19 @@ const Lado = {
       $('[data-de]', tm).onchange = ev => { n.de = clamp(+ev.target.value - 1, 0, P.duracao - 1); App.commit('Começo'); }; $('[data-ate]', tm).onchange = ev => { n.ate = ev.target.value === '' ? null : Math.max(n.de || 0, +ev.target.value - 1); App.commit('Fim'); };
       box.appendChild(tm);
       box.appendChild(this.tremulo(n));
+      if (n.tipo === 'forma') {
+        box.appendChild(h(`<div class="titulo-p">Forma${n.fundoPadrao ? ' · fundo padrão' : ''}</div>`));
+        const fs = h(`<div class="presets">${[['ret', 'Retângulo'], ['elipse', 'Círculo'], ['tri', 'Triângulo'], ['estrela', 'Estrela']].map(([f, l]) => `<button data-f="${f}" class="${n.forma === f ? 'on' : ''}">${l}</button>`).join('')}</div>`);
+        $$('[data-f]', fs).forEach(b => b.onclick = () => { n.forma = b.dataset.f; App.commit('Forma'); }); box.appendChild(fs);
+        const sf = () => App.commit('Forma', { semArvore: true });
+        box.appendChild(this.campo('Largura', n.w, 2, Math.max(4000, n.w), 1, v => { n.w = v; App.pinta(); }, sf));
+        box.appendChild(this.campo('Altura', n.h, 2, Math.max(4000, n.h), 1, v => { n.h = v; App.pinta(); }, sf));
+        if (n.forma === 'ret') box.appendChild(this.campo('Cantos', n.raio || 0, 0, 400, 1, v => { n.raio = v; App.pinta(); }, sf));
+        const ct = h(`<div class="campo2"><span style="color:var(--tx2)">Cor</span><input type="color" value="${n.cor}" data-c><span style="color:var(--tx2)">Borda</span><input type="color" value="${n.borda}" data-b><input type="number" value="${n.bordaL}" min="0" max="80" data-bl style="width:52px" title="Grossura da borda"></div>`);
+        $('[data-c]', ct).oninput = ev => { n.cor = ev.target.value; App.pinta(); }; $('[data-b]', ct).oninput = ev => { n.borda = ev.target.value; App.pinta(); };
+        $('[data-bl]', ct).onchange = ev => { n.bordaL = clamp(+ev.target.value, 0, 80); App.commit('Borda'); }; ct.addEventListener('change', sf); box.appendChild(ct);
+        if (n.fundoPadrao) { const bt = h(`<button class="btn sm">${ic('camera', 13)} Do tamanho da câmera</button>`); bt.onclick = () => { n.w = App.P.w; n.h = App.P.h; Modelo.poeTransf(n, App.q, { x: App.P.w / 2, y: App.P.h / 2, r: 0, s: 1 }); App.commit('Fundo do tamanho da câmera'); }; box.appendChild(bt); }
+      }
       if (n.tipo === 'texto') {
         box.appendChild(h('<div class="titulo-p">Texto</div>'));
         const tx = h(`<textarea rows="3" style="width:100%">${esc(n.texto)}</textarea>`); tx.oninput = () => { n.texto = tx.value; App.pinta(); }; tx.onchange = () => App.commit('Texto'); box.appendChild(tx);
@@ -106,7 +119,7 @@ const Lado = {
       <div class="campo2"><span style="color:var(--tx2)">Fundo</span><input type="color" value="${P.fundo}" data-f></div></div>`);
     $('[data-nm]', pj).onchange = ev => { P.nome = ev.target.value.trim() || P.nome; $('#proj-nome').textContent = P.nome; App.titulo(); App.commit('Nome'); };
     $('[data-w]', pj).onchange = ev => { P.w = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); }; $('[data-h]', pj).onchange = ev => { P.h = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); };
-    $('[data-f]', pj).oninput = ev => { P.fundo = ev.target.value; App.pinta(); }; $('[data-f]', pj).onchange = () => App.commit('Fundo');
+    $('[data-f]', pj).oninput = ev => { P.fundo = ev.target.value; for (const x of Modelo.todos(P)) if (x.fundoPadrao) x.cor = P.fundo; App.pinta(); }; $('[data-f]', pj).onchange = () => App.commit('Fundo');
     el.appendChild(pj);
     // fundo do palco (fora da folha): quadriculado ou cor lisa. Só aparece aqui na tela, não vai para o vídeo
     const fp = App.fundoPalco(), pa = h(`<div class="props" style="border-top:1px solid var(--bd)"><div class="titulo-p">Fundo do palco <small style="color:var(--tx3);text-transform:none;letter-spacing:0">só na tela</small></div>
