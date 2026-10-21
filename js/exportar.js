@@ -7,6 +7,7 @@ const Exportar = {
       <label class="field">Quadros<div class="campo2"><input type="number" data-de value="1" min="1" style="width:70px"> até <input type="number" data-ate value="${P.duracao}" min="1" style="width:70px"> <small style="color:var(--tx3)">${P.fps} quadros por segundo</small></div></label>
       <div class="prog" hidden><div style="height:6px;border-radius:3px;background:var(--bg0);overflow:hidden"><i style="display:block;height:100%;width:0;background:#ddd"></i></div><p style="margin-top:6px" data-t></p></div></div>`);
     await UI.modal({ title: 'Exportar vídeo', icon: 'download', body, buttons: [
+      { label: 'Arquivo .animador', left: true, onClick: () => { Toon.baixar(App.P); return false; } },
       { label: 'Imagem deste quadro', left: true, onClick: () => { this.png(); return false; } },
       { label: 'Fechar', value: null },
       { label: 'Exportar MP4', kind: 'primary', onClick: async api => {

@@ -35,6 +35,7 @@
       "action": "./index.html",
       "accept": {
         "application/octet-stream": [
+          ".animador",
           ".toon"
         ]
       }

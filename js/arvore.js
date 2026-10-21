@@ -9,7 +9,7 @@ const Arvore = {
     el.innerHTML = linhas.length ? '' : '<div class="vazio">Nada na cena ainda.<br>Use <b>+</b> aqui em cima para pôr um personagem, imagem ou texto.</div>';
     for (const { no: n, nivel } of linhas) {
       const fora = !Modelo.aparece(P, n, App.q);
-      const r = h(`<div class="no ${App.sel === n.id ? 'sel' : ''} ${fora ? 'fora' : ''} ${n.tipo === 'efeito' ? 'efeito' : ''}" draggable="true" data-id="${n.id}" style="padding-left:${6 + nivel * 14}px" title="${fora ? 'Não aparece neste quadro' : ''}">
+      const r = h(`<div class="no ${App.sel === n.id ? 'sel' : ''} ${fora ? 'fora' : ''} ${n.tipo === 'efeito' ? 'efeito' : ''} ${n.filhos && n.corPasta ? 'com-cor' : ''}" draggable="true" data-id="${n.id}" style="padding-left:${6 + nivel * 14}px;${n.filhos && n.corPasta ? `--pc:${n.corPasta}` : ''}" title="${fora ? 'Não aparece neste quadro' : ''}">
         <button class="ab" data-ab>${n.filhos ? ic(n.aberto === false ? 'right' : 'down', 12) : ''}</button>
         <span class="ti">${ic(TIPO_IC[n.tipo] || 'file', 14)}</span><span class="nm">${esc(n.nome)}</span>
         <button class="ibtn ${n.vis === false ? 'off' : ''}" data-vis title="Mostrar/esconder">${ic(n.vis === false ? 'eyeOff' : 'eye', 14)}</button>
@@ -53,6 +53,7 @@ const Arvore = {
       { label: 'Renomear', icon: 'edit', action: () => this.renomear(n, $(`.no[data-id="${n.id}"]`)) },
       { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
       { label: 'Pôr numa pasta nova', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },
+      n.filhos && menuCor(n.corPasta, c => { if (c) n.corPasta = c; else delete n.corPasta; App.commit('Cor da pasta'); }),
       n.tipo !== 'efeito' && App.menuTremulo(n),
       n.tipo === 'efeito' && { label: 'Na timeline toda', icon: 'film', action: () => { n.de = 0; n.ate = null; App.commit('Na timeline toda'); } },
       n.tipo === 'imagem' && '-',

@@ -305,11 +305,13 @@ const Atelie = {
     };
     for (const nome of p.pastas) {
       const dentro = p.imgs.filter(i => i.pasta === nome), aberta = !fechadas.has(p.id + '/' + nome);
-      const cab = h(`<div class="pasta-img ${aberta ? 'aberta' : ''}" title="Clique para abrir/fechar · solte imagens aqui · botão direito: opções">${ic(aberta ? 'down' : 'right', 12)}${ic('folder', 14)}<b>${esc(nome)}</b><small>${dentro.length}</small><span class="sp"></span><button class="ibtn" data-add title="Pôr imagens nesta pasta">${ic('plus', 13)}</button></div>`);
+      const corP = p.pastaCores?.[nome];
+      const cab = h(`<div class="pasta-img ${aberta ? 'aberta' : ''} ${corP ? 'com-cor' : ''}" style="${corP ? `--pc:${corP}` : ''}" title="Clique para abrir/fechar · solte imagens aqui · botão direito: opções">${ic(aberta ? 'down' : 'right', 12)}${ic('folder', 14)}<b>${esc(nome)}</b><small>${dentro.length}</small><span class="sp"></span><button class="ibtn" data-add title="Pôr imagens nesta pasta">${ic('plus', 13)}</button></div>`);
       cab.onclick = ev => { if (ev.target.closest('[data-add]')) return; const k = p.id + '/' + nome; fechadas.has(k) ? fechadas.delete(k) : fechadas.add(k); this.pintaImgs(); };
       $('[data-add]', cab).onclick = () => this.addImagens(null, false, nome);
       cab.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [
         { label: 'Pôr imagens nesta pasta…', icon: 'plus', action: () => this.addImagens(null, false, nome) },
+        menuCor(corP, c => { p.pastaCores = p.pastaCores || {}; if (c) p.pastaCores[nome] = c; else delete p.pastaCores[nome]; this.commit(); }),
         { label: 'Renomear a pasta', icon: 'edit', action: async () => { const n = (await UI.prompt({ title: 'Nome da pasta', value: nome }))?.trim(); if (!n || n === nome) return; if (p.pastas.includes(n)) return UI.toast('Já existe uma pasta com esse nome'); p.pastas = p.pastas.map(x => x === nome ? n : x); dentro.forEach(i => i.pasta = n); this.commit(); } },
         '-', { label: 'Desfazer a pasta (as imagens ficam)', icon: 'trash', action: () => { p.pastas = p.pastas.filter(x => x !== nome); dentro.forEach(i => delete i.pasta); this.commit(); } },
       ]); };
@@ -444,7 +446,7 @@ const Biblioteca = {
     try {
       const lista = await Nuvem.lista(); if (!lista.length) body.innerHTML = '<div class="vazio">Nenhum personagem na biblioteca ainda. Crie o primeiro no Ateliê.</div>';
       else { body.innerHTML = ''; const pastas = [...new Set(lista.map(x => x.pasta))];
-        for (const pa of pastas) { body.appendChild(h(`<div class="pasta-t">${ic('folder', 13)} ${esc(pa)}</div>`)); const g = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))"></div>');
+        for (const pa of pastas) { body.appendChild(Home.tituloPasta(pa)); const g = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))"></div>');
           for (const it of lista.filter(x => x.pasta === pa)) { const c = h(`<div class="pc"><div class="th" style="aspect-ratio:1;${it.thumb ? `background-image:url('${it.thumb}')` : ''}"></div><div class="in"><b>${esc(it.nome)}</b></div></div>`);
             c.onclick = async () => { c.style.opacity = .5; try { escolhido = await Nuvem.abrir(it.id); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } $('#modal-root .modal-back [data-x]')?.click(); }; g.appendChild(c); }
           body.appendChild(g); } }

@@ -36,7 +36,7 @@ const Folha = {
       const sel = (l.tipo === 'no' && App.sel === l.no.id) || (l.tipo === 'camera' && App.sel === 'camera') || (l.tipo === 'efeito' && App.sel === l.ef.id) || (l.tipo === 'audio' && App.sel === l.a.id);
       const icn = l.tipo === 'no' ? TIPO_IC[l.no.tipo] : { camera: 'camera', efeito: 'sparkles', legenda: 'text', audio: 'mic' }[l.tipo];
       const ab = l.tipo === 'no' && l.no.filhos ? `<button class="ab" data-ab title="Abrir/fechar a pasta">${ic(l.no.aberto === false ? 'right' : 'down', 11)}</button>` : '';
-      return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px">${ab}${ic(icn, 13)}<span class="nm">${esc(l.nome)}</span></div>`;
+      return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''} ${l.no?.filhos && l.no.corPasta ? 'com-cor' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px;${l.no?.filhos && l.no.corPasta ? `--pc:${l.no.corPasta}` : ''}">${ab}${ic(icn, 13)}<span class="nm">${esc(l.nome)}</span></div>`;
     }).join('');
     // cabeçalho: pasta nova (com a camada escolhida dentro, se tiver uma)
     const cab = $('.regua', this.nomes); cab.innerHTML = `<span>Camadas</span><span class="sp"></span><button class="ibtn" data-pasta title="Pasta nova (com a camada escolhida dentro) · Ctrl+G">${ic('folder', 13)}</button>`;
@@ -98,7 +98,7 @@ const Folha = {
   },
   linhaNo(c, P, n, y, sx, sel) {
     if (n.tipo === 'efeito') return this.linhaEfeito(c, P, n, y, sx, sel);
-    const de = n.de || 0, ate = Modelo.fimNo(P, n), CW = this.CW, cor = n.tipo === 'pasta' ? '#4b4b4b' : n.tipo === 'personagem' ? '#56657a' : n.tipo === 'texto' ? '#6b6150' : '#4f6562';
+    const de = n.de || 0, ate = Modelo.fimNo(P, n), CW = this.CW, cor = n.tipo === 'pasta' ? (n.corPasta ? n.corPasta + '99' : '#4b4b4b') : n.tipo === 'personagem' ? '#56657a' : n.tipo === 'texto' ? '#6b6150' : '#4f6562';
     c.fillStyle = n.vis === false ? '#333' : cor; c.globalAlpha = sel ? 1 : .85; c.beginPath(); c.roundRect(de * CW - sx + 1, y + 4, (ate - de + 1) * CW - 2, this.RH - 9, 4); c.fill(); c.globalAlpha = 1;
     c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(de * CW - sx + 1, y + 4, 3, this.RH - 9); c.fillRect((ate + 1) * CW - sx - 4, y + 4, 3, this.RH - 9);
     this.chaves(c, n.chaves, y, sx, '#f0f0f0', k => n.chaves[k].sessoes || n.chaves[k].partes);

@@ -45,6 +45,12 @@ const Ease = {
 const EASE_NAMES = { linear: 'Linear', inOut: 'Suave', out: 'Desacelerar', in: 'Acelerar', back: 'Passar do ponto', backIn: 'Recuar e ir', bounce: 'Quicar', elastic: 'Elástico', hold: 'Pular (sem transição)' };
 
 /* ---------- ícones (traço estilo Lucide) ---------- */
+/* cores das pastas (todas: hierarquia, timeline, mídia, ateliê, biblioteca). menuCor devolve o item "Cor da pasta" com o submenu */
+const CORES_PASTA = [['', 'Sem cor'], ['#e5534b', 'Vermelho'], ['#f0883e', 'Laranja'], ['#e3b341', 'Amarelo'], ['#57ab5a', 'Verde'], ['#39c5cf', 'Ciano'], ['#539bf5', 'Azul'], ['#986ee2', 'Roxo'], ['#e275ad', 'Rosa']];
+function menuCor(atual, muda) { return { label: 'Cor da pasta', icon: 'palette', sub: CORES_PASTA.map(([c, n]) => ({ label: n, cor: c || '#555', checked: (atual || '') === c, action: () => muda(c || null) })) }; }
+// cores de pastas que não ficam em nenhum arquivo (biblioteca da equipe): neste navegador
+const CoresPasta = { get(k) { try { return JSON.parse(localStorage.getItem('animador-cores-pastas') || '{}')[k] || null; } catch { return null; } },
+  set(k, c) { try { const o = JSON.parse(localStorage.getItem('animador-cores-pastas') || '{}'); if (c) o[k] = c; else delete o[k]; localStorage.setItem('animador-cores-pastas', JSON.stringify(o)); } catch { } } };
 const ICONS = {
   brush: '<path d="M9.06 11.9 18 3a2.1 2.1 0 0 1 3 3l-8.9 8.94"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/>',
   pencil: '<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/><path d="m15 5 4 4"/>',
@@ -226,7 +232,7 @@ const UI = {
         if (!it) return;
         if (it === '-') return m.appendChild(h('<div class="ctx-sep"></div>'));
         if (it.head) return m.appendChild(h(`<div class="ctx-head">${esc(it.head)}</div>`));
-        const el = h(`<div class="ctx-item ${it.disabled ? 'dis' : ''} ${it.danger ? 'danger' : ''} ${it.ai ? 'ai' : ''} ${it.used ? 'used' : ''}"><span class="ctx-ic">${it.icon ? ic(it.icon, 14) : (it.checked ? ic('check', 14) : '')}</span><span class="ctx-label">${esc(it.label)}</span>${it.key ? `<span class="ctx-key">${esc(it.key)}</span>` : ''}${it.sub ? ic('right', 13) : ''}</div>`);
+        const el = h(`<div class="ctx-item ${it.disabled ? 'dis' : ''} ${it.danger ? 'danger' : ''} ${it.ai ? 'ai' : ''} ${it.used ? 'used' : ''}"><span class="ctx-ic">${it.cor ? `<i class="ctx-cor" style="background:${it.cor}">${it.checked ? ic('check', 11) : ''}</i>` : it.icon ? ic(it.icon, 14) : (it.checked ? ic('check', 14) : '')}</span><span class="ctx-label">${esc(it.label)}</span>${it.key ? `<span class="ctx-key">${esc(it.key)}</span>` : ''}${it.sub ? ic('right', 13) : ''}</div>`);
         if (it.sub) {
           el.onmouseenter = () => {
             $$('.ctx', root).forEach(c => { if (+c.dataset.lv > +m.dataset.lv) c.remove(); });

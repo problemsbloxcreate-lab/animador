@@ -12,8 +12,8 @@ const PWA = {
     addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.prompt = e; });
     addEventListener('appinstalled', () => { this.prompt = null; UI.toast('Instalado! O Estúdio Problems agora abre como programa.', { kind: 'ok' }); });
     if (this.installed) document.documentElement.classList.add('as-app');
-    // abrir um .toon com dois cliques (programa instalado)
-    if ('launchQueue' in window) launchQueue.setConsumer(async p => { for (const h of p.files || []) { const f = await h.getFile(); if (/\.toon$/i.test(f.name) && typeof Home !== 'undefined') { await Home.importar(f); break; } } });
+    // abrir um .animador (ou .toon antigo) com dois cliques (programa instalado)
+    if ('launchQueue' in window) launchQueue.setConsumer(async p => { for (const h of p.files || []) { const f = await h.getFile(); if (/\.(animador|toon)$/i.test(f.name) && typeof Home !== 'undefined') { await Home.importar(f); break; } } });
   },
   async install() {
     if (this.installed) return UI.toast('Você já está usando como programa ✓', { kind: 'ok' });
