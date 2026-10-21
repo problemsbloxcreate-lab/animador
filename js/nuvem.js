@@ -23,7 +23,12 @@ const Nuvem = {
     try { const d = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/personagem.json`))).json(); await DB.put('personagens', d); return d; }
     catch (e) { const local = await DB.get('personagens', id); if (local) return local; throw e; }
   },
-  async baixar(k) { const b = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k))).blob(); await DB.put('arquivos', b, k); return b; },
+  async baixar(k) {
+    let r; try { r = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k)); }
+    catch (e) { // imagem que já foi convertida para WEBP na nuvem (animação antiga ainda com o nome .png): pega a versão webp
+      if (!/\.(png|jpe?g)$/i.test(k)) throw e; r = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k.replace(/\.(png|jpe?g)$/i, '.webp'))); }
+    const b = await r.blob(); await DB.put('arquivos', b, k); return b;
+  },
   // salva: manda as imagens que ainda não estão na nuvem e depois o personagem.json
   // quem é ADM pode apagar da nuvem; os outros recebem o aviso para pedir a um ADM (o servidor também confere)
   adm: false, // guardado da última vez que perguntou (para o menu já sair certo)
@@ -73,10 +78,10 @@ const Nuvem = {
 
   /* ---------- cenários da equipe: só entram aqui quando alguém escolhe "Salvar na nuvem" (botão direito na camada) ---------- */
   async cenarios() { const j = await (await this.pede('/cenarios')).json(); return (j.itens || []).sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))); },
-  async baixarCenario(k) { const b0 = await DB.get('arquivos', k); if (b0) return b0; const b = await (await this.pede('/cenarios/arquivo?k=' + encodeURIComponent(k))).blob(); await DB.put('arquivos', b, k); return b; },
+  async baixarCenario(k) { const b0 = await DB.get('arquivos', k); if (b0) return b0; let r; try { r = await this.pede('/cenarios/arquivo?k=' + encodeURIComponent(k)); } catch (e) { if (!/\.(png|jpe?g)$/i.test(k)) throw e; r = await this.pede('/cenarios/arquivo?k=' + encodeURIComponent(k.replace(/\.(png|jpe?g)$/i, '.webp'))); } const b = await r.blob(); await DB.put('arquivos', b, k); return b; },
   async salvarCenario(n) {
     let b = await Arq.pegaBlob(n.arq); if (!b) throw new Error('A imagem desta camada não está neste computador.');
-    if (b.size > 1.5 * 1048576) { try { const bm = await createImageBitmap(b), c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0); const w = await c.convertToBlob({ type: 'image/webp', quality: .92 }); if (w.size < b.size) b = w; } catch { } } // menor na nuvem
+    if (b.type !== 'image/webp') { try { const bm = await createImageBitmap(b), c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0); const w = await c.convertToBlob({ type: 'image/webp', quality: .92 }); if (w.type === 'image/webp' && w.size < b.size * .95) b = w; } catch { } } // na nuvem vai em WEBP quando fica menor
     const ext = { 'image/png': 'png', 'image/webp': 'webp' }[b.type] || 'jpg';
     const slug = String(n.nome || 'cenario').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'cenario';
     const k = `cenarios/${/^[a-z0-9]/.test(slug) ? slug : 'c-' + slug}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
