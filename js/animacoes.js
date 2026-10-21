@@ -1,5 +1,5 @@
 /* ===================== animacoes.js — aba "Animações" do Ateliê: animações de teste do personagem =====================
-   Igual ao antigo "Encaixe da Lumi", só que dentro do programa: cada animação tem TRILHAS (ex.: pernas andando + boca falando
+   Para qualquer personagem (nasceu do antigo "Encaixe da Lumi"): cada animação tem TRILHAS (ex.: pernas andando + boca falando
    + olhos piscando) e cada trilha é uma fila de PASSOS. Um passo diz o que muda: presets das sessões (s) e imagens/giro das partes (p).
      passo = { s:{ sessaoId: presetId }, p:{ parteId:{ img, r } } }
    As trilhas andam juntas (cada uma volta ao começo quando acaba), uma troca a cada `vel` ms.

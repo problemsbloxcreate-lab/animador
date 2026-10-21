@@ -124,13 +124,18 @@ Monte um plano para deixar o personagem pronto para animar. Responda SÓ um JSON
  "pivos":{"Braço direito":{"x":0.2,"y":0.05}},     // ponto de GIRO/encaixe de cada parte, em fração da imagem que aparece (0..1): ombro no braço, quadril na perna, pescoço na cabeça, centro nos olhos/boca
  "camadas":["mais atrás", "...", "mais na frente"],  // ordem de todas as partes, só se a atual estiver errada
  "sessoes":[{"nome":"Olhos","partes":["Olhos"],"presets":[{"nome":"fechados","estado":{"Olhos":{"img":"fechados"}}}]}],
- "animacoes":[{"nome":"Piscar","vel":250,"trilhas":[[{"Olhos":"abertos"},{"Olhos":"meio"},{"Olhos":{"img":"fechados","r":0}}]]}]
+ "animacoes":[{"nome":"Piscar","vel":250,"trilhas":[[{"Olhos":"abertos"},{"Olhos":"meio"},{"Olhos":{"img":"fechados","r":0}}]]}],
+ "avisos":["frase curta sobre algo que a pessoa precisa resolver"]
 }
-Estrutura modelo (é como a Lumi foi montada e funciona bem): a raiz é o Corpo/tronco; braços, pernas e cabeça encaixam no corpo; olhos, boca, sobrancelhas, cabelo e chapéu encaixam na cabeça (ou no corpo, se a cabeça faz parte dele);
-cada peça que tem várias versões vira UMA parte com várias imagens (ex.: Olhos: abertos, meio fechados, fechados, felizes, surpresos; Boca: A, E, O, U, M/B/P, F/V, sorriso; Braço: caído, acenando, apontando, na cintura);
-braço e perna de trás ficam atrás do corpo; braço da frente, rosto e cabelo da frente na frente. As partes chegam já no lugar certo (camadas do mesmo desenho): NÃO precisa mover, só organizar.
+Cada personagem é diferente (humano, bicho, criatura, objeto com cara; de frente, de lado ou três-quartos; com capuz, máscara, óculos, chapéu, cauda, asas…).
+Olhe as miniaturas e monte a estrutura que faz sentido PARA ESTE personagem. Um ponto de partida que costuma funcionar em personagens com corpo:
+a raiz é o corpo/tronco (ou a peça maior que segura as outras); membros e cabeça encaixam nela; o que fica no rosto (olhos, boca, sobrancelhas, máscara, óculos) encaixa na cabeça (ou no corpo, se a cabeça faz parte dele);
+acessórios (chapéu, capuz, cabelo, cauda, asas) encaixam onde ficam presos. Se o personagem não tem alguma parte (sem boca, sem pernas, uma peça só), não invente: organize o que existe.
+Cada peça que tem várias versões vira UMA parte com várias imagens (ex.: olhos abertos/fechados/felizes; bocas A/E/O/U/M; braço caído/acenando/apontando).
+O que fica do lado de trás (braço/perna de trás, cauda, cabelo de trás) vai atrás do corpo; rosto e o lado da frente, na frente. As partes chegam já no lugar certo (camadas do mesmo desenho): NÃO precisa mover, só organizar.
+Se algo atrapalhar a animação (ex.: uma imagem só com o personagem inteiro, peças de ângulos diferentes misturadas, falta de bocas para falar), explique em "avisos" (frases curtas em português) — a pessoa pode recortar as peças no Ateliê.
 Regras: use SÓ partes e imagens que existem (nomes exatos, ou os novos nomes que você mesmo deu). Sessões por grupo de peça (Olhos, Boca, Braço direito, Pernas, Pose…),
-um preset por imagem útil + poses combinadas que façam sentido. Animações de teste curtas e úteis: piscar, falar (bocas A/E/O/U/M…), andar (pernas alternando), acenar, gesticular.
+um preset por imagem útil + poses combinadas que façam sentido. Animações de teste curtas e úteis com o que ESTE personagem tem: piscar, falar (bocas A/E/O/U/M…), andar (pernas alternando), acenar, gesticular, mexer a cauda… só as que as peças permitem.
 Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":graus}}; trilhas diferentes andam juntas (ex.: pernas + boca + olhos). vel em ms (120 a 700).
 "juntar" só quando tiver certeza (a peça é claramente outra versão da mesma parte). Não invente coisas que as imagens não mostram.`,
   async miniaturas(def, max = 70) {

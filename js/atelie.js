@@ -46,10 +46,10 @@ const Atelie = {
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
     if (novo?.fs.length) await this.montarNovo(novo); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
   },
-  // tela do personagem novo: nome, as imagens (camadas do desenho ou peças soltas) e, se quiser, a IA organiza tudo como na Lumi
+  // tela do personagem novo (qualquer personagem): nome, as imagens (camadas do desenho ou peças soltas) e, se quiser, a IA organiza tudo
   async assistenteNovo() {
     let fs = [];
-    const body = h(`<div class="novo-p"><label class="field">Nome do personagem<input type="text" data-n placeholder="Ex.: Lumi, Stick, Clara"></label>
+    const body = h(`<div class="novo-p"><label class="field">Nome do personagem<input type="text" data-n placeholder="Nome do personagem"></label>
       <div class="field">Imagens <small>(opcional) — as peças do personagem em PNG com fundo transparente. O melhor: as camadas do desenho exportadas no mesmo tamanho (já encaixam sozinhas).</small></div>
       <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens aqui</b><small>ou clique para escolher</small></div><div class="np-lista" data-l></div>
       <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, camadas, sessões, presets e animações de teste)</label>
@@ -695,9 +695,10 @@ const Atelie = {
     try {
       await Arq.garantir(this.def.partes.flatMap(p => p.imgs.map(i => i.k)));
       const plano = await IA.organizar(this.def, modo, pedido, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = `A IA está organizando… (${Math.round(txt.length / 100) / 10} mil letras)`; });
-      t.remove(); const feito = this.aplicarPlano(plano, modo);
+      t.remove(); const feito = this.aplicarPlano(plano, modo), avisos = (plano.avisos || []).filter(Boolean).slice(0, 5);
       this.aba = (this.def.animacoes || []).length ? 'animacoes' : 'sessoes'; this.testar(true);
       UI.toast(`<b>Pronto.</b> ${feito.join(' · ') || 'A IA achou que já estava tudo certo.'}<br>Confira no <b>Testar</b> e na aba <b>Animações</b>; ajuste à mão o que precisar (Ctrl+Z desfaz tudo).`, { kind: 'ok', time: 12000 });
+      if (avisos.length) UI.modal({ title: 'A IA deixou uns avisos', icon: 'info', width: 460, body: `<div>${avisos.map(a => `<p style="margin:0 0 8px">• ${esc(String(a))}</p>`).join('')}<div style="color:var(--tx3);font-size:12px">Dá para separar peças com <b>Seleção</b>/<b>Laço</b> › <b>Recortar → parte nova</b> na aba Pintar, e depois pedir para a IA organizar de novo.</div></div>`, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] });
     } catch (e) { t.remove(); UI.toast('A IA não conseguiu organizar: ' + esc(e.message), { kind: 'err', time: 7000 }); }
   },
   // aplica o plano da IA (nomes → ids). Tudo num commit só.
