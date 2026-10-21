@@ -5,6 +5,17 @@
    As trilhas andam juntas (cada uma volta ao começo quando acaba), uma troca a cada `vel` ms.
    Gravar um passo = o que está escolhido no modo Testar. No editor, "Pôr no quadro" escreve a animação como chaves. */
 'use strict';
+// arrastar para mudar a ordem (animações, trilhas, passos, sessões, presets): el aceita itens do mesmo "tipo"; horizontal = antes/depois pela metade da largura
+function ordenavel(el, tipo, valor, aoSoltar, horizontal) {
+  const T = 'text/ordem-' + tipo; el.draggable = true;
+  el.addEventListener('dragstart', ev => { ev.stopPropagation(); ev.dataTransfer.setData(T, JSON.stringify(valor)); ev.dataTransfer.effectAllowed = 'move'; el.classList.add('arrastando'); });
+  el.addEventListener('dragend', () => el.classList.remove('arrastando'));
+  el.addEventListener('dragover', ev => { if (!ev.dataTransfer.types.includes(T)) return; ev.preventDefault(); ev.stopPropagation(); const b = el.getBoundingClientRect(), antes = horizontal ? ev.clientX < b.left + b.width / 2 : ev.clientY < b.top + b.height / 2; el.classList.toggle('ord-antes', antes); el.classList.toggle('ord-depois', !antes); el.classList.toggle('ord-h', !!horizontal); });
+  el.addEventListener('dragleave', () => el.classList.remove('ord-antes', 'ord-depois'));
+  el.addEventListener('drop', ev => { if (!ev.dataTransfer.types.includes(T)) return; ev.preventDefault(); ev.stopPropagation(); const antes = el.classList.contains('ord-antes'); el.classList.remove('ord-antes', 'ord-depois'); try { aoSoltar(JSON.parse(ev.dataTransfer.getData(T)), antes); } catch (e) { console.warn(e); } });
+}
+// tira o item da posição i e põe antes/depois de j (na mesma lista)
+function moveNaLista(L, i, j, antes) { if (i === j) return; const [x] = L.splice(i, 1); if (i < j) j--; L.splice(antes ? j : j + 1, 0, x); }
 const VELOCIDADES = [[80, '0,08 s'], [120, '0,12 s'], [180, '0,18 s'], [250, '0,25 s'], [400, '0,4 s'], [700, '0,7 s'], [1000, '1 s']];
 const Animacoes = {
   sel: null, passo: null, tocando: null, _t: null,
@@ -111,15 +122,21 @@ const Animacoes = {
       $('.cab', c).onclick = ev => { if (ev.target.closest('button,select')) return; this.sel = aberta ? null : a.id; Atelie.pinta(); };
       $('[data-vel]', c).onchange = ev => { a.vel = +ev.target.value; Atelie.commit({ soDesenho: true }); if (toca) this.tocar(a); };
       $('[data-m]', c).onclick = ev => this.menu(ev, a); c.oncontextmenu = ev => { ev.preventDefault(); this.menu(ev, a); };
+      ordenavel($('.cab', c), 'anim', a.id, (id, antes) => { const L2 = this.lista(), i = L2.findIndex(x => x.id === id), j = L2.indexOf(a); if (i >= 0) { moveNaLista(L2, i, j, antes); Atelie.commit(); } }); // arrastar a animação muda a ordem
       if (aberta) {
         a.trilhas.forEach((t, ti) => {
-          const tr = h(`<div class="trilha"><div class="tr-t">Trilha ${ti + 1}${a.trilhas.length > 1 ? `<button class="ibtn" data-xt title="Apagar a trilha">${ic('x', 11)}</button>` : ''}</div><div class="passos"></div></div>`), ps = $('.passos', tr);
+          const tr = h(`<div class="trilha"><div class="tr-t">Trilha ${ti + 1}${a.trilhas.length > 1 ? `<button class="ibtn" data-up title="Subir a trilha" ${ti ? '' : 'disabled'}>${ic('up', 11)}</button><button class="ibtn" data-dn title="Descer a trilha" ${ti < a.trilhas.length - 1 ? '' : 'disabled'}>${ic('down', 11)}</button><button class="ibtn" data-xt title="Apagar a trilha">${ic('x', 11)}</button>` : ''}</div><div class="passos"></div></div>`), ps = $('.passos', tr);
+          if ($('[data-up]', tr)) { $('[data-up]', tr).onclick = () => { moveNaLista(a.trilhas, ti, ti - 1, true); this.passo = null; Atelie.commit(); }; $('[data-dn]', tr).onclick = () => { moveNaLista(a.trilhas, ti, ti + 1, false); this.passo = null; Atelie.commit(); }; }
+          ordenavel($('.tr-t', tr), 'trilha-' + a.id, ti, (de, antes) => { moveNaLista(a.trilhas, de, ti, antes); this.passo = null; Atelie.commit(); });
           t.forEach((p, pi) => { const on = this.passo?.t === ti && this.passo?.i === pi;
             const b = h(`<button class="passo ${on ? 'on' : ''}" title="${esc(this.detalhe(p))}\n\nClique: mostrar · botão direito: opções"><i>${pi + 1}</i><span>${esc(this.rotulo(p))}</span></button>`);
-            b.onclick = () => this.mostrarPasso(a, ti, pi); b.oncontextmenu = ev => { ev.preventDefault(); this.menuPasso(ev, a, ti, pi); }; ps.appendChild(b); });
+            b.onclick = () => this.mostrarPasso(a, ti, pi); b.oncontextmenu = ev => { ev.preventDefault(); this.menuPasso(ev, a, ti, pi); }; ps.appendChild(b);
+            // arrastar o passo: muda a ordem (também de uma trilha para outra da mesma animação)
+            ordenavel(b, 'passo-' + a.id, [ti, pi], ([t0, p0], antes) => { const de = a.trilhas[t0]; if (!de?.[p0]) return; if (t0 === ti) moveNaLista(t, p0, pi, antes); else { const [x] = de.splice(p0, 1); t.splice(antes ? pi : pi + 1, 0, x); } this.passo = null; Atelie.commit(); }, true); });
           const add = h(`<button class="passo add" title="O que está escolhido no Testar vira um passo">${ic('plus', 12)} Passo</button>`);
           add.onclick = () => { if (!Atelie.teste) { Atelie.testar(true); return UI.toast('Escolha no Testar o que este passo mostra e clique em + Passo de novo.'); } t.push(this.passoDaTela()); this.passo = { t: ti, i: t.length - 1 }; Atelie.commit(); };
           ps.appendChild(add);
+          ordenavel(add, 'passo-' + a.id, null, ([t0, p0]) => { const de = a.trilhas[t0]; if (!de?.[p0]) return; const [x] = de.splice(p0, 1); t.push(x); this.passo = null; Atelie.commit(); }, true); add.draggable = false; // soltar no "+ Passo" põe no fim desta trilha
           if ($('[data-xt]', tr)) $('[data-xt]', tr).onclick = () => { a.trilhas.splice(ti, 1); this.passo = null; Atelie.commit(); };
           c.appendChild(tr);
         });

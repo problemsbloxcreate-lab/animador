@@ -35,7 +35,9 @@ const Nuvem = {
   async salvar(def, aoAndar) {
     let existentes = this._ks.get(def.id);
     if (!existentes) { existentes = new Set(); try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); } catch { } this._ks.set(def.id, existentes); }
-    const imgs = def.partes.flatMap(p => p.imgs.map(i => i.k)).filter(Boolean), falta = imgs.filter(k => !existentes.has(k));
+    // NA NUVEM VAI EM WEBP (bem menor: na arte dos personagens fica ~5x menor que PNG). Neste computador a imagem original fica guardada.
+    const troca = await this.paraWebp(def, aoAndar); this.ultimaTroca = troca;
+    const imgs = [...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k].filter(Boolean), falta = imgs.filter(k => !existentes.has(k));
     let n = 0;
     for (const k of falta) {
       const b = await Arq.pegaBlob(k); if (!b) continue;
@@ -51,6 +53,22 @@ const Nuvem = {
     for (const k of [...existentes]) if (k.startsWith(`personagens/${def.id}/img/`) && !usadas.has(k)) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }).catch(() => { }); existentes.delete(k); }
     existentes.add(`personagens/${def.id}/personagem.json`); this.avisaEspaco();
   },
+  // converte as imagens PNG/JPG do personagem para WEBP (só se ficar menor) e troca as chaves no def; devolve { chaveVelha: chaveNova }
+  async paraWebp(def, aoAndar) {
+    const troca = {}, alvos = [...new Set([...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k].filter(k => k && /\.(png|jpe?g)$/i.test(k)))]; let n = 0;
+    for (const k of alvos) {
+      try { let b = await Arq.pegaBlob(k); if (!b) b = await this.baixar(k).catch(() => null); if (!b) continue; aoAndar?.(`Compactando as imagens (webp)… ${++n}/${alvos.length}`);
+        const bm = await createImageBitmap(b), c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0);
+        const w = await c.convertToBlob({ type: 'image/webp', quality: .92 }); if (w.type !== 'image/webp' || w.size >= b.size * .95) continue; // navegador sem webp, ou não ficou menor
+        const nk = k.replace(/\.(png|jpe?g)$/i, '.webp'); await Arq.guardar(w, nk); Arq.img.set(nk, await createImageBitmap(w)); troca[k] = nk;
+      } catch { }
+    }
+    for (const p of def.partes) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k];
+    if (def.vis?.fantasma?.k && troca[def.vis.fantasma.k]) def.vis.fantasma.k = troca[def.vis.fantasma.k];
+    return troca;
+  },
+  // aplica a troca de chaves num texto JSON do personagem
+  remapear(txt, troca) { if (!txt) return txt; for (const [a, b] of Object.entries(troca || {})) txt = txt.split(JSON.stringify(a)).join(JSON.stringify(b)); return txt; },
   async apagar(id) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/`), { method: 'DELETE' }); await DB.del('personagens', id); this._ks.delete(id); this.avisaEspaco(); },
 
   /* ---------- cenários da equipe: só entram aqui quando alguém escolhe "Salvar na nuvem" (botão direito na camada) ---------- */

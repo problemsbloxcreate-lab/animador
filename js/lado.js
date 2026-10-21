@@ -22,7 +22,7 @@ const Lado = {
     if (!lista.length) { el.innerHTML = `<div class="vazio">Nenhum personagem aparece no quadro ${q + 1}.<br><br><button class="btn" data-add>${ic('plus', 14)} Pôr um personagem</button></div>`; $('[data-add]', el).onclick = () => App.addPersonagem(); return; }
     const cards = h('<div class="cards"></div>');
     for (const n of lista) {
-      const def = P.personagens[n.ref], c = h(`<div class="card-p ${f === n ? 'sel' : ''}"><div class="th" style="${def.thumb ? `background-image:url('${def.thumb}')` : ''}"></div><div><b>${esc(n.nome)}</b><small>${esc(def.nome)} · ${def.sessoes.length} sessões</small></div></div>`);
+      const def = P.personagens[n.ref], c = h(`<div class="card-p ${f === n ? 'sel' : ''}"><div class="th" style="${def.thumb ? `background-image:url('${def.thumb}')` : ''}"></div><div><b>${esc(n.nome)}${def._local ? ` <span class="so-local" title="${def._local.todo ? 'Este personagem ainda não está na nuvem: só neste computador' : 'Tem mudanças salvas só neste computador (ainda não na nuvem)'}">${ic('cloudOff', 13)}</span>` : ''}</b><small>${esc(def.nome)} · ${def.sessoes.length} sessões${def._local ? ' · não está na nuvem' : ''}</small></div></div>`);
       c.onclick = () => App.selecionar(n.id); cards.appendChild(c);
     }
     el.appendChild(cards);
@@ -32,7 +32,8 @@ const Lado = {
     for (const s of def.sessoes) {
       const atual = est.sessoes[s.id] || null, temChave = aqui.sessoes && s.id in aqui.sessoes;
       const box = h(`<div class="sessao"><h4>${esc(s.nome)} <small>${s.presets.length}</small></h4><div class="presets"></div></div>`), pr = $('.presets', box);
-      const bt = (id, nome) => { const b = h(`<button class="${atual === id ? 'on' : ''} ${atual === id && temChave ? 'chave' : ''}" title="${esc(nome)} no quadro ${q + 1}">${esc(nome)}</button>`); b.onclick = () => this.escolhe(f, s.id, id); pr.appendChild(b); };
+      const loc = id => def._local && id && (def._local.todo || def._local.presets?.includes(id));
+      const bt = (id, nome) => { const b = h(`<button class="${atual === id ? 'on' : ''} ${atual === id && temChave ? 'chave' : ''} ${loc(id) ? 'loc' : ''}" title="${esc(nome)} no quadro ${q + 1}${loc(id) ? ' · salvo só neste computador (não está na nuvem)' : ''}">${esc(nome)}${loc(id) ? ` <span class="so-local">${ic('cloudOff', 11)}</span>` : ''}</button>`); b.onclick = () => this.escolhe(f, s.id, id); pr.appendChild(b); };
       bt(null, 'Padrão'); s.presets.forEach(p => bt(p.id, p.nome)); el.appendChild(box);
     }
     // animações de teste do personagem (feitas no Ateliê): viram chaves a partir deste quadro
