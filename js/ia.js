@@ -50,6 +50,13 @@ Ações possíveis:
  {"tipo":"visual","visual":"normal|vivo|quente|frio|noite|por-do-sol|vintage|pb|sonho|terror|desbotado|neon"}
  {"tipo":"cenario","descricao":"o lugar em português, sem personagens"}   (só se a pessoa pedir um cenário/fundo novo; sai no estilo da casa e fica só nesta animação)
 Regras: use só nomes de sessões e presets que existem. Para atuação pela fala, mude expressões nas palavras fortes (piscar de vez em quando: olhos fechados por 2-3 quadros), sem trocar a cada quadro. Respeite o pedido.`,
+  // faz o pedido na animação aberta (o mesmo do botão IA) e devolve o texto do que fez
+  async executar(txt, foco, mostra) {
+    const P = App.P, out = await this.chama(this.SIS_CENA, `PROJETO:\n${JSON.stringify(this.contexto(P))}\n\nPEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`, t => mostra?.(t.slice(-600)));
+    const j = this.json(out); let n = this.aplicar(j.acoes || []);
+    for (const c of this.cenariosPedidos) { mostra?.('Montando o cenário: ' + c.descricao + '…'); const r = await Cenarios.pedirIA(c.descricao, null, t => mostra?.('Montando o cenário… (' + t.length + ' letras)')); Cenarios.guardaUltimo(r.cena); await Cenarios.porNaCena(await Cenarios.desenhar(r.cena), r.cena); const nn = App.noSel(); if (nn) nn.ia = true; n++; }
+    return (j.explica || 'Pronto.') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (this.cenariosPedidos.length ? '\nO cenário fica só nesta animação: para guardar na equipe, botão direito nele › Salvar na nuvem.' : '');
+  },
   async abrir(foco) {
     const P = App.P;
     const body = h(`<div><p>Peça em português. A IA usa os personagens, as sessões e presets deles${P.legendas.length ? ', e a <b>fala</b> (legendas)' : ''}.</p>
@@ -59,11 +66,7 @@ Regras: use só nomes de sessões e presets que existem. Para atuação pela fal
     await UI.modal({ title: 'Animar com a IA', icon: 'sparkles', kind: 'ia', width: 620, body, buttons: [{ label: 'Fechar', value: null }, { label: 'Pedir', icon: 'sparkles', kind: 'primary ia', onClick: async api => {
       const txt = $('textarea', body).value.trim(); if (!txt) return false;
       const bt = api.foot.querySelector('.btn.primary'); bt.disabled = true; res.hidden = false; res.textContent = 'Pensando…';
-      try {
-        const out = await this.chama(this.SIS_CENA, `PROJETO:\n${JSON.stringify(this.contexto(P))}\n\nPEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`, t => { res.textContent = t.slice(-600); });
-        const j = this.json(out); let n = this.aplicar(j.acoes || []);
-        for (const c of this.cenariosPedidos) { res.textContent = 'Montando o cenário: ' + c.descricao + '…'; const r = await Cenarios.pedirIA(c.descricao, null, t => { res.textContent = 'Montando o cenário… (' + t.length + ' letras)'; }); Cenarios.guardaUltimo(r.cena); await Cenarios.porNaCena(await Cenarios.desenhar(r.cena), r.cena); const nn = App.noSel(); if (nn) nn.ia = true; n++; }
-        res.textContent = (j.explica || 'Pronto.') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (this.cenariosPedidos.length ? '\nO cenário fica só nesta animação: para guardar na equipe, botão direito nele › Salvar na nuvem.' : '');
+      try { res.textContent = await this.executar(txt, foco, t => { res.textContent = t; });
       } catch (e) { res.textContent = 'Não deu: ' + e.message; }
       bt.disabled = false; return false;
     } }] });

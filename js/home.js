@@ -46,10 +46,8 @@ const Home = {
 Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma usar 12 ou 24); segundos entre 1 e 600. "folha" é a cor da folha do tamanho da câmera (Fundo padrão); semFolha=true se a pessoa não quiser folha. Se o pedido não falar de algo, use o comum (1920×1080, 24 fps, 4 s, fundo quadriculado #cfcfcf, folha #ffffff).`,
   async personalizada() {
     const o = { nome: 'Animação ' + new Date().toLocaleDateString('pt-BR'), w: 1920, h: 1080, fps: 24, segundos: 4, palco: { modo: 'quadriculado', cor: '#cfcfcf', forca: .35 }, folha: '#ffffff', semFolha: false };
-    const body = h(`<div class="tela-p"><div class="abas" data-abas style="margin:-4px 0 12px"><button data-t="ajustes" class="on">Ajustes</button><button data-t="ia">${ic('sparkles', 13)} Pedir à IA</button></div>
-      <div data-pag="ajustes"></div><div data-pag="ia" hidden>
-        <label class="field">Descreva a tela<textarea rows="3" placeholder="Ex.: vídeo vertical de 15 segundos em 12 fps, cara de desenho antigo, fundo escuro sem folha"></textarea></label>
-        <div class="campo2"><button class="btn sm ia" data-pedir>${ic('sparkles', 13)} Montar com a IA</button></div><div class="ia-res" hidden></div></div></div>`);
+    const body = h(`<div class="tela-p"><div data-pag="ajustes"></div>
+      <div class="tela-ia"><label class="field">${ic('sparkles', 13)} Mais com a IA <small style="color:var(--tx3)">(opcional · vale junto com os ajustes ao criar)</small><textarea rows="3" placeholder="Ex.: deixa em 12 fps com cara de desenho antigo, fundo escuro, uma vinheta leve e um título &quot;Episódio 1&quot; no começo"></textarea></label><div class="ia-res" hidden></div></div></div>`);
     const pag = $('[data-pag=ajustes]', body), prev = () => { const k = 120 / Math.max(o.w, o.h); return `<i style="width:${Math.round(o.w * k)}px;height:${Math.round(o.h * k)}px;background:${o.semFolha ? 'transparent' : o.folha}"></i>`; };
     const pinta = () => {
       pag.innerHTML = `<div class="tela-prev" data-prev>${prev()}</div>
@@ -67,21 +65,25 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       $('[data-folha]', pag).onchange = ev => { o.semFolha = !ev.target.checked; pinta(); };
     };
     pinta();
-    $$('[data-t]', body).forEach(b => b.onclick = () => { $$('[data-t]', body).forEach(x => x.classList.toggle('on', x === b)); $$('[data-pag]', body).forEach(p => p.hidden = p.dataset.pag !== b.dataset.t); });
-    $('[data-pedir]', body).onclick = async () => {
-      const ped = $('textarea', body).value.trim(), res = $('.ia-res', body), bt = $('[data-pedir]', body); if (!ped) return $('textarea', body).focus();
-      bt.disabled = true; res.hidden = false; res.textContent = 'A IA está montando a tela…';
+    let pedido = '';
+    const ok = await UI.modal({ title: 'Tela personalizada', icon: 'gear', width: 580, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', onClick: async api => {
+      pedido = $('textarea', body).value.trim(); if (!pedido) return true;
+      // 1) a IA ajusta a tela em cima do que a pessoa escolheu (só muda o que o pedido falar)
+      const res = $('.ia-res', body), bt = api.foot.querySelector('.btn.primary'); bt.disabled = true; res.hidden = false; res.textContent = 'A IA está ajustando a tela…';
       try {
-        const j = IA.json(await IA.chama(this.SIS_TELA, `ATUAL: ${JSON.stringify(o)}\nPEDIDO: ${ped}`)), par = v => Math.round(clamp(+v || 0, 64, 4096) / 2) * 2;
+        const j = IA.json(await IA.chama(this.SIS_TELA + '\nVocê recebe o que a pessoa já escolheu (ATUAL): mantenha tudo igual e só mude o que o PEDIDO falar.', `ATUAL: ${JSON.stringify(o)}\nPEDIDO: ${pedido}`)), par = v => Math.round(clamp(+v || 0, 64, 4096) / 2) * 2;
         if (j.nome) o.nome = String(j.nome).slice(0, 60); if (j.w) o.w = par(j.w); if (j.h) o.h = par(j.h); if (j.fps) o.fps = clamp(Math.round(+j.fps), 1, 60); if (j.segundos) o.segundos = clamp(+j.segundos, 1, 600);
         if (j.fundo) o.palco = { modo: j.fundo.modo === 'cor' ? 'cor' : 'quadriculado', cor: /^#[0-9a-f]{6}$/i.test(j.fundo.cor || '') ? j.fundo.cor : o.palco.cor, forca: Number.isFinite(+j.fundo.forca) ? clamp(+j.fundo.forca, 0, 1) : o.palco.forca };
         if (/^#[0-9a-f]{6}$/i.test(j.folha || '')) o.folha = j.folha; if (typeof j.semFolha === 'boolean') o.semFolha = j.semFolha;
-        res.textContent = (j.explica || 'Pronto.') + ` → ${o.w}×${o.h}, ${o.fps} fps, ${o.segundos} s. Confira em Ajustes e clique em Criar.`; pinta();
-      } catch (e) { res.textContent = 'Não deu: ' + e.message; }
-      bt.disabled = false;
-    };
-    const ok = await UI.modal({ title: 'Tela personalizada', icon: 'gear', width: 560, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', value: true }] });
-    if (ok) this.nova({ w: o.w, h: o.h, fps: o.fps }, { nome: o.nome, duracao: Math.max(1, Math.round(o.segundos * o.fps)), palco: o.palco, folha: o.folha, semFolha: o.semFolha });
+      } catch (e) { res.textContent = 'A IA não respondeu (' + e.message + '). Crio com os ajustes, e o resto você pede depois no botão IA.'; await new Promise(r => setTimeout(r, 1800)); pedido = ''; }
+      return true;
+    } }] });
+    if (!ok) return;
+    await this.nova({ w: o.w, h: o.h, fps: o.fps }, { nome: o.nome, duracao: Math.max(1, Math.round(o.segundos * o.fps)), palco: o.palco, folha: o.folha, semFolha: o.semFolha });
+    // 2) o resto do pedido (efeitos, cenário, textos…) a IA faz já dentro da animação nova
+    if (pedido && App.P) { const t = UI.toast('<span class="spin-dot"></span> <span data-p>A IA está personalizando a animação…</span>', { time: 600000 });
+      try { const r = await IA.executar(pedido, null, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = 'A IA está personalizando… ' + txt.slice(-80); }); t.remove(); UI.toast(esc(r).replace(/\n+/g, '<br>'), { kind: 'ok', time: 8000 }); }
+      catch (e) { t.remove(); UI.toast('A IA não terminou: ' + esc(e.message), { kind: 'err' }); } }
   },
   async apagar(p) { if (!(await UI.confirm({ title: 'Apagar a animação?', msg: `"<b>${esc(p.nome)}</b>" sai deste computador. Baixe o .animador antes se quiser guardar.`, ok: 'Apagar', danger: true }))) return; await DB.del('projetos', p.id); this.pinta(); EstudioConta?.espaco?.atualizar?.(); },
   async nova(f, o = {}) { const P = Modelo.novoProjeto({ w: f.w, h: f.h, fps: f.fps, duracao: o.duracao || f.fps * 4, nome: o.nome || 'Animação ' + new Date().toLocaleDateString('pt-BR'), fundo: o.folha });
