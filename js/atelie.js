@@ -460,6 +460,7 @@ const Atelie = {
     const p = it.parte, n = p.imgs.length;
     UI.ctx(e.clientX, e.clientY, [
       { head: `${p.nome}${it.img ? ' › ' + it.img.nome : ''}` },
+      { label: 'Citar esta parte em mensagens…', icon: 'chat', action: () => Citacao.atelie() }, '-',
       { label: `Mover só ${this.edit ? 'neste preset' : 'na base'}`, checked: this.modoMover === 'preset', action: () => this.setModo('preset') },
       { label: 'Mover a mesma imagem em todos os presets', checked: this.modoMover === 'imagem', action: () => this.setModo('imagem') },
       { label: `Mover todos (a parte inteira${n > 1 ? `: ${n} imagens` : ''} e os presets)`, icon: 'layers', checked: this.moverTodos, action: () => this.setModo('todos') },

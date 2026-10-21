@@ -172,7 +172,12 @@ const Folha = {
     if (l.tipo === 'camera') { App.P.camera.chaves[p.q] = { ...Modelo.camera(App.P, p.q) }; App.commit('Chave da câmera'); }
   },
   menu(e) {
-    const p = this.ponto(e), l = this._L[p.i]; if (!l || (l.tipo !== 'no' && l.tipo !== 'camera')) return; App.setQ(p.q);
+    const p = this.ponto(e), l = this._L[p.i];
+    if (!l || (l.tipo !== 'no' && l.tipo !== 'camera')) { // régua dos quadros ou linha sem chaves: dá para citar o quadro
+      if (!App.P || !Number.isFinite(p.q)) return; const q = clamp(p.q, 0, Modelo.ultimoQuadro(App.P)); App.setQ(q);
+      return UI.ctx(e.clientX, e.clientY, [{ head: `Quadro ${q + 1}` }, { label: `Citar o quadro ${q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, q, App.sel) }]);
+    }
+    App.setQ(p.q);
     const ch = l.tipo === 'no' ? l.no.chaves : App.P.camera.chaves, tem = !!ch[p.q];
     if (l.tipo === 'no') App.selecionar(l.no.id); else App.selecionar('camera');
     UI.ctx(e.clientX, e.clientY, [
@@ -185,6 +190,7 @@ const Folha = {
       l.tipo === 'no' && { label: 'Começar aqui', icon: 'start', action: () => { l.no.de = p.q; App.commit('Começo'); } },
       l.tipo === 'no' && { label: 'Terminar aqui', icon: 'end', action: () => { l.no.ate = Math.max(l.no.de || 0, p.q); App.commit('Fim'); } },
       l.tipo === 'no' && { label: l.no.interp ? 'Movimento: segurar até a próxima chave' : 'Movimento: intercalar entre as chaves', icon: 'transition', action: () => { l.no.interp = !l.no.interp; App.commit('Movimento'); } },
+      '-', { label: `Citar o quadro ${p.q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, p.q, l.tipo === 'no' ? l.no.id : 'camera') },
     ].filter(Boolean));
   },
 };

@@ -300,6 +300,7 @@ const App = {
         s && s.tipo !== 'efeito' && App.menuTremulo(s),
         s && { label: 'Apagar', icon: 'trash', danger: true, key: 'Del', action: () => App.apagarSel() },
         '-', { label: 'Enquadrar a câmera', icon: 'crop', key: 'F', action: () => App.enquadrar() },
+        '-', { label: `Citar o quadro ${App.q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, App.q, App.sel) },
       ].filter(Boolean));
     },
   },
