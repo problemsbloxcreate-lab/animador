@@ -151,9 +151,19 @@ const Autores = {
   editores(d) { return (d.edicoes || []).filter(x => x.id !== d.autor?.id).sort((a, b) => b.em - a.em); },
   av(p, cls = '') { const ini = esc(String(p?.nome || '?').trim().charAt(0).toUpperCase() || '?'); return p?.foto ? `<img class="aut-av ${cls}" src="${esc(p.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=&quot;aut-av ${cls}&quot;>${ini}</span>'">` : `<span class="aut-av ${cls}">${ini}</span>`; },
   // selo do canto do cartão: a foto e o nome de quem subiu; se outra pessoa editou, a foto dela por cima e "editado por"
-  selo(d) {
-    if (!d?.autor) return null; const eds = this.editores(d), ult = eds[0];
-    const el = h(`<div class="autores" title="">${this.av(d.autor)}${ult ? this.av(ult, 'sob') : ''}<span class="aut-nm">${esc(d.autor.nome)}${ult ? `<small> · editado por ${esc(ult.nome)}${eds.length > 1 ? ` +${eds.length - 1}` : ''}</small>` : ''}</span></div>`);
+  // nome e foto de AGORA da pessoa (o que ela pôs na "Minha conta"), pelo código guardado no arquivo; se não achar, fica o que foi guardado
+  _vivos: new Map(),
+  vivo(p) {
+    if (!p?.id || !/^u[0-9a-f]{16}$/.test(p.id)) return Promise.resolve(p);
+    if (!this._vivos.has(p.id)) this._vivos.set(p.id, fetch('/pessoa?u=' + encodeURIComponent(p.id), { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null));
+    return this._vivos.get(p.id).then(j => j?.nome ? { ...p, nome: j.nome, foto: j.foto || p.foto } : p);
+  },
+  async aoVivo(d) { const autor = await this.vivo(d.autor), edicoes = await Promise.all((d.edicoes || []).map(x => this.vivo(x))); return { ...d, autor, edicoes }; },
+  selo(d0) {
+    if (!d0?.autor) return null; let d = d0, eds = this.editores(d), ult = eds[0];
+    const el = h(`<div class="autores" title=""></div>`);
+    const pinta = () => { eds = this.editores(d); ult = eds[0]; el.innerHTML = `${this.av(d.autor)}${ult ? this.av(ult, 'sob') : ''}<span class="aut-nm">${esc(d.autor.nome)}${ult ? `<small> · editado por ${esc(ult.nome)}${eds.length > 1 ? ` +${eds.length - 1}` : ''}</small>` : ''}</span>`; };
+    pinta(); this.aoVivo(d0).then(x => { d = x; pinta(); }); // troca pelo nome e foto de agora assim que chegar
     let pop = null; const fecha = () => { pop?.remove(); pop = null; };
     el.onmouseenter = () => { fecha();
       pop = h(`<div class="aut-pop"><div class="aut-l">${this.av(d.autor)}<div><b>${esc(d.autor.nome)}</b><small>subiu para a nuvem · ${fmtDate(d.autor.em)}</small></div></div>
