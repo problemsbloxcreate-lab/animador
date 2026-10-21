@@ -108,6 +108,15 @@ const Lado = {
     $('[data-w]', pj).onchange = ev => { P.w = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); }; $('[data-h]', pj).onchange = ev => { P.h = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); };
     $('[data-f]', pj).oninput = ev => { P.fundo = ev.target.value; App.pinta(); }; $('[data-f]', pj).onchange = () => App.commit('Fundo');
     el.appendChild(pj);
+    // fundo do palco (fora da folha): quadriculado ou cor lisa. Só aparece aqui na tela, não vai para o vídeo
+    const fp = App.fundoPalco(), pa = h(`<div class="props" style="border-top:1px solid var(--bd)"><div class="titulo-p">Fundo do palco <small style="color:var(--tx3);text-transform:none;letter-spacing:0">só na tela</small></div>
+      <div class="presets"><button data-m="quadriculado" class="${fp.modo === 'quadriculado' ? 'on' : ''}">Quadriculado</button><button data-m="cor" class="${fp.modo === 'cor' ? 'on' : ''}">Cor lisa</button></div>
+      <div class="campo2"><span style="color:var(--tx2)">Cor</span><input type="color" value="${fp.cor}" data-c><span class="sp"></span><button class="btn sm" data-pad title="Cinza claro padrão">Padrão</button></div><div data-f></div></div>`);
+    $$('[data-m]', pa).forEach(b => b.onclick = () => { App.mudaFundoPalco({ modo: b.dataset.m }); this.pinta(); });
+    $('[data-c]', pa).oninput = ev => App.mudaFundoPalco({ cor: ev.target.value });
+    $('[data-pad]', pa).onclick = () => { App.mudaFundoPalco({ modo: 'quadriculado', cor: '#cfcfcf', forca: .35 }); this.pinta(); };
+    if (fp.modo === 'quadriculado') $('[data-f]', pa).appendChild(this.campo('Intensidade', fp.forca, 0, 1, .01, v => App.mudaFundoPalco({ forca: v })));
+    el.appendChild(pa);
   },
   // Trêmulo: deixa a camada parada "viva" (treme ou ondula sozinha, quadro a quadro), como o efeito do Premiere
   tremulo(n) {
