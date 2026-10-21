@@ -11,7 +11,7 @@ const Pintura = {
     cv.addEventListener('pointermove', e => { if (this.ferr === 'mover') { if (this.mouse) { this.mouse = null; Atelie.desenha(); } return; } this.mouse = { x: e.offsetX, y: e.offsetY }; Atelie.desenha(); });
     cv.addEventListener('pointerleave', () => { this.mouse = null; Atelie.desenha(); });
   },
-  usa(f) { this.ferr = f; Atelie.cv.style.cursor = f === 'mover' ? '' : f === 'conta' ? 'copy' : 'crosshair'; if (Atelie.aba !== 'pintar' && f !== 'mover') Atelie.aba = 'pintar'; Atelie.pinta(); },
+  usa(f) { this.ferr = f; Atelie.cv.style.cursor = f === 'mover' ? '' : f === 'conta' ? 'copy' : 'crosshair'; Atelie.pinta(); },
   tecla(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false; const k = e.key.toLowerCase(), f = this.FERR.find(x => x[3].toLowerCase() === k);
     if (f) { this.usa(f[0]); return true; }
@@ -117,6 +117,23 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
     const j = IA.json(txt), ok = new Set([...pal.map(c => c.hex), ...this.selCores]);
     const trocas = (j.trocas || []).filter(t => ok.has(String(t.de).toLowerCase()) || ok.has(String(t.de))).slice(0, 18);
     const n = await this.trocar(trocas, escopo, Math.max(this.tol, 40)); return { n, trocas, explica: j.explica || '' };
+  },
+
+  /* ---------- barra de ferramentas no canto esquerdo do palco (como no Photoshop) ---------- */
+  pintaBarra() {
+    const el = $('#at-ferr'); if (!el) return; el.hidden = !!Atelie.teste; if (Atelie.teste) return;
+    const grupo = (ids) => this.FERR.filter(f => ids.includes(f[0])).map(([f, n, i, k]) => `<button class="${this.ferr === f ? 'on' : ''}" data-f="${f}" title="${n} (${k})">${ic(i, 17)}</button>`).join('');
+    el.innerHTML = `${grupo(['mover'])}<i></i>${grupo(['ret', 'laco', 'varinha'])}<i></i>${grupo(['pincel', 'borracha', 'magica', 'balde', 'conta'])}<i></i>
+      <label class="fb-cor" title="Cor (${this.cor})" style="--c:${this.cor}"><input type="color" value="${this.cor}"></label>`;
+    $$('[data-f]', el).forEach(b => b.onclick = () => this.usa(b.dataset.f));
+    $('input', el).oninput = ev => { this.cor = ev.target.value; $('.fb-cor', el).style.setProperty('--c', this.cor); }; $('input', el).onchange = () => Atelie.pinta();
+    // opções da ferramenta (tamanho, opacidade, tolerância) do lado da barra
+    let op = $('#at-ferr-op'); const precisa = ['pincel', 'borracha', 'balde', 'varinha', 'magica'].includes(this.ferr);
+    if (!precisa) { op?.remove(); return; }
+    if (!op) { op = h('<div id="at-ferr-op" class="ferr-op"></div>'); el.after(op); }
+    const nome = this.FERR.find(f => f[0] === this.ferr)?.[1] || '', campos = ['pincel', 'borracha'].includes(this.ferr) ? [['tam', 'Tamanho', 1, 300, 1], ['opac', 'Opacidade', .05, 1, .01]] : [['tol', 'Tolerância', 0, 160, 1]];
+    op.innerHTML = `<b>${esc(nome)}</b>` + campos.map(([c, n, a, b, p]) => `<label title="${n}">${n}<input type="range" min="${a}" max="${b}" step="${p}" value="${this[c]}" data-c="${c}"><output>${c === 'opac' ? Math.round(this[c] * 100) + '%' : Math.round(this[c])}</output></label>`).join('');
+    $$('input', op).forEach(i => i.oninput = () => { const c = i.dataset.c; this[c] = c === 'opac' ? +i.value : Math.round(+i.value); i.nextElementSibling.textContent = c === 'opac' ? Math.round(this[c] * 100) + '%' : this[c]; Atelie.desenha(); });
   },
 
   /* ---------- aba "Pintar" do ateliê ---------- */

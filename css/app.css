@@ -414,3 +414,18 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 
 /* apagar da NUVEM sem ser ADM: discreto (abre o aviso para pedir a um ADM); apagar do computador continua em destaque */
 .ibtn.mn.so-adm{opacity:.55}.ibtn.mn.so-adm:hover{opacity:.9}
+/* ateliê: barra de ferramentas no canto esquerdo (como no Photoshop) e opções da ferramenta */
+.ferr-at{position:absolute;left:8px;top:50%;transform:translateY(-50%);z-index:3;display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:10px;background:rgba(27,27,27,.94);border:1px solid var(--bd2);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.ferr-at button{width:34px;height:32px;border:0;border-radius:7px;background:none;color:var(--tx2);display:grid;place-items:center;cursor:pointer}
+.ferr-at button:hover{background:var(--bg3);color:var(--tx)}.ferr-at button.on{background:#e8e8e8;color:#151515}
+.ferr-at>i{height:1px;margin:3px 4px;background:var(--bd2)}
+.fb-cor{position:relative;width:34px;height:30px;display:grid;place-items:center;cursor:pointer}.fb-cor::before{content:'';width:20px;height:20px;border-radius:5px;background:var(--c);border:2px solid #fff;box-shadow:0 0 0 1px #000}
+.fb-cor input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.ferr-op{position:absolute;left:56px;top:50px;z-index:3;display:flex;align-items:center;gap:12px;padding:6px 12px;border-radius:9px;background:rgba(27,27,27,.94);border:1px solid var(--bd2);font-size:11.5px;color:var(--tx2)}
+.ferr-op b{color:var(--tx)}.ferr-op label{display:flex;align-items:center;gap:6px}.ferr-op input{width:110px}.ferr-op output{min-width:30px;color:var(--tx);font-variant-numeric:tabular-nums}
+.at-palco .modo-at{left:56px}.at-palco .dica{left:56px}
+.mover-seg button{text-transform:none;letter-spacing:0;font-weight:600}
+.mover-seg button[data-modo="imagem"].on{background:#5fd1c8;color:#0f2a28}.mover-seg button[data-modo="todos"].on{background:#c08bff;color:#1f1030}
+.imgs .im.mesma{border-color:#5fd1c8;box-shadow:inset 0 0 0 1px #5fd1c8;animation:mesmaPulsa 1.4s ease-in-out infinite}
+.lista.presets button.mesma{border-color:#5fd1c8;box-shadow:inset 0 0 0 1px #5fd1c8;animation:mesmaPulsa 1.4s ease-in-out infinite}
+@keyframes mesmaPulsa{50%{box-shadow:inset 0 0 0 1px #5fd1c8,0 0 10px rgba(95,209,200,.45)}}

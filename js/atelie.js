@@ -21,7 +21,7 @@ const SESSOES_PRONTAS = [
   { nome: 'Pose', acha: /.*/, presets: ['em pé', 'pulando', 'sentado'] },
 ];
 const Atelie = {
-  def: null, sel: null, edit: null, vista: { x: 0, y: 0, z: 1 }, pilha: [], refazer: [], ultimo: null, volta: false, aba: 'peca', moverTodos: false, sujo: false, base0: null, multi: new Set(), focoImg: null, teste: null,
+  def: null, sel: null, edit: null, vista: { x: 0, y: 0, z: 1 }, pilha: [], refazer: [], ultimo: null, volta: false, aba: 'peca', modoMover: 'preset', sujo: false, base0: null, multi: new Set(), focoImg: null, teste: null,
   // o Ateliê abre numa aba nova do navegador (Voltar fecha a aba); se o navegador bloquear, abre aqui mesmo
   abrirAba(id) {
     if (this.emAba) return this.abrir(id);
@@ -43,7 +43,7 @@ const Atelie = {
     else { novo = await this.assistenteNovo(); if (!novo) return; def = Modelo.novoPersonagem(novo.nome); }
     // NA NUVEM: depois da 1ª vez em "Salvar na nuvem", toda mudança vai sozinha para a nuvem. Antes disso o personagem é LOCAL (só neste computador).
     this.naNuvem = !o.def && !!id && !!def && !(doRascunho && !this._temNuvem && !this._rascNuvem); this._temNuvem = this._rascNuvem = false; this.erroNuvem = null; clearTimeout(this._tn);
-    this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.base0 = o.def || !id ? this.ultimo : this.base0Nuvem || this.ultimo; this.base0Nuvem = null; this.moverTodos = false; this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; this.teste = null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
+    this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.base0 = o.def || !id ? this.ultimo : this.base0Nuvem || this.ultimo; this.base0Nuvem = null; this.modoMover = 'preset'; this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; this.teste = null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
     await Arq.garantir(def.partes.flatMap(p => p.imgs.map(i => i.k)));
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
     if (this.naNuvem && this.sujo) this.agendaNuvem(); // mudanças guardadas aqui que ainda não foram: vão agora
@@ -183,7 +183,8 @@ const Atelie = {
     if (pr) { const s = this.sessao(); if (s.partes?.length && !s.partes.includes(pid)) { s.partes.push(pid); } pr.estado[pid] = { ...(pr.estado[pid] || {}), ...vals }; }
     else Object.assign(p.base, vals);
   },
-  matParte(pid, est = this.estado()) { const it = Modelo.montar(this.def, est).find(x => x.parte.id === pid); return it ? it.m : new DOMMatrix(); },
+  get moverTodos() { return this.modoMover === 'todos'; },
+  matParte(pid, est = this.estado()) { const it = Modelo.montar(this.def, est).find(x => x.parte.id === pid); return it ? it.mp || it.m : new DOMMatrix(); },
   matPai(pid, est = this.estado()) { const p = this.parte(pid); return p?.pai ? this.matParte(p.pai, est) : new DOMMatrix(); },
 
   /* ---------- tela ---------- */
@@ -200,7 +201,7 @@ const Atelie = {
     const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); this.addImagens([...ev.dataTransfer.files], !this.parte()); } };
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
-    $('#at-so-img').onclick = () => this.setMoverTodos(!this.moverTodos);
+    $$('#at-mover [data-modo]').forEach(b => b.onclick = () => this.setModo(b.dataset.modo));
     $('#at-enq').onclick = () => this.enquadrar(); $('#at-testar').onclick = () => this.testar(!this.teste);
     $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
     addEventListener('keydown', e => this.teclas(e));
@@ -227,20 +228,37 @@ const Atelie = {
     for (const it of itens) { if (!it.img) continue; const bm = Arq.bitmap(it.img.k, () => this.desenha()); if (!bm) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
       ctx.save(); ctx.setTransform(V.multiply(it.m)); ctx.globalAlpha = this.sel && it.parte.id !== this.sel && this.destacar ? .45 : 1; ctx.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); ctx.restore(); }
     ctx.save(); ctx.setTransform(V); Animacoes.desenhaFantasma(ctx); ctx.restore();
-    // parte escolhida: caixa, pivô (ponto de giro) e a ligação com o pai (testando: nada disso, só o personagem)
-    const it = this.teste ? null : itens.find(x => x.parte.id === this.sel);
-    if (it) {
-      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); const T = V.multiply(it.m), piv = T.transformPoint(new DOMPoint(0, 0));
-      if (it.img) { const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, ax = it.img.ajuste?.x || 0, ay = it.img.ajuste?.y || 0;
-        const c = [[0, 0], [it.img.w, 0], [it.img.w, it.img.h], [0, it.img.h]].map(([x, y]) => T.transformPoint(new DOMPoint(x - px + ax, y - py + ay)));
-        ctx.strokeStyle = this.moverTodos ? '#c08bff' : this.edit ? '#ffb86b' : '#9fc3ff'; ctx.lineWidth = 1.5 * d; ctx.setLineDash([5 * d, 4 * d]); ctx.beginPath(); c.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
-        const mt = { x: (c[0].x + c[1].x) / 2, y: (c[0].y + c[1].y) / 2 }, dx = mt.x - piv.x, dy = mt.y - piv.y, L = Math.hypot(dx, dy) || 1; this._giro = { x: mt.x + dx / L * 26 * d, y: mt.y + dy / L * 26 * d, piv };
-        ctx.beginPath(); ctx.moveTo(mt.x, mt.y); ctx.lineTo(this._giro.x, this._giro.y); ctx.stroke(); ctx.beginPath(); ctx.arc(this._giro.x, this._giro.y, 6 * d, 0, 7); ctx.fillStyle = '#1b1b1b'; ctx.fill(); ctx.stroke(); }
-      if (it.parte.pai) { const pp = V.multiply(this.matParte(it.parte.pai, est)).transformPoint(new DOMPoint(0, 0)); ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.setLineDash([3 * d, 3 * d]); ctx.beginPath(); ctx.moveTo(pp.x, pp.y); ctx.lineTo(piv.x, piv.y); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(pp.x, pp.y, 3 * d, 0, 7); ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.fill(); }
-      ctx.beginPath(); ctx.arc(piv.x, piv.y, 5 * d, 0, 7); ctx.fillStyle = '#ff6b6b'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * d; ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(piv.x - 9 * d, piv.y); ctx.lineTo(piv.x + 9 * d, piv.y); ctx.moveTo(piv.x, piv.y - 9 * d); ctx.lineTo(piv.x, piv.y + 9 * d); ctx.stroke(); ctx.restore();
-    } else this._giro = null;
+    // parte escolhida: só a caixa tracejada (numa cor que contrasta com a peça) e uma cruzinha discreta no centro.
+    // O pivô (ponto de giro) só aparece segurando Alt (Alt+arrastar muda o pivô); a alça com seta circular (ou Ctrl+arrastar) gira a peça.
+    const it = this.teste ? null : itens.find(x => x.parte.id === this.sel); this._giro = null;
+    if (it?.img) {
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); const T = V.multiply(it.m), px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, ax = it.img.ajuste?.x || 0, ay = it.img.ajuste?.y || 0;
+      const c = [[0, 0], [it.img.w, 0], [it.img.w, it.img.h], [0, it.img.h]].map(([x, y]) => T.transformPoint(new DOMPoint(x - px + ax, y - py + ay))), cor = this.corContraste(it.img);
+      const caixa = () => { ctx.beginPath(); c.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); };
+      ctx.lineWidth = 3 * d; ctx.strokeStyle = 'rgba(0,0,0,.35)'; caixa(); ctx.stroke(); // sombra fina para aparecer em qualquer fundo
+      ctx.lineWidth = 1.6 * d; ctx.strokeStyle = cor; ctx.setLineDash([6 * d, 4 * d]); caixa(); ctx.stroke(); ctx.setLineDash([]);
+      const cx = (c[0].x + c[2].x) / 2, cy = (c[0].y + c[2].y) / 2, r = 7 * d; ctx.globalAlpha = .45; ctx.strokeStyle = cor; ctx.lineWidth = 1.4 * d;
+      ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke(); ctx.globalAlpha = 1;
+      // alça de girar: ícone de seta circular, meio transparente, na mesma cor que contrasta com a peça
+      { const mt = { x: (c[0].x + c[1].x) / 2, y: (c[0].y + c[1].y) / 2 }, piv = T.transformPoint(new DOMPoint(0, 0)), ux = mt.x - cx, uy = mt.y - cy, L = Math.hypot(ux, uy) || 1, gx = mt.x + ux / L * 22 * d, gy = mt.y + uy / L * 22 * d, R = 8 * d;
+        this._giro = { x: gx, y: gy, piv };
+        ctx.globalAlpha = .78; ctx.beginPath(); ctx.arc(gx, gy, R + 4 * d, 0, 7); ctx.fillStyle = 'rgba(20,20,20,.45)'; ctx.fill();
+        ctx.strokeStyle = cor; ctx.lineWidth = 2 * d; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(gx, gy, R * .7, -Math.PI * .15, Math.PI * 1.45); ctx.stroke();
+        const ang = Math.PI * 1.45, ex = gx + Math.cos(ang) * R * .7, ey = gy + Math.sin(ang) * R * .7; // ponta da seta
+        ctx.beginPath(); ctx.moveTo(ex + 4.2 * d, ey - 1.2 * d); ctx.lineTo(ex, ey); ctx.lineTo(ex + .6 * d, ey + 4.4 * d); ctx.stroke(); ctx.lineCap = 'butt'; ctx.globalAlpha = 1; }
+      if (this.alt) { const piv = T.transformPoint(new DOMPoint(0, 0)); ctx.globalAlpha = .8; ctx.beginPath(); ctx.arc(piv.x, piv.y, 5 * d, 0, 7); ctx.fillStyle = '#ff6b6b'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * d; ctx.stroke(); ctx.globalAlpha = 1; }
+      ctx.restore();
+    }
     Pintura.desenhaCursor(ctx);
+  },
+  _corImg: new Map(),
+  corContraste(img) {
+    const k = img.k; if (this._corImg.has(k)) return this._corImg.get(k); const bm = Arq.img.get(k); if (!bm) return '#3d8bff';
+    const S = 32, c = new OffscreenCanvas(S, S).getContext('2d', { willReadFrequently: true }); c.drawImage(bm, 0, 0, S, S); const D = c.getImageData(0, 0, S, S).data; let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < D.length; i += 4) if (D[i + 3] > 120) { r += D[i]; g += D[i + 1]; b += D[i + 2]; n++; } if (n) { r /= n; g /= n; b /= n; }
+    const cand = [[47, 123, 255], [255, 47, 160], [22, 192, 96], [155, 92, 255], [0, 200, 255], [255, 138, 31]];
+    const dist = q => Math.hypot((q[0] - r) * .9, (q[1] - g) * 1.2, (q[2] - b) * .8), best = cand.reduce((a, q) => dist(q) > dist(a) ? q : a);
+    const cor = `rgb(${best.join(',')})`; this._corImg.set(k, cor); return cor;
   },
   mundoTela(x, y) { const v = this.vista; return { x: (x - v.x) / v.z, y: (y - v.y) / v.z }; },
   roda(e) { e.preventDefault(); const r = this.cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, v = this.vista, z = clamp(v.z * Math.exp(-e.deltaY * .0015), .05, 20); v.x = mx - (mx - v.x) * z / v.z; v.y = my - (my - v.y) * z / v.z; v.z = z; this.desenha(); },
@@ -260,9 +278,11 @@ const Atelie = {
       this._panMexeu = false; return fim(ev => { if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 3) mexeu = this._panMexeu = true; v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); }
     if (this.teste && e.button === 0) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); } // testando: só move a tela
     if (e.button === 0 && Pintura.ferr !== 'mover') return Pintura.desce(e); // pincel, borracha, balde, conta-gotas
-    // girar pela alça
-    if (this._giro && Math.hypot(e.offsetX * d - this._giro.x, e.offsetY * d - this._giro.y) < 12 * d) {
-      const p = this.parte(), e0 = this.estado()[p.id], ang = ev => Math.atan2(ev.offsetY * d - this._giro.piv.y, ev.offsetX * d - this._giro.piv.x) * 180 / Math.PI, a0 = ang(e);
+    // girar: Ctrl+arrastar na peça escolhida (gira em volta do pivô)
+    let pegaGiro = this._giro && Math.hypot(e.offsetX * d - this._giro.x, e.offsetY * d - this._giro.y) < 14 * d; // a alça de girar
+    if (!pegaGiro && (e.ctrlKey || e.metaKey) && this.parte() && !this.teste) { const p = this.parte(), piv = this.V().multiply(this.matParte(p.id)).transformPoint(new DOMPoint(0, 0)); this._giro = { piv }; pegaGiro = true; }
+    if (pegaGiro) {
+      const g = this._giro; this._giro = null; const p = this.parte(), e0 = this.estado()[p.id], ang = ev => Math.atan2(ev.offsetY * d - g.piv.y, ev.offsetX * d - g.piv.x) * 180 / Math.PI, a0 = ang(e);
       return fim(ev => { let r = (e0.r || 0) + ang(ev) - a0; if (ev.shiftKey) r = Math.round(r / 15) * 15; this.mudar(p.id, { r: round(r, 1) }); this.desenha(); }, () => this.commit());
     }
     const w = this.mundo(e), it = this.acha(w);
@@ -278,7 +298,12 @@ const Atelie = {
         p.encaixe = { x: round(enc0.x + dp.x, 1), y: round(enc0.y + dp.y, 1) }; for (const [f, e0] of filhos) f.encaixe = { x: round(e0.x - dx, 1), y: round(e0.y - dy, 1) };
         this.desenha(); }, () => this.commit());
     }
-    if (!this.moverTodos && it.img) { // PADRÃO: move só esta imagem (as outras imagens e presets da parte não mexem)
+    if (this.modoMover === 'preset' && it.img) { // PADRÃO: esta imagem SÓ neste preset (ou só na base)
+      const img = it.img, inv = (it.mp || it.m).inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), d0 = { ...(est[p.id]?.d?.[img.id] || { x: 0, y: 0 }) };
+      return fim(ev => { const w2 = this.mundo(ev), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+        this.poeD(p, img, { x: round(d0.x + dx, 1), y: round(d0.y + dy, 1) }); this.desenha(); }, () => this.commit());
+    }
+    if (this.modoMover === 'imagem' && it.img) { // a mesma imagem em TODOS os presets (e na base)
       const img = it.img, inv = it.m.inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), aj0 = { ...(img.ajuste || { x: 0, y: 0 }) };
       return fim(ev => { const w2 = this.mundo(ev), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
         img.ajuste = { x: round(aj0.x + dx, 1), y: round(aj0.y + dy, 1) }; this.desenha(); }, () => this.commit());
@@ -308,7 +333,8 @@ const Atelie = {
     const leva = () => { clearTimeout(this._t); this.desenha(); this._t = setTimeout(() => this.commit(), 300); };
     if (k.startsWith('Arrow')) { e.preventDefault(); const dd = { ArrowLeft: [-passo, 0], ArrowRight: [passo, 0], ArrowUp: [0, -passo], ArrowDown: [0, passo] }[k];
       const im = p.imgs.find(i => i.id === est.img);
-      if (!this.moverTodos && im) im.ajuste = { x: round((im.ajuste?.x || 0) + dd[0], 1), y: round((im.ajuste?.y || 0) + dd[1], 1) }; // só esta imagem
+      if (this.modoMover === 'preset' && im) { const d0 = est.d?.[im.id] || { x: 0, y: 0 }; this.poeD(p, im, { x: round(d0.x + dd[0], 1), y: round(d0.y + dd[1], 1) }); } // só neste preset
+      else if (this.modoMover === 'imagem' && im) im.ajuste = { x: round((im.ajuste?.x || 0) + dd[0], 1), y: round((im.ajuste?.y || 0) + dd[1], 1) }; // a mesma imagem em todos
       else if (this.edit) this.mudar(p.id, { x: (est.x || 0) + dd[0], y: (est.y || 0) + dd[1] }); else p.encaixe = { x: p.encaixe.x + dd[0], y: p.encaixe.y + dd[1] }; return leva(); }
     if (kk === 'q' || kk === 'e') { this.mudar(p.id, { r: round((est.r || 0) + (kk === 'q' ? -1 : 1) * (e.shiftKey ? 15 : 2), 1) }); return leva(); }
     if (k === '+' || k === '=' || k === '-') { this.mudar(p.id, { s: round(clamp((est.s ?? 1) * (k === '-' ? .96 : 1.04), .05, 10), 3) }); return leva(); }
@@ -324,8 +350,8 @@ const Atelie = {
     const au = $('#at-autores'); if (au && au._de !== this.def.autor?.em + '/' + (this.def.edicoes || []).length) { au._de = this.def.autor?.em + '/' + (this.def.edicoes || []).length; au.innerHTML = ''; const sl = Autores.selo(this.def); if (sl) au.appendChild(sl); }
     const pr = this.preset(), s = this.sessao();
     $('#at-modo').innerHTML = Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
-    $('#at-base').hidden = !pr; $('#at-so-img').classList.toggle('todos', this.moverTodos); $('#at-so-img').innerHTML = this.moverTodos ? `${ic('layers', 13)} Movendo: a parte toda` : `${ic('image', 13)} Movendo: só esta imagem`; $('#at-so-img').title = this.moverTodos ? 'Arrastar move a PARTE inteira (todas as imagens e presets dela). Clique para voltar a mover só a imagem.' : 'Arrastar move só a imagem que está aparecendo. Clique (ou botão direito na peça › Mover todos) para mover a parte inteira.'; $('#at-so-img').hidden = !!this.teste;
-    $('#at-testar').classList.toggle('on', !!this.teste); $('#at-testar').innerHTML = `${ic(this.teste ? 'x' : 'play', 13)} ${this.teste ? 'Sair do teste' : 'Testar'}`; this.pintaTeste();
+    $('#at-base').hidden = !pr; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover').hidden = !!this.teste;
+    $('#at-testar').classList.toggle('on', !!this.teste); $('#at-testar').innerHTML = `${ic(this.teste ? 'x' : 'play', 13)} ${this.teste ? 'Sair do teste' : 'Testar'}`; this.pintaTeste(); Pintura.pintaBarra();
     this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
   },
@@ -385,16 +411,41 @@ const Atelie = {
       el.appendChild(r);
     });
   },
-  setMoverTodos(v) { this.moverTodos = !!v; this.pinta(); if (v) UI.toast('<b>Mover todos:</b> arrastar move a parte inteira — todas as imagens e os presets dela (ficam roxos). Clique em "Movendo: a parte toda" para voltar.', { time: 5000 }); },
+  setModo(m) {
+    this.modoMover = m; this.pinta();
+    UI.toast({ preset: '<b>Só neste preset:</b> arrastar muda a imagem só no preset que está na tela (ou só na base).', imagem: '<b>Mesma imagem em todos os presets:</b> arrastar move esta imagem em todo lugar que ela aparece (fica verde-água).', todos: '<b>Mover todos:</b> arrastar move a parte inteira — todas as imagens e os presets dela (ficam roxos).' }[m], { time: 4500 });
+  },
+  setMoverTodos(v) { this.setModo(v ? 'todos' : 'preset'); },
+  // posição desta imagem SÓ no preset que está na tela (ou só na base)
+  poeD(p, img, v, onde = this.preset()) {
+    const st = onde ? (onde.estado[p.id] || {}) : p.base, d = { ...(st.d || {}) };
+    if (!v || (!v.x && !v.y)) delete d[img.id]; else d[img.id] = { x: v.x, y: v.y };
+    if (onde) { const s = this.sessao(); if (s?.partes?.length && !s.partes.includes(p.id)) s.partes.push(p.id); onde.estado[p.id] = { ...(onde.estado[p.id] || {}), d }; if (!Object.keys(d).length) delete onde.estado[p.id].d; }
+    else { p.base.d = d; if (!Object.keys(d).length) delete p.base.d; }
+  },
+  // onde a imagem aparece: a base e cada preset que mostra esta imagem nesta parte
+  ondeAparece(p, img) {
+    const L = []; if (p.base.img === img.id) L.push({ nome: 'base', pr: null });
+    for (const s of this.def.sessoes) for (const pr of s.presets) { const e = pr.estado?.[p.id]; if (!e) continue; if ((e.img || p.base.img) === img.id) L.push({ nome: `${s.nome} › ${pr.nome}`, pr }); }
+    return L;
+  },
+  aplicarPosicaoEmTodos(p, img) {
+    const v = this.estado()[p.id]?.d?.[img.id] || { x: 0, y: 0 }, L = this.ondeAparece(p, img).filter(o => o.pr !== this.preset());
+    for (const o of L) this.poeD(p, img, v, o.pr); this.commit();
+    UI.toast(L.length ? `Posição de "${esc(img.nome)}" aplicada em ${L.length} lugar(es): ${esc(L.map(o => o.nome).slice(0, 4).join(', '))}${L.length > 4 ? '…' : ''}.` : 'Esta imagem não aparece em outros presets.', { kind: L.length ? 'ok' : 'warn', time: 6000 });
+  },
   // botão direito numa peça do palco
   menuPalco(e) {
     const it = this.acha(this.mundo(e)); if (!it) return; if (it.parte.id !== this.sel) { this.escolhe(it.parte.id); this.pinta(); }
     const p = it.parte, n = p.imgs.length;
     UI.ctx(e.clientX, e.clientY, [
       { head: `${p.nome}${it.img ? ' › ' + it.img.nome : ''}` },
-      { label: 'Mover só esta imagem', checked: !this.moverTodos, action: () => this.setMoverTodos(false) },
-      { label: `Mover todos (a parte inteira${n > 1 ? `: ${n} imagens` : ''} e os presets)`, icon: 'layers', checked: this.moverTodos, action: () => this.setMoverTodos(true) },
-      it.img && (it.img.ajuste?.x || it.img.ajuste?.y) && { label: 'Esta imagem de volta ao lugar da parte', icon: 'undo', action: () => { it.img.ajuste = { x: 0, y: 0 }; this.commit(); } },
+      { label: `Mover só ${this.edit ? 'neste preset' : 'na base'}`, checked: this.modoMover === 'preset', action: () => this.setModo('preset') },
+      { label: 'Mover a mesma imagem em todos os presets', checked: this.modoMover === 'imagem', action: () => this.setModo('imagem') },
+      { label: `Mover todos (a parte inteira${n > 1 ? `: ${n} imagens` : ''} e os presets)`, icon: 'layers', checked: this.moverTodos, action: () => this.setModo('todos') },
+      it.img && '-', it.img && { label: 'Aplicar esta posição aos presets com a mesma imagem', icon: 'copy', action: () => this.aplicarPosicaoEmTodos(p, it.img) },
+      it.img && this.estado()[p.id]?.d?.[it.img.id] && { label: `Voltar ao lugar (${this.edit ? 'neste preset' : 'na base'})`, icon: 'undo', action: () => { this.poeD(p, it.img, null); this.commit(); } },
+      it.img && (it.img.ajuste?.x || it.img.ajuste?.y) && { label: 'Tirar o ajuste da imagem em todos os presets', icon: 'undo', action: () => { it.img.ajuste = { x: 0, y: 0 }; this.commit(); } },
       '-', { label: 'Opções da parte…', icon: 'dots', action: () => this.menuParte(e, p) },
     ].filter(Boolean));
   },
@@ -408,12 +459,16 @@ const Atelie = {
     for (const s of B.sessoes) for (const pr of s.presets) bpr[pr.id] = JSON.stringify(pr.estado || {});
     const toda = new Set(); // partes que mexeram por inteiro (encaixe, pai, base…): todas as imagens e presets dela contam
     for (const p of this.def.partes) { const b = bp[p.id];
-      if (!b || JSON.stringify([p.pai, p.encaixe, p.base, p.z || 0]) !== JSON.stringify([b.pai, b.encaixe, b.base, b.z || 0])) { out.partes.add(p.id); toda.add(p.id); }
+      const semD = x => { const { d, ...r } = x || {}; return r; };
+      if (!b || JSON.stringify([p.pai, p.encaixe, semD(p.base), p.z || 0]) !== JSON.stringify([b.pai, b.encaixe, semD(b.base), b.z || 0])) { out.partes.add(p.id); toda.add(p.id); }
+      else for (const iid of new Set([...Object.keys(p.base.d || {}), ...Object.keys(b.base.d || {})])) if (JSON.stringify(p.base.d?.[iid]) !== JSON.stringify(b.base.d?.[iid])) { out.imgs.add(iid); out.partes.add(p.id); } // só a posição na base
       for (const i of p.imgs) if (toda.has(p.id) || bi[i.id] !== JSON.stringify([i.k, i.pivo, i.ajuste, i.w, i.h, i.z || 0])) { out.imgs.add(i.id); out.partes.add(p.id); } }
     for (const s of this.def.sessoes) for (const pr of s.presets) { const usa = Object.entries(pr.estado || {});
-      if (bpr[pr.id] !== JSON.stringify(pr.estado || {}) || usa.some(([pid, e]) => toda.has(pid) || (e.img && out.imgs.has(e.img))) || (!usa.length && false)) out.presets.add(pr.id); }
+      if (bpr[pr.id] !== JSON.stringify(pr.estado || {}) || usa.some(([pid, e]) => toda.has(pid) || (e.img && out.imgs.has(e.img) && this.imgMudouFora(pid, e.img, B)))) out.presets.add(pr.id); }
     return out;
   },
+  // a imagem mudou por ela mesma (ajuste, pixels, pivô) — não só a posição dela na base
+  imgMudouFora(pid, iid, B) { const p = this.parte(pid), i = p?.imgs.find(x => x.id === iid), b = B.partes.find(x => x.id === pid)?.imgs.find(x => x.id === iid); return !b || JSON.stringify([i?.k, i?.pivo, i?.ajuste, i?.w, i?.h, i?.z || 0]) !== JSON.stringify([b.k, b.pivo, b.ajuste, b.w, b.h, b.z || 0]); },
   // presets que mexem na parte (para pintar de roxo no "mover todos")
   presetsDaParte(pid) { const L = new Set(); for (const s of this.def.sessoes) for (const pr of s.presets) if (pr.estado?.[pid] || (s.partes || []).includes(pid)) L.add(pr.id); return L; },
   menuParte(e, p) {
@@ -423,7 +478,7 @@ const Atelie = {
     UI.ctx(e.clientX, e.clientY, [
       varias && { head: `${lista.length} PARTES MARCADAS` },
       !varias && { label: ehRaiz ? 'Deixar de ser a raiz' : 'Marcar como raiz (principal)', icon: 'star', action: () => this.marcarRaiz(p) },
-      !varias && { label: this.moverTodos ? 'Mover só a imagem (voltar)' : 'Mover todos (a parte inteira e os presets)', icon: 'layers', checked: this.moverTodos, action: () => { this.escolhe(p.id); this.setMoverTodos(!this.moverTodos); } },
+      !varias && { label: this.moverTodos ? 'Mover só neste preset (voltar)' : 'Mover todos (a parte inteira e os presets)', icon: 'layers', checked: this.moverTodos, action: () => { this.escolhe(p.id); this.setModo(this.moverTodos ? 'preset' : 'todos'); } },
       { label: varias ? `Mover as ${lista.length} para imagens de` : 'Mover para imagens de', icon: 'image', disabled: !destinos.length, sub: destinos.map(d => ({ label: d.nome, icon: d.id === this.def.raiz ? 'star' : null, action: () => this.virarImagens(lista, d) })) },
       '-',
       !varias && { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } } },
@@ -547,7 +602,7 @@ const Atelie = {
         const img = p.imgs.find(i => i.id === ev.dataTransfer.getData('text/img')); if (img && (img.pasta || null) !== pasta) { if (pasta) img.pasta = pasta; else delete img.pasta; this.commit(); } };
     };
     const card = img => {
-      const bm = Arq.bitmap(img.k, () => this.pintaImgs()), c = h(`<div class="im ${img.id === atual ? 'on' : ''} ${this.focoImg?.img === img.id ? 'foco' : ''} ${this.marcas().imgs.has(img.id) ? 'mod' : ''} ${this.moverTodos ? 'todos' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span><button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
+      const bm = Arq.bitmap(img.k, () => this.pintaImgs()), c = h(`<div class="im ${img.id === atual ? 'on' : ''} ${this.focoImg?.img === img.id ? 'foco' : ''} ${this.marcas().imgs.has(img.id) ? 'mod' : ''} ${this.moverTodos ? 'todos' : this.modoMover === 'imagem' && img.id === atual ? 'mesma' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span><button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
       if (bm) { const cv = document.createElement('canvas'); cv.width = 96; cv.height = 96; const k = Math.min(96 / bm.width, 96 / bm.height); cv.getContext('2d').drawImage(bm, (96 - bm.width * k) / 2, (96 - bm.height * k) / 2, bm.width * k, bm.height * k); c.style.backgroundImage = `url(${cv.toDataURL()})`; }
       c.onclick = ev => { if (ev.target.closest('.x')) return; this.focoImg = { p: p.id, img: img.id }; this.mudar(p.id, { img: img.id }); this.commit(); this.pintaImgs(); };
       c.ondblclick = () => this.renomearImg(img);
@@ -625,8 +680,8 @@ const Atelie = {
       const c = h(`<div class="sess ${aberta ? 'aberta' : ''}"><div class="cab"><b>${esc(s.nome)}</b><small title="Partes que esta sessão mexe">${nomesPartes.length ? esc(nomesPartes.slice(0, 3).join(', ')) + (nomesPartes.length > 3 ? '…' : '') : 'todas as partes'}</small>
         <button class="ibtn ia" data-ia title="Criar um preset com a IA">${ic('sparkles', 13)}</button><button class="ibtn" data-m title="Mais">${ic('dots', 13)}</button></div><div class="lista presets"></div></div>`);
       const l = $('.lista', c);
-      const mk = this.marcas(), daParte = this.moverTodos && this.sel ? this.presetsDaParte(this.sel) : null;
-      for (const pr of s.presets) { const b = h(`<button class="${aberta && this.edit.p === pr.id ? 'on' : ''} ${mk.presets.has(pr.id) ? 'mod' : ''} ${daParte?.has(pr.id) ? 'todos' : ''}" title="Clique para editar · botão direito: opções${mk.presets.has(pr.id) ? ' · mudou desde a última vez na nuvem' : ''}">${esc(pr.nome)}</button>`);
+      const mk = this.marcas(), pS = this.parte(), imS = pS && pS.imgs.find(i => i.id === this.estado()[pS.id]?.img), daParte = this.moverTodos && this.sel ? this.presetsDaParte(this.sel) : this.modoMover === 'imagem' && imS ? new Set(this.ondeAparece(pS, imS).map(o => o.pr?.id).filter(Boolean)) : null;
+      for (const pr of s.presets) { const b = h(`<button class="${aberta && this.edit.p === pr.id ? 'on' : ''} ${mk.presets.has(pr.id) ? 'mod' : ''} ${daParte?.has(pr.id) ? (this.moverTodos ? 'todos' : 'mesma') : ''}" title="Clique para editar · botão direito: opções${mk.presets.has(pr.id) ? ' · mudou desde a última vez na nuvem' : ''}">${esc(pr.nome)}</button>`);
         b.onclick = () => { this.edit = { s: s.id, p: pr.id }; this.pinta(); }; b.oncontextmenu = ev => { ev.preventDefault(); this.menuPreset(ev, s, pr); }; l.appendChild(b); }
       const add = h(`<button title="Preset novo com o que está na tela">+ preset</button>`); add.onclick = () => this.novoPreset(s); l.appendChild(add);
       $('[data-ia]', c).onclick = () => this.presetIA(s); $('[data-m]', c).onclick = ev => this.menuSessao(ev, s);
@@ -817,7 +872,9 @@ const Atelie = {
     return c.toDataURL('image/png');
   },
 };
-addEventListener('keyup', e => { if (e.key === ' ') Atelie.espaco = false; });
+addEventListener('keyup', e => { if (e.key === ' ') Atelie.espaco = false; if (e.key === 'Alt' && Atelie.alt) { Atelie.alt = false; Atelie.desenha(); } });
+addEventListener('keydown', e => { if (e.key === 'Alt' && !Atelie.alt && !$('#atelie').classList.contains('hidden')) { Atelie.alt = true; Atelie.desenha(); } });
+addEventListener('blur', () => { if (Atelie.alt) { Atelie.alt = false; Atelie.desenha(); } });
 
 /* ---------- escolher um personagem da biblioteca da equipe ---------- */
 const Biblioteca = {

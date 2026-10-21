@@ -11,7 +11,7 @@
      A pasta também tem chaves de x/y/r/s/op: mexer nela mexe em tudo dentro (como um "pegbar").
    PERSONAGEM (biblioteca)
      { v:2, id, nome, pasta, thumb, partes:[{ id, nome, pai, z, encaixe:{x,y}, imgs:[{ id, nome, k, w, h, pivo:{x,y}, ajuste:{x,y} }],
-       base:{ img, x,y,r,s,sx, vis } }], sessoes:[{ id, nome, partes:[ids], presets:[{ id, nome, estado:{ parteId:{...} } }] }],
+       base:{ img, x,y,r,s,sx, vis, d:{ imgId:{x,y} } } }],   (d = posição da imagem só na base/naquele preset) sessoes:[{ id, nome, partes:[ids], presets:[{ id, nome, estado:{ parteId:{...} } }] }],
        raiz (id da parte principal), animacoes:[{ id, nome, vel (ms por passo), trilhas:[[ passo:{ s:{sessaoId:presetId}, p:{parteId:{img,r}} } ]] }],
        vis:{ fundo:'xadrez'|'branco'|'cenario', fantasma:{ k, w, h, x, y, s, op, on } }, autor, edicoes }
      Cada parte encaixa no PIVÔ do pai (ponto "encaixe", nas coordenadas do pai). Trocar a imagem não tira a parte do lugar,
@@ -88,10 +88,12 @@ const Modelo = {
   partesNoEstado(def, escolhas) {
     const est = {};
     for (const p of def.partes) est[p.id] = { ...p.base };
+    const tocou = new Set();
     for (const s of def.sessoes || []) {
       const pid = escolhas?.sessoes?.[s.id]; if (!pid) continue;
       const pr = s.presets.find(x => x.id === pid); if (!pr) continue;
-      for (const [parte, e] of Object.entries(pr.estado || {})) if (est[parte]) Object.assign(est[parte], e);
+      // d = posição de cada imagem SÓ naquele preset: a da base não vale dentro de um preset que mexe na parte
+      for (const [parte, e] of Object.entries(pr.estado || {})) if (est[parte]) { if (!tocou.has(parte)) { delete est[parte].d; tocou.add(parte); } Object.assign(est[parte], e); }
     }
     for (const [parte, e] of Object.entries(escolhas?.partes || {})) if (est[parte] && e) Object.assign(est[parte], e);
     return est;
@@ -108,8 +110,9 @@ const Modelo = {
     const out = [];
     for (const p of def.partes) {
       const e = est[p.id] || p.base; if (e.vis === false) continue;
-      const img = p.imgs.find(i => i.id === e.img) || null;
-      out.push({ parte: p, img, m: mat(p.id), z: (p.z || 0) + (e.z || 0) + (img?.z || 0) }); // img.z: camada só daquela imagem (ex.: braço de trás que fica por cima do corpo só na pose base)
+      const img = p.imgs.find(i => i.id === e.img) || null, dd = img && e.d?.[img.id], mp = mat(p.id);
+      // m = onde a imagem é desenhada (com o "d" desta imagem neste preset) · mp = a parte (as filhas encaixam nela, sem o d)
+      out.push({ parte: p, img, m: dd ? mp.translate(dd.x || 0, dd.y || 0) : mp, mp, z: (p.z || 0) + (e.z || 0) + (img?.z || 0) }); // img.z: camada só daquela imagem (ex.: braço de trás que fica por cima do corpo só na pose base)
     }
     return out.sort((a, b) => a.z - b.z);
   },

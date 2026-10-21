@@ -105,8 +105,9 @@
       <div class="p-corpo imgs" id="at-imgs" style="flex:1;align-content:start"></div>
     </aside>
     <main class="at-palco"><canvas id="at-cv"></canvas>
-      <div class="modo-at"><span class="btn" id="at-modo" style="cursor:default"></span><button class="btn" id="at-base">Voltar à base</button><button class="btn" id="at-so-img" title="Arrastar corrige só a imagem atual da parte">Só esta imagem</button><button class="btn" id="at-enq">Enquadrar</button><button class="btn" id="at-testar" title="Testar os botões (sessões, expressões, imagens) como no editor (T)"></button></div>
-      <div class="dica">Arrastar: posiciona · <b>Alt</b>+arrastar: muda o pivô (giro) · alça de cima: gira · setas, <b>Q/E</b> girar, <b>+/−</b> tamanho, <b>F</b> espelhar, <b>[ ]</b> frente/trás, <b>Tab</b> próxima parte, <b>H</b> esconder · espaço/botão do meio: mover a tela</div>
+      <div class="ferr-at" id="at-ferr" title="Ferramentas"></div>
+      <div class="modo-at"><span class="btn" id="at-modo" style="cursor:default"></span><button class="btn" id="at-base">Voltar à base</button><span class="seg mover-seg" id="at-mover" title="Como arrastar mexe nas peças"><button data-modo="preset" title="Arrastar muda esta imagem só no preset que está na tela (ou só na base)">Só neste preset</button><button data-modo="imagem" title="Arrastar move esta imagem em todos os presets onde ela aparece">Mesma imagem em todos</button><button data-modo="todos" title="Arrastar move a parte inteira: todas as imagens e presets">Mover todos</button></span><button class="btn" id="at-enq">Enquadrar</button><button class="btn" id="at-testar" title="Testar os botões (sessões, expressões, imagens) como no editor (T)"></button></div>
+      <div class="dica">Arrastar: posiciona · <b>Alt</b>+arrastar: muda o pivô (giro) · <b>Ctrl</b>+arrastar: gira · setas, <b>Q/E</b> girar, <b>+/−</b> tamanho, <b>F</b> espelhar, <b>[ ]</b> frente/trás, <b>Tab</b> próxima parte, <b>H</b> esconder · espaço/botão do meio: mover a tela</div>
     </main>
     <aside class="painel" style="border-left:1px solid var(--bd)">
       <div class="abas" id="at-abas"><button data-aba="peca" class="on">Peça</button><button data-aba="sessoes">Sessões e poses</button><button data-aba="animacoes">Animações</button><button data-aba="pintar">Pintar e cores</button></div>
