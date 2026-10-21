@@ -7,8 +7,9 @@ document.documentElement.classList.add('turma-locked');
 (() => {
   const st = document.createElement('style');
   st.textContent = `html.turma-locked body>*:not(#turma-login){display:none!important}
-#turma-login{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:radial-gradient(1100px 700px at 50% 35%,#1d2030,#111216 70%);font:14px/1.5 'Segoe UI',system-ui,-apple-system,sans-serif;color:#e9ebef;padding:16px;-webkit-user-select:none;user-select:none}
-#turma-login .ep-c{width:min(380px,100%);text-align:center;display:grid;justify-items:center;gap:4px}
+#turma-login{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:radial-gradient(1100px 700px at 50% 35%,#1d2030,#111216 70%);font:14px/1.5 'Segoe UI',system-ui,-apple-system,sans-serif;color:#e9ebef;padding:16px;-webkit-user-select:none;user-select:none;transition:opacity .3s ease}
+#turma-login.ep-saindo{opacity:0;pointer-events:none}
+#turma-login .ep-c{width:min(380px,100%);text-align:center;display:grid;justify-items:center;gap:4px;animation:epEntra .32s ease both}
 #turma-login .ep-lg{width:68px;height:68px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(135deg,#3d8bff,#19d3f0);box-shadow:0 14px 40px rgba(61,139,255,.35);margin-bottom:12px;animation:epPulso 1.6s ease-in-out infinite}
 #turma-login .ep-nm{font:800 26px/1.05 'Segoe UI',system-ui,sans-serif;letter-spacing:1.5px}
 #turma-login .ep-sb{color:#9aa0ab;font-size:12.5px;letter-spacing:.4px}
@@ -17,8 +18,8 @@ document.documentElement.classList.add('turma-locked');
 #turma-login.ep-erro .ep-br{display:none}#turma-login.ep-erro .ep-lg{animation:none;background:linear-gradient(135deg,#ff6b6b,#ff9a62)}
 #turma-login .ep-m{color:#b9bdc6;font-size:13px;min-height:20px;max-width:340px}#turma-login .ep-m .e,#turma-login .ep-m.err{color:#ff8a9a}
 #turma-login [hidden]{display:none!important}#turma-login a.ep-bt{display:inline-flex;margin-top:12px;padding:9px 18px;border-radius:10px;background:#3d8bff;color:#fff;text-decoration:none;font-weight:600}#turma-login a.ep-bt:hover{filter:brightness(1.08)}
-@keyframes epBarra{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}@keyframes epPulso{50%{transform:scale(1.05)}}
-@media (prefers-reduced-motion:reduce){#turma-login .ep-lg,#turma-login .ep-br::after{animation:none}}
+@keyframes epBarra{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}@keyframes epPulso{50%{transform:scale(1.05)}}@keyframes epEntra{from{opacity:0;transform:translateY(6px)}}
+@media (prefers-reduced-motion:reduce){#turma-login .ep-lg,#turma-login .ep-br::after,#turma-login .ep-c{animation:none}#turma-login{transition:none}}
 #turma-login .tl-out{margin-top:10px;background:none;border:0;color:#7fb0ff;font-size:12px;cursor:pointer;text-decoration:underline}`;
   document.head.appendChild(st);
 })();
@@ -100,7 +101,8 @@ const TurmaAuth = {
         if (!u) { this.status('Abrindo o menu para entrar com o Google…'); return this.irParaMenu(); }
         this.status('Conferindo seu acesso…');
         this.email = await this.check(); this.passed = true;
-        el.remove(); document.documentElement.classList.remove('turma-locked'); resolve(this.email);
+        // o Animador aparece por baixo e a tela de carregamento some com fade (igual em todos os programas)
+        document.documentElement.classList.remove('turma-locked'); el.classList.add('ep-saindo'); setTimeout(() => el.remove(), 330); resolve(this.email);
       } catch (e) {
         if (e.denied) { try { await this.fb?.signOut(); } catch { } return fail(e.message + ' Entre com outra conta pelo menu.', false); }
         fail(e.message || String(e));
