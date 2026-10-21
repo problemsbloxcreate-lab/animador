@@ -365,3 +365,31 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .at-estado.local{color:var(--warn);background:rgba(232,194,90,.1);border:1px solid rgba(232,194,90,.4)}
 .pc .tag-local{position:absolute;top:6px;left:6px;display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--warn);color:#1b1b1b}
 .at-teste.min{bottom:auto}.at-teste.min>:not(.tt-cab){display:none}.at-teste.min .tt-cab{padding-bottom:0}
+/* arrastando arquivos por cima: o que acontece ao soltar */
+.soltar-ov{position:fixed;inset:0;z-index:2147483000;pointer-events:none;display:grid;place-items:center;background:rgba(10,14,22,.55);backdrop-filter:blur(3px);opacity:0;transition:opacity .16s ease}
+.soltar-ov.on{opacity:1}
+.soltar-ov .sv-borda{position:absolute;inset:14px;width:calc(100% - 28px);height:calc(100% - 28px);overflow:visible}
+.soltar-ov .sv-borda rect{fill:rgba(61,139,255,.06);stroke:#5fa8ff;stroke-width:3;stroke-dasharray:14 10;animation:svAnda .9s linear infinite}
+.soltar-ov .sv-card{display:grid;justify-items:center;gap:6px;text-align:center;padding:26px 34px;border-radius:18px;background:rgba(27,27,27,.92);border:1px solid #3d5f8f;box-shadow:0 20px 60px rgba(0,0,0,.5);transform:scale(.92) translateY(8px);transition:transform .22s cubic-bezier(.2,1.4,.4,1)}
+.soltar-ov.on .sv-card{transform:none}
+.soltar-ov .sv-card b{font-size:19px}.soltar-ov .sv-card small{color:var(--tx2);font-size:12.5px;max-width:340px}
+.sv-ic{position:relative;width:72px;height:72px;display:grid;place-items:center;border-radius:20px;background:linear-gradient(135deg,#3d8bff,#19d3f0);color:#fff;margin-bottom:6px;box-shadow:0 10px 30px rgba(61,139,255,.35)}
+.sv-ic .sv-doc{display:grid;animation:svFlutua 1.4s ease-in-out infinite}
+.sv-ic .sv-seta{position:absolute;bottom:-14px;width:28px;height:28px;border-radius:50%;background:#1b1b1b;border:2px solid #5fa8ff;display:grid;place-items:center;color:#7fc0ff;animation:svPula 1s ease-in-out infinite}
+.sv-tags{display:flex;gap:6px;margin-top:6px}.sv-tags span{font:600 11px var(--mono, monospace);padding:3px 8px;border-radius:6px;background:var(--bg2);border:1px solid var(--bd2);color:var(--tx2)}
+.soltar-pill{position:fixed;left:50%;bottom:26px;z-index:2147483000;pointer-events:none;display:flex;align-items:center;gap:12px;padding:10px 18px 10px 12px;border-radius:14px;background:rgba(27,27,27,.95);border:1px solid #3d5f8f;box-shadow:0 14px 40px rgba(0,0,0,.5);opacity:0;transform:translate(-50%,14px) scale(.96);transition:opacity .16s,transform .22s cubic-bezier(.2,1.4,.4,1)}
+.soltar-pill.on{opacity:1;transform:translate(-50%,0)}
+.soltar-pill b{display:block;font-size:13.5px}.soltar-pill small{display:block;color:var(--tx2);font-size:11.5px}
+.sv-pilha{position:relative;width:38px;height:34px;flex:none}
+.sv-pilha i{position:absolute;left:6px;top:4px;width:26px;height:24px;border-radius:5px;border:2px solid #fff;background:linear-gradient(135deg,#ffd36b,#ff9a62);box-shadow:0 3px 8px rgba(0,0,0,.35)}
+.sv-pilha i:nth-child(1){transform:rotate(-14deg) translateX(-5px);background:linear-gradient(135deg,#7bd88f,#19d3f0);animation:svLeque1 1.2s ease-in-out infinite}
+.sv-pilha i:nth-child(2){transform:rotate(12deg) translateX(5px);background:linear-gradient(135deg,#8f6bff,#3d8bff);animation:svLeque2 1.2s ease-in-out infinite}
+.sv-pilha i:nth-child(3){animation:svFlutua 1.2s ease-in-out infinite}
+.at-palco.solta-aqui::after{content:'';position:absolute;inset:8px;border:2px dashed #5fa8ff;border-radius:12px;background:rgba(61,139,255,.07);pointer-events:none;z-index:4;animation:svPulsa 1s ease-in-out infinite}
+@keyframes svAnda{to{stroke-dashoffset:-24}}
+@keyframes svFlutua{50%{transform:translateY(-4px)}}
+@keyframes svPula{50%{transform:translateY(4px)}}
+@keyframes svPulsa{50%{background:rgba(61,139,255,.13)}}
+@keyframes svLeque1{50%{transform:rotate(-20deg) translateX(-8px)}}
+@keyframes svLeque2{50%{transform:rotate(18deg) translateX(8px)}}
+@media (prefers-reduced-motion:reduce){.soltar-ov *,.soltar-pill *,.at-palco.solta-aqui::after{animation:none!important}}

@@ -68,3 +68,51 @@ function fichaAnimacao(P, info) {
     UI.toast('Esse arquivo não é do Animador.', { kind: 'warn' });
   }, true);
 })();
+
+/* ---------- arrastando arquivos por cima do Animador: animação mostrando o que vai acontecer ao soltar ----------
+   Durante o arrasto o navegador só conta o TIPO (imagem ou outro arquivo), não o nome: imagem → onde ela vai entrar (no Ateliê);
+   outro arquivo → "solte para abrir" (.animador abre a animação, .atelieanimador abre no Ateliê). Imagens fora do Ateliê não são aceitas. */
+const Soltar = {
+  el: null, pill: null, _t: null, modo: null,
+  liga() {
+    const svg = `<svg class="sv-borda" preserveAspectRatio="none"><rect x="3" y="3" rx="22" ry="22" width="calc(100% - 6px)" height="calc(100% - 6px)"/></svg>`;
+    this.el = h(`<div class="soltar-ov" hidden>${svg}<div class="sv-card"><div class="sv-ic"><span class="sv-doc">${ic('file', 34)}</span><span class="sv-seta">${ic('down', 22)}</span></div><b data-t></b><small data-s></small><div class="sv-tags"><span>.animador</span><span>.atelieanimador</span></div></div></div>`);
+    this.pill = h(`<div class="soltar-pill" hidden><span class="sv-pilha"><i></i><i></i><i></i></span><span><b data-t></b><small data-s></small></span></div>`);
+    document.body.append(this.el, this.pill);
+    addEventListener('dragover', e => this.passa(e), true); addEventListener('dragenter', e => this.passa(e), true);
+    addEventListener('dragleave', e => { if (!e.relatedTarget || e.clientX <= 0 || e.clientY <= 0 || e.clientX >= innerWidth || e.clientY >= innerHeight) this.some(); }, true);
+    addEventListener('drop', () => this.some(true), true); addEventListener('dragend', () => this.some(true), true);
+  },
+  passa(e) {
+    const dt = e.dataTransfer; if (!dt || !dt.types?.includes('Files') || !TurmaAuth.passed) return;
+    const itens = [...(dt.items || [])].filter(i => i.kind === 'file'), imgs = itens.filter(i => /^image\//.test(i.type)), outros = itens.length - imgs.length;
+    const noAtelie = !$('#atelie').classList.contains('hidden');
+    clearTimeout(this._t); this._t = setTimeout(() => this.some(), 400); // o arrasto parou de passar por aqui
+    if (outros) return this.mostra('arquivo', noAtelie ? 'Solte para abrir o personagem' : 'Solte para abrir', noAtelie ? '.atelieanimador abre aqui no Ateliê · .animador abre a animação' : '.animador abre a animação · .atelieanimador abre o personagem no Ateliê');
+    if (!imgs.length && itens.length) return this.mostra('arquivo', 'Solte para abrir', 'Arquivos do Animador: .animador e .atelieanimador');
+    if (!noAtelie) return this.some();
+    // imagens no Ateliê: o texto muda conforme o lugar embaixo do mouse
+    const n = imgs.length || 1, t = e.target instanceof Element ? e.target : null, P = id => Atelie.parte(id)?.nome || '';
+    const pasta = t?.closest('#at-imgs .pasta-img[data-pasta]'), linha = t?.closest('#at-partes .no[data-pid]'), naLista = t?.closest('#at-partes'), noPainel = t?.closest('#at-imgs'), noPalco = t?.closest('.at-palco');
+    $('.at-palco')?.classList.toggle('solta-aqui', !!noPalco);
+    let tt, ss;
+    if (pasta && Atelie.parte()) { tt = `${n > 1 ? n + ' imagens entram' : 'A imagem entra'} na pasta "${pasta.dataset.pasta}"`; ss = `da parte "${P(Atelie.sel)}"`; }
+    else if (noPainel && Atelie.parte()) { tt = `${n > 1 ? n + ' imagens viram' : 'Vira'} imagem de "${P(Atelie.sel)}"`; ss = 'para trocar no Testar e no editor'; }
+    else if (linha) { tt = `${n > 1 ? n + ' imagens viram' : 'Vira'} imagem de "${P(linha.dataset.pid)}"`; ss = 'solte em cima desta parte'; }
+    else if (naLista || (noPalco && !Atelie.parte())) { tt = n > 1 ? `Cada imagem vira uma parte nova (${n})` : 'A imagem vira uma parte nova'; ss = 'depois encaixe na hierarquia'; }
+    else if (noPalco) { tt = `${n > 1 ? n + ' imagens viram' : 'Vira'} imagem de "${P(Atelie.sel)}"`; ss = 'na lista de partes: cada uma vira uma parte'; }
+    else { tt = n > 1 ? `${n} imagens` : '1 imagem'; ss = 'solte no palco, na lista de partes ou em "Imagens de…"'; }
+    this.mostra('imagens', tt, ss);
+  },
+  mostra(modo, t, s) {
+    const alvo = modo === 'arquivo' ? this.el : this.pill, outro = modo === 'arquivo' ? this.pill : this.el;
+    outro.hidden = true; outro.classList.remove('on'); $('[data-t]', alvo).textContent = t; $('[data-s]', alvo).textContent = s;
+    if (alvo.hidden) { alvo.hidden = false; requestAnimationFrame(() => alvo.classList.add('on')); } else alvo.classList.add('on'); this.modo = modo;
+  },
+  some(ja) {
+    clearTimeout(this._t); $('.at-palco')?.classList.remove('solta-aqui');
+    for (const el of [this.el, this.pill]) { if (!el || el.hidden) continue; el.classList.remove('on'); if (ja) el.hidden = true; else setTimeout(() => { if (!el.classList.contains('on')) el.hidden = true; }, 180); }
+    this.modo = null;
+  },
+};
+Soltar.liga();

@@ -238,7 +238,7 @@ const Atelie = {
     const raiz = this.def.raiz, filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => (b.id === raiz) - (a.id === raiz) || (b.z || 0) - (a.z || 0)), est = this.estado(), ordem = this._ordem = [];
     const vai = (pai, nivel) => { for (const p of filhos(pai)) { ordem.push(p.id);
       const ehRaiz = p.id === raiz, marc = p.id !== this.sel && this.multi.has(p.id);
-      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Ctrl+clique ou Shift+clique marcam várias · arraste para &quot;Imagens de…&quot; para virar imagem"><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
+      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Ctrl+clique ou Shift+clique marcam várias · arraste para &quot;Imagens de…&quot; para virar imagem"><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
         <button class="ibtn ${est[p.id]?.vis === false ? 'off' : ''}" title="Mostrar/esconder (H)">${ic(est[p.id]?.vis === false ? 'eyeOff' : 'eye', 13)}</button></div>`);
       r.onclick = ev => { if (ev.target.closest('.ibtn')) { this.mudar(p.id, { vis: est[p.id]?.vis === false }); return this.commit(); } this.clicaParte(ev, p.id); };
       r.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
@@ -420,7 +420,7 @@ const Atelie = {
     for (const nome of p.pastas) {
       const dentro = p.imgs.filter(i => i.pasta === nome), aberta = !fechadas.has(p.id + '/' + nome);
       const corP = p.pastaCores?.[nome];
-      const cab = h(`<div class="pasta-img ${aberta ? 'aberta' : ''} ${corP ? 'com-cor' : ''}" style="${corP ? `--pc:${corP}` : ''}" title="Clique para abrir/fechar · solte imagens aqui · botão direito: opções">${ic(aberta ? 'down' : 'right', 12)}${ic('folder', 14)}<b>${esc(nome)}</b><small>${dentro.length}</small><span class="sp"></span><button class="ibtn" data-add title="Pôr imagens nesta pasta">${ic('plus', 13)}</button></div>`);
+      const cab = h(`<div class="pasta-img ${aberta ? 'aberta' : ''} ${corP ? 'com-cor' : ''}" data-pasta="${esc(nome)}" style="${corP ? `--pc:${corP}` : ''}" title="Clique para abrir/fechar · solte imagens aqui · botão direito: opções">${ic(aberta ? 'down' : 'right', 12)}${ic('folder', 14)}<b>${esc(nome)}</b><small>${dentro.length}</small><span class="sp"></span><button class="ibtn" data-add title="Pôr imagens nesta pasta">${ic('plus', 13)}</button></div>`);
       cab.onclick = ev => { if (ev.target.closest('[data-add]')) return; const k = p.id + '/' + nome; fechadas.has(k) ? fechadas.delete(k) : fechadas.add(k); this.pintaImgs(); };
       $('[data-add]', cab).onclick = () => this.addImagens(null, false, nome);
       cab.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [
