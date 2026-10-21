@@ -18,6 +18,7 @@ document.documentElement.classList.add('turma-locked');
 #turma-login.ep-erro .ep-br{display:none}#turma-login.ep-erro .ep-lg{animation:none;background:linear-gradient(135deg,#ff6b6b,#ff9a62)}
 #turma-login .ep-m{color:#b9bdc6;font-size:13px;min-height:20px;max-width:340px}#turma-login .ep-m .e,#turma-login .ep-m.err{color:#ff8a9a}
 #turma-login [hidden]{display:none!important}#turma-login a.ep-bt{display:inline-flex;margin-top:12px;padding:9px 18px;border-radius:10px;background:#3d8bff;color:#fff;text-decoration:none;font-weight:600}#turma-login a.ep-bt:hover{filter:brightness(1.08)}
+#turma-login .ep-lg.ep-prog{background:none;box-shadow:0 14px 40px rgba(0,0,0,.45)}#turma-login .ep-lg .ep-img{width:68px;height:68px;display:block}#turma-login.ep-erro .ep-lg .ep-img{opacity:.35}
 @keyframes epBarra{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}@keyframes epPulso{50%{transform:scale(1.05)}}@keyframes epEntra{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){#turma-login .ep-lg,#turma-login .ep-br::after,#turma-login .ep-c{animation:none}#turma-login{transition:none}}
 #turma-login .tl-out{margin-top:10px;background:none;border:0;color:#7fb0ff;font-size:12px;cursor:pointer;text-decoration:underline}`;
@@ -64,10 +65,10 @@ const TurmaAuth = {
       el = document.createElement('div'); el.id = 'turma-login';
       // aba do Ateliê (?atelie=): a tela de carregamento mostra ANIMADOR | ATELIÊ com o ícone do Ateliê
       const at = new URLSearchParams(location.search).has('atelie');
-      const icone = at ? '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><path d="M12 7.2v6.4M12 9.3l-4.2 2.4-1.5 3.3M12 9.3l4.2-1.8 2.3-2.5M12 13.6l-2.9 3.6-.6 4.3M12 13.6l3.3 3 1.5 4"/></svg>'
-        : '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5" fill="#fff" fill-opacity=".18"/><path d="m15.5 10.2 5-3v9.6l-5-3z" fill="#fff"/></svg>';
+      // logo = o ícone do ANIMADOR (o mesmo da aba e do cabeçalho; o Ateliê usa o mesmo logo)
+      const icone = '<img class="ep-img" alt="" src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 28 28%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238a8a8a%27/%3E%3Cstop offset=%271%27 stop-color=%27%23d8d8d8%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2728%27 height=%2728%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Cg transform=%27translate(5.5 5.5) scale(.7083)%27 fill=%27none%27 stroke=%27%231b1b1b%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2712%27 cy=%275%27 r=%272.2%27/%3E%3Cpath d=%27M12 7.2v6.4M12 9.3l-4.2 2.4-1.5 3.3M12 9.3l4.2-1.8 2.3-2.5M12 13.6l-2.9 3.6-.6 4.3M12 13.6l3.3 3 1.5 4%27/%3E%3C/g%3E%3C/svg%3E">';
       if (at) document.title = 'ATELIÊ · ANIMADOR · Estúdio Problems';
-      el.innerHTML = `<div class="ep-c"><div class="ep-lg">${icone}</div><div class="ep-nm">ANIMADOR${at ? '<span style="opacity:.45;font-weight:300;margin:0 9px">|</span>ATELIÊ' : ''}</div><div class="ep-sb">Estúdio Problems</div><div class="ep-br"></div>
+      el.innerHTML = `<div class="ep-c"><div class="ep-lg ep-prog">${icone}</div><div class="ep-nm">ANIMADOR${at ? '<span style="opacity:.45;font-weight:300;margin:0 9px">|</span>ATELIÊ' : ''}</div><div class="ep-sb">Estúdio Problems</div><div class="ep-br"></div>
         <div class="ep-m" data-msg></div><a class="ep-bt" data-menu hidden>Ir para o menu</a></div>`;
       (document.body || document.documentElement).appendChild(el);
     }
