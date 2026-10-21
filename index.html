@@ -149,6 +149,8 @@ window.ESTUDIO_CONTA = { nuvem: true, // círculo roxo: espaço na nuvem da equi
   token: () => TurmaAuth.token(), // o login do Google (o círculo da nuvem precisa dele para medir)
   aoMudarNuvem: () => { try { if (typeof Home !== 'undefined' && document.querySelector('#home:not(.hidden)')) Home.pinta(); } catch { } },
   extras: () => [
+  typeof App !== 'undefined' && App.P && document.querySelector('#editor:not(.hidden)') && { texto: 'Citar este quadro em mensagens…', icone: 'msg', acao: () => Citacao.animacao(App.P, App.q, App.sel) },
+  typeof Atelie !== 'undefined' && Atelie.def && document.querySelector('#atelie:not(.hidden)') && { texto: 'Citar este personagem em mensagens…', icone: 'msg', acao: () => Citacao.atelie() },
   typeof PWA !== 'undefined' && { texto: PWA.installed ? 'Já está como programa ✓' : 'Usar como programa (instalar)…', icone: 'tela', acao: () => PWA.install() },
 ] };</script>
 <script src="/estudio-conta.js" defer></script>

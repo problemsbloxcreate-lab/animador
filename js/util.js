@@ -52,6 +52,7 @@ function menuCor(atual, muda) { return { label: 'Cor da pasta', icon: 'palette',
 const CoresPasta = { get(k) { try { return JSON.parse(localStorage.getItem('animador-cores-pastas') || '{}')[k] || null; } catch { return null; } },
   set(k, c) { try { const o = JSON.parse(localStorage.getItem('animador-cores-pastas') || '{}'); if (c) o[k] = c; else delete o[k]; localStorage.setItem('animador-cores-pastas', JSON.stringify(o)); } catch { } } };
 const ICONS = {
+  chat: '<path d="M20.5 12a8.5 8.5 0 0 1-12.4 7.55L3.5 20.5l1-4.3A8.5 8.5 0 1 1 20.5 12z"/>',
   brush: '<path d="M9.06 11.9 18 3a2.1 2.1 0 0 1 3 3l-8.9 8.94"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/>',
   pencil: '<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/><path d="m15 5 4 4"/>',
   eraser: '<path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L11 21z"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',

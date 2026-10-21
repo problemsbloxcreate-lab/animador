@@ -44,14 +44,14 @@
       { label: 'Desfazer', icon: 'undo', key: 'Ctrl+Z', action: () => App.undo() }, { label: 'Refazer', icon: 'redo', key: 'Ctrl+Y', action: () => App.redo() }, '-',
       { label: 'Pôr um personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Pôr uma forma…', icon: 'shapes', action: () => App.menuForma(e.clientX, e.clientY) }, { label: 'Pôr um texto', icon: 'text', action: () => App.addTexto() }, '-',
       { label: 'Animar com a IA…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco()) }, { label: 'Ateliê de personagens', icon: 'edit', action: () => $('#b-atelie').click() },
-      { label: 'Exportar…', icon: 'download', action: () => Exportar.abrir() }, { label: 'Baixar .animador', icon: 'file', action: () => Toon.baixar(App.P) }, '-',
+      { label: 'Exportar…', icon: 'download', action: () => Exportar.abrir() }, { label: 'Baixar .animador', icon: 'file', action: () => Toon.baixar(App.P) }, { label: 'Citar este quadro em mensagens…', icon: 'chat', action: () => Citacao.animacao(App.P, App.q, App.sel) }, '-',
       { label: 'Voltar ao início', icon: 'left', action: () => App.fechar() },
     ] : tela === 'atelie' ? [
       { head: 'ATELIÊ' },
       { label: 'Desfazer', icon: 'undo', key: 'Ctrl+Z', action: () => Atelie.undo() }, { label: 'Refazer', icon: 'redo', key: 'Ctrl+Shift+Z', action: () => Atelie.redo() }, '-',
       { label: 'Parte nova', icon: 'plus', action: () => Atelie.novaParte() }, { label: 'Pôr imagens…', icon: 'image', action: () => Atelie.addImagens() }, { label: 'Enquadrar', icon: 'crop', action: () => Atelie.enquadrar() }, '-',
       { label: 'Testar os botões', icon: 'play', key: 'T', action: () => Atelie.testar(!Atelie.teste) }, { label: 'IA do Ateliê…', icon: 'sparkles', ai: true, action: () => Atelie.ia() }, '-',
-      { label: 'Baixar backup (.atelieanimador)', icon: 'download', action: () => AtelieArq.baixar(Atelie.def) }, { label: 'Abrir backup (.atelieanimador)…', icon: 'folder', action: () => AtelieArq.escolher() }, '-',
+      { label: 'Baixar backup (.atelieanimador)', icon: 'download', action: () => AtelieArq.baixar(Atelie.def) }, { label: 'Abrir backup (.atelieanimador)…', icon: 'folder', action: () => AtelieArq.escolher() }, { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.atelie() }, '-',
       { label: 'Salvar na nuvem', icon: 'upload', key: 'Ctrl+S', action: () => Atelie.salvar() }, { label: 'Voltar', icon: 'left', action: () => Atelie.sair() },
     ] : [
       { head: 'ANIMADOR' },

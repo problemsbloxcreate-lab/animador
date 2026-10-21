@@ -34,6 +34,7 @@ const Home = {
         { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da animação', value: p.nome }); if (n) { p.nome = n; await DB.put('projetos', p); this.pinta(); } } },
         { label: 'Duplicar', icon: 'dup', action: async () => { const c2 = clone(p); c2.id = uid('p'); c2.nome += ' (cópia)'; c2.modificado = Date.now(); await DB.put('projetos', c2); this.pinta(); } },
         { label: 'Baixar .animador', icon: 'download', action: () => Toon.baixar(p) },
+        { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.animacao(p, 0) },
         '-', { label: 'Apagar', icon: 'trash', danger: true, action: () => this.apagar(p) },
       ]); };
       g.appendChild(card);
@@ -116,6 +117,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
         card.onclick = e => { if (!e.target.closest('.mn')) Atelie.abrirAba(r.def.id); };
         $('.mn', card).onclick = e => { e.stopPropagation(); const b = e.currentTarget.getBoundingClientRect(); UI.ctx(b.right - 200, b.bottom + 4, [
           { label: 'Continuar no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(r.def.id) }, { label: 'Baixar .atelieanimador', icon: 'download', action: () => AtelieArq.baixar(r.def) },
+          { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.personagem(r.def, { thumb: r.thumb }) },
           '-', { label: 'Descartar o rascunho', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Descartar o rascunho de "${esc(r.def.nome)}"?`, msg: 'As mudanças que não foram para a nuvem somem deste computador.', ok: 'Descartar', danger: true })) { await Atelie.apagarRascunho(r.def.id); this.pinta(); } } }]); };
         g.appendChild(card); }
       l.before(sec); });
@@ -129,6 +131,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
           const selo = Autores.selo(it); if (selo) card.appendChild(selo);
           $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
             { label: 'Abrir no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(it.id) },
+            { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.personagem({ id: it.id, nome: it.nome, thumb: it.thumb, partes: [] }, { nuvem: true }) },
             { label: 'Baixar .atelieanimador (backup)', icon: 'download', action: async () => { try { AtelieArq.baixar(await Nuvem.abrir(it.id)); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } } },
             '-', !Nuvem.adm ? { label: 'Apagar da nuvem (só ADM)', icon: 'lock', action: () => Nuvem.pedeAdm(it.nome) } : { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome); if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
           ]); };
@@ -143,14 +146,16 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
 /* ---------- arquivo .animador (antes se chamava .toon; os dois abrem): a animação com tudo dentro (personagens, imagens e áudios) ---------- */
 const Toon = {
   ids(P) { return [...new Set([...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq), ...(P.audios || []).map(a => a.arq), ...Object.values(P.personagens || {}).flatMap(d => d.partes.flatMap(p => p.imgs.map(i => i.k)))].filter(Boolean))]; },
-  async baixar(P) {
+  // o .animador inteiro como Blob (para baixar ou mandar por mensagem)
+  async montar(P) {
     // quem criou / editou vai junto (foto e nome, nunca o e-mail)
     try { await Autores.marca(P); if (App.P === P) App.salvarJa?.(); else await DB.put('projetos', JSON.parse(JSON.stringify(P))); } catch { }
     const eu = await Autores.eu().catch(() => null);
     const t = UI.toast('<span class="spin-dot"></span> Montando o .animador…', { time: 120000 }), enc = new TextEncoder(), files = [{ name: 'projeto.json', data: enc.encode(JSON.stringify({ ...P, thumb: undefined })) }, { name: 'info.json', data: enc.encode(JSON.stringify({ tipo: 'animador', v: 1, por: eu, em: Date.now() })) }];
     for (const id of this.ids(P)) { let b = await Arq.pegaBlob(id); if (!b && /^personagens\//.test(id)) b = await Nuvem.baixar(id).catch(() => null); if (b) files.push({ name: 'arq/' + encodeURIComponent(id), data: new Uint8Array(await b.arrayBuffer()) }); }
-    t.remove(); downloadBlob(Zip.create(files), safeName(P.nome) + '.animador');
+    t.remove(); return Zip.create(files);
   },
+  async baixar(P) { downloadBlob(await this.montar(P), safeName(P.nome) + '.animador'); },
   async ler(f) {
     const m = Zip.read(await f.arrayBuffer()), pj = m.get('projeto.json'); if (!pj) throw new Error(m.get('personagem.json') ? 'Isto é um personagem do Ateliê (.atelieanimador), não uma animação.' : 'Não é um arquivo .animador.');
     const P = JSON.parse(new TextDecoder().decode(pj)); if (P.v !== 2) throw new Error('Este arquivo é do Animador antigo.');
@@ -170,7 +175,8 @@ addEventListener('DOMContentLoaded', async () => {
   const at = new URLSearchParams(location.search).get('atelie');
   const naPose = new URLSearchParams(location.search).get('pose') === '1';
   if (at) { Atelie.emAba = true; await Atelie.abrir(at === 'novo' ? null : at, naPose ? { reserva: await Animacoes.reservaDaPose(at) } : {}); if (naPose && Atelie.def) await Animacoes.entrarNaPose(at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
-  else Home.pinta();
+    if (at && Atelie.def) { const rc = await Citacao.receber(); if (rc?.parte?.sel && Atelie.def.partes.some(p => p.id === rc.parte.sel)) { Atelie.escolhe(rc.parte.sel); Atelie.pinta(); } }
+  else { Home.pinta(); await Citacao.receber(); } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
   // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
   try { new BroadcastChannel('animador').onmessage = async ev => {
     const d = ev.data; if (d?.tipo !== 'personagem' || !d.def) return;

@@ -11,7 +11,9 @@ const AtelieArq = {
     try { const m = Zip.read(await f.arrayBuffer()); if (m.get('personagem.json')) return 'atelie'; if (m.get('projeto.json')) return 'animador'; } catch { }
     return /\.(animador|toon)$/i.test(f.name) ? 'animador' : null;
   },
-  async baixar(def) {
+  async baixar(def) { const b = await this.montar(def); if (b) downloadBlob(b, safeName(def.nome) + this.EXT); },
+  // o personagem inteiro como Blob (para baixar ou mandar por mensagem)
+  async montar(def, o = {}) {
     const t = UI.toast('<span class="spin-dot"></span> Montando o .atelieanimador…', { time: 300000 });
     try {
       const d = clone(def); await Autores.limpa(d); const eu = await Autores.eu(), enc = new TextEncoder();
@@ -20,8 +22,8 @@ const AtelieArq = {
         let b = await Arq.blobMelhor(k); if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null);
         if (b) files.push({ name: 'arq/' + encodeURIComponent(k), data: new Uint8Array(await b.arrayBuffer()) });
       }
-      t.remove(); downloadBlob(Zip.create(files), safeName(d.nome) + this.EXT);
-    } catch (e) { t.remove(); UI.toast('Não consegui montar o arquivo: ' + esc(e.message), { kind: 'err' }); }
+      t.remove(); return Zip.create(files);
+    } catch (e) { t.remove(); if (o.erro) throw e; UI.toast('Não consegui montar o arquivo: ' + esc(e.message), { kind: 'err' }); return null; }
   },
   async ler(f) {
     const m = Zip.read(await f.arrayBuffer()), pj = m.get('personagem.json'); if (!pj) throw new Error('Não é um arquivo .atelieanimador.');
@@ -116,3 +118,49 @@ const Soltar = {
   },
 };
 Soltar.liga();
+
+/* ---------- Citar em mensagens (Mensagens do Estúdio Problems, no botão da conta) ----------
+   Na nuvem (personagem da equipe): vai o endereço e quem recebe abre direto nele.
+   Só neste computador (animação, personagem local): vai o arquivo (.animador / .atelieanimador) junto; quem recebe clica,
+   o Animador abre numa aba nova, baixa o arquivo e abre já no ponto citado (quadro e camada, ou a parte do personagem). */
+const Citacao = {
+  pode() { if (window.EstudioConta?.citar) return true; UI.toast('As mensagens ainda não carregaram. Tente de novo em instantes.', { kind: 'err' }); return false; },
+  async animacao(P, q = 0, sel = null) {
+    if (!P || !this.pode()) return;
+    if (App.P === P) await App.salvarJa();
+    const no = sel && sel !== 'camera' ? Modelo.achar(P, sel) : null;
+    let mini = P.thumb; try { mini = Render.miniatura(P, q, 240) || mini; } catch { }
+    EstudioConta.citar({ prog: 'Animador', titulo: P.nome, sub: `Quadro ${q + 1} de ${P.duracao}${no?.nome ? ' · ' + no.nome : sel === 'camera' ? ' · Câmera' : ''}`, mini, abrir: '/animador/',
+      parte: { tipo: 'animacao', q, sel: sel || null }, nomeArquivo: safeName(P.nome) + '.animador',
+      arquivo: async () => ({ blob: await Toon.montar(App.P?.id === P.id ? App.P : P), nome: safeName(P.nome) + '.animador' }) });
+  },
+  personagem(def, o = {}) {
+    if (!def || !this.pode()) return;
+    const parte = def.partes?.find(p => p.id === o.sel), sub = parte ? 'Parte: ' + parte.nome : `${def.partes?.length || 0} partes`;
+    const base = { prog: 'Animador · Ateliê', titulo: def.nome, sub, mini: def.thumb || o.thumb, parte: { tipo: 'personagem', sel: o.sel || null } };
+    if (o.nuvem) return EstudioConta.citar({ ...base, url: '/animador/?atelie=' + encodeURIComponent(def.id) });
+    EstudioConta.citar({ ...base, abrir: '/animador/', nomeArquivo: safeName(def.nome) + AtelieArq.EXT,
+      arquivo: async () => ({ blob: await AtelieArq.montar(def, { erro: true }), nome: safeName(def.nome) + AtelieArq.EXT }) });
+  },
+  atelie() { const def = Atelie.def; if (def) this.personagem(def, { nuvem: !!Atelie.naNuvem && !Atelie.sujo, sel: Atelie.sel }); },
+  // aberto por uma citação (?anexo=… e/ou ?parte=…): devolve true se abriu alguma coisa
+  async receber() {
+    const rc = window.EstudioConta?.citacaoRecebida?.(); if (!rc) return null;
+    if (!rc.anexo) return rc; // item da nuvem: quem chamou abre (ex.: ?atelie=) e usa rc.parte
+    const t = UI.toast('<span class="spin-dot"></span> Baixando o arquivo da mensagem…', { time: 300000 });
+    try {
+      const ja = await DB.get('arquivos', 'cita:' + rc.anexo).catch(() => null), P0 = ja?.projeto ? await DB.get('projetos', ja.projeto).catch(() => null) : null;
+      if (P0) { t.remove(); await App.abrir(P0); this.irPara(rc.parte); UI.toast('Esta animação já tinha vindo desta mensagem: abri a que está neste computador.', { kind: 'ok' }); return rc; }
+      const f = await rc.baixar(); t.remove();
+      if ((await AtelieArq.tipo(f)) === 'atelie') { await AtelieArq.abrir(f); if (rc.parte?.sel && Atelie.def?.partes.some(p => p.id === rc.parte.sel)) { Atelie.escolhe(rc.parte.sel); Atelie.pinta(); } return rc; }
+      const { P, info } = await Toon.ler(f); await DB.put('projetos', P); await DB.put('arquivos', { tipo: 'cita', projeto: P.id, em: Date.now() }, 'cita:' + rc.anexo).catch(() => { });
+      await App.abrir(P); this.irPara(rc.parte); fichaAnimacao(P, info);
+    } catch (e) { t.remove(); UI.toast('Não abriu o arquivo da mensagem: ' + esc(e.message), { kind: 'err' }); }
+    return rc;
+  },
+  irPara(parte) {
+    if (!parte || !App.P) return;
+    if (Number.isFinite(+parte.q)) App.setQ(+parte.q, { forca: true });
+    if (parte.sel && (parte.sel === 'camera' || Modelo.achar(App.P, parte.sel))) App.selecionar(parte.sel);
+  },
+};
