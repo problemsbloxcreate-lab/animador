@@ -23,4 +23,39 @@
   $('#tl-fps').onchange = e => { App.P.fps = clamp(+e.target.value || 24, 1, 60); App.commit('fps'); };
   $('#tl-dur').onchange = e => { App.P.duracao = clamp(Math.round(+e.target.value || 1), 1, 20000); if (App.q > App.P.duracao - 1) App.q = App.P.duracao - 1; App.commit('Duração'); };
   addEventListener('beforeunload', () => { if (App.P) App.salvarJa(); });
+  // botão direito: nunca o menu do navegador. Onde a tela não tem menu próprio, aparece um menu do ANIMADOR
+  document.addEventListener('contextmenu', e => {
+    if (e.defaultPrevented) return; e.preventDefault(); // já abriu um menu do Animador (camada, timeline, peça…)
+    const campo = e.target.closest('input:not([type=range]):not([type=checkbox]):not([type=color]),textarea');
+    if (campo) { // campos de texto: recortar/copiar/colar do próprio Animador
+      const tem = campo.selectionStart !== campo.selectionEnd, txt = () => campo.value.slice(campo.selectionStart, campo.selectionEnd);
+      const poe = async t => { campo.focus(); campo.setRangeText(t, campo.selectionStart, campo.selectionEnd, 'end'); campo.dispatchEvent(new Event('input', { bubbles: true })); };
+      return UI.ctx(e.clientX, e.clientY, [
+        { label: 'Recortar', icon: 'cut', key: 'Ctrl+X', disabled: !tem || campo.readOnly, action: async () => { await navigator.clipboard.writeText(txt()).catch(() => { }); poe(''); } },
+        { label: 'Copiar', icon: 'copy', key: 'Ctrl+C', disabled: !tem, action: () => navigator.clipboard.writeText(txt()).catch(() => { }) },
+        { label: 'Colar', icon: 'paste', key: 'Ctrl+V', disabled: campo.readOnly, action: async () => { const t = await navigator.clipboard.readText().catch(() => null); if (t != null) poe(t); else UI.toast('Use Ctrl+V para colar aqui'); } },
+        '-', { label: 'Selecionar tudo', icon: 'check', key: 'Ctrl+A', action: () => { campo.focus(); campo.select(); } },
+      ]);
+    }
+    const tela = ['home', 'editor', 'atelie'].find(id => !$('#' + id)?.classList.contains('hidden'));
+    const itens = tela === 'editor' && App.P ? [
+      { head: 'ANIMADOR' },
+      { label: 'Desfazer', icon: 'undo', key: 'Ctrl+Z', action: () => App.undo() }, { label: 'Refazer', icon: 'redo', key: 'Ctrl+Y', action: () => App.redo() }, '-',
+      { label: 'Pôr um personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Pôr uma forma…', icon: 'shapes', action: () => App.menuForma(e.clientX, e.clientY) }, { label: 'Pôr um texto', icon: 'text', action: () => App.addTexto() }, '-',
+      { label: 'Animar com a IA…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco()) }, { label: 'Ateliê de personagens', icon: 'edit', action: () => $('#b-atelie').click() },
+      { label: 'Exportar…', icon: 'download', action: () => Exportar.abrir() }, { label: 'Baixar .animador', icon: 'file', action: () => Toon.baixar(App.P) }, '-',
+      { label: 'Voltar ao início', icon: 'left', action: () => App.fechar() },
+    ] : tela === 'atelie' ? [
+      { head: 'ATELIÊ' },
+      { label: 'Desfazer', icon: 'undo', key: 'Ctrl+Z', action: () => Atelie.undo() }, { label: 'Refazer', icon: 'redo', key: 'Ctrl+Shift+Z', action: () => Atelie.redo() }, '-',
+      { label: 'Parte nova', icon: 'plus', action: () => Atelie.novaParte() }, { label: 'Pôr imagens…', icon: 'image', action: () => Atelie.addImagens() }, { label: 'Enquadrar', icon: 'crop', action: () => Atelie.enquadrar() }, '-',
+      { label: 'Salvar na nuvem', icon: 'upload', key: 'Ctrl+S', action: () => Atelie.salvar() }, { label: 'Voltar', icon: 'left', action: () => Atelie.sair() },
+    ] : [
+      { head: 'ANIMADOR' },
+      { label: 'Animação nova (YouTube)', icon: 'plus', action: () => Home.nova(FORMATOS[0]) }, { label: 'Animação nova (Shorts)', icon: 'plus', action: () => Home.nova(FORMATOS[1]) },
+      { label: 'Abrir .animador…', icon: 'folder', action: async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) Home.importar(f); } }, '-',
+      { label: 'Personagem novo', icon: 'layers', action: () => Atelie.abrir(null) },
+    ];
+    UI.ctx(e.clientX, e.clientY, itens);
+  });
 })();

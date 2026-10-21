@@ -125,13 +125,30 @@ const Render = {
     const c = Modelo.camera(P, q), k = W / P.w, tr = Efeitos.tremor(P, q);
     return new DOMMatrix().translate(W / 2 + tr.dx * k, H / 2 + tr.dy * k).scale(k * (c.zoom || 1)).rotate(-(c.r || 0)).translate(-c.x, -c.y);
   },
+  // fundo onde não tem nada: guardado na animação (P.palco). Os quadradinhos têm tamanho fixo no mundo, então a Câmera mostra igual à Cena
+  fundoDe(P) {
+    if (!P.palco) { let o = {}; try { o = JSON.parse(localStorage.getItem('animador-palco') || '{}'); } catch { } // quem já tinha escolhido no navegador
+      P.palco = { modo: o.modo === 'cor' ? 'cor' : 'quadriculado', cor: /^#[0-9a-f]{6}$/i.test(o.cor || '') ? o.cor : '#cfcfcf', forca: Number.isFinite(o.forca) ? o.forca : .35 }; }
+    return P.palco;
+  },
+  fundo(ctx, P, V, W, H) {
+    const o = this.fundoDe(P); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = o.cor; ctx.fillRect(0, 0, W, H);
+    if (o.modo === 'cor' || !o.forca) return ctx.restore();
+    const z = Math.hypot(V.a, V.b) || 1; let t = 40; while (t * z < 6) t *= 2;
+    const inv = V.inverse(), cs = [[0, 0], [W, 0], [W, H], [0, H]].map(([x, y]) => inv.transformPoint(new DOMPoint(x, y)));
+    const x0 = Math.floor(Math.min(...cs.map(p => p.x)) / t) - 1, x1 = Math.ceil(Math.max(...cs.map(p => p.x)) / t) + 1, y0 = Math.floor(Math.min(...cs.map(p => p.y)) / t) - 1, y1 = Math.ceil(Math.max(...cs.map(p => p.y)) / t) + 1;
+    const lum = parseInt(o.cor.slice(1, 3), 16) * .3 + parseInt(o.cor.slice(3, 5), 16) * .59 + parseInt(o.cor.slice(5, 7), 16) * .11;
+    ctx.setTransform(V); ctx.fillStyle = lum > 140 ? `rgba(0,0,0,${o.forca * .22})` : `rgba(255,255,255,${o.forca * .16})`; ctx.beginPath();
+    for (let y = y0; y <= y1; y++) for (let x = x0 + ((x0 + y) & 1); x <= x1; x += 2) ctx.rect(x * t, y * t, t + .02 / z, t + .02 / z);
+    ctx.fill(); ctx.restore();
+  },
   // QUADRO FINAL (exportar e prévia da câmera): fundo, camadas, cor, efeitos e legenda
   _tmp: null,
   quadro(ctx, P, q, W, H) {
     if (!this._tmp || this._tmp.width !== W || this._tmp.height !== H) this._tmp = new OffscreenCanvas(W, H);
     const t = this._tmp.getContext('2d');
-    t.setTransform(1, 0, 0, 1, 0, 0); t.fillStyle = P.fundo || '#fff'; t.fillRect(0, 0, W, H);
-    this.camadas(t, P, q, this.matCamera(P, q, W, H));
+    const mc = this.matCamera(P, q, W, H); this.fundo(t, P, mc, W, H); // o mesmo fundo da Cena (quadriculado ou cor lisa), visto pela câmera
+    this.camadas(t, P, q, mc);
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.filter = Efeitos.filtro(P, q); ctx.drawImage(this._tmp, 0, 0); ctx.filter = 'none';
     Efeitos.porCima(ctx, P, q, W, H); this.legenda(ctx, P, q, W, H); ctx.restore();
   },

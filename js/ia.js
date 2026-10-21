@@ -56,7 +56,7 @@ Regras: use só nomes de sessões e presets que existem. Para atuação pela fal
       <label class="field">O que fazer?<textarea rows="4" placeholder="Ex.: anima o ${esc(foco?.nome || 'Problems')} pela fala: olhos assustados quando ele grita, pisca de vez em quando, e um tremor de tela no fim"></textarea></label>
       <div class="ia-res" hidden></div></div>`);
     const res = $('.ia-res', body);
-    await UI.modal({ title: 'Animar com a IA', icon: 'sparkles', kind: 'ia', width: 620, body, buttons: [{ label: 'Fechar', value: null }, { label: 'Pedir', kind: 'primary ia', onClick: async api => {
+    await UI.modal({ title: 'Animar com a IA', icon: 'sparkles', kind: 'ia', width: 620, body, buttons: [{ label: 'Fechar', value: null }, { label: 'Pedir', icon: 'sparkles', kind: 'primary ia', onClick: async api => {
       const txt = $('textarea', body).value.trim(); if (!txt) return false;
       const bt = api.foot.querySelector('.btn.primary'); bt.disabled = true; res.hidden = false; res.textContent = 'Pensando…';
       try {
