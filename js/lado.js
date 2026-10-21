@@ -8,11 +8,13 @@ const Lado = {
   aba(a) { this.atual = a; $$('#lado-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === a)); this.pinta(); },
   pinta() {
     if (!App.P) return; const el = $('#lado'); if (!el) return;
-    const fn = { quadro: 'quadro', props: 'props', efeitos: 'efeitos', som: 'som' }[this.atual];
+    const fn = { quadro: 'quadro', props: 'props', efeitos: 'efeitos', som: 'som', midia: 'midia' }[this.atual] || 'quadro';
     const rolagem = el.scrollTop; el.innerHTML = ''; this[fn](el); el.scrollTop = rolagem;
   },
   // personagem em foco: o selecionado, ou o 1º do quadro
   foco() { const P = App.P, s = App.noSel(), lista = Modelo.noQuadro(P, App.q); return s?.tipo === 'personagem' && lista.includes(s) ? s : lista.length === 1 ? lista[0] : s?.tipo === 'personagem' ? s : null; },
+
+  midia(el) { Midia.pinta(el); },
 
   /* ---------- No quadro ---------- */
   quadro(el) {

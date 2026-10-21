@@ -9,4 +9,4 @@
 - `js/modelo.js` dados (projeto, camadas, personagem por partes) e o cálculo de cada quadro · `js/desenho.js` desenha · `js/app.js` editor e palco
 - `js/arvore.js` hierarquia · `js/folha.js` timeline · `js/lado.js` painel da direita · `js/atelie.js` ateliê de personagens
 - `js/efeitos.js` visuais/efeitos · `js/som.js` voz, boca e legendas · `js/ia.js` IA · `js/exportar.js` MP4 · `js/nuvem.js` biblioteca de personagens · `js/home.js` início e .toon
-- `js/cenarios.js` cenários no estilo da casa (feltro/giz pastel): prontos em `cenarios/*.json` + IA que cria/ajusta no mesmo estilo; o guia do estilo está em `cenarios/ESTILO.md` — siga-o em qualquer cenário novo
+- `js/cenarios.js` cenários no estilo da casa (feltro/giz pastel): prontos em `cenarios/*.json` + IA que cria/ajusta no mesmo estilo; o guia do estilo está em `cenarios/ESTILO.md` — siga-o em qualquer cenário novo; cada objeto ("o") vira uma peça separada · `js/midia.js` aba Mídia (imagens guardadas neste computador para reaproveitar)

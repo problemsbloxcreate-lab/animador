@@ -13,7 +13,9 @@ Os prontos daqui (`*.json`) foram aprovados pelo dono e são os exemplos que a I
 
 ## Formato
 Sempre 1920×1080, camadas de trás para a frente:
-`{ "nome": "...", "camadas": [ { "c": "#cor", "t": granulado, "b": borda, "f": [formas] }, { "degrade": { "de", "ate", "cor", "forca" } } ] }`
+`{ "nome": "...", "total": N, "camadas": [ { "o": "Objeto", "c": "#cor", "t": granulado, "b": borda, "f": [formas] }, { "degrade": { "de", "ate", "cor", "forca" } } ] }`
+
+`"o"` marca o começo de um objeto (Fundo, Janela, Sofá…): as camadas seguintes são dele até o próximo `"o"`. Cada objeto vira uma **peça** separada (PNG transparente recortado, com a posição no cenário), que dá para pôr na cena em camadas, mandar para a Mídia ou baixar. Escreva cada objeto inteiro de uma vez. `"total"` é quantas camadas vêm (para o tempo que falta).
 Formas: `["ret",x0,y0,x1,y1]`, `["red",x0,y0,x1,y1,raio]`, `["elipse",x0,y0,x1,y1]`, `["poli",x,y,…]`,
 `["linha",esp,x,y,…]`, `["anel",x0,y0,x1,y1,esp]`, `["arco",x0,y0,x1,y1,grau0,grau1,esp]`.
 `t` padrão 10 (6–12; 4–7 em detalhes), `b` padrão 4 (1 no fundo inteiro; 2–3 em detalhes pequenos).
