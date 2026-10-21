@@ -152,7 +152,8 @@ const Autores = {
   },
   // foto pequena (a "Minha conta" pode guardar a foto inteira; aqui basta 64 px para não pesar o personagem)
   async miniFoto(f) {
-    if (!f) return null; if (!/^data:/.test(f) && f.length < 1000) return f;
+    // foto do Google (https://…) fica como endereço; a da "Minha conta" (/conta/foto, só vale para a própria pessoa) vira imagem pequena dentro do arquivo
+    if (!f) return null; if (/^https:\/\//.test(f) && f.length < 1000) return f;
     try { const im = new Image(); im.src = f; await im.decode(); const S = 64, c = document.createElement('canvas'); c.width = c.height = S; const k = Math.max(S / im.naturalWidth, S / im.naturalHeight), w = im.naturalWidth * k, hh = im.naturalHeight * k;
       c.getContext('2d').drawImage(im, (S - w) / 2, (S - hh) / 2, w, hh); return c.toDataURL('image/jpeg', .82); } catch { return null; }
   },
@@ -170,7 +171,7 @@ const Autores = {
   vivo(p) {
     if (!p?.id || !/^u[0-9a-f]{16}$/.test(p.id)) return Promise.resolve(p);
     if (!this._vivos.has(p.id)) this._vivos.set(p.id, fetch('/pessoa?u=' + encodeURIComponent(p.id), { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null));
-    return this._vivos.get(p.id).then(j => j?.nome ? { ...p, nome: j.nome, foto: j.foto || p.foto } : p);
+    return this._vivos.get(p.id).then(j => j?.nome ? { ...p, nome: j.nome, foto: j.foto || (/^\/conta\//.test(p.foto || '') ? null : p.foto) } : p);
   },
   async aoVivo(d) { const autor = await this.vivo(d.autor), edicoes = await Promise.all((d.edicoes || []).map(x => this.vivo(x))); return { ...d, autor, edicoes }; },
   selo(d0) {
@@ -191,10 +192,11 @@ const Autores = {
 };
 
 /* ---------- ficha de quem fez (aparece ao abrir um .animador ou .atelieanimador): foto, nome e datas, nunca o e-mail ---------- */
-Autores.ficha = function (o) {
+Autores.ficha = function (o0) {
+  let o = o0;
   const L = (p, txt) => `<div class="aut-l">${this.av(p)}<div><b>${esc(p.nome || 'Alguém')}</b><small>${txt}</small></div></div>`;
   const eds = o.autor ? this.editores(o) : (o.edicoes || []).slice().sort((a, b) => b.em - a.em);
-  return h(`<div class="ficha">
+  const el = h(`<div class="ficha">
     <div class="ficha-top">${o.thumb ? `<div class="ficha-th" style="background-image:url('${o.thumb}')"></div>` : `<div class="ficha-th">${ic(o.ico || 'layers', 26)}</div>`}<div><small>${esc(o.tipo || '')}</small><b>${esc(o.nome || '')}</b>${o.resumo ? `<small>${o.resumo}</small>` : ''}</div></div>
     ${o.aviso ? `<div class="ficha-aviso">${ic('alert', 16)}<div>${o.aviso}</div></div>` : ''}
     <div class="aut-pop ficha-pop">
@@ -202,4 +204,15 @@ Autores.ficha = function (o) {
       ${eds.length ? `<div class="aut-t">Editado por</div>${eds.map(x => L(x, 'última edição · ' + fmtDate(x.em))).join('')}` : ''}
       ${o.pacote?.por ? `<div class="aut-t">Arquivo feito por</div>${L(o.pacote.por, 'baixou este arquivo · ' + fmtDate(o.pacote.em))}` : ''}
     </div></div>`);
+  // troca pelo nome e a foto de AGORA de cada pessoa (a foto guardada no arquivo pode ser antiga ou só valer para quem fez)
+  (async () => { try {
+    const [autor, edicoes, por] = await Promise.all([o.autor ? this.vivo(o.autor) : null, Promise.all((o.edicoes || []).map(x => this.vivo(x))), o.pacote?.por ? this.vivo(o.pacote.por) : null]);
+    o = { ...o, autor, edicoes, pacote: o.pacote ? { ...o.pacote, por } : o.pacote };
+    const pop = el.querySelector('.ficha-pop'); if (!pop) return;
+    const eds2 = o.autor ? this.editores(o) : (o.edicoes || []).slice().sort((a, b) => b.em - a.em);
+    pop.innerHTML = `${o.autor ? `<div class="aut-t" style="border:0;margin:0">Criado por</div>${L(o.autor, (o.verboAutor || 'criou') + ' · ' + fmtDate(o.autor.em))}` : '<div class="aut-t" style="border:0;margin:0">Quem criou não ficou registrado (arquivo de antes desta versão)</div>'}
+      ${eds2.length ? `<div class="aut-t">Editado por</div>${eds2.map(x => L(x, 'última edição · ' + fmtDate(x.em))).join('')}` : ''}
+      ${o.pacote?.por ? `<div class="aut-t">Arquivo feito por</div>${L(o.pacote.por, 'baixou este arquivo · ' + fmtDate(o.pacote.em))}` : ''}`;
+  } catch { } })();
+  return el;
 };

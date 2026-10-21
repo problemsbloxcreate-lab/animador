@@ -159,18 +159,20 @@ const DB = (() => {
 
 /* ---------- arquivos (imagens e áudios) : guardados no navegador; imagens viram ImageBitmap na memória ---------- */
 const Arq = {
-  img: new Map(), blob: new Map(), carregando: new Map(),
+  img: new Map(), blob: new Map(), carregando: new Map(), avisar: new Map(),
   async guardar(blob, id = uid('a')) { await DB.put('arquivos', blob, id); this.blob.set(id, blob); return id; },
   async pegaBlob(id) { if (this.blob.has(id)) return this.blob.get(id); const b = await DB.get('arquivos', id); if (b) this.blob.set(id, b); return b || null; },
-  // imagem pronta para desenhar (null enquanto carrega; avisa quando chegar)
+  // imagem pronta para desenhar (null enquanto carrega; avisa TODO MUNDO que pediu quando chegar —
+  // antes só o primeiro que pediu era avisado, e a tela ficava sem a imagem até alguém clicar)
   bitmap(id, aoChegar) {
     if (!id) return null; if (this.img.has(id)) return this.img.get(id);
+    if (aoChegar) { const l = this.avisar.get(id) || new Map(), k = String(aoChegar); l.set(/native code/.test(k) ? aoChegar : k, aoChegar); this.avisar.set(id, l); } // o mesmo pedido repetido (ex.: redesenhar) conta uma vez só
     if (!this.carregando.has(id)) this.carregando.set(id, (async () => {
       let b = await this.pegaBlob(id);
       if (!b && /^personagens\//.test(id)) b = await Nuvem.baixar(id).catch(() => null); // imagem de personagem: da nuvem da equipe
       if (!b) return null;
       const bm = await createImageBitmap(b).catch(() => null); if (bm) this.img.set(id, bm); return bm;
-    })().then(bm => { this.carregando.delete(id); aoChegar?.(bm); return bm; }));
+    })().then(bm => { this.carregando.delete(id); const l = this.avisar.get(id); this.avisar.delete(id); l?.forEach(f => { try { f(bm); } catch (e) { console.error(e); } }); return bm; }));
     return null;
   },
   // ORIGINAL sem perda: imagens que foram para a nuvem em webp continuam com a PNG original guardada neste navegador (arquivos["orig:<chave webp>"] = chave da original)

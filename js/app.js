@@ -227,7 +227,7 @@ const App = {
       new ResizeObserver(() => this.tamanho()).observe(this.cv.parentElement); this.tamanho();
       this.cv.addEventListener('pointerdown', e => this.desce(e)); this.cv.addEventListener('wheel', e => this.roda(e), { passive: false });
       this.cv.addEventListener('dblclick', e => this.duplo(e)); this.cv.addEventListener('contextmenu', e => { e.preventDefault(); this.menu(e); });
-      Render.aoChegarImagem = () => { App.pinta(); Folha.pinta(); };
+      Render.aoChegarImagem = () => { if (App._rafImg) return; App._rafImg = requestAnimationFrame(() => { App._rafImg = 0; App.pinta(); Folha.pinta(); }); }; // várias imagens chegando: redesenha uma vez por quadro
     },
     tamanho() { const r = this.cv.getBoundingClientRect(); this.dpr = devicePixelRatio || 1; this.cv.width = Math.max(2, r.width * this.dpr); this.cv.height = Math.max(2, r.height * this.dpr); App.pinta(); },
     // mundo ↔ tela
