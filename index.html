@@ -146,6 +146,7 @@
 <script src="js/inicio.js"></script>
 <script>/* itens do Animador no balão da conta (o resto é igual em todos os projetos) */
 window.ESTUDIO_CONTA = { nuvem: true, // círculo roxo: espaço na nuvem da equipe (personagens e cenários salvos na nuvem)
+  token: () => TurmaAuth.token(), // o login do Google (o círculo da nuvem precisa dele para medir)
   aoMudarNuvem: () => { try { if (typeof Home !== 'undefined' && document.querySelector('#home:not(.hidden)')) Home.pinta(); } catch { } },
   extras: () => [
   typeof PWA !== 'undefined' && { texto: PWA.installed ? 'Já está como programa ✓' : 'Usar como programa (instalar)…', icone: 'tela', acao: () => PWA.install() },
