@@ -149,13 +149,57 @@ Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":g
     }
     return out;
   },
+  /* ---------- APRENDER COM A EQUIPE: personagens salvos na nuvem viram exemplos para a IA ----------
+     Não é treinar o modelo: a cada vez que organiza, a IA lê como a equipe montou outros personagens (e o que a equipe
+     corrigiu depois que a IA organizou — def.iaCorrecoes) e segue o mesmo jeito. Quanto mais personagens salvos, melhor. */
+  resumo(def) { // a estrutura por id (para comparar o que a IA fez com o que a equipe salvou)
+    const est = Modelo.partesNoEstado(def, {}), out = { raiz: def.raiz || null, partes: {}, sessoes: {}, animacoes: (def.animacoes || []).map(a => a.nome) };
+    for (const p of def.partes) { const im = p.imgs.find(i => i.id === est[p.id]?.img) || p.imgs[0], pv = im?.pivo;
+      out.partes[p.id] = { nome: p.nome, pai: p.pai || null, z: p.z || 0, imgs: Object.fromEntries(p.imgs.map(i => [i.id, i.nome])), pivo: im && pv ? [round(pv.x / im.w, 2), round(pv.y / im.h, 2)] : null }; }
+    for (const s of def.sessoes) out.sessoes[s.id] = { nome: s.nome, presets: s.presets.map(p => p.nome) };
+    return out;
+  },
+  // o que a equipe mudou depois da IA (frases curtas)
+  correcoes(antes, depois) {
+    const L = [], nm = (R, id) => R.partes[id]?.nome || '(nenhuma)', ondeImg = (R, iid) => Object.keys(R.partes).find(pid => R.partes[pid].imgs[iid]);
+    for (const [id, a] of Object.entries(antes.partes)) { const d = depois.partes[id];
+      if (!d) { L.push(`apagou a parte "${a.nome}"`); continue; }
+      if (d.nome !== a.nome) L.push(`renomeou a parte "${a.nome}" para "${d.nome}"`);
+      if ((d.pai || null) !== (a.pai || null)) L.push(`"${d.nome}": a IA encaixou em "${nm(antes, a.pai)}", a equipe mudou para "${nm(depois, d.pai)}"`);
+      if (a.pivo && d.pivo && Math.hypot(a.pivo[0] - d.pivo[0], a.pivo[1] - d.pivo[1]) > .12) L.push(`"${d.nome}": ponto de giro mudado de [${a.pivo}] para [${d.pivo}] (fração da imagem)`);
+      for (const [iid, n] of Object.entries(a.imgs)) { const pd = ondeImg(depois, iid); if (pd && pd !== id) L.push(`a imagem "${n}" saiu de "${a.nome}" e foi para "${nm(depois, pd)}"`); else if (pd && depois.partes[pd].imgs[iid] !== n) L.push(`renomeou a imagem "${n}" para "${depois.partes[pd].imgs[iid]}"`); } }
+    for (const [id, d] of Object.entries(depois.partes)) if (!antes.partes[id]) L.push(`criou a parte "${d.nome}"${d.pai ? ` encaixada em "${nm(depois, d.pai)}"` : ''}`);
+    if ((antes.raiz || null) !== (depois.raiz || null)) L.push(`a raiz era "${nm(antes, antes.raiz)}", a equipe mudou para "${nm(depois, depois.raiz)}"`);
+    for (const [id, a] of Object.entries(antes.sessoes)) { const d = depois.sessoes[id]; if (!d) { L.push(`apagou a sessão "${a.nome}"`); continue; }
+      const tirou = a.presets.filter(x => !d.presets.includes(x)), pos = d.presets.filter(x => !a.presets.includes(x));
+      if (tirou.length) L.push(`sessão "${d.nome}": tirou ${tirou.map(x => `"${x}"`).join(', ')}`); if (pos.length) L.push(`sessão "${d.nome}": criou ${pos.map(x => `"${x}"`).join(', ')}`); }
+    for (const [id, d] of Object.entries(depois.sessoes)) if (!antes.sessoes[id]) L.push(`criou a sessão "${d.nome}" (${d.presets.slice(0, 6).join(', ')})`);
+    const ta = antes.animacoes.filter(x => !depois.animacoes.includes(x)), pa = depois.animacoes.filter(x => !antes.animacoes.includes(x));
+    if (ta.length) L.push(`apagou as animações ${ta.map(x => `"${x}"`).join(', ')}`); if (pa.length) L.push(`criou as animações ${pa.map(x => `"${x}"`).join(', ')}`);
+    return L.slice(0, 25);
+  },
+  // os personagens da equipe (menos este), resumidos para servir de exemplo
+  async exemplos(def, max = 4) {
+    let lista = []; try { lista = await Nuvem.lista(); } catch { return []; }
+    lista = lista.filter(x => x.id !== def.id).sort((a, b) => (b.modificado || 0) - (a.modificado || 0)).slice(0, 12);
+    const defs = (await Promise.all(lista.map(x => Nuvem.abrir(x.id, true).catch(() => null)))).filter(d => d?.partes?.length >= 2);
+    defs.sort((a, b) => (b.iaCorrecoes?.length ? 1 : 0) - (a.iaCorrecoes?.length ? 1 : 0) || (b.modificado || 0) - (a.modificado || 0)); // primeiro os que a equipe corrigiu
+    return defs.slice(0, max).map(d => { const r = this.resumo(d), N = id => r.partes[id]?.nome;
+      return { thumb: d.thumb, txt: JSON.stringify({ personagem: d.nome, raiz: N(r.raiz) || null,
+        partes: Object.values(r.partes).map(p => ({ parte: p.nome, pai: N(p.pai) || null, z: p.z, pivo: p.pivo, imagens: Object.values(p.imgs).slice(0, 12) })),
+        sessoes: Object.values(r.sessoes).map(s => ({ sessao: s.nome, presets: s.presets.slice(0, 12) })), animacoes: r.animacoes.slice(0, 10),
+        correcoes_da_equipe_depois_da_IA: (d.iaCorrecoes || []).slice(0, 15) }).slice(0, 4000) }; });
+  },
   async organizar(def, modo, pedido, aoEscrever) {
     const est = Modelo.partesNoEstado(def, {}), cx = Modelo.montar(def, est); // onde cada parte está no desenho (para a IA entender quem fica perto de quem)
     const partes = def.partes.map(p => { const it = cx.find(i => i.parte.id === p.id), c = it?.img ? it.m.transformPoint(new DOMPoint((it.img.ajuste?.x || 0) - (it.img.pivo?.x ?? it.img.w / 2) + it.img.w / 2, (it.img.ajuste?.y || 0) - (it.img.pivo?.y ?? it.img.h / 2) + it.img.h / 2)) : null;
       return { parte: p.nome, pai: def.partes.find(x => x.id === p.pai)?.nome || null, raiz: p.id === def.raiz || undefined, z: p.z || 0, centro_no_desenho: c ? [Math.round(c.x), Math.round(c.y)] : null, imagens: p.imgs.map(i => `${i.nome} (${Math.round(i.w)}x${Math.round(i.h)})`) }; });
     const sess = def.sessoes.map(s => ({ sessao: s.nome, presets: s.presets.map(pr => pr.nome) })), anims = (def.animacoes || []).map(a => a.nome);
     const foco = modo === 'animacoes' ? 'Crie SÓ "animacoes" (de teste) com as peças que existem; não mexa no resto.' : 'Organize TUDO (juntar, nomes, raiz, pais, camadas, sessões, presets e animações de teste).';
-    const content = [{ type: 'text', text: `PERSONAGEM: ${def.nome}\nPARTES: ${JSON.stringify(partes)}\nSESSÕES QUE JÁ EXISTEM: ${JSON.stringify(sess)}\nANIMAÇÕES QUE JÁ EXISTEM: ${JSON.stringify(anims)}\n\n${foco}${pedido ? '\nPEDIDO DA PESSOA: ' + pedido : ''}\n\nMINIATURAS:` }, ...(await this.miniaturas(def))];
+    const exs = await this.exemplos(def).catch(() => []), exC = [];
+    if (exs.length) { exC.push({ type: 'text', text: `COMO A EQUIPE JÁ MONTOU OUTROS PERSONAGENS (siga o mesmo jeito de organizar e NÃO repita os erros que a equipe corrigiu; cada personagem é diferente, então adapte):` });
+      for (const e of exs) { if (/^data:image\/(png|jpeg);base64,/.test(e.thumb || '')) exC.push({ type: 'image', source: { type: 'base64', media_type: e.thumb.slice(5, e.thumb.indexOf(';')), data: e.thumb.split(',')[1] } }); exC.push({ type: 'text', text: e.txt }); } }
+    const content = [...exC, { type: 'text', text: `${exs.length ? 'AGORA O PERSONAGEM NOVO.\n' : ''}PERSONAGEM: ${def.nome}\nPARTES: ${JSON.stringify(partes)}\nSESSÕES QUE JÁ EXISTEM: ${JSON.stringify(sess)}\nANIMAÇÕES QUE JÁ EXISTEM: ${JSON.stringify(anims)}\n\n${foco}${pedido ? '\nPEDIDO DA PESSOA: ' + pedido : ''}\n\nMINIATURAS:` }, ...(await this.miniaturas(def))];
     return this.json(await this.chama(this.SIS_ORGANIZAR, content, aoEscrever));
   },
 };

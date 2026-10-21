@@ -727,13 +727,17 @@ const Atelie = {
       if (velha) L[L.indexOf(velha)] = a; else L.push(a); n++;
     }
     if (n) feito.push(`${n} animação(ões) de teste`);
+    def.iaPlano = { em: Date.now(), resumo: IA.resumo(def) }; // para aprender: ao salvar na nuvem, compara com o que a equipe ajustou
     this.sel = def.raiz || this.sel; this.multi.clear(); this.commit(); return feito;
   },
 
   /* ---------- salvar na nuvem da equipe ---------- */
   async salvar() {
     const def = this.def; if (!def.partes.length) return UI.toast('Ponha pelo menos uma parte antes de salvar.', { kind: 'warn' });
-    def.thumb = this.miniatura(); const t = UI.toast('<span class="spin-dot"></span> <span data-p>Salvando na nuvem…</span>', { time: 600000 });
+    def.thumb = this.miniatura();
+    // aprendizado: o que a equipe corrigiu depois da IA organizar vai junto (a IA lê isso nos próximos personagens)
+    if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
+    const t = UI.toast('<span class="spin-dot"></span> <span data-p>Salvando na nuvem…</span>', { time: 600000 });
     try { await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.base0 = this.ultimo; this.pinta();
       if (App.P?.personagens?.[def.id]) { App.P.personagens[def.id] = clone(def); App.commit('Personagem atualizado'); }
       try { new BroadcastChannel('animador').postMessage({ tipo: 'personagem', def: JSON.parse(JSON.stringify(def)) }); } catch { } // avisa as outras abas (a animação aberta atualiza o personagem)
