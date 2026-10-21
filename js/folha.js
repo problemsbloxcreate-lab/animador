@@ -35,9 +35,24 @@ const Folha = {
     this.nomes.innerHTML = '<div class="regua"></div>' + L.map((l, i) => {
       const sel = (l.tipo === 'no' && App.sel === l.no.id) || (l.tipo === 'camera' && App.sel === 'camera') || (l.tipo === 'efeito' && App.sel === l.ef.id) || (l.tipo === 'audio' && App.sel === l.a.id);
       const icn = l.tipo === 'no' ? TIPO_IC[l.no.tipo] : { camera: 'camera', efeito: 'sparkles', legenda: 'text', audio: 'mic' }[l.tipo];
-      return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''}" data-i="${i}" style="padding-left:${6 + (l.nivel || 0) * 12}px">${ic(icn, 13)}<span class="nm">${esc(l.nome)}</span></div>`;
+      const ab = l.tipo === 'no' && l.no.filhos ? `<button class="ab" data-ab title="Abrir/fechar a pasta">${ic(l.no.aberto === false ? 'right' : 'down', 11)}</button>` : '';
+      return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px">${ab}${ic(icn, 13)}<span class="nm">${esc(l.nome)}</span></div>`;
     }).join('');
-    $$('.reg', this.nomes).forEach(r => r.onclick = () => this.selLinha(L[+r.dataset.i]));
+    // cabeçalho: pasta nova (com a camada escolhida dentro, se tiver uma)
+    const cab = $('.regua', this.nomes); cab.innerHTML = `<span>Camadas</span><span class="sp"></span><button class="ibtn" data-pasta title="Pasta nova (com a camada escolhida dentro) · Ctrl+G">${ic('folder', 13)}</button>`;
+    $('[data-pasta]', cab).onclick = () => App.addPasta();
+    $$('.reg', this.nomes).forEach(r => {
+      const l = L[+r.dataset.i]; r.onclick = e => { if (e.target.closest('[data-ab]')) return; this.selLinha(l); };
+      if (l.tipo !== 'no') return; const n = l.no;
+      if ($('[data-ab]', r)) $('[data-ab]', r).onclick = () => { n.aberto = n.aberto === false; App.atualiza({ semLado: true }); };
+      r.oncontextmenu = e => { e.preventDefault(); App.selecionar(n.id); Arvore.menu(e, n); };
+      r.ondblclick = e => { if (!e.target.closest('button')) Arvore.renomear(n, r); };
+      // arrastar como na hierarquia: em cima/embaixo muda a ordem; no meio de uma pasta entra nela
+      r.ondragstart = e => { Arvore.arrastando = n.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', n.id); };
+      r.ondragend = () => { Arvore.arrastando = null; $$('.reg', this.nomes).forEach(x => x.classList.remove('drop-antes', 'drop-depois', 'drop-dentro')); };
+      r.ondragover = e => { if (!Arvore.arrastando || Arvore.arrastando === n.id) return; e.preventDefault(); const z = Arvore.zona(e, r, n); $$('.reg', this.nomes).forEach(x => x.classList.remove('drop-antes', 'drop-depois', 'drop-dentro')); r.classList.add('drop-' + z); };
+      r.ondrop = e => { e.preventDefault(); const z = Arvore.zona(e, r, n); Arvore.mover(Arvore.arrastando, n.id, z); };
+    });
     const tq = P.duracao, W = tq * this.CW + 200, H = this.REG + L.length * this.RH + 30;
     this.espaco.style.width = W + 'px'; this.espaco.style.height = H + 'px';
     const r = this.grade.getBoundingClientRect(), d = devicePixelRatio || 1;
