@@ -51,7 +51,7 @@ const Lado = {
       el.appendChild(box);
     }
     const ac = h(`<div class="sessao"><div class="campo2"><button class="btn sm" data-boca>${ic('mic', 13)} Boca pela voz</button><button class="btn sm ia" data-ia>${ic('sparkles', 13)} Animar com a IA</button><button class="btn sm" data-at>${ic('edit', 13)} Editar personagem</button></div></div>`);
-    $('[data-boca]', ac).onclick = () => Som.bocaPelaVoz(f); $('[data-ia]', ac).onclick = () => IA.abrir(f); $('[data-at]', ac).onclick = () => Atelie.abrir(def.id, { volta: true });
+    $('[data-boca]', ac).onclick = () => Som.bocaPelaVoz(f); $('[data-ia]', ac).onclick = () => IA.abrir(f); $('[data-at]', ac).onclick = () => Atelie.abrirAba(def.id);
     el.appendChild(ac);
   },
   escolhe(n, sessao, preset) {

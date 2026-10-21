@@ -49,7 +49,7 @@ const Home = {
   async personagens(c) {
     c.innerHTML = `<div class="novos"><button class="novo" data-novo><span class="fm">${ic('plus', 24)}</span><span><b>Personagem novo</b><small>montar pelas partes</small></span></button></div>
       <div class="sec">Biblioteca da equipe <span class="sp"></span><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div>`;
-    $('[data-novo]', c).onclick = () => Atelie.abrir(null); $('[data-atu]', c).onclick = () => this.pinta();
+    $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-atu]', c).onclick = () => this.pinta();
     const l = $('[data-l]', c);
     try {
       const lista = await Nuvem.lista(); if (!lista.length) { l.innerHTML = '<div class="vazio">Ninguém criou personagens ainda. Clique em <b>Personagem novo</b>.</div>'; return; }
@@ -57,9 +57,9 @@ const Home = {
         l.appendChild(this.tituloPasta(pa)); const g = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div>');
         for (const it of lista.filter(x => x.pasta === pa)) {
           const card = h(`<div class="pc"><div class="th" style="aspect-ratio:1;${it.thumb ? `background-image:url('${it.thumb}')` : ''}">${it.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(it.nome)}</b><small>${it.modificado ? fmtDate(it.modificado) : ''}</small></div><button class="ibtn mn">${ic('dots', 15)}</button></div>`);
-          card.onclick = e => { if (!e.target.closest('.mn')) Atelie.abrir(it.id); };
+          card.onclick = e => { if (!e.target.closest('.mn')) Atelie.abrirAba(it.id); };
           $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
-            { label: 'Abrir no Ateliê', icon: 'edit', action: () => Atelie.abrir(it.id) },
+            { label: 'Abrir no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(it.id) },
             '-', { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
           ]); };
           g.appendChild(card);
@@ -92,7 +92,16 @@ addEventListener('DOMContentLoaded', async () => {
   // "Sair da conta" (botão da conta): salva a animação aberta antes de sair
   (window.ESTUDIO_AO_SAIR ||= []).push(() => App.salvarJa());
   $('#home-brand').onclick = () => App.P ? App.fechar() : Home.pinta();
-  Home.pinta();
+  // aba do Ateliê (aberta pelo botão Ateliê): abre direto o personagem; Voltar fecha a aba
+  const at = new URLSearchParams(location.search).get('atelie');
+  if (at) { Atelie.emAba = true; await Atelie.abrir(at === 'novo' ? null : at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
+  else Home.pinta();
+  // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
+  try { new BroadcastChannel('animador').onmessage = async ev => {
+    const d = ev.data; if (d?.tipo !== 'personagem' || !d.def) return;
+    if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = d.def; await Arq.garantir(d.def.partes.flatMap(p => p.imgs.map(i => i.k))); App.commit('Personagem atualizado'); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
+    else if (!App.P && Home.atual === 'personagens' && !Atelie.emAba) Home.pinta();
+  }; } catch { }
   // círculo de espaço (padrão de todos os projetos): as animações deste computador, com "Baixar .animador"
   window.EstudioConta?.espaco.registrar({ programa: 'Animador', async listar() {
     if (App.P) await App.salvarJa();

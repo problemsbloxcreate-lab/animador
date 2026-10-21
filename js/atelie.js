@@ -20,6 +20,12 @@ const SESSOES_PRONTAS = [
 ];
 const Atelie = {
   def: null, sel: null, edit: null, vista: { x: 0, y: 0, z: 1 }, pilha: [], refazer: [], ultimo: null, volta: false, aba: 'peca', soImagem: false, sujo: false,
+  // o Ateliê abre numa aba nova do navegador (Voltar fecha a aba); se o navegador bloquear, abre aqui mesmo
+  abrirAba(id) {
+    if (this.emAba) return this.abrir(id);
+    const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', id || 'novo');
+    const w = window.open(u.href, '_blank'); if (!w) return this.abrir(id, { volta: !!App.P });
+  },
   async abrir(id, o = {}) {
     this.volta = !!o.volta; let def;
     if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }); try { def = await Nuvem.abrir(id); } catch (e) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } t.remove(); }
@@ -30,6 +36,7 @@ const Atelie = {
   },
   async sair() {
     if (this.sujo && !(await UI.confirm({ title: 'Sair sem salvar na nuvem?', msg: 'As mudanças deste personagem ainda não foram salvas na nuvem da equipe.', ok: 'Sair sem salvar', danger: true }))) return;
+    if (this.emAba) { this.sujo = false; window.close(); setTimeout(() => { if (!window.closed) { history.replaceState(null, '', location.pathname); this.emAba = false; Telas.mostra('home'); Home.aba('personagens'); } }, 300); return; }
     if (this.volta && App.P) { Telas.mostra('editor'); App.titulo(); App.atualiza(); } else { Telas.mostra('home'); Home.aba('personagens'); }
   },
   commit(o = {}) { const s = JSON.stringify(this.def); if (s !== this.ultimo) { this.pilha.push(this.ultimo); if (this.pilha.length > 120) this.pilha.shift(); this.refazer = []; this.ultimo = s; this.sujo = true; } if (!o.soDesenho) this.pinta(); else this.desenha(); },
@@ -429,6 +436,7 @@ const Atelie = {
     def.thumb = this.miniatura(); const t = UI.toast('<span class="spin-dot"></span> <span data-p>Salvando na nuvem…</span>', { time: 600000 });
     try { await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); this.sujo = false; this.ultimo = JSON.stringify(def); this.pinta();
       if (App.P?.personagens?.[def.id]) { App.P.personagens[def.id] = clone(def); App.commit('Personagem atualizado'); }
+      try { new BroadcastChannel('animador').postMessage({ tipo: 'personagem', def: JSON.parse(JSON.stringify(def)) }); } catch { } // avisa as outras abas (a animação aberta atualiza o personagem)
       UI.toast(`<b>${esc(def.nome)}</b> salvo na nuvem da equipe (pasta "${esc(def.pasta)}").`, { kind: 'ok' }); }
     catch (e) { t.remove(); UI.toast('Não salvou: ' + esc(e.message), { kind: 'err', time: 7000 }); }
   },
@@ -446,7 +454,7 @@ const Biblioteca = {
   async escolher() {
     const body = h('<div><div class="vazio"><span class="spin-dot"></span> Carregando a biblioteca da equipe…</div></div>');
     let escolhido = null;
-    const p = UI.modal({ title: 'Pôr um personagem', icon: 'layers', width: 640, body, buttons: [{ label: 'Criar personagem novo', left: true, onClick: () => { setTimeout(() => Atelie.abrir(null, { volta: true }), 50); return true; } }, { label: 'Cancelar', value: null }] });
+    const p = UI.modal({ title: 'Pôr um personagem', icon: 'layers', width: 640, body, buttons: [{ label: 'Criar personagem novo', left: true, onClick: () => { setTimeout(() => Atelie.abrirAba(null), 50); return true; } }, { label: 'Cancelar', value: null }] });
     try {
       const lista = await Nuvem.lista(); if (!lista.length) body.innerHTML = '<div class="vazio">Nenhum personagem na biblioteca ainda. Crie o primeiro no Ateliê.</div>';
       else { body.innerHTML = ''; const pastas = [...new Set(lista.map(x => x.pasta))];

@@ -4,7 +4,7 @@
   const poe = (id, icone, txt, fn) => { const b = $('#' + id); if (!b) return; b.innerHTML = ic(icone, 15) + (txt ? `<span>${txt}</span>` : ''); if (fn) b.onclick = fn; };
   poe('b-undo', 'undo', '', () => App.undo()); poe('b-redo', 'redo', '', () => App.redo());
   poe('b-onion', 'onion', '', () => { App.onion = !App.onion; $('#b-onion').classList.toggle('on', App.onion); App.pinta(); });
-  poe('b-ia', 'sparkles', 'IA', () => IA.abrir(Lado.foco())); poe('b-atelie', 'edit', 'Ateliê', () => Atelie.abrir(Lado.foco() ? App.P.personagens[Lado.foco().ref]?.id : null, { volta: true }));
+  poe('b-ia', 'sparkles', 'IA', () => IA.abrir(Lado.foco())); poe('b-atelie', 'edit', 'Ateliê', () => Atelie.abrirAba(Lado.foco() ? App.P.personagens[Lado.foco().ref]?.id : null));
   poe('b-exportar', 'download', 'Exportar', () => Exportar.abrir());
   poe('h-pers', 'plus', '', () => App.addPersonagem()); poe('h-cen', 'paisagem', '', () => { const r = $('#h-cen').getBoundingClientRect(); App.menuCenario(r.left, r.bottom + 4); }); poe('h-img', 'image', '', () => App.addImagem()); poe('h-forma', 'shapes', '', () => { const r = $('#h-forma').getBoundingClientRect(); App.menuForma(r.left, r.bottom + 4); }); poe('h-txt', 'text', '', () => App.addTexto()); poe('h-pasta', 'folder', '', () => App.addPasta());
   poe('t-ini', 'start', '', () => App.setQ(0)); poe('t-ant', 'prev', '', () => App.setQ(App.q - 1, { som: true })); poe('b-tocar', 'play', '', () => App.tocar());
@@ -54,7 +54,7 @@
       { head: 'ANIMADOR' },
       { label: 'Animação nova (YouTube)', icon: 'plus', action: () => Home.nova(FORMATOS[0]) }, { label: 'Animação nova (Shorts)', icon: 'plus', action: () => Home.nova(FORMATOS[1]) },
       { label: 'Abrir .animador…', icon: 'folder', action: async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) Home.importar(f); } }, '-',
-      { label: 'Personagem novo', icon: 'layers', action: () => Atelie.abrir(null) },
+      { label: 'Personagem novo', icon: 'layers', action: () => Atelie.abrirAba(null) },
     ];
     UI.ctx(e.clientX, e.clientY, itens);
   });
