@@ -240,12 +240,11 @@ const Atelie = {
       const cx = (c[0].x + c[2].x) / 2, cy = (c[0].y + c[2].y) / 2, r = 7 * d; ctx.globalAlpha = .45; ctx.strokeStyle = cor; ctx.lineWidth = 1.4 * d;
       ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke(); ctx.globalAlpha = 1;
       // alça de girar: ícone de seta circular, meio transparente, na mesma cor que contrasta com a peça
-      { const mt = { x: (c[0].x + c[1].x) / 2, y: (c[0].y + c[1].y) / 2 }, piv = T.transformPoint(new DOMPoint(0, 0)), ux = mt.x - cx, uy = mt.y - cy, L = Math.hypot(ux, uy) || 1, gx = mt.x + ux / L * 22 * d, gy = mt.y + uy / L * 22 * d, R = 8 * d;
+      { const mt = { x: (c[0].x + c[1].x) / 2, y: (c[0].y + c[1].y) / 2 }, piv = T.transformPoint(new DOMPoint(0, 0)), ux = mt.x - cx, uy = mt.y - cy, L = Math.hypot(ux, uy) || 1, gx = mt.x + ux / L * 26 * d, gy = mt.y + uy / L * 26 * d, R = 8 * d;
         this._giro = { x: gx, y: gy, piv };
-        ctx.globalAlpha = .78; ctx.beginPath(); ctx.arc(gx, gy, R + 4 * d, 0, 7); ctx.fillStyle = 'rgba(20,20,20,.45)'; ctx.fill();
-        ctx.strokeStyle = cor; ctx.lineWidth = 2 * d; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(gx, gy, R * .7, -Math.PI * .15, Math.PI * 1.45); ctx.stroke();
-        const ang = Math.PI * 1.45, ex = gx + Math.cos(ang) * R * .7, ey = gy + Math.sin(ang) * R * .7; // ponta da seta
-        ctx.beginPath(); ctx.moveTo(ex + 4.2 * d, ey - 1.2 * d); ctx.lineTo(ex, ey); ctx.lineTo(ex + .6 * d, ey + 4.4 * d); ctx.stroke(); ctx.lineCap = 'butt'; ctx.globalAlpha = 1; }
+        ctx.globalAlpha = .82; ctx.beginPath(); ctx.arc(gx, gy, 12 * d, 0, 7); ctx.fillStyle = 'rgba(20,20,20,.5)'; ctx.fill(); ctx.lineWidth = 1 * d; ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.stroke();
+        ctx.save(); const k = 14 * d / 24; ctx.translate(gx - 12 * k, gy - 12 * k); ctx.scale(k, k); ctx.strokeStyle = cor; ctx.lineWidth = 2.4; ctx.lineCap = ctx.lineJoin = 'round';
+        ctx.stroke(new Path2D('M21 12a9 9 0 1 1-2.64-6.36L21 8')); ctx.stroke(new Path2D('M21 3v5h-5')); ctx.restore(); ctx.globalAlpha = 1; }
       if (this.alt) { const piv = T.transformPoint(new DOMPoint(0, 0)); ctx.globalAlpha = .8; ctx.beginPath(); ctx.arc(piv.x, piv.y, 5 * d, 0, 7); ctx.fillStyle = '#ff6b6b'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * d; ctx.stroke(); ctx.globalAlpha = 1; }
       ctx.restore();
     }
@@ -272,7 +271,7 @@ const Atelie = {
   _alfa: new Map(),
   opaco(bm, x, y) { let c = this._alfa.get(bm); if (!c) { c = new OffscreenCanvas(bm.width, bm.height).getContext('2d', { willReadFrequently: true }); c.drawImage(bm, 0, 0); this._alfa.set(bm, c); } return c.getImageData(Math.floor(x), Math.floor(y), 1, 1).data[3] > 20; },
   desce(e) {
-    this.cv.setPointerCapture(e.pointerId); const d = devicePixelRatio || 1;
+    try { this.cv.setPointerCapture(e.pointerId); } catch { } const d = devicePixelRatio || 1;
     const fim = (mov, up) => { const m = ev => mov(ev), u = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', u); up?.(ev); }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', u); };
     if (e.button === 1 || e.button === 2 || this.espaco) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; let mexeu = false;
       this._panMexeu = false; return fim(ev => { if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 3) mexeu = this._panMexeu = true; v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); }

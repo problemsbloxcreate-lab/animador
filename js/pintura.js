@@ -54,16 +54,7 @@ const Pintura = {
       if (this.ferr === 'balde') this.balde(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.cor, this.tol);
       else { const m = this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, e.shiftKey); if (!m) return; c.globalCompositeOperation = 'destination-out'; c.drawImage(m, 0, 0); c.globalCompositeOperation = 'source-over'; }
       if (mask) this.soNaSelecao(c, antes.cv, mask); await this.gravar(a.img, cv); Atelie.commit(); return; }
-    // pincel / borracha: o traço vai numa camada à parte (opacidade sem manchar onde cruza; respeita a seleção)
-    const lay = new OffscreenCanvas(cv.width, cv.height), lc = lay.getContext('2d'), base = this.tela(a.bm).cv, apaga = this.ferr === 'borracha';
-    lc.lineCap = lc.lineJoin = 'round'; lc.lineWidth = this.tam; lc.strokeStyle = lc.fillStyle = apaga ? '#000' : this.cor;
-    const junta = () => { const l2 = mask ? (() => { const t = new OffscreenCanvas(cv.width, cv.height), x = t.getContext('2d'); x.drawImage(lay, 0, 0); x.globalCompositeOperation = 'destination-in'; x.drawImage(mask, 0, 0); return t; })() : lay;
-      c.globalCompositeOperation = 'copy'; c.globalAlpha = 1; c.drawImage(base, 0, 0); c.globalCompositeOperation = apaga ? 'destination-out' : 'source-over'; c.globalAlpha = this.opac; c.drawImage(l2, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; };
-    let ult = pt; lc.beginPath(); lc.arc(pt.x, pt.y, this.tam / 2, 0, 7); lc.fill(); junta(); Arq.img.set(k0, cv); Atelie.desenha();
-    Atelie.cv.setPointerCapture(e.pointerId);
-    const mov = ev => { const p2 = a.para(Atelie.mundo(ev)); lc.beginPath(); lc.moveTo(ult.x, ult.y); lc.lineTo(p2.x, p2.y); lc.stroke(); ult = p2; junta(); Atelie.desenha(); };
-    const up = async () => { Atelie.cv.removeEventListener('pointermove', mov); Atelie.cv.removeEventListener('pointerup', up); Arq.img.set(k0, orig); await this.gravar(a.img, cv); Atelie.commit(); };
-    Atelie.cv.addEventListener('pointermove', mov); Atelie.cv.addEventListener('pointerup', up);
+    return this.traco(e, a, pt, mask); // pincel / borracha (pinceis.js: pressão da caneta, dureza, fluxo, suavização…)
   },
   balde(c, W, H, x, y, hex, tol) {
     if (x < 0 || y < 0 || x >= W || y >= H) return; const d = c.getImageData(0, 0, W, H), D = d.data, i0 = (y * W + x) * 4, alvo = [D[i0], D[i0 + 1], D[i0 + 2], D[i0 + 3]], [r, g, b] = rgbDe(hex);
@@ -131,6 +122,7 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
     let op = $('#at-ferr-op'); const precisa = ['pincel', 'borracha', 'balde', 'varinha', 'magica'].includes(this.ferr);
     if (!precisa) { op?.remove(); return; }
     if (!op) { op = h('<div id="at-ferr-op" class="ferr-op"></div>'); el.after(op); }
+    if (['pincel', 'borracha'].includes(this.ferr)) { op.innerHTML = `<b>${this.ferr === 'borracha' ? 'Borracha' : 'Pincel'}</b>`; op.appendChild(this.controles(true)); return; }
     const nome = this.FERR.find(f => f[0] === this.ferr)?.[1] || '', campos = ['pincel', 'borracha'].includes(this.ferr) ? [['tam', 'Tamanho', 1, 300, 1], ['opac', 'Opacidade', .05, 1, .01]] : [['tol', 'Tolerância', 0, 160, 1]];
     op.innerHTML = `<b>${esc(nome)}</b>` + campos.map(([c, n, a, b, p]) => `<label title="${n}">${n}<input type="range" min="${a}" max="${b}" step="${p}" value="${this[c]}" data-c="${c}"><output>${c === 'opac' ? Math.round(this[c] * 100) + '%' : Math.round(this[c])}</output></label>`).join('');
     $$('input', op).forEach(i => i.oninput = () => { const c = i.dataset.c; this[c] = c === 'opac' ? +i.value : Math.round(+i.value); i.nextElementSibling.textContent = c === 'opac' ? Math.round(this[c] * 100) + '%' : this[c]; Atelie.desenha(); });
@@ -142,10 +134,9 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
     $$('[data-f]', ferr).forEach(b => b.onclick = () => this.usa(b.dataset.f)); el.appendChild(ferr);
     const box = h(`<div class="props"><div class="campo2"><span style="color:var(--tx2)">Cor</span><input type="color" value="${this.cor}" data-cor><code style="color:var(--tx3)">${this.cor}</code></div></div>`);
     $('[data-cor]', box).oninput = ev => { this.cor = ev.target.value; $('code', box).textContent = this.cor; };
-    box.appendChild(Lado.campo('Tamanho', this.tam, 1, 300, 1, v => { this.tam = Math.round(v); Atelie.desenha(); }));
-    box.appendChild(Lado.campo('Opacidade', this.opac, .05, 1, .01, v => { this.opac = v; }));
+    if (['pincel', 'borracha'].includes(this.ferr)) box.appendChild(this.controles(false));
     box.appendChild(Lado.campo('Tolerância', this.tol, 0, 160, 1, v => { this.tol = Math.round(v); }));
-    box.appendChild(h(`<div style="color:var(--tx3);font-size:11.5px">Pinta na imagem que está aparecendo na parte escolhida. <b>[ ]</b> muda o tamanho do pincel. Tolerância vale para o balde, a varinha, a borracha mágica e para trocar cores. Com uma seleção, o pincel e a borracha só mexem dentro dela. Ctrl+Z desfaz.</div>`));
+    box.appendChild(h(`<div style="color:var(--tx3);font-size:11.5px">Pinta na imagem que está aparecendo na parte escolhida. <b>[ ]</b> muda o tamanho do pincel. Mesa digitalizadora (Wacom etc.): a pressão é reconhecida sozinha e a ponta de trás da caneta apaga. <b>Shift</b>+clique faz linha reta. Tolerância vale para o balde, a varinha, a borracha mágica e para trocar cores. Com uma seleção, o pincel e a borracha só mexem dentro dela. Ctrl+Z desfaz.</div>`));
     el.appendChild(box); el.appendChild(this.pintaSelecao());
     // cores base
     const pb = h(`<div class="sessao"><h4>Cores base <span class="sp"></span><select data-esc title="De onde tirar as cores"><option value="tudo">personagem todo</option><option value="parte">esta parte</option><option value="imagem">esta imagem</option></select></h4><div class="pt-pal"><span class="spin-dot"></span></div>

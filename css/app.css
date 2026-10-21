@@ -429,3 +429,16 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .imgs .im.mesma{border-color:#5fd1c8;box-shadow:inset 0 0 0 1px #5fd1c8;animation:mesmaPulsa 1.4s ease-in-out infinite}
 .lista.presets button.mesma{border-color:#5fd1c8;box-shadow:inset 0 0 0 1px #5fd1c8;animation:mesmaPulsa 1.4s ease-in-out infinite}
 @keyframes mesmaPulsa{50%{box-shadow:inset 0 0 0 1px #5fd1c8,0 0 10px rgba(95,209,200,.45)}}
+/* pincel/borracha: controles */
+.pc-ctl{display:grid;gap:6px;font-size:11.5px;color:var(--tx2)}
+.pc-ctl label{display:grid;grid-template-columns:92px 1fr 46px;align-items:center;gap:8px}
+.pc-ctl label input[type=range]{width:100%}.pc-ctl output{color:var(--tx);font-variant-numeric:tabular-nums;text-align:right}
+.pc-ctl label.pc-chk{display:flex;gap:6px}.pc-ctl label:has(select){grid-template-columns:92px 1fr}
+.pc-ctl select{height:26px}.pc-ctl>select{width:100%}
+.pc-mesa{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--tx3);padding:3px 8px;border-radius:10px;border:1px solid var(--bd);justify-self:start}
+.pc-mesa.on{color:var(--ok);border-color:rgba(123,216,143,.4);background:rgba(123,216,143,.08)}
+.ferr-op{flex-wrap:wrap;max-width:calc(100% - 80px)}
+.pc-ctl.compacto{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.pc-ctl.compacto label{display:flex;gap:6px;grid-template-columns:none}.pc-ctl.compacto label input[type=range]{width:90px}
+.pc-ctl.compacto>select{width:auto}
+.ferr-op input[type=checkbox]{width:auto}.ferr-op>b{width:100%}
