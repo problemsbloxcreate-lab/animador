@@ -121,10 +121,14 @@ Monte um plano para deixar o personagem pronto para animar. Responda SÓ um JSON
  "renomear_imagens":[{"parte":"Olhos","de":"img 3","para":"fechados"}],
  "raiz":"Corpo",                                   // a parte principal (normalmente corpo/tronco)
  "pais":{"Olhos":"Cabeça","Mão direita":"Braço direito"},   // quem encaixa em quem (filho:pai). Não mude se já estiver certo.
+ "pivos":{"Braço direito":{"x":0.2,"y":0.05}},     // ponto de GIRO/encaixe de cada parte, em fração da imagem que aparece (0..1): ombro no braço, quadril na perna, pescoço na cabeça, centro nos olhos/boca
  "camadas":["mais atrás", "...", "mais na frente"],  // ordem de todas as partes, só se a atual estiver errada
  "sessoes":[{"nome":"Olhos","partes":["Olhos"],"presets":[{"nome":"fechados","estado":{"Olhos":{"img":"fechados"}}}]}],
  "animacoes":[{"nome":"Piscar","vel":250,"trilhas":[[{"Olhos":"abertos"},{"Olhos":"meio"},{"Olhos":{"img":"fechados","r":0}}]]}]
 }
+Estrutura modelo (é como a Lumi foi montada e funciona bem): a raiz é o Corpo/tronco; braços, pernas e cabeça encaixam no corpo; olhos, boca, sobrancelhas, cabelo e chapéu encaixam na cabeça (ou no corpo, se a cabeça faz parte dele);
+cada peça que tem várias versões vira UMA parte com várias imagens (ex.: Olhos: abertos, meio fechados, fechados, felizes, surpresos; Boca: A, E, O, U, M/B/P, F/V, sorriso; Braço: caído, acenando, apontando, na cintura);
+braço e perna de trás ficam atrás do corpo; braço da frente, rosto e cabelo da frente na frente. As partes chegam já no lugar certo (camadas do mesmo desenho): NÃO precisa mover, só organizar.
 Regras: use SÓ partes e imagens que existem (nomes exatos, ou os novos nomes que você mesmo deu). Sessões por grupo de peça (Olhos, Boca, Braço direito, Pernas, Pose…),
 um preset por imagem útil + poses combinadas que façam sentido. Animações de teste curtas e úteis: piscar, falar (bocas A/E/O/U/M…), andar (pernas alternando), acenar, gesticular.
 Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":graus}}; trilhas diferentes andam juntas (ex.: pernas + boca + olhos). vel em ms (120 a 700).
@@ -141,7 +145,9 @@ Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":g
     return out;
   },
   async organizar(def, modo, pedido, aoEscrever) {
-    const partes = def.partes.map(p => ({ parte: p.nome, pai: def.partes.find(x => x.id === p.pai)?.nome || null, raiz: p.id === def.raiz || undefined, z: p.z || 0, imagens: p.imgs.map(i => `${i.nome} (${i.w}x${i.h})`) }));
+    const est = Modelo.partesNoEstado(def, {}), cx = Modelo.montar(def, est); // onde cada parte está no desenho (para a IA entender quem fica perto de quem)
+    const partes = def.partes.map(p => { const it = cx.find(i => i.parte.id === p.id), c = it?.img ? it.m.transformPoint(new DOMPoint((it.img.ajuste?.x || 0) - (it.img.pivo?.x ?? it.img.w / 2) + it.img.w / 2, (it.img.ajuste?.y || 0) - (it.img.pivo?.y ?? it.img.h / 2) + it.img.h / 2)) : null;
+      return { parte: p.nome, pai: def.partes.find(x => x.id === p.pai)?.nome || null, raiz: p.id === def.raiz || undefined, z: p.z || 0, centro_no_desenho: c ? [Math.round(c.x), Math.round(c.y)] : null, imagens: p.imgs.map(i => `${i.nome} (${Math.round(i.w)}x${Math.round(i.h)})`) }; });
     const sess = def.sessoes.map(s => ({ sessao: s.nome, presets: s.presets.map(pr => pr.nome) })), anims = (def.animacoes || []).map(a => a.nome);
     const foco = modo === 'animacoes' ? 'Crie SÓ "animacoes" (de teste) com as peças que existem; não mexa no resto.' : 'Organize TUDO (juntar, nomes, raiz, pais, camadas, sessões, presets e animações de teste).';
     const content = [{ type: 'text', text: `PERSONAGEM: ${def.nome}\nPARTES: ${JSON.stringify(partes)}\nSESSÕES QUE JÁ EXISTEM: ${JSON.stringify(sess)}\nANIMAÇÕES QUE JÁ EXISTEM: ${JSON.stringify(anims)}\n\n${foco}${pedido ? '\nPEDIDO DA PESSOA: ' + pedido : ''}\n\nMINIATURAS:` }, ...(await this.miniaturas(def))];

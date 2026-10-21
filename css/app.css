@@ -393,3 +393,21 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 @keyframes svLeque1{50%{transform:rotate(-20deg) translateX(-8px)}}
 @keyframes svLeque2{50%{transform:rotate(18deg) translateX(8px)}}
 @media (prefers-reduced-motion:reduce){.soltar-ov *,.soltar-pill *,.at-palco.solta-aqui::after{animation:none!important}}
+/* ateliê: mudou desde a última vez na nuvem (laranja) · mover todos (roxo) */
+.no .ponto-mod{width:7px;height:7px;border-radius:50%;background:#ff9f43;flex:none;box-shadow:0 0 0 2px rgba(255,159,67,.25)}
+.imgs .im.mod{border-color:#ff9f43;box-shadow:inset 0 0 0 1px #ff9f43}.imgs .im.mod::after{content:'';position:absolute;left:5px;top:5px;width:7px;height:7px;border-radius:50%;background:#ff9f43}
+.imgs .im.mod.on{box-shadow:0 0 0 1px #ddd,inset 0 0 0 1px #ff9f43}
+.imgs .im.todos{border-color:#c08bff;box-shadow:inset 0 0 0 1px #c08bff;animation:todosPulsa 1.4s ease-in-out infinite}
+.lista.presets button.mod,.at-teste .presets button.mod{border-color:#ff9f43;box-shadow:inset 0 -2px 0 #ff9f43}
+.lista.presets button.todos{border-color:#c08bff;box-shadow:inset 0 0 0 1px #c08bff;animation:todosPulsa 1.4s ease-in-out infinite}
+#at-so-img.todos{background:rgba(192,139,255,.28);border-color:#c08bff;color:#f4ecff}
+@keyframes todosPulsa{50%{box-shadow:inset 0 0 0 1px #c08bff,0 0 10px rgba(192,139,255,.45)}}
+/* personagem novo */
+.novo-p .field{display:block;margin-bottom:8px}.novo-p .field small{display:block;color:var(--tx3);font-weight:400;margin-top:2px}
+.np-drop{display:grid;justify-items:center;gap:4px;padding:18px;border:2px dashed var(--bd2);border-radius:10px;color:var(--tx2);cursor:pointer;text-align:center;transition:background .15s,border-color .15s}
+.np-drop:hover,.np-drop.drop-dentro{border-color:#5fa8ff;background:rgba(61,139,255,.07);color:var(--tx)}.np-drop.tem{padding:10px}.np-drop small{color:var(--tx3)}
+.np-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px;margin:8px 0;max-height:210px;overflow:auto}
+.np-im{position:relative;border:1px solid var(--bd);border-radius:7px;background:repeating-conic-gradient(#222 0 25%,#1a1a1a 0 50%) 0 0/12px 12px;aspect-ratio:1;display:grid;place-items:center;overflow:hidden}
+.np-im img{max-width:90%;max-height:70%;object-fit:contain}.np-im span{position:absolute;left:0;right:0;bottom:0;font-size:10px;padding:2px 4px;background:rgba(0,0,0,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-im .ibtn{position:absolute;top:2px;right:2px;width:18px;height:18px;opacity:0;background:rgba(0,0,0,.6)}.np-im:hover .ibtn{opacity:1}
+.np-ia{display:flex;align-items:center;gap:6px;margin:6px 0}.np-ia svg{color:#7ff0ff}.novo-p textarea{width:100%}

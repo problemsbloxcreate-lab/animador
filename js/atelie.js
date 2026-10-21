@@ -21,7 +21,7 @@ const SESSOES_PRONTAS = [
   { nome: 'Pose', acha: /.*/, presets: ['em pé', 'pulando', 'sentado'] },
 ];
 const Atelie = {
-  def: null, sel: null, edit: null, vista: { x: 0, y: 0, z: 1 }, pilha: [], refazer: [], ultimo: null, volta: false, aba: 'peca', soImagem: false, sujo: false, multi: new Set(), focoImg: null, teste: null,
+  def: null, sel: null, edit: null, vista: { x: 0, y: 0, z: 1 }, pilha: [], refazer: [], ultimo: null, volta: false, aba: 'peca', moverTodos: false, sujo: false, base0: null, multi: new Set(), focoImg: null, teste: null,
   // o Ateliê abre numa aba nova do navegador (Voltar fecha a aba); se o navegador bloquear, abre aqui mesmo
   abrirAba(id) {
     if (this.emAba) return this.abrir(id);
@@ -30,7 +30,7 @@ const Atelie = {
   },
   async abrir(id, o = {}) {
     this.volta = !!o.volta; let def;
-    let doRascunho = false;
+    let doRascunho = false, novo = null;
     if (o.def) def = o.def; // veio de um arquivo .atelieanimador
     else if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }), r = await DB.get('arquivos', this.chaveRascunho(id)).catch(() => null);
       try { def = await Nuvem.abrir(id); } catch (e) { if (!r?.def) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } } t.remove();
@@ -38,12 +38,44 @@ const Atelie = {
       else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def)) {
         const usa = await UI.modal({ title: 'Tem um rascunho neste computador', icon: 'save', width: 460, body: `<div>As mudanças de <b>${esc(r.def.nome)}</b> feitas neste computador (guardadas ${fmtDate(r.em)}) <b>ainda não foram para a nuvem</b>.<br><br>A versão da nuvem é de ${def.modificado ? fmtDate(def.modificado) : 'antes'}.</div>`,
           buttons: [{ label: 'Abrir a da nuvem (descartar o rascunho)', value: 'nuvem' }, { label: 'Continuar o rascunho', kind: 'primary', value: 'rascunho' }] });
-        if (usa === 'rascunho') { def = r.def; doRascunho = true; } else if (usa === 'nuvem') await this.apagarRascunho(id); else return;
+        if (usa === 'rascunho') { this.base0Nuvem = JSON.stringify(def); def = r.def; doRascunho = true; } else if (usa === 'nuvem') await this.apagarRascunho(id); else return;
       } }
-    else { const nome = await UI.prompt({ title: 'Personagem novo', label: 'Nome do personagem', value: '', ok: 'Criar' }); if (!nome) return; def = Modelo.novoPersonagem(nome); }
-    this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; this.teste = null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
+    else { novo = await this.assistenteNovo(); if (!novo) return; def = Modelo.novoPersonagem(novo.nome); }
+    this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.base0 = o.def || !id ? this.ultimo : this.base0Nuvem || this.ultimo; this.base0Nuvem = null; this.moverTodos = false; this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; this.teste = null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
     await Arq.garantir(def.partes.flatMap(p => p.imgs.map(i => i.k)));
-    Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho(); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
+    Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
+    if (novo?.fs.length) await this.montarNovo(novo); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
+  },
+  // tela do personagem novo: nome, as imagens (camadas do desenho ou peças soltas) e, se quiser, a IA organiza tudo como na Lumi
+  async assistenteNovo() {
+    let fs = [];
+    const body = h(`<div class="novo-p"><label class="field">Nome do personagem<input type="text" data-n placeholder="Ex.: Lumi, Stick, Clara"></label>
+      <div class="field">Imagens <small>(opcional) — as peças do personagem em PNG com fundo transparente. O melhor: as camadas do desenho exportadas no mesmo tamanho (já encaixam sozinhas).</small></div>
+      <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens aqui</b><small>ou clique para escolher</small></div><div class="np-lista" data-l></div>
+      <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, camadas, sessões, presets e animações de teste)</label>
+      <textarea rows="2" data-p placeholder="Opcional: dicas para a IA. Ex.: &quot;as bocas são para falar&quot;, &quot;o corpo é a raiz&quot;"></textarea></div>`);
+    const lista = $('[data-l]', body), drop = $('[data-d]', body), ia = $('[data-ia]', body), urls = [];
+    const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = '';
+      fs.forEach((f, i) => { const u = URL.createObjectURL(f); urls.push(u); const c = h(`<div class="np-im" title="${esc(f.name)}"><img src="${u}" alt=""><span>${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn" title="Tirar">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); }; lista.appendChild(c); });
+      drop.classList.toggle('tem', !!fs.length); $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns) — arraste mais se quiser` : 'Arraste as imagens aqui';
+      $('.np-ia', body).hidden = $('[data-p]', body).hidden = !fs.length; };
+    const poe = l => { fs = fs.concat([...l].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g)$/i.test(f.name))); pintaL(); };
+    drop.onclick = async () => { const l = await pickFiles('image/png,image/webp,image/gif,image/jpeg', true); if (l) poe(l); };
+    drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
+    drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); poe(e.dataTransfer.files); };
+    pintaL(); setTimeout(() => $('[data-n]', body).focus(), 60);
+    const pega = a => { const n = $('[data-n]', a.body).value.trim(); if (!n) { $('[data-n]', a.body).focus(); UI.toast('Dê um nome ao personagem'); return false; } return n; };
+    const r = await UI.modal({ title: 'Personagem novo', icon: 'layers', width: 560, body, buttons: [
+      { label: 'Cancelar', value: null, left: true },
+      { label: 'Pular (só o nome)', onClick: a => { const n = pega(a); return n ? { nome: n, fs: [], ia: false } : false; } },
+      { label: 'Criar', kind: 'primary', onClick: a => { const n = pega(a); return n ? { nome: n, fs, ia: ia.checked && !!fs.length, pedido: $('[data-p]', a.body).value.trim() } : false; } }] });
+    urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 2000)); return r;
+  },
+  async montarNovo(novo) {
+    await this.addImagens(novo.fs, true); // cada imagem vira uma parte (camadas do mesmo tamanho já ficam no lugar)
+    const t = UI.toast('<span class="spin-dot"></span> Aparando as sobras transparentes…', { time: 120000 });
+    try { await Pintura.apararLista(this.def.partes.flatMap(p => p.imgs)); } catch { } t.remove(); this.commit(); this.enquadrar();
+    if (novo.ia) await this.iaOrganizar('organizar', novo.pedido || '');
   },
   async sair() {
     if (this.sujo && !(await UI.confirm({ title: 'Sair sem salvar na nuvem?', msg: 'As mudanças ficam guardadas <b>só neste computador</b> (como rascunho): a equipe não vê até alguém clicar em "Salvar na nuvem". Ao abrir este personagem de novo aqui, dá para continuar.', ok: 'Sair', danger: true }))) return;
@@ -96,7 +128,7 @@ const Atelie = {
   liga() {
     if (this._ligado) return; this._ligado = true;
     this.cv = $('#at-cv'); this.ctx = this.cv.getContext('2d'); new ResizeObserver(() => this.tamanho()).observe(this.cv.parentElement); this.tamanho();
-    this.cv.addEventListener('pointerdown', e => this.desce(e)); this.cv.addEventListener('wheel', e => this.roda(e), { passive: false });
+    this.cv.addEventListener('pointerdown', e => this.desce(e)); this.cv.addEventListener('contextmenu', e => { e.preventDefault(); if (!this._panMexeu && !this.teste) this.menuPalco(e); this._panMexeu = false; }); // botão direito sem arrastar: menu da peça this.cv.addEventListener('wheel', e => this.roda(e), { passive: false });
     $('#at-voltar').onclick = () => this.sair(); $('#at-salvar').onclick = () => this.salvar(); $('#at-undo').onclick = () => this.undo(); $('#at-redo').onclick = () => this.redo();
     $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); };
     $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); };
@@ -105,7 +137,7 @@ const Atelie = {
     const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); this.addImagens([...ev.dataTransfer.files], !this.parte()); } };
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
-    $('#at-so-img').onclick = () => { this.soImagem = !this.soImagem; this.pinta(); };
+    $('#at-so-img').onclick = () => this.setMoverTodos(!this.moverTodos);
     $('#at-enq').onclick = () => this.enquadrar(); $('#at-testar').onclick = () => this.testar(!this.teste);
     $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
     addEventListener('keydown', e => this.teclas(e));
@@ -138,7 +170,7 @@ const Atelie = {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); const T = V.multiply(it.m), piv = T.transformPoint(new DOMPoint(0, 0));
       if (it.img) { const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, ax = it.img.ajuste?.x || 0, ay = it.img.ajuste?.y || 0;
         const c = [[0, 0], [it.img.w, 0], [it.img.w, it.img.h], [0, it.img.h]].map(([x, y]) => T.transformPoint(new DOMPoint(x - px + ax, y - py + ay)));
-        ctx.strokeStyle = this.soImagem ? '#ffd36b' : this.edit ? '#ffb86b' : '#9fc3ff'; ctx.lineWidth = 1.5 * d; ctx.setLineDash([5 * d, 4 * d]); ctx.beginPath(); c.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+        ctx.strokeStyle = this.moverTodos ? '#c08bff' : this.edit ? '#ffb86b' : '#9fc3ff'; ctx.lineWidth = 1.5 * d; ctx.setLineDash([5 * d, 4 * d]); ctx.beginPath(); c.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
         const mt = { x: (c[0].x + c[1].x) / 2, y: (c[0].y + c[1].y) / 2 }, dx = mt.x - piv.x, dy = mt.y - piv.y, L = Math.hypot(dx, dy) || 1; this._giro = { x: mt.x + dx / L * 26 * d, y: mt.y + dy / L * 26 * d, piv };
         ctx.beginPath(); ctx.moveTo(mt.x, mt.y); ctx.lineTo(this._giro.x, this._giro.y); ctx.stroke(); ctx.beginPath(); ctx.arc(this._giro.x, this._giro.y, 6 * d, 0, 7); ctx.fillStyle = '#1b1b1b'; ctx.fill(); ctx.stroke(); }
       if (it.parte.pai) { const pp = V.multiply(this.matParte(it.parte.pai, est)).transformPoint(new DOMPoint(0, 0)); ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.setLineDash([3 * d, 3 * d]); ctx.beginPath(); ctx.moveTo(pp.x, pp.y); ctx.lineTo(piv.x, piv.y); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(pp.x, pp.y, 3 * d, 0, 7); ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.fill(); }
@@ -161,7 +193,8 @@ const Atelie = {
   desce(e) {
     this.cv.setPointerCapture(e.pointerId); const d = devicePixelRatio || 1;
     const fim = (mov, up) => { const m = ev => mov(ev), u = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', u); up?.(ev); }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', u); };
-    if (e.button === 1 || e.button === 2 || this.espaco) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); }
+    if (e.button === 1 || e.button === 2 || this.espaco) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; let mexeu = false;
+      this._panMexeu = false; return fim(ev => { if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 3) mexeu = this._panMexeu = true; v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); }
     if (this.teste && e.button === 0) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); } // testando: só move a tela
     if (e.button === 0 && Pintura.ferr !== 'mover') return Pintura.desce(e); // pincel, borracha, balde, conta-gotas
     // girar pela alça
@@ -182,11 +215,12 @@ const Atelie = {
         p.encaixe = { x: round(enc0.x + dp.x, 1), y: round(enc0.y + dp.y, 1) }; for (const [f, e0] of filhos) f.encaixe = { x: round(e0.x - dx, 1), y: round(e0.y - dy, 1) };
         this.desenha(); }, () => this.commit());
     }
-    if (this.soImagem && it.img) { // só esta imagem
+    if (!this.moverTodos && it.img) { // PADRÃO: move só esta imagem (as outras imagens e presets da parte não mexem)
       const img = it.img, inv = it.m.inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), aj0 = { ...(img.ajuste || { x: 0, y: 0 }) };
-      return fim(ev => { const w2 = this.mundo(ev), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); img.ajuste = { x: round(aj0.x + l.x - l0.x, 1), y: round(aj0.y + l.y - l0.y, 1) }; this.desenha(); }, () => this.commit());
+      return fim(ev => { const w2 = this.mundo(ev), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+        img.ajuste = { x: round(aj0.x + dx, 1), y: round(aj0.y + dy, 1) }; this.desenha(); }, () => this.commit());
     }
-    // mover a peça: na Base muda o encaixe (onde ela fica no pai); num preset muda só o preset
+    // MOVER TODOS: a parte inteira. Na Base muda o encaixe (onde ela fica no pai); num preset muda só o preset
     const inv = this.matPai(p.id, est).inverse(), a0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), e0 = { ...est[p.id] }, enc0 = { ...p.encaixe };
     fim(ev => { const w2 = this.mundo(ev), a = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = a.x - a0.x, dy = a.y - a0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
       if (this.edit) this.mudar(p.id, { x: round((e0.x || 0) + dx, 1), y: round((e0.y || 0) + dy, 1) }); else p.encaixe = { x: round(enc0.x + dx, 1), y: round(enc0.y + dy, 1) }; this.desenha(); }, () => this.commit());
@@ -210,7 +244,9 @@ const Atelie = {
     if (!p) return; const est = this.estado()[p.id], passo = e.shiftKey ? 10 : 1, kk = k.toLowerCase();
     const leva = () => { clearTimeout(this._t); this.desenha(); this._t = setTimeout(() => this.commit(), 300); };
     if (k.startsWith('Arrow')) { e.preventDefault(); const dd = { ArrowLeft: [-passo, 0], ArrowRight: [passo, 0], ArrowUp: [0, -passo], ArrowDown: [0, passo] }[k];
-      if (this.edit) this.mudar(p.id, { x: (est.x || 0) + dd[0], y: (est.y || 0) + dd[1] }); else p.encaixe = { x: p.encaixe.x + dd[0], y: p.encaixe.y + dd[1] }; return leva(); }
+      const im = p.imgs.find(i => i.id === est.img);
+      if (!this.moverTodos && im) im.ajuste = { x: round((im.ajuste?.x || 0) + dd[0], 1), y: round((im.ajuste?.y || 0) + dd[1], 1) }; // só esta imagem
+      else if (this.edit) this.mudar(p.id, { x: (est.x || 0) + dd[0], y: (est.y || 0) + dd[1] }); else p.encaixe = { x: p.encaixe.x + dd[0], y: p.encaixe.y + dd[1] }; return leva(); }
     if (kk === 'q' || kk === 'e') { this.mudar(p.id, { r: round((est.r || 0) + (kk === 'q' ? -1 : 1) * (e.shiftKey ? 15 : 2), 1) }); return leva(); }
     if (k === '+' || k === '=' || k === '-') { this.mudar(p.id, { s: round(clamp((est.s ?? 1) * (k === '-' ? .96 : 1.04), .05, 10), 3) }); return leva(); }
     if (kk === 'f') { this.mudar(p.id, { sx: (est.sx || 1) * -1 }); return leva(); }
@@ -225,7 +261,7 @@ const Atelie = {
     const au = $('#at-autores'); if (au && au._de !== this.def.autor?.em + '/' + (this.def.edicoes || []).length) { au._de = this.def.autor?.em + '/' + (this.def.edicoes || []).length; au.innerHTML = ''; const sl = Autores.selo(this.def); if (sl) au.appendChild(sl); }
     const pr = this.preset(), s = this.sessao();
     $('#at-modo').innerHTML = Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
-    $('#at-base').hidden = !pr; $('#at-so-img').classList.toggle('on', this.soImagem); $('#at-so-img').hidden = !!this.teste;
+    $('#at-base').hidden = !pr; $('#at-so-img').classList.toggle('todos', this.moverTodos); $('#at-so-img').innerHTML = this.moverTodos ? `${ic('layers', 13)} Movendo: a parte toda` : `${ic('image', 13)} Movendo: só esta imagem`; $('#at-so-img').title = this.moverTodos ? 'Arrastar move a PARTE inteira (todas as imagens e presets dela). Clique para voltar a mover só a imagem.' : 'Arrastar move só a imagem que está aparecendo. Clique (ou botão direito na peça › Mover todos) para mover a parte inteira.'; $('#at-so-img').hidden = !!this.teste;
     $('#at-testar').classList.toggle('on', !!this.teste); $('#at-testar').innerHTML = `${ic(this.teste ? 'x' : 'play', 13)} ${this.teste ? 'Sair do teste' : 'Testar'}`; this.pintaTeste();
     this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
@@ -237,8 +273,8 @@ const Atelie = {
     if (!ps.length) { el.innerHTML = '<div class="vazio">Comece criando as partes: corpo, cabeça, cabelo, olhos, braços, pernas…<br>(ou solte as imagens aqui: cada imagem vira uma parte)</div>'; }
     const raiz = this.def.raiz, filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => (b.id === raiz) - (a.id === raiz) || (b.z || 0) - (a.z || 0)), est = this.estado(), ordem = this._ordem = [];
     const vai = (pai, nivel) => { for (const p of filhos(pai)) { ordem.push(p.id);
-      const ehRaiz = p.id === raiz, marc = p.id !== this.sel && this.multi.has(p.id);
-      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Ctrl+clique ou Shift+clique marcam várias · arraste para &quot;Imagens de…&quot; para virar imagem"><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
+      const ehRaiz = p.id === raiz, marc = p.id !== this.sel && this.multi.has(p.id), mk = this.marcas().partes.has(p.id);
+      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Ctrl+clique ou Shift+clique marcam várias · arraste para &quot;Imagens de…&quot; para virar imagem"><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${mk ? '<i class="ponto-mod" title="Mudou desde a última vez na nuvem"></i>' : ''}${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
         <button class="ibtn ${est[p.id]?.vis === false ? 'off' : ''}" title="Mostrar/esconder (H)">${ic(est[p.id]?.vis === false ? 'eyeOff' : 'eye', 13)}</button></div>`);
       r.onclick = ev => { if (ev.target.closest('.ibtn')) { this.mudar(p.id, { vis: est[p.id]?.vis === false }); return this.commit(); } this.clicaParte(ev, p.id); };
       r.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
@@ -286,6 +322,37 @@ const Atelie = {
       el.appendChild(r);
     });
   },
+  setMoverTodos(v) { this.moverTodos = !!v; this.pinta(); if (v) UI.toast('<b>Mover todos:</b> arrastar move a parte inteira — todas as imagens e os presets dela (ficam roxos). Clique em "Movendo: a parte toda" para voltar.', { time: 5000 }); },
+  // botão direito numa peça do palco
+  menuPalco(e) {
+    const it = this.acha(this.mundo(e)); if (!it) return; if (it.parte.id !== this.sel) { this.escolhe(it.parte.id); this.pinta(); }
+    const p = it.parte, n = p.imgs.length;
+    UI.ctx(e.clientX, e.clientY, [
+      { head: `${p.nome}${it.img ? ' › ' + it.img.nome : ''}` },
+      { label: 'Mover só esta imagem', checked: !this.moverTodos, action: () => this.setMoverTodos(false) },
+      { label: `Mover todos (a parte inteira${n > 1 ? `: ${n} imagens` : ''} e os presets)`, icon: 'layers', checked: this.moverTodos, action: () => this.setMoverTodos(true) },
+      it.img && (it.img.ajuste?.x || it.img.ajuste?.y) && { label: 'Esta imagem de volta ao lugar da parte', icon: 'undo', action: () => { it.img.ajuste = { x: 0, y: 0 }; this.commit(); } },
+      '-', { label: 'Opções da parte…', icon: 'dots', action: () => this.menuParte(e, p) },
+    ].filter(Boolean));
+  },
+  /* ---------- o que mudou desde a última vez na nuvem (fica colorido até "Salvar na nuvem") ---------- */
+  marcas() {
+    if (this._mk?.de === this.ultimo && this._mk?.base === this.base0) return this._mk;
+    const out = { partes: new Set(), imgs: new Set(), presets: new Set(), de: this.ultimo, base: this.base0 }; this._mk = out;
+    const B = this.base0 ? JSON.parse(this.base0) : null; if (!B || !this.def) return out;
+    const bp = Object.fromEntries(B.partes.map(p => [p.id, p])), bi = {}, bpr = {};
+    for (const p of B.partes) for (const i of p.imgs) bi[i.id] = JSON.stringify([i.k, i.pivo, i.ajuste, i.w, i.h, i.z || 0]);
+    for (const s of B.sessoes) for (const pr of s.presets) bpr[pr.id] = JSON.stringify(pr.estado || {});
+    const toda = new Set(); // partes que mexeram por inteiro (encaixe, pai, base…): todas as imagens e presets dela contam
+    for (const p of this.def.partes) { const b = bp[p.id];
+      if (!b || JSON.stringify([p.pai, p.encaixe, p.base, p.z || 0]) !== JSON.stringify([b.pai, b.encaixe, b.base, b.z || 0])) { out.partes.add(p.id); toda.add(p.id); }
+      for (const i of p.imgs) if (toda.has(p.id) || bi[i.id] !== JSON.stringify([i.k, i.pivo, i.ajuste, i.w, i.h, i.z || 0])) { out.imgs.add(i.id); out.partes.add(p.id); } }
+    for (const s of this.def.sessoes) for (const pr of s.presets) { const usa = Object.entries(pr.estado || {});
+      if (bpr[pr.id] !== JSON.stringify(pr.estado || {}) || usa.some(([pid, e]) => toda.has(pid) || (e.img && out.imgs.has(e.img))) || (!usa.length && false)) out.presets.add(pr.id); }
+    return out;
+  },
+  // presets que mexem na parte (para pintar de roxo no "mover todos")
+  presetsDaParte(pid) { const L = new Set(); for (const s of this.def.sessoes) for (const pr of s.presets) if (pr.estado?.[pid] || (s.partes || []).includes(pid)) L.add(pr.id); return L; },
   menuParte(e, p) {
     const sel = this.selecionadas(), varias = sel.length > 1 && sel.includes(p), lista = varias ? sel : [p], ids = lista.map(x => x.id);
     const destinos = this.def.partes.filter(x => !ids.includes(x.id));
@@ -293,6 +360,7 @@ const Atelie = {
     UI.ctx(e.clientX, e.clientY, [
       varias && { head: `${lista.length} PARTES MARCADAS` },
       !varias && { label: ehRaiz ? 'Deixar de ser a raiz' : 'Marcar como raiz (principal)', icon: 'star', action: () => this.marcarRaiz(p) },
+      !varias && { label: this.moverTodos ? 'Mover só a imagem (voltar)' : 'Mover todos (a parte inteira e os presets)', icon: 'layers', checked: this.moverTodos, action: () => { this.escolhe(p.id); this.setMoverTodos(!this.moverTodos); } },
       { label: varias ? `Mover as ${lista.length} para imagens de` : 'Mover para imagens de', icon: 'image', disabled: !destinos.length, sub: destinos.map(d => ({ label: d.nome, icon: d.id === this.def.raiz ? 'star' : null, action: () => this.virarImagens(lista, d) })) },
       '-',
       !varias && { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } } },
@@ -310,6 +378,15 @@ const Atelie = {
     const est = this.estado(), mundo = this.matParte(id, est).transformPoint(new DOMPoint(0, 0)); p.pai = paiId;
     const est2 = this.estado(), inv = this.matPai(id, est2).inverse(), l = inv.transformPoint(mundo), e = est2[id] || {};
     const sem = new DOMMatrix().translate(e.x || 0, e.y || 0); p.encaixe = { x: round(l.x - sem.e, 1), y: round(l.y - sem.f, 1) }; if (!o.semCommit) this.commit();
+  },
+  // muda o ponto de giro/encaixe da parte para (x,y) da imagem que aparece, sem tirar nada do lugar (todas as imagens e as partes filhas acompanham)
+  pivoEm(p, x, y, est = this.estado()) {
+    const it = Modelo.montar(this.def, est).find(i => i.parte.id === p.id), img = it?.img; if (!img) return;
+    const pv = img.pivo || { x: img.w / 2, y: img.h / 2 }, dx = x - pv.x, dy = y - pv.y; if (Math.abs(dx) + Math.abs(dy) < .5) return;
+    const a = this.matPai(p.id, est).inverse().multiply(it.m), dp = new DOMMatrix([a.a, a.b, a.c, a.d, 0, 0]).transformPoint(new DOMPoint(dx, dy, 0, 0));
+    for (const i of p.imgs) { const q = i.pivo || { x: i.w / 2, y: i.h / 2 }; i.pivo = { x: round(q.x + dx, 2), y: round(q.y + dy, 2) }; }
+    p.encaixe = { x: round(p.encaixe.x + dp.x, 1), y: round(p.encaixe.y + dp.y, 1) };
+    for (const f of this.def.partes.filter(f => f.pai === p.id)) f.encaixe = { x: round(f.encaixe.x - dx, 1), y: round(f.encaixe.y - dy, 1) };
   },
   // clique na lista de partes: normal escolhe; Ctrl marca/desmarca mais uma; Shift marca o trecho até a escolhida
   clicaParte(ev, id) {
@@ -350,7 +427,11 @@ const Atelie = {
     const vazias = lista.filter(p => !p.imgs.length), comImg = lista.filter(p => p.imgs.length); let n = 0;
     for (const p of comImg) {
       const varias = p.imgs.length > 1;
-      for (const img of p.imgs) { const c = { ...img, id: uid('i') }; if (!varias) c.nome = p.nome; const pa = pasta || (varias ? p.nome : null); if (pa) c.pasta = pa; else delete c.pasta; alvo.imgs.push(c); n++; }
+      const est = this.estado(), mS = this.matParte(p.id, est), mA = this.matParte(alvo.id, est).inverse();
+      for (const img of p.imgs) { const c = { ...img, id: uid('i') }; if (!varias) c.nome = p.nome;
+        // a imagem continua no MESMO lugar na tela: o pivô dela é refeito no espaço da parte de destino
+        const pv = img.pivo || { x: img.w / 2, y: img.h / 2 }, aj = img.ajuste || { x: 0, y: 0 }, tl = mA.transformPoint(mS.transformPoint(new DOMPoint(aj.x - pv.x, aj.y - pv.y)));
+        if (isFinite(tl.x) && isFinite(tl.y)) c.pivo = { x: round(aj.x - tl.x, 2), y: round(aj.y - tl.y, 2) }; const pa = pasta || (varias ? p.nome : null); if (pa) c.pasta = pa; else delete c.pasta; alvo.imgs.push(c); n++; }
       if (varias && !pasta) { alvo.pastas = alvo.pastas || []; if (!alvo.pastas.includes(p.nome)) alvo.pastas.push(p.nome); }
     }
     if (pasta) { alvo.pastas = alvo.pastas || []; if (!alvo.pastas.includes(pasta)) alvo.pastas.push(pasta); }
@@ -403,7 +484,7 @@ const Atelie = {
         const img = p.imgs.find(i => i.id === ev.dataTransfer.getData('text/img')); if (img && (img.pasta || null) !== pasta) { if (pasta) img.pasta = pasta; else delete img.pasta; this.commit(); } };
     };
     const card = img => {
-      const bm = Arq.bitmap(img.k, () => this.pintaImgs()), c = h(`<div class="im ${img.id === atual ? 'on' : ''} ${this.focoImg?.img === img.id ? 'foco' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span><button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
+      const bm = Arq.bitmap(img.k, () => this.pintaImgs()), c = h(`<div class="im ${img.id === atual ? 'on' : ''} ${this.focoImg?.img === img.id ? 'foco' : ''} ${this.marcas().imgs.has(img.id) ? 'mod' : ''} ${this.moverTodos ? 'todos' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span><button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
       if (bm) { const cv = document.createElement('canvas'); cv.width = 96; cv.height = 96; const k = Math.min(96 / bm.width, 96 / bm.height); cv.getContext('2d').drawImage(bm, (96 - bm.width * k) / 2, (96 - bm.height * k) / 2, bm.width * k, bm.height * k); c.style.backgroundImage = `url(${cv.toDataURL()})`; }
       c.onclick = ev => { if (ev.target.closest('.x')) return; this.focoImg = { p: p.id, img: img.id }; this.mudar(p.id, { img: img.id }); this.commit(); this.pintaImgs(); };
       c.ondblclick = () => this.renomearImg(img);
@@ -468,7 +549,7 @@ const Atelie = {
       box.appendChild(h(`<div class="titulo-p">Imagem "${esc(img.nome)}"</div>`));
       box.appendChild(Lado.campo('Pivô X', img.pivo.x, 0, img.w, 1, v => { img.pivo.x = v; this.desenha(); }, sol)); box.appendChild(Lado.campo('Pivô Y', img.pivo.y, 0, img.h, 1, v => { img.pivo.y = v; this.desenha(); }, sol));
       box.appendChild(Lado.campo('Só ela X', img.ajuste.x, -300, 300, 1, v => { img.ajuste.x = v; this.desenha(); }, sol)); box.appendChild(Lado.campo('Só ela Y', img.ajuste.y, -300, 300, 1, v => { img.ajuste.y = v; this.desenha(); }, sol));
-      box.appendChild(h('<div style="color:var(--tx3);font-size:11.5px">Pivô = ponto de giro (Alt + arrastar na peça). "Só ela" corrige esta imagem sem mexer nas outras imagens da parte (botão <b>Só esta imagem</b> + arrastar).</div>'));
+      box.appendChild(h('<div style="color:var(--tx3);font-size:11.5px">Pivô = ponto de giro (Alt + arrastar na peça). Arrastar a peça move <b>só esta imagem</b> ("Só ela"); para mover a parte inteira (todas as imagens e presets), botão direito na peça › <b>Mover todos</b>. Laranja = mudou desde a última vez na nuvem.</div>'));
     }
     el.appendChild(box);
   },
@@ -481,7 +562,8 @@ const Atelie = {
       const c = h(`<div class="sess ${aberta ? 'aberta' : ''}"><div class="cab"><b>${esc(s.nome)}</b><small title="Partes que esta sessão mexe">${nomesPartes.length ? esc(nomesPartes.slice(0, 3).join(', ')) + (nomesPartes.length > 3 ? '…' : '') : 'todas as partes'}</small>
         <button class="ibtn ia" data-ia title="Criar um preset com a IA">${ic('sparkles', 13)}</button><button class="ibtn" data-m title="Mais">${ic('dots', 13)}</button></div><div class="lista presets"></div></div>`);
       const l = $('.lista', c);
-      for (const pr of s.presets) { const b = h(`<button class="${aberta && this.edit.p === pr.id ? 'on' : ''}" title="Clique para editar · botão direito: opções">${esc(pr.nome)}</button>`);
+      const mk = this.marcas(), daParte = this.moverTodos && this.sel ? this.presetsDaParte(this.sel) : null;
+      for (const pr of s.presets) { const b = h(`<button class="${aberta && this.edit.p === pr.id ? 'on' : ''} ${mk.presets.has(pr.id) ? 'mod' : ''} ${daParte?.has(pr.id) ? 'todos' : ''}" title="Clique para editar · botão direito: opções${mk.presets.has(pr.id) ? ' · mudou desde a última vez na nuvem' : ''}">${esc(pr.nome)}</button>`);
         b.onclick = () => { this.edit = { s: s.id, p: pr.id }; this.pinta(); }; b.oncontextmenu = ev => { ev.preventDefault(); this.menuPreset(ev, s, pr); }; l.appendChild(b); }
       const add = h(`<button title="Preset novo com o que está na tela">+ preset</button>`); add.onclick = () => this.novoPreset(s); l.appendChild(add);
       $('[data-ia]', c).onclick = () => this.presetIA(s); $('[data-m]', c).onclick = ev => this.menuSessao(ev, s);
@@ -558,7 +640,7 @@ const Atelie = {
     for (const s of def.sessoes) {
       const esc1 = T.sessoes[s.id], box = h(`<div class="tt-s"><div class="tt-t"><b>${esc(s.nome)}</b><span class="sp"></span><button class="ibtn" data-roda title="Passar por todos os presets">${ic('loop', 13)}</button><button class="btn sm" data-arruma ${esc1 ? '' : 'disabled'} title="Editar o preset escolhido">${ic('edit', 12)} Arrumar</button></div><div class="lista presets"></div></div>`);
       const l = $('.lista', box);
-      for (const pr of s.presets) { const pb = this.problemas(pr), b = h(`<button class="${esc1 === pr.id ? 'on' : ''} ${pb.length ? 'ruim' : ''}" title="${pb.length ? esc('Problema: ' + pb.join('; ')) : 'Clique para ver'}">${esc(pr.nome)}</button>`);
+      for (const pr of s.presets) { const pb = this.problemas(pr), b = h(`<button class="${esc1 === pr.id ? 'on' : ''} ${pb.length ? 'ruim' : ''} ${this.marcas().presets.has(pr.id) ? 'mod' : ''}" title="${pb.length ? esc('Problema: ' + pb.join('; ')) : 'Clique para ver'}">${esc(pr.nome)}</button>`);
         b.onclick = () => { clearInterval(this._roda); this._roda = null; Animacoes.parar(true); if (T.sessoes[s.id] === pr.id) delete T.sessoes[s.id]; else T.sessoes[s.id] = pr.id; this.pinta(); };
         b.ondblclick = () => this.arrumar(s, pr); b.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [{ label: 'Arrumar este preset', icon: 'edit', action: () => this.arrumar(s, pr) }]); };
         l.appendChild(b); }
@@ -627,6 +709,7 @@ const Atelie = {
       for (const r of pl.renomear_imagens || []) { const p = nome(r.parte), i = img(p, r.de); if (i && r.para) { i.nome = String(r.para).slice(0, 40); n++; } } if (n) feito.push(`${n} nome(s) arrumados`);
       const rz = nome(pl.raiz); if (rz) { if (rz.pai) this.porNoPai(rz.id, null, { semCommit: true }); def.raiz = rz.id; feito.push(`raiz: ${rz.nome}`); }
       n = 0; for (const [fi, pa] of Object.entries(pl.pais || {})) { const f = nome(fi), p = pa ? nome(pa) : null; if (f && f !== rz && (p?.id || null) !== (f.pai || null) && (!pa || p)) { let a = p?.id, ciclo = false; while (a) { if (a === f.id) { ciclo = true; break; } a = this.parte(a)?.pai; } if (!ciclo) { this.porNoPai(f.id, p?.id || null, { semCommit: true }); n++; } } } if (n) feito.push(`${n} encaixe(s)`);
+      n = 0; for (const [pn, v] of Object.entries(pl.pivos || {})) { const p = nome(pn), est = this.estado(), im = p && p.imgs.find(i => i.id === est[p.id]?.img); if (!im || !v || !isFinite(+v.x) || !isFinite(+v.y)) continue; this.pivoEm(p, clamp(+v.x, -.2, 1.2) * im.w, clamp(+v.y, -.2, 1.2) * im.h, est); n++; } if (n) feito.push(`${n} ponto(s) de giro`);
       if (Array.isArray(pl.camadas) && pl.camadas.length) { const L = pl.camadas.map(nome).filter(Boolean), resto = def.partes.filter(p => !L.includes(p)); const ordem = [...new Set([...resto, ...L])]; ordem.forEach((p, i) => p.z = i); feito.push('camadas'); }
       n = 0; for (const s0 of pl.sessoes || []) {
         let s = def.sessoes.find(x => x.nome.toLowerCase() === String(s0.nome || '').toLowerCase()); if (!s) { s = { id: uid('s'), nome: String(s0.nome || 'Sessão').slice(0, 30), partes: [], presets: [] }; def.sessoes.push(s); }
@@ -650,7 +733,7 @@ const Atelie = {
   async salvar() {
     const def = this.def; if (!def.partes.length) return UI.toast('Ponha pelo menos uma parte antes de salvar.', { kind: 'warn' });
     def.thumb = this.miniatura(); const t = UI.toast('<span class="spin-dot"></span> <span data-p>Salvando na nuvem…</span>', { time: 600000 });
-    try { await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.pinta();
+    try { await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.base0 = this.ultimo; this.pinta();
       if (App.P?.personagens?.[def.id]) { App.P.personagens[def.id] = clone(def); App.commit('Personagem atualizado'); }
       try { new BroadcastChannel('animador').postMessage({ tipo: 'personagem', def: JSON.parse(JSON.stringify(def)) }); } catch { } // avisa as outras abas (a animação aberta atualiza o personagem)
       UI.toast(`<b>${esc(def.nome)}</b> salvo na nuvem da equipe (pasta "${esc(def.pasta)}").`, { kind: 'ok' }); }

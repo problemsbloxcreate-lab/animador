@@ -94,12 +94,16 @@ Object.assign(Pintura, {
     this.selecao = null; Atelie.mudar(a.p.id, { img: img.id }); Atelie.commit();
   },
   // corta as bordas transparentes sem tirar a peça do lugar
-  async aparar(todas) {
-    const a = this.alvo(); if (!a) return UI.toast('Escolha uma parte com imagem'); const p = a.p, lista = todas ? p.imgs : [a.img]; let n = 0;
-    await Arq.garantir(lista.map(i => i.k));
+  // corta as bordas transparentes sem tirar a peça do lugar
+  async apararLista(lista) {
+    let n = 0; await Arq.garantir(lista.map(i => i.k));
     for (const img of lista) { const bm = Arq.img.get(img.k); if (!bm) continue; const { cv } = this.tela(bm), bb = this.bbox(cv); if (!bb || (bb.w === bm.width && bb.h === bm.height)) continue;
       const o = new OffscreenCanvas(bb.w, bb.h); o.getContext('2d').drawImage(cv, -bb.x, -bb.y); const kx = bm.width / img.w, ky = bm.height / img.h, pv = img.pivo || { x: img.w / 2, y: img.h / 2 };
       img.k = await this.guardarImg(o); img.pivo = { x: round(pv.x - bb.x / kx, 2), y: round(pv.y - bb.y / ky, 2) }; img.w = round(bb.w / kx, 2); img.h = round(bb.h / ky, 2); n++; }
+    return n;
+  },
+  async aparar(todas) {
+    const a = this.alvo(); if (!a) return UI.toast('Escolha uma parte com imagem'); const n = await this.apararLista(todas ? a.p.imgs : [a.img]);
     this.selecao = null; if (n) Atelie.commit(); UI.toast(n ? `${n} imagem(ns) aparada(s). A peça continua no mesmo lugar.` : 'Não tinha sobra transparente para aparar.', { kind: n ? 'ok' : 'warn' });
   },
   // teclas com Ctrl (chamado pelo Atelie.teclas)
