@@ -3,6 +3,7 @@
 (() => {
   const poe = (id, icone, txt, fn) => { const b = $('#' + id); if (!b) return; b.innerHTML = ic(icone, 15) + (txt ? `<span>${txt}</span>` : ''); if (fn) b.onclick = fn; };
   poe('b-undo', 'undo', '', () => App.undo()); poe('b-redo', 'redo', '', () => App.redo());
+  poe('b-regua', 'ruler', '', () => App.trocaRegua()); $('#b-regua').classList.toggle('on', App.regua());
   poe('b-onion', 'onion', '', () => { App.onion = !App.onion; $('#b-onion').classList.toggle('on', App.onion); App.pinta(); });
   poe('b-ia', 'sparkles', 'IA', () => IA.abrir(Lado.foco())); poe('b-atelie', 'edit', 'Ateliê', () => Atelie.abrirAba(Lado.foco() ? App.P.personagens[Lado.foco().ref]?.id : null));
   poe('b-exportar', 'download', 'Exportar', () => Exportar.abrir());

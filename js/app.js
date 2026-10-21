@@ -141,6 +141,50 @@ const App = {
   },
   // a camada de efeito do topo que vale a animação toda (a IA põe as coisas dela aqui)
   efeitoTopo() { const P = this.P; let n = P.raiz[0]; if (n?.tipo === 'efeito' && !(n.de > 0) && n.ate == null) return n; n = Modelo.novoNo('efeito', { efeitos: [] }); P.raiz.unshift(n); return n; },
+  /* ---------- régua e ímã: ao mover, gruda nas bordas/meio da câmera, do Fundo padrão e dos outros (desliga no botão da régua ou com R; Ctrl solta sem grudar) ---------- */
+  regua() { if (this._regua == null) { try { this._regua = localStorage.getItem('animador-regua') !== '0'; } catch { this._regua = true; } } return this._regua; },
+  trocaRegua() { this._regua = !this.regua(); try { localStorage.setItem('animador-regua', this._regua ? '1' : '0'); } catch { } $('#b-regua')?.classList.toggle('on', this._regua); UI.toast(this._regua ? 'Régua e ímã ligados (Ctrl segura para não grudar)' : 'Régua e ímã desligados'); this.pinta(); },
+  caixaMundo(cantos) { const xs = cantos.map(p => p.x), ys = cantos.map(p => p.y); const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys); return { x0, x1, y0, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 }; },
+  imaInicio(n) {
+    const P = this.P, q = this.q, cx = Render.caixas(P, q), eu = cx.find(c => c.no === n); if (!eu) return null;
+    const meus = new Set(); Modelo.cada([n], x => meus.add(x.id));
+    const alvos = cx.filter(c => !meus.has(c.no.id) && c.no.vis !== false).map(c => ({ ...this.caixaMundo(c.cantos), nome: c.no.nome }));
+    const c = Modelo.camera(P, q), cw = P.w / (c.zoom || 1) / 2, ch = P.h / (c.zoom || 1) / 2;
+    alvos.unshift({ x0: c.x - cw, x1: c.x + cw, y0: c.y - ch, y1: c.y + ch, cx: c.x, cy: c.y, nome: 'Câmera', cam: true });
+    return { box: this.caixaMundo(eu.cantos), alvos };
+  },
+  gruda(ima, w0, w, travado) {
+    const dx0 = w.x - w0.x, dy0 = w.y - w0.y, b = ima.box, lim = 8 / (this.vista.z || 1);
+    const mx = [b.x0 + dx0, b.cx + dx0, b.x1 + dx0], my = [b.y0 + dy0, b.cy + dy0, b.y1 + dy0];
+    let bx = null, by = null;
+    for (const a of ima.alvos) {
+      for (const lx of [a.x0, a.cx, a.x1]) for (const m of mx) { const d = lx - m; if (Math.abs(d) <= lim && (!bx || Math.abs(d) < Math.abs(bx.d))) bx = { d, x: lx, a }; }
+      for (const ly of [a.y0, a.cy, a.y1]) for (const m of my) { const d = ly - m; if (Math.abs(d) <= lim && (!by || Math.abs(d) < Math.abs(by.d))) by = { d, y: ly, a }; }
+    }
+    if (travado) { if (w.y === w0.y) by = null; if (w.x === w0.x) bx = null; }
+    this.guias = [bx && { x: bx.x, cam: bx.a.cam }, by && { y: by.y, cam: by.a.cam }].filter(Boolean);
+    return { x: w.x + (bx?.d || 0), y: w.y + (by?.d || 0) };
+  },
+  // desenha as guias do ímã e as réguas (em cima e à esquerda do palco)
+  desenhaRegua(ctx, V, W, H, d) {
+    if (this.guias?.length) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.lineWidth = 1 * d;
+      for (const g of this.guias) { ctx.strokeStyle = g.cam ? '#ff5fd2' : '#19d3f0'; ctx.setLineDash(g.cam ? [] : [6 * d, 4 * d]); ctx.beginPath();
+        if (g.x != null) { const x = Math.round(V.transformPoint(new DOMPoint(g.x, 0)).x) + .5; ctx.moveTo(x, 0); ctx.lineTo(x, H); } else { const y = Math.round(V.transformPoint(new DOMPoint(0, g.y)).y) + .5; ctx.moveTo(0, y); ctx.lineTo(W, y); } ctx.stroke(); }
+      ctx.restore(); }
+    if (!this.regua()) return;
+    const T = 18 * d, z = Math.hypot(V.a, V.b), inv = V.inverse(); let passo = 10; for (const p of [10, 25, 50, 100, 250, 500, 1000, 2500, 5000]) { passo = p; if (p * z >= 60 * d) break; }
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = 'rgba(24,24,24,.92)'; ctx.fillRect(0, 0, W, T); ctx.fillRect(0, 0, T, H);
+    ctx.strokeStyle = '#555'; ctx.fillStyle = '#9a9a9a'; ctx.font = `${9.5 * d}px Segoe UI`; ctx.lineWidth = 1; ctx.beginPath();
+    const xa = inv.transformPoint(new DOMPoint(T, 0)).x, xb = inv.transformPoint(new DOMPoint(W, 0)).x, ya = inv.transformPoint(new DOMPoint(0, T)).y, yb = inv.transformPoint(new DOMPoint(0, H)).y;
+    for (let v = Math.ceil(xa / (passo / 5)) * (passo / 5); v <= xb; v += passo / 5) { const x = Math.round(V.transformPoint(new DOMPoint(v, 0)).x) + .5, g = Math.abs(v % passo) < 1e-6; ctx.moveTo(x, T); ctx.lineTo(x, T - (g ? 8 : 4) * d); if (g) ctx.fillText(String(Math.round(v)), x + 2 * d, 9 * d); }
+    for (let v = Math.ceil(ya / (passo / 5)) * (passo / 5); v <= yb; v += passo / 5) { const y = Math.round(V.transformPoint(new DOMPoint(0, v)).y) + .5, g = Math.abs(v % passo) < 1e-6; ctx.moveTo(T, y); ctx.lineTo(T - (g ? 8 : 4) * d, y);
+      if (g) { ctx.save(); ctx.translate(9 * d, y - 2 * d); ctx.rotate(-Math.PI / 2); ctx.fillText(String(Math.round(v)), 0, 0); ctx.restore(); } }
+    ctx.stroke();
+    // onde está o escolhido, marcado nas réguas
+    const s = this.noSel(), cx = s && Render.caixas(this.P, this.q).find(c => c.no === s);
+    if (cx) { const b = this.caixaMundo(cx.cantos), p0 = V.transformPoint(new DOMPoint(b.x0, b.y0)), p1 = V.transformPoint(new DOMPoint(b.x1, b.y1)); ctx.fillStyle = 'rgba(25,211,240,.35)'; ctx.fillRect(Math.max(T, p0.x), 0, p1.x - Math.max(T, p0.x), T); ctx.fillRect(0, Math.max(T, p0.y), T, p1.y - Math.max(T, p0.y)); }
+    ctx.fillStyle = '#202020'; ctx.fillRect(0, 0, T, T); ctx.restore();
+  },
   menuCenario(x, y) {
     UI.ctx(x, y, [
       { label: 'Prontos e com a IA (estilo da casa)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() },
@@ -224,8 +268,11 @@ const App = {
     },
     arrastaMover(e, n) {
       const w0 = this.paraMundo(e), t0 = Modelo.transf(n, App.q), inv = App.matPai(n.id).inverse(), a0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)); let mexeu = false;
-      this.fim(e, ev => { const w = this.paraMundo(ev), a = inv.transformPoint(new DOMPoint(w.x, w.y)); let dx = a.x - a0.x, dy = a.y - a0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
-        Modelo.poeTransf(n, App.q, { x: round(t0.x + dx, 1), y: round(t0.y + dy, 1) }); mexeu = true; App.pinta(); }, () => { if (mexeu) App.commit('Mover', { semArvore: true }); });
+      const ima = App.imaInicio(n); // bordas e meios para grudar (câmera, Fundo padrão, outros personagens/objetos)
+      this.fim(e, ev => { let w = this.paraMundo(ev); if (ev.shiftKey) { if (Math.abs(w.x - w0.x) > Math.abs(w.y - w0.y)) w = { x: w.x, y: w0.y }; else w = { x: w0.x, y: w.y }; }
+        if (ima && App.regua() && !ev.ctrlKey) w = App.gruda(ima, w0, w, ev.shiftKey); else App.guias = null;
+        const a = inv.transformPoint(new DOMPoint(w.x, w.y)), dx = a.x - a0.x, dy = a.y - a0.y;
+        Modelo.poeTransf(n, App.q, { x: round(t0.x + dx, 1), y: round(t0.y + dy, 1) }); mexeu = true; App.pinta(); }, () => { App.guias = null; if (mexeu) App.commit('Mover', { semArvore: true }); else App.pinta(); });
     },
     arrastaGiro(e, n, al) {
       const t0 = Modelo.transf(n, App.q), ang = p => Math.atan2(p.y - al.cen.y, p.x - al.cen.x) * 180 / Math.PI, a0 = ang({ x: e.offsetX, y: e.offsetY });
@@ -276,6 +323,7 @@ const App = {
     ctx.fillStyle = 'rgba(21,21,21,.38)'; ctx.fill('evenodd');
     ctx.strokeStyle = this.sel === 'camera' ? '#9fc3ff' : 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5 * pc.dpr; ctx.beginPath(); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = `${11 * pc.dpr}px Segoe UI`; ctx.fillText(`Câmera · ${P.w}×${P.h}`, ct[0].x + 6 * pc.dpr, ct[0].y - 6 * pc.dpr);
+    this.desenhaRegua(ctx, V, W, H, pc.dpr);
     // seleção com alças (girar em cima, tamanho no canto)
     const al = this.palco.alcas();
     if (al) {
@@ -324,6 +372,7 @@ const App = {
     }
     const kk = k.toLowerCase();
     if (kk === 'k') return e.shiftKey ? this.tiraChave() : this.chaveAqui();
+    if (kk === 'r') return this.trocaRegua();
     if (kk === 'o') { this.onion = !this.onion; $('#b-onion').classList.toggle('on', this.onion); return this.pinta(); }
     if (kk === 'v') return this.setFerr('mover'); if (kk === 'h') return this.setFerr('mao'); if (kk === 'c') return this.setFerr('camera');
     if (kk === 'f') return this.enquadrar();
