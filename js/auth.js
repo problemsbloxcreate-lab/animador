@@ -62,7 +62,12 @@ const TurmaAuth = {
     let el = document.getElementById('turma-login');
     if (!el) {
       el = document.createElement('div'); el.id = 'turma-login';
-      el.innerHTML = `<div class="ep-c"><div class="ep-lg"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5" fill="#fff" fill-opacity=".18"/><path d="m15.5 10.2 5-3v9.6l-5-3z" fill="#fff"/></svg></div><div class="ep-nm">ANIMADOR</div><div class="ep-sb">Estúdio Problems</div><div class="ep-br"></div>
+      // aba do Ateliê (?atelie=): a tela de carregamento mostra ANIMADOR | ATELIÊ com o ícone do Ateliê
+      const at = new URLSearchParams(location.search).has('atelie');
+      const icone = at ? '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><path d="M12 7.2v6.4M12 9.3l-4.2 2.4-1.5 3.3M12 9.3l4.2-1.8 2.3-2.5M12 13.6l-2.9 3.6-.6 4.3M12 13.6l3.3 3 1.5 4"/></svg>'
+        : '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5" fill="#fff" fill-opacity=".18"/><path d="m15.5 10.2 5-3v9.6l-5-3z" fill="#fff"/></svg>';
+      if (at) document.title = 'ATELIÊ · ANIMADOR · Estúdio Problems';
+      el.innerHTML = `<div class="ep-c"><div class="ep-lg">${icone}</div><div class="ep-nm">ANIMADOR${at ? '<span style="opacity:.45;font-weight:300;margin:0 9px">|</span>ATELIÊ' : ''}</div><div class="ep-sb">Estúdio Problems</div><div class="ep-br"></div>
         <div class="ep-m" data-msg></div><a class="ep-bt" data-menu hidden>Ir para o menu</a></div>`;
       (document.body || document.documentElement).appendChild(el);
     }

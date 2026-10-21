@@ -1,0 +1,70 @@
+/* ===================== pacotes.js — arquivos .atelieanimador (backup de um personagem do Ateliê) e quem fez cada arquivo =====================
+   .atelieanimador = zip com personagem.json + info.json + arq/<imagem>. É o personagem com todas as peças, para guardar ou passar adiante.
+   .animador       = a animação (projeto). São coisas diferentes: soltar um .atelieanimador no Animador abre o Ateliê e avisa disso.
+   Ao abrir qualquer um dos dois aparece uma ficha com a foto e o nome de quem criou/editou/baixou (nunca o e-mail). */
+'use strict';
+const AtelieArq = {
+  EXT: '.atelieanimador',
+  // o que tem dentro do arquivo: 'atelie', 'animador' ou null
+  async tipo(f) {
+    if (/\.atelieanimador$/i.test(f.name)) return 'atelie';
+    try { const m = Zip.read(await f.arrayBuffer()); if (m.get('personagem.json')) return 'atelie'; if (m.get('projeto.json')) return 'animador'; } catch { }
+    return /\.(animador|toon)$/i.test(f.name) ? 'animador' : null;
+  },
+  async baixar(def) {
+    const t = UI.toast('<span class="spin-dot"></span> Montando o .atelieanimador…', { time: 300000 });
+    try {
+      const d = clone(def); await Autores.limpa(d); const eu = await Autores.eu(), enc = new TextEncoder();
+      const files = [{ name: 'personagem.json', data: enc.encode(JSON.stringify(d)) }, { name: 'info.json', data: enc.encode(JSON.stringify({ tipo: 'atelieanimador', v: 1, por: eu, em: Date.now() })) }];
+      for (const k of [...new Set(d.partes.flatMap(p => p.imgs.map(i => i.k)).filter(Boolean))]) {
+        let b = await Arq.pegaBlob(k); if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null);
+        if (b) files.push({ name: 'arq/' + encodeURIComponent(k), data: new Uint8Array(await b.arrayBuffer()) });
+      }
+      t.remove(); downloadBlob(Zip.create(files), safeName(d.nome) + this.EXT);
+    } catch (e) { t.remove(); UI.toast('Não consegui montar o arquivo: ' + esc(e.message), { kind: 'err' }); }
+  },
+  async ler(f) {
+    const m = Zip.read(await f.arrayBuffer()), pj = m.get('personagem.json'); if (!pj) throw new Error('Não é um arquivo .atelieanimador.');
+    const def = JSON.parse(new TextDecoder().decode(pj)); if (!def?.partes) throw new Error('O arquivo do personagem está estragado.');
+    let info = null; try { info = JSON.parse(new TextDecoder().decode(m.get('info.json'))); } catch { }
+    for (const [nome, d] of m) if (nome.startsWith('arq/')) { const k = decodeURIComponent(nome.slice(4)); await Arq.guardar(new Blob([d]), k); Arq.img.delete(k); }
+    return { def, info };
+  },
+  // errado = soltou/abriu no lugar de animação: abre no Ateliê do mesmo jeito, mas avisa que projeto do Animador é .animador
+  async abrir(f, o = {}) {
+    if (!$('#atelie').classList.contains('hidden') && Atelie.sujo && !(await UI.confirm({ title: 'Trocar de personagem?', msg: `"<b>${esc(Atelie.def?.nome || '')}</b>" tem mudanças que ainda não foram para a nuvem.`, ok: 'Abrir o arquivo', danger: true }))) return;
+    let r; try { r = await this.ler(f); } catch (e) { return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
+    await Atelie.abrir(null, { def: r.def, volta: !!App.P && !Atelie.emAba });
+    const n = r.def.partes.length, ns = r.def.sessoes?.length || 0;
+    const body = Autores.ficha({ tipo: 'Personagem do Ateliê · .atelieanimador', nome: r.def.nome, thumb: r.def.thumb, ico: 'layers', resumo: `${n} parte${n === 1 ? '' : 's'} · ${ns} sess${ns === 1 ? 'ão' : 'ões'}`, autor: r.def.autor, verboAutor: 'subiu para a nuvem', edicoes: r.def.edicoes, pacote: r.info,
+      aviso: o.errado ? 'Este arquivo é um <b>personagem do Ateliê</b> (.atelieanimador), não um projeto do Animador. Projetos de animação são só <b>.animador</b>. Abri ele aqui no Ateliê para você.' : null });
+    body.appendChild(h('<div class="ficha-nota">Ele está aberto no Ateliê. Para ir para a biblioteca da equipe, clique em <b>Salvar na nuvem</b> (se a equipe já tiver este personagem, a versão do arquivo fica no lugar).</div>'));
+    UI.modal({ title: o.errado ? 'Isto é um personagem do Ateliê' : 'Personagem aberto do arquivo', icon: o.errado ? 'alert' : 'layers', width: 440, body, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] });
+  },
+  async escolher() { const [f] = await pickFiles('.atelieanimador', false); if (f) this.abrir(f); },
+};
+
+/* ---------- ficha do .animador ao abrir: quem criou, quem editou e quem baixou o arquivo ---------- */
+function fichaAnimacao(P, info) {
+  const body = Autores.ficha({ tipo: 'Animação · .animador', nome: P.nome, ico: 'film', resumo: `${P.duracao} quadros · ${P.w}×${P.h} · ${P.fps} fps`, autor: P.autor, verboAutor: 'criou a animação', edicoes: P.edicoes, pacote: info });
+  UI.modal({ title: 'Animação aberta do arquivo', icon: 'film', width: 440, body, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] });
+}
+
+/* ---------- soltar arquivos em qualquer lugar do Animador ---------- */
+(() => {
+  const pega = e => [...(e.dataTransfer?.files || [])].find(f => /\.(atelieanimador|animador|toon)$/i.test(f.name));
+  document.addEventListener('dragover', e => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault(); }); // o navegador não abre o arquivo por cima do Animador
+  document.addEventListener('drop', async e => {
+    const f = pega(e); if (!f) { if (e.dataTransfer?.files?.length && !e.defaultPrevented) e.preventDefault(); return; }
+    e.preventDefault(); e.stopPropagation(); // os arquivos do Animador não viram imagem
+    if (!TurmaAuth.passed) return;
+    const tipo = await AtelieArq.tipo(f), noAtelie = !$('#atelie').classList.contains('hidden');
+    if (tipo === 'atelie') return AtelieArq.abrir(f, { errado: !noAtelie });
+    if (tipo === 'animador') {
+      if (noAtelie && Atelie.sujo && !(await UI.confirm({ title: 'Sair do Ateliê para abrir a animação?', msg: `"<b>${esc(Atelie.def?.nome || '')}</b>" tem mudanças que ainda não foram para a nuvem.`, ok: 'Abrir a animação', danger: true }))) return;
+      if (noAtelie) { Atelie.sujo = false; if (Atelie.emAba) { Atelie.emAba = false; history.replaceState(null, '', location.pathname); } }
+      return Home.importar(f);
+    }
+    UI.toast('Esse arquivo não é do Animador.', { kind: 'warn' });
+  }, true);
+})();

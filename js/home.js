@@ -38,8 +38,12 @@ const Home = {
     }
   },
   async apagar(p) { if (!(await UI.confirm({ title: 'Apagar a animação?', msg: `"<b>${esc(p.nome)}</b>" sai deste computador. Baixe o .animador antes se quiser guardar.`, ok: 'Apagar', danger: true }))) return; await DB.del('projetos', p.id); this.pinta(); EstudioConta?.espaco?.atualizar?.(); },
-  async nova(f) { const P = Modelo.novoProjeto({ w: f.w, h: f.h, fps: f.fps, duracao: f.fps * 4, nome: 'Animação ' + new Date().toLocaleDateString('pt-BR') }); await DB.put('projetos', P); App.abrir(P); },
-  async importar(f) { try { const P = await Toon.ler(f); await DB.put('projetos', P); App.abrir(P); } catch (e) { UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } },
+  async nova(f) { const P = Modelo.novoProjeto({ w: f.w, h: f.h, fps: f.fps, duracao: f.fps * 4, nome: 'Animação ' + new Date().toLocaleDateString('pt-BR') }); try { P.autor = { ...(await Autores.eu()), em: Date.now() }; } catch { } await DB.put('projetos', P); App.abrir(P); },
+  // abrir um .animador; se for um personagem do Ateliê (.atelieanimador), abre no Ateliê e avisa
+  async importar(f) {
+    if ((await AtelieArq.tipo(f)) === 'atelie') return AtelieArq.abrir(f, { errado: true });
+    try { const { P, info } = await Toon.ler(f); await DB.put('projetos', P); await App.abrir(P); fichaAnimacao(P, info); } catch (e) { UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
+  },
   // título de pasta da biblioteca: botão direito muda a cor (guardada neste navegador)
   tituloPasta(pa) {
     const cor = CoresPasta.get('bib:' + pa), t = h(`<div class="pasta-t ${cor ? 'com-cor' : ''}" style="${cor ? `--pc:${cor}` : ''}" title="Botão direito: cor da pasta">${ic('folder', 13)} ${esc(pa)}</div>`);
@@ -47,9 +51,10 @@ const Home = {
     return t;
   },
   async personagens(c) {
-    c.innerHTML = `<div class="novos"><button class="novo" data-novo><span class="fm">${ic('plus', 24)}</span><span><b>Personagem novo</b><small>montar pelas partes</small></span></button></div>
+    c.innerHTML = `<div class="novos"><button class="novo" data-novo><span class="fm">${ic('plus', 24)}</span><span><b>Personagem novo</b><small>montar pelas partes</small></span></button>
+      <button class="novo" data-backup><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .atelieanimador</b><small>backup de um personagem</small></span></button></div>
       <div class="sec">Biblioteca da equipe <span class="sp"></span><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div>`;
-    $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-atu]', c).onclick = () => this.pinta();
+    $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-backup]', c).onclick = () => AtelieArq.escolher(); $('[data-atu]', c).onclick = () => this.pinta();
     const l = $('[data-l]', c);
     try {
       const lista = await Nuvem.lista(); if (!lista.length) { l.innerHTML = '<div class="vazio">Ninguém criou personagens ainda. Clique em <b>Personagem novo</b>.</div>'; return; }
@@ -61,6 +66,7 @@ const Home = {
           const selo = Autores.selo(it); if (selo) card.appendChild(selo);
           $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
             { label: 'Abrir no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(it.id) },
+            { label: 'Baixar .atelieanimador (backup)', icon: 'download', action: async () => { try { AtelieArq.baixar(await Nuvem.abrir(it.id)); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } } },
             '-', { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
           ]); };
           g.appendChild(card);
@@ -75,15 +81,19 @@ const Home = {
 const Toon = {
   ids(P) { return [...new Set([...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq), ...(P.audios || []).map(a => a.arq), ...Object.values(P.personagens || {}).flatMap(d => d.partes.flatMap(p => p.imgs.map(i => i.k)))].filter(Boolean))]; },
   async baixar(P) {
-    const t = UI.toast('<span class="spin-dot"></span> Montando o .animador…', { time: 120000 }), enc = new TextEncoder(), files = [{ name: 'projeto.json', data: enc.encode(JSON.stringify({ ...P, thumb: undefined })) }];
+    // quem criou / editou vai junto (foto e nome, nunca o e-mail)
+    try { await Autores.marca(P); if (App.P === P) App.salvarJa?.(); else await DB.put('projetos', JSON.parse(JSON.stringify(P))); } catch { }
+    const eu = await Autores.eu().catch(() => null);
+    const t = UI.toast('<span class="spin-dot"></span> Montando o .animador…', { time: 120000 }), enc = new TextEncoder(), files = [{ name: 'projeto.json', data: enc.encode(JSON.stringify({ ...P, thumb: undefined })) }, { name: 'info.json', data: enc.encode(JSON.stringify({ tipo: 'animador', v: 1, por: eu, em: Date.now() })) }];
     for (const id of this.ids(P)) { let b = await Arq.pegaBlob(id); if (!b && /^personagens\//.test(id)) b = await Nuvem.baixar(id).catch(() => null); if (b) files.push({ name: 'arq/' + encodeURIComponent(id), data: new Uint8Array(await b.arrayBuffer()) }); }
     t.remove(); downloadBlob(Zip.create(files), safeName(P.nome) + '.animador');
   },
   async ler(f) {
-    const m = Zip.read(await f.arrayBuffer()), pj = m.get('projeto.json'); if (!pj) throw new Error('Não é um arquivo .animador.');
+    const m = Zip.read(await f.arrayBuffer()), pj = m.get('projeto.json'); if (!pj) throw new Error(m.get('personagem.json') ? 'Isto é um personagem do Ateliê (.atelieanimador), não uma animação.' : 'Não é um arquivo .animador.');
     const P = JSON.parse(new TextDecoder().decode(pj)); if (P.v !== 2) throw new Error('Este arquivo é do Animador antigo.');
     for (const [nome, d] of m) if (nome.startsWith('arq/')) await Arq.guardar(new Blob([d]), decodeURIComponent(nome.slice(4)));
-    P.id = uid('p'); P.modificado = Date.now(); return P;
+    let info = null; try { info = JSON.parse(new TextDecoder().decode(m.get('info.json'))); } catch { }
+    P.id = uid('p'); P.modificado = Date.now(); await Autores.limpa(P); return { P, info };
   },
 };
 

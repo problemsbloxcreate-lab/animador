@@ -91,6 +91,8 @@
     <button class="ibtn" id="at-undo" title="Desfazer (Ctrl+Z)"></button><button class="ibtn" id="at-redo" title="Refazer (Ctrl+Shift+Z)"></button>
     <span class="sp"></span>
     <span id="at-autores" class="at-autores"></span>
+    <button class="btn ia" id="at-ia" title="IA do Ateliê: criar presets e expressões a partir das peças"></button>
+    <button class="ibtn" id="at-backup" title="Baixar backup do personagem (.atelieanimador)"></button>
     <button class="btn primary" id="at-salvar" title="Salvar na nuvem da equipe (Ctrl+S)"></button>
     <span data-estudio-conta></span>
   </header>
@@ -102,7 +104,7 @@
       <div class="p-corpo imgs" id="at-imgs" style="flex:1;align-content:start"></div>
     </aside>
     <main class="at-palco"><canvas id="at-cv"></canvas>
-      <div class="modo-at"><span class="btn" id="at-modo" style="cursor:default"></span><button class="btn" id="at-base">Voltar à base</button><button class="btn" id="at-so-img" title="Arrastar corrige só a imagem atual da parte">Só esta imagem</button><button class="btn" id="at-enq">Enquadrar</button></div>
+      <div class="modo-at"><span class="btn" id="at-modo" style="cursor:default"></span><button class="btn" id="at-base">Voltar à base</button><button class="btn" id="at-so-img" title="Arrastar corrige só a imagem atual da parte">Só esta imagem</button><button class="btn" id="at-enq">Enquadrar</button><button class="btn" id="at-testar" title="Testar os botões (sessões, expressões, imagens) como no editor (T)"></button></div>
       <div class="dica">Arrastar: posiciona · <b>Alt</b>+arrastar: muda o pivô (giro) · alça de cima: gira · setas, <b>Q/E</b> girar, <b>+/−</b> tamanho, <b>F</b> espelhar, <b>[ ]</b> frente/trás, <b>Tab</b> próxima parte, <b>H</b> esconder · espaço/botão do meio: mover a tela</div>
     </main>
     <aside class="painel" style="border-left:1px solid var(--bd)">
@@ -135,6 +137,7 @@
 <script src="js/atelie.js"></script>
 <script src="js/pintura.js"></script>
 <script src="js/home.js"></script>
+<script src="js/pacotes.js"></script>
 <script src="js/inicio.js"></script>
 <script>/* itens do Animador no balão da conta (o resto é igual em todos os projetos) */
 window.ESTUDIO_CONTA = { extras: () => [

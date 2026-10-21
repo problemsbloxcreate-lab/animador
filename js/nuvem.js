@@ -94,7 +94,19 @@ const Autores = {
   async eu() {
     if (this._eu) return this._eu;
     const p = await TurmaAuth.perfil().catch(() => ({})), email = p.email || TurmaAuth.email || '';
-    return (this._eu = { nome: p.nome || String(email).split('@')[0] || 'Alguém', foto: await this.miniFoto(p.foto), id: email });
+    return (this._eu = { nome: p.nome || String(email).split('@')[0] || 'Alguém', foto: await this.miniFoto(p.foto), id: await this.idDe(email) });
+  },
+  // o e-mail nunca vai para o personagem/arquivo: só um código tirado dele (o mesmo e-mail dá sempre o mesmo código)
+  async idDe(email) {
+    email = String(email || '').trim().toLowerCase(); if (!email) return 'anon';
+    try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('estudio-problems:' + email)); return 'u' + [...new Uint8Array(b)].slice(0, 8).map(x => x.toString(16).padStart(2, '0')).join(''); }
+    catch { let h2 = 0; for (const c of email) h2 = (h2 * 31 + c.charCodeAt(0)) | 0; return 'u' + (h2 >>> 0).toString(16); }
+  },
+  // troca qualquer e-mail que tenha ficado guardado (versão de antes) pelo código
+  async limpa(o) {
+    if (!o) return o; for (const x of [o.autor, ...(o.edicoes || [])]) if (x && /@/.test(x.id || '')) x.id = await this.idDe(x.id);
+    if (o.autor && o.edicoes) { const vistos = new Set(); o.edicoes = o.edicoes.sort((a, b) => b.em - a.em).filter(x => !vistos.has(x.id) && vistos.add(x.id)).sort((a, b) => a.em - b.em); }
+    return o;
   },
   // foto pequena (a "Minha conta" pode guardar a foto inteira; aqui basta 64 px para não pesar o personagem)
   async miniFoto(f) {
@@ -103,7 +115,7 @@ const Autores = {
       c.getContext('2d').drawImage(im, (S - w) / 2, (S - hh) / 2, w, hh); return c.toDataURL('image/jpeg', .82); } catch { return null; }
   },
   async marca(def) {
-    const eu = await this.eu(), agora = Date.now();
+    await this.limpa(def); const eu = await this.eu(), agora = Date.now();
     if (!def.autor) def.autor = { ...eu, em: agora };
     def.edicoes = [...(def.edicoes || []).filter(x => x.id !== eu.id), { ...eu, em: agora }].slice(-12);
   },
@@ -124,4 +136,18 @@ const Autores = {
     el.onmouseleave = fecha; el.addEventListener('click', fecha);
     return el;
   },
+};
+
+/* ---------- ficha de quem fez (aparece ao abrir um .animador ou .atelieanimador): foto, nome e datas, nunca o e-mail ---------- */
+Autores.ficha = function (o) {
+  const L = (p, txt) => `<div class="aut-l">${this.av(p)}<div><b>${esc(p.nome || 'Alguém')}</b><small>${txt}</small></div></div>`;
+  const eds = o.autor ? this.editores(o) : (o.edicoes || []).slice().sort((a, b) => b.em - a.em);
+  return h(`<div class="ficha">
+    <div class="ficha-top">${o.thumb ? `<div class="ficha-th" style="background-image:url('${o.thumb}')"></div>` : `<div class="ficha-th">${ic(o.ico || 'layers', 26)}</div>`}<div><small>${esc(o.tipo || '')}</small><b>${esc(o.nome || '')}</b>${o.resumo ? `<small>${o.resumo}</small>` : ''}</div></div>
+    ${o.aviso ? `<div class="ficha-aviso">${ic('alert', 16)}<div>${o.aviso}</div></div>` : ''}
+    <div class="aut-pop ficha-pop">
+      ${o.autor ? `<div class="aut-t" style="border:0;margin:0">Criado por</div>${L(o.autor, (o.verboAutor || 'criou') + ' · ' + fmtDate(o.autor.em))}` : '<div class="aut-t" style="border:0;margin:0">Quem criou não ficou registrado (arquivo de antes desta versão)</div>'}
+      ${eds.length ? `<div class="aut-t">Editado por</div>${eds.map(x => L(x, 'última edição · ' + fmtDate(x.em))).join('')}` : ''}
+      ${o.pacote?.por ? `<div class="aut-t">Arquivo feito por</div>${L(o.pacote.por, 'baixou este arquivo · ' + fmtDate(o.pacote.em))}` : ''}
+    </div></div>`);
 };

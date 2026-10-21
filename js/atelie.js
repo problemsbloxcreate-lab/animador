@@ -21,7 +21,7 @@ const SESSOES_PRONTAS = [
   { nome: 'Pose', acha: /.*/, presets: ['em pé', 'pulando', 'sentado'] },
 ];
 const Atelie = {
-  def: null, sel: null, edit: null, vista: { x: 0, y: 0, z: 1 }, pilha: [], refazer: [], ultimo: null, volta: false, aba: 'peca', soImagem: false, sujo: false, multi: new Set(), focoImg: null,
+  def: null, sel: null, edit: null, vista: { x: 0, y: 0, z: 1 }, pilha: [], refazer: [], ultimo: null, volta: false, aba: 'peca', soImagem: false, sujo: false, multi: new Set(), focoImg: null, teste: null,
   // o Ateliê abre numa aba nova do navegador (Voltar fecha a aba); se o navegador bloquear, abre aqui mesmo
   abrirAba(id) {
     if (this.emAba) return this.abrir(id);
@@ -30,9 +30,10 @@ const Atelie = {
   },
   async abrir(id, o = {}) {
     this.volta = !!o.volta; let def;
-    if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }); try { def = await Nuvem.abrir(id); } catch (e) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } t.remove(); }
+    if (o.def) def = o.def; // veio de um arquivo .atelieanimador
+    else if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }); try { def = await Nuvem.abrir(id); } catch (e) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } t.remove(); }
     else { const nome = await UI.prompt({ title: 'Personagem novo', label: 'Nome do personagem', value: '', ok: 'Criar' }); if (!nome) return; def = Modelo.novoPersonagem(nome); }
-    this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.sujo = !id;
+    this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.sujo = !id || !!o.def; this.teste = null; clearInterval(this._roda);
     await Arq.garantir(def.partes.flatMap(p => p.imgs.map(i => i.k)));
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
   },
@@ -52,7 +53,7 @@ const Atelie = {
   escolhe(id) { this.sel = id; this.multi.clear(); this.focoImg = null; },
   sessao() { return this.edit ? this.def.sessoes.find(s => s.id === this.edit.s) : null; },
   preset() { const s = this.sessao(); return s ? s.presets.find(p => p.id === this.edit.p) : null; },
-  estado() { return Modelo.partesNoEstado(this.def, this.edit ? { sessoes: { [this.edit.s]: this.edit.p } } : {}); },
+  estado() { return Modelo.partesNoEstado(this.def, this.edit ? { sessoes: { [this.edit.s]: this.edit.p } } : this.teste || {}); },
   // muda um campo da parte no modo atual (base ou o preset em edição)
   mudar(pid, vals) {
     const p = this.parte(pid); if (!p) return;
@@ -77,7 +78,8 @@ const Atelie = {
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
     $('#at-so-img').onclick = () => { this.soImagem = !this.soImagem; this.pinta(); };
-    $('#at-enq').onclick = () => this.enquadrar();
+    $('#at-enq').onclick = () => this.enquadrar(); $('#at-testar').onclick = () => this.testar(!this.teste);
+    $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
     addEventListener('keydown', e => this.teclas(e));
     Pintura.liga();
   },
@@ -128,6 +130,7 @@ const Atelie = {
     this.cv.setPointerCapture(e.pointerId); const d = devicePixelRatio || 1;
     const fim = (mov, up) => { const m = ev => mov(ev), u = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', u); up?.(ev); }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', u); };
     if (e.button === 1 || e.button === 2 || this.espaco) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); }
+    if (this.teste && e.button === 0) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); } // testando: só move a tela
     if (e.button === 0 && Pintura.ferr !== 'mover') return Pintura.desce(e); // pincel, borracha, balde, conta-gotas
     // girar pela alça
     if (this._giro && Math.hypot(e.offsetX * d - this._giro.x, e.offsetY * d - this._giro.y) < 12 * d) {
@@ -164,6 +167,8 @@ const Atelie = {
     if (ctrl && k.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
     if (ctrl && k.toLowerCase() === 's') { e.preventDefault(); return this.salvar(); }
     if (ctrl) return;
+    if (this.teste) { if (k === 'Escape' || k.toLowerCase() === 't') { e.preventDefault(); this.testar(false); } return; } // testando: nada mexe nas peças
+    if (k.toLowerCase() === 't' && !e.shiftKey && !e.altKey) { e.preventDefault(); return this.testar(true); }
     if (e.type === 'keydown' && Pintura.tecla(e)) return;
     if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); return this.apagarSelecao(); }
     if (k === 'Escape' && (this.multi.size || this.focoImg)) { this.multi.clear(); this.focoImg = null; return this.pinta(); }
@@ -185,8 +190,9 @@ const Atelie = {
     $('#at-salvar').innerHTML = `${ic('upload', 14)} ${this.sujo ? 'Salvar na nuvem' : 'Salvo'}`;
     const au = $('#at-autores'); if (au && au._de !== this.def.autor?.em + '/' + (this.def.edicoes || []).length) { au._de = this.def.autor?.em + '/' + (this.def.edicoes || []).length; au.innerHTML = ''; const sl = Autores.selo(this.def); if (sl) au.appendChild(sl); }
     const pr = this.preset(), s = this.sessao();
-    $('#at-modo').innerHTML = pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
-    $('#at-base').hidden = !pr; $('#at-so-img').classList.toggle('on', this.soImagem);
+    $('#at-modo').innerHTML = this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
+    $('#at-base').hidden = !pr; $('#at-so-img').classList.toggle('on', this.soImagem); $('#at-so-img').hidden = !!this.teste;
+    $('#at-testar').classList.toggle('on', !!this.teste); $('#at-testar').innerHTML = `${ic(this.teste ? 'x' : 'play', 13)} ${this.teste ? 'Sair do teste' : 'Testar'}`; this.pintaTeste();
     this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'); lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.pintaSessoes(lado); this.desenha();
   },
@@ -492,6 +498,74 @@ const Atelie = {
       { label: 'Voltar à base (limpar)', icon: 'undo', action: () => { pr.estado = {}; this.commit(); } },
       '-', { label: 'Apagar', icon: 'trash', danger: true, action: () => { s.presets = s.presets.filter(x => x !== pr); if (this.edit?.p === pr.id) this.edit = null; this.commit(); } },
     ]);
+  },
+
+  /* ---------- TESTAR: os mesmos botões do editor (sessões, presets e imagens por nome), para ver se tudo funciona.
+     Nada muda o personagem; achou algo errado, "Arrumar" abre o preset (ou a parte) para corrigir. ---------- */
+  testar(on) {
+    clearInterval(this._roda); this._roda = null;
+    this.teste = on ? { sessoes: {}, partes: {} } : null; if (on) { this.edit = null; this.multi.clear(); this.focoImg = null; }
+    this.pinta();
+  },
+  // problemas de um preset: vazio, parte que não existe mais, imagem que não existe mais
+  problemas(pr) {
+    const out = []; if (!Object.keys(pr.estado || {}).length) out.push('está vazio (não muda nada)');
+    for (const [pid, e] of Object.entries(pr.estado || {})) { const p = this.parte(pid); if (!p) { out.push('usa uma parte que foi apagada'); continue; } if (e.img && !p.imgs.some(i => i.id === e.img)) out.push(`a imagem de "${p.nome}" foi tirada`); }
+    return [...new Set(out)];
+  },
+  pintaTeste() {
+    let el = $('#at-teste'); if (!this.teste) { el?.remove(); return; }
+    if (!el) { el = h('<div id="at-teste" class="at-teste"></div>'); $('.at-palco').appendChild(el); }
+    const T = this.teste, def = this.def, rol = el.scrollTop; el.innerHTML = '';
+    el.appendChild(h(`<div class="tt-cab"><b>${ic('play', 13)} Testar os botões</b><span class="sp"></span><button class="btn sm" data-zera title="Tudo na base">Base</button><button class="ibtn" data-x title="Sair do teste (Esc)">${ic('x', 13)}</button></div>`));
+    $('[data-zera]', el).onclick = () => { this.testar(true); }; $('[data-x]', el).onclick = () => this.testar(false);
+    el.appendChild(h('<div class="tt-dica">Clique como no editor e veja a peça mudar. Botão vermelho = tem problema (passe o mouse). Errado? Clique em <b>Arrumar</b>.</div>'));
+    if (!def.sessoes.length) el.appendChild(h('<div class="vazio">Ainda não tem sessões (olhos, boca, poses…). Crie na aba <b>Sessões e poses</b>.</div>'));
+    for (const s of def.sessoes) {
+      const esc1 = T.sessoes[s.id], box = h(`<div class="tt-s"><div class="tt-t"><b>${esc(s.nome)}</b><span class="sp"></span><button class="ibtn" data-roda title="Passar por todos os presets">${ic('loop', 13)}</button><button class="btn sm" data-arruma ${esc1 ? '' : 'disabled'} title="Editar o preset escolhido">${ic('edit', 12)} Arrumar</button></div><div class="lista presets"></div></div>`);
+      const l = $('.lista', box);
+      for (const pr of s.presets) { const pb = this.problemas(pr), b = h(`<button class="${esc1 === pr.id ? 'on' : ''} ${pb.length ? 'ruim' : ''}" title="${pb.length ? esc('Problema: ' + pb.join('; ')) : 'Clique para ver'}">${esc(pr.nome)}</button>`);
+        b.onclick = () => { clearInterval(this._roda); this._roda = null; if (T.sessoes[s.id] === pr.id) delete T.sessoes[s.id]; else T.sessoes[s.id] = pr.id; this.pinta(); };
+        b.ondblclick = () => this.arrumar(s, pr); b.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [{ label: 'Arrumar este preset', icon: 'edit', action: () => this.arrumar(s, pr) }]); };
+        l.appendChild(b); }
+      if (!s.presets.length) l.appendChild(h('<span class="tt-nada">sem presets</span>'));
+      $('[data-arruma]', box).onclick = () => { const pr = s.presets.find(x => x.id === T.sessoes[s.id]); if (pr) this.arrumar(s, pr); };
+      $('[data-roda]', box).onclick = () => { clearInterval(this._roda); if (!s.presets.length) return; let i = Math.max(0, s.presets.findIndex(x => x.id === T.sessoes[s.id])); this._roda = setInterval(() => { if (!this.teste) return clearInterval(this._roda); i = (i + 1) % s.presets.length; T.sessoes[s.id] = s.presets[i].id; this.pinta(); }, 700); };
+      el.appendChild(box);
+    }
+    const varias = def.partes.filter(p => p.imgs.length > 1);
+    if (varias.length) { el.appendChild(h('<div class="tt-t" style="margin-top:6px"><b>Imagens por nome</b></div>'));
+      const est = this.estado();
+      for (const p of varias) { const box = h(`<div class="tt-s"><div class="tt-t"><small>${esc(p.nome)}</small><span class="sp"></span><button class="btn sm" data-arruma title="Ir para a parte">${ic('edit', 12)} Arrumar</button></div><div class="lista presets"></div></div>`), l = $('.lista', box);
+        for (const img of p.imgs) { const b = h(`<button class="${est[p.id]?.img === img.id ? 'on' : ''}">${esc(img.nome)}</button>`); b.onclick = () => { T.partes[p.id] = { img: img.id }; this.pinta(); }; l.appendChild(b); }
+        $('[data-arruma]', box).onclick = () => { this.testar(false); this.escolhe(p.id); this.aba = 'peca'; this.pinta(); };
+        el.appendChild(box); } }
+    el.scrollTop = rol;
+  },
+  arrumar(s, pr) { this.testar(false); this.edit = { s: s.id, p: pr.id }; this.aba = 'sessoes'; const p1 = Object.keys(pr.estado || {}).find(id => this.parte(id)); if (p1) this.escolhe(p1); this.pinta(); UI.toast(`Arrumando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>. O que você mexer vale só para este preset.`, { kind: 'ok' }); },
+
+  /* ---------- IA no Ateliê: cria um preset novo numa sessão, ou preenche de uma vez os presets que estão vazios ---------- */
+  async ia() {
+    const def = this.def; if (!def.partes.length) return UI.toast('Ponha as partes do personagem antes de usar a IA.', { kind: 'warn' });
+    const atual = this.edit?.s || def.sessoes[0]?.id || '';
+    const body = h(`<div><label class="field">Sessão<select data-s>${def.sessoes.map(s => `<option value="${s.id}" ${s.id === atual ? 'selected' : ''}>${esc(s.nome)} (${s.presets.length})</option>`).join('')}<option value="__nova">+ Sessão nova…</option></select></label>
+      <label class="field">O que a IA deve criar<textarea rows="3" data-p placeholder="Ex.: olhos de susto, bem abertos · chutando para a frente · acenando com a mão direita"></textarea></label>
+      <label class="chk"><input type="checkbox" data-vazios> Preencher os presets vazios desta sessão (usa o nome de cada um)</label></div>`);
+    const r = await UI.modal({ title: 'IA do Ateliê', icon: 'sparkles', kind: 'ia', body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary ia', icon: 'sparkles', collect: a => ({ s: $('[data-s]', a.body).value, pedido: $('[data-p]', a.body).value.trim(), vazios: $('[data-vazios]', a.body).checked }) }] });
+    if (!r) return;
+    let s = def.sessoes.find(x => x.id === r.s);
+    if (r.s === '__nova') { const nome = await UI.prompt({ title: 'Sessão nova', label: 'Nome (ex.: Olhos, Boca, Pose)', ok: 'Criar' }); if (!nome) return; s = { id: uid('s'), nome, partes: [], presets: [] }; def.sessoes.push(s); this.commit(); }
+    if (!s) return;
+    const fila = r.vazios ? s.presets.filter(p => !Object.keys(p.estado || {}).length).map(p => ({ pr: p, pedido: p.nome })) : [];
+    if (r.pedido) fila.push({ pr: null, pedido: r.pedido });
+    if (!fila.length) return UI.toast(r.vazios ? 'Essa sessão não tem presets vazios. Escreva o que a IA deve criar.' : 'Escreva o que a IA deve criar.', { kind: 'warn' });
+    const t = UI.toast(`<span class="spin-dot"></span> <span data-p>A IA está montando…</span>`, { time: 600000 }); let feitos = 0, ultimo = null;
+    try {
+      for (const it of fila) { const e = t.querySelector('[data-p]'); if (e) e.textContent = `A IA está montando "${it.pedido}"… (${feitos + 1}/${fila.length})`;
+        const novo = await IA.criarPreset(this.def, s, it.pedido); if (it.pr) { it.pr.estado = novo.estado; ultimo = it.pr; } else { s.presets.push(novo); ultimo = novo; } feitos++; this.commit({ soDesenho: true }); }
+      t.remove(); this.aba = 'sessoes'; this.teste = { sessoes: { [s.id]: ultimo.id }, partes: {} }; this.edit = null; this.pinta();
+      UI.toast(`${feitos} preset(s) feitos pela IA em <b>${esc(s.nome)}</b>. Está no modo <b>Testar</b>: clique nos botões para conferir e em Arrumar se precisar.`, { kind: 'ok', time: 7000 });
+    } catch (e) { t.remove(); this.pinta(); UI.toast(`A IA parou${feitos ? ` depois de ${feitos}` : ''}: ` + esc(e.message), { kind: 'err' }); }
   },
 
   /* ---------- salvar na nuvem da equipe ---------- */

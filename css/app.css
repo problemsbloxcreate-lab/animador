@@ -319,3 +319,23 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .aut-pop b{display:block;font-weight:600}.aut-pop small{color:var(--tx2);font-size:11px}
 .aut-pop .aut-t{color:var(--tx3);font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:6px 2px 2px;border-top:1px solid var(--bd);margin-top:4px}
 @keyframes autPop{from{opacity:0;transform:translateY(-3px)}}
+/* ateliê: testar os botões */
+.at-teste{position:absolute;right:10px;top:10px;bottom:10px;width:300px;z-index:3;overflow:auto;background:rgba(27,27,27,.94);border:1px solid var(--bd2);border-radius:10px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.at-teste .tt-cab{display:flex;align-items:center;gap:6px;padding:0 2px 6px}.at-teste .tt-cab b{display:flex;align-items:center;gap:6px}
+.at-teste .tt-dica{font-size:11px;color:var(--tx3);padding:0 2px 8px;border-bottom:1px solid var(--bd);margin-bottom:6px}
+.at-teste .tt-s{padding:6px 2px;border-bottom:1px solid var(--bd)}
+.at-teste .tt-t{display:flex;align-items:center;gap:6px;margin-bottom:5px}.at-teste .tt-t small{color:var(--tx2)}
+.at-teste .tt-t .btn.sm{height:22px;font-size:11px}.at-teste .tt-t .ibtn{width:22px;height:22px}
+.at-teste .presets{display:flex;flex-wrap:wrap;gap:4px}
+.at-teste .presets button{height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--bd2);background:var(--bg2);color:var(--tx);font:inherit;font-size:12px;cursor:pointer}
+.at-teste .presets button:hover{background:var(--bg3)}.at-teste .presets button.on{background:#e8e8e8;color:#151515;border-color:#e8e8e8;font-weight:600}
+.at-teste .presets button.ruim{border-color:#d85a5a;color:#ff9b9b;border-style:dashed}.at-teste .presets button.ruim.on{background:#ff8a8a;color:#1b1b1b}
+.at-teste .tt-nada{font-size:11px;color:var(--tx3)}
+#at-testar.on{background:var(--ac);color:#151515;border-color:var(--ac)}
+/* ficha de quem fez o arquivo */
+.ficha-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}.ficha-top b{display:block;font-size:16px}.ficha-top small{display:block;color:var(--tx2);font-size:11.5px}
+.ficha-th{width:64px;height:64px;border-radius:10px;background:#101010 center/contain no-repeat;border:1px solid var(--bd);display:grid;place-items:center;color:var(--tx3);flex:none}
+.ficha-aviso{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border-radius:8px;background:rgba(232,194,90,.12);border:1px solid rgba(232,194,90,.45);color:#f2d98c;font-size:12.5px;margin-bottom:10px}.ficha-aviso svg{flex:none;margin-top:1px}
+.aut-pop.ficha-pop{position:static;max-width:none;box-shadow:none;animation:none;pointer-events:auto;background:var(--bg0)}
+.ficha-nota{margin-top:10px;font-size:11.5px;color:var(--tx3)}
+.at-palco:has(.at-teste) .dica{display:none}
