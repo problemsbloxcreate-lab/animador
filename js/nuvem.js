@@ -25,14 +25,21 @@ const Nuvem = {
   },
   async baixar(k) { const b = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k))).blob(); await DB.put('arquivos', b, k); return b; },
   // salva: manda as imagens que ainda não estão na nuvem e depois o personagem.json
+  // quem é ADM pode apagar da nuvem; os outros recebem o aviso para pedir a um ADM (o servidor também confere)
+  async souAdm() { try { return !!(await window.EstudioConta?.perfil?.())?.adm; } catch { return false; } },
+  async pedeAdm(nome) { if (window.EstudioConta?.nuvem?.pedeAdm) return window.EstudioConta.nuvem.pedeAdm(nome); return UI.modal({ title: 'Só um ADM pode apagar da nuvem', icon: 'cloud', width: 440, body: `<div>Peça para um ADM apagar <b>${esc(nome || 'isso')}</b> da nuvem da equipe (no menu, ADM › Nuvem).</div>`, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] }); },
+  avisaEspaco() { try { window.EstudioConta?.nuvem?.atualizar?.(); } catch { } },
+  // o que já está na nuvem de cada personagem fica guardado aqui depois da 1ª vez (o "salvar" automático não lista a nuvem toda a cada mudança)
+  _ks: new Map(),
   async salvar(def, aoAndar) {
-    const existentes = new Set(); try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) existentes.add(it.k); } catch { }
+    let existentes = this._ks.get(def.id);
+    if (!existentes) { existentes = new Set(); try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); } catch { } this._ks.set(def.id, existentes); }
     const imgs = def.partes.flatMap(p => p.imgs.map(i => i.k)).filter(Boolean), falta = imgs.filter(k => !existentes.has(k));
     let n = 0;
     for (const k of falta) {
       const b = await Arq.pegaBlob(k); if (!b) continue;
       aoAndar?.(`Enviando imagens… ${++n}/${falta.length}`);
-      await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'POST', body: b });
+      await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'POST', body: b }); existentes.add(k);
     }
     def.modificado = Date.now(); await Autores.marca(def); // quem subiu (fica para sempre) e quem editou
     aoAndar?.('Salvando o personagem…');
@@ -40,9 +47,10 @@ const Nuvem = {
     await DB.put('personagens', JSON.parse(JSON.stringify(def)));
     // imagens que saíram do personagem não ficam ocupando espaço na nuvem
     const usadas = new Set(imgs);
-    for (const k of existentes) if (k.startsWith(`personagens/${def.id}/img/`) && !usadas.has(k)) await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }).catch(() => { });
+    for (const k of [...existentes]) if (k.startsWith(`personagens/${def.id}/img/`) && !usadas.has(k)) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }).catch(() => { }); existentes.delete(k); }
+    existentes.add(`personagens/${def.id}/personagem.json`); this.avisaEspaco();
   },
-  async apagar(id) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/`), { method: 'DELETE' }); await DB.del('personagens', id); },
+  async apagar(id) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/`), { method: 'DELETE' }); await DB.del('personagens', id); this._ks.delete(id); this.avisaEspaco(); },
 
   /* ---------- cenários da equipe: só entram aqui quando alguém escolhe "Salvar na nuvem" (botão direito na camada) ---------- */
   async cenarios() { const j = await (await this.pede('/cenarios')).json(); return (j.itens || []).sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))); },
@@ -54,7 +62,7 @@ const Nuvem = {
     const slug = String(n.nome || 'cenario').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'cenario';
     const k = `cenarios/${/^[a-z0-9]/.test(slug) ? slug : 'c-' + slug}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
     await this.pede(`/cenarios/arquivo?k=${encodeURIComponent(k)}&nome=${encodeURIComponent(n.nome || 'Cenário')}${n.ia ? '&ia=1' : ''}`, { method: 'POST', body: b, headers: { 'content-type': b.type || 'image/jpeg' } });
-    await DB.put('arquivos', b, k); return k;
+    await DB.put('arquivos', b, k); this.avisaEspaco(); return k;
   },
   async apagarCenario(k) { await this.pede('/cenarios/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }); },
 };
@@ -77,7 +85,7 @@ const CenariosNuvem = {
           try { const b = await Nuvem.baixarCenario(it.k); const n = await App.addCenario(b, it.nome || 'Cenário'); n.nuvem = it.k; App.commit('Cenário da nuvem'); $('#modal-root .modal-back [data-x]')?.click(); }
           catch (er) { c.style.opacity = 1; UI.toast(esc(er.message), { kind: 'err' }); }
         };
-        $('.mn', c).onclick = async e => { e.stopPropagation(); if (!(await UI.confirm({ title: 'Apagar da nuvem da equipe?', msg: `"<b>${esc(it.nome || 'Cenário')}</b>" some para todo mundo. As animações que já usam continuam com a cópia delas.`, ok: 'Apagar', danger: true }))) return;
+        $('.mn', c).onclick = async e => { e.stopPropagation(); if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome || 'este cenário'); if (!(await UI.confirm({ title: 'Apagar da nuvem da equipe?', msg: `"<b>${esc(it.nome || 'Cenário')}</b>" some para todo mundo. As animações que já usam continuam com a cópia delas.`, ok: 'Apagar', danger: true }))) return;
           try { await Nuvem.apagarCenario(it.k); pinta(); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } };
         g.appendChild(c);
       }
