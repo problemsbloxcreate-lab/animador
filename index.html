@@ -39,7 +39,7 @@
     </div>
     <button class="ibtn" id="b-onion" title="Casca de cebola: ver os quadros vizinhos (O)"></button>
     <span class="sep"></span>
-    <button class="btn" id="b-ia" title="Animar com a IA"></button>
+    <button class="btn ia" id="b-ia" title="Animar com a IA"></button>
     <button class="btn" id="b-atelie" title="Ateliê de personagens: montar partes, sessões e poses"></button>
     <button class="btn primary" id="b-exportar"></button>
     <span data-estudio-conta></span>
@@ -95,9 +95,9 @@
   </header>
   <div class="at">
     <aside class="painel" style="border-right:1px solid var(--bd)">
-      <div class="p-cab"><h3>Partes</h3><span class="sp"></span><button class="btn sm" id="at-add-parte" title="Parte nova encaixada na escolhida">+ Parte</button></div>
+      <div class="p-cab"><div class="seg" id="at-vista-partes" title="Hierarquia: quem encaixa em quem · Camadas: quem fica na frente de quem (Z)"><button data-v="arvore" class="on">Partes</button><button data-v="camadas">Camadas</button></div><span class="sp"></span><button class="btn sm" id="at-add-parte" title="Parte nova encaixada na escolhida">+ Parte</button></div>
       <div class="p-corpo arvore at-partes" id="at-partes" style="flex:1.2"></div>
-      <div class="p-cab" style="border-top:1px solid var(--bd)"><h3 id="at-imgs-t">Imagens</h3><span class="sp"></span><button class="btn sm" id="at-add-img" title="Pôr imagens (PNG com fundo transparente) nesta parte">+ Imagens</button></div>
+      <div class="p-cab" style="border-top:1px solid var(--bd)"><h3 id="at-imgs-t">Imagens</h3><span class="sp"></span><button class="btn sm" id="at-add-pasta" title="Pasta nova nas imagens desta parte (ex.: olhos, bocas)">+ Pasta</button><button class="btn sm" id="at-add-img" title="Pôr imagens (PNG com fundo transparente) nesta parte. Também dá para arrastar os arquivos para cá">+ Imagens</button></div>
       <div class="p-corpo imgs" id="at-imgs" style="flex:1;align-content:start"></div>
     </aside>
     <main class="at-palco"><canvas id="at-cv"></canvas>

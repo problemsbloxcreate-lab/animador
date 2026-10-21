@@ -97,6 +97,7 @@ const ICONS = {
   gear: '<path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.6a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.6a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .6-8 6 6 0 0 0-11.6-1.4A4.5 4.5 0 0 0 7 18.5z"/>',
   alert: '<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3z"/><path d="M12 9v4M12 17h.01"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
   down: '<path d="m6 9 6 6 6-6"/>',
@@ -192,11 +193,11 @@ const UI = {
       buttons: [{ label: cancel, value: false }, { label: ok, kind: danger ? 'danger' : 'primary', value: true }]
     });
   },
-  prompt({ title, label = '', value = '', ok = 'OK', icon = 'edit', placeholder = '', multiline = false }) {
+  prompt({ title, label = '', value = '', ok = 'OK', icon = 'edit', placeholder = '', multiline = false, ia = false }) {
     return UI.modal({
-      title, icon, enterValue: !multiline, cancelValue: null, width: multiline ? 640 : undefined,
+      title, icon, kind: ia ? 'ia' : undefined, enterValue: !multiline, cancelValue: null, width: multiline ? 640 : undefined,
       body: multiline ? `<label class="field">${esc(label)}<textarea rows="16" style="width:100%;font-size:12.5px" placeholder="${esc(placeholder)}">${esc(value)}</textarea></label>` : `<label class="field">${esc(label)}<input type="text" value="${esc(value)}" placeholder="${esc(placeholder)}"></label>`,
-      buttons: [{ label: 'Cancelar', value: null }, { label: ok, kind: 'primary', collect: a => $(multiline ? 'textarea' : 'input', a.body).value.trim() || null }]
+      buttons: [{ label: 'Cancelar', value: null }, { label: ok, kind: ia ? 'primary ia' : 'primary', collect: a => $(multiline ? 'textarea' : 'input', a.body).value.trim() || null }]
     });
   },
   toast(msg, o = {}) {

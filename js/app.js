@@ -64,13 +64,13 @@ const App = {
 
   /* ---------- adicionar coisas ---------- */
   ondeColocar() { const s = this.noSel(); if (s?.tipo === 'pasta') return s.filhos; const r = s ? Modelo.achar(this.P, s.id) : null; return r ? r.lista : this.P.raiz; },
-  inserir(n, rotulo) {
+  inserir(n, rotulo, o = {}) {
     const lista = this.ondeColocar(), s = this.noSel(), i = s && lista.includes(s) ? lista.indexOf(s) : 0;
     // posição: centro da câmera, no espaço do pai
     const c = Modelo.camera(this.P, this.q), alvo = lista === this.P.raiz ? null : Modelo.todos(this.P).find(x => x.filhos === lista);
     const inv = alvo ? this.matPai(alvo.id).multiply(Render.matNo(new DOMMatrix(), Modelo.transf(alvo, this.q))).inverse() : new DOMMatrix();
     const p = inv.transformPoint(new DOMPoint(c.x, c.y)), esc0 = Object.values(n.chaves || {})[0]?.s ?? 1;
-    n.de = this.q; n.chaves = { [this.q]: { x: Math.round(p.x), y: Math.round(p.y), r: 0, s: esc0, sx: 1, op: 1 } };
+    n.de = this.q; n.chaves = { [this.q]: { x: Math.round(p.x), y: Math.round(p.y + (lista === this.P.raiz ? o.dy || 0 : 0)), r: 0, s: esc0, sx: 1, op: 1 } };
     lista.splice(i, 0, n); this.sel = n.id; this.commit(rotulo || 'Adicionar');
   },
   async addPersonagem() {
@@ -88,7 +88,28 @@ const App = {
       Arq.img.set(id, bm); this.inserir(n, 'Imagem');
     }
   },
-  addTexto() { const n = Modelo.novoNo('texto', { texto: 'Texto' }); this.inserir(n, 'Texto'); const k = n.chaves[this.q]; if (k && !Modelo.ancestrais(this.P, n.id).length) { k.y += Math.round(this.P.h * .3); this.commit('Texto'); } },
+  addTexto() { this.inserir(Modelo.novoNo('texto', { texto: 'Texto' }), 'Texto', { dy: Math.round(this.P.h * .3) }); },
+  // cenário: vai para o fundo de tudo e cobre a câmera inteira. Fica só nesta animação (salvar na nuvem é no botão direito)
+  async addCenario(blob, nome, extra = {}) {
+    const P = this.P, q = this.q, id = await Arq.guardar(blob), bm = await createImageBitmap(blob).catch(() => null); if (bm) Arq.img.set(id, bm);
+    const c = Modelo.camera(P, q), z = c.zoom || 1, s = bm ? round(Math.max(P.w / z / bm.width, P.h / z / bm.height) * 1.02, 3) : 1;
+    const n = Modelo.novoNo('imagem', { arq: id, nome: (nome || 'Cenário').slice(0, 40), s }); Object.assign(n, extra);
+    n.de = q; n.chaves = { [q]: { x: Math.round(c.x), y: Math.round(c.y), r: 0, s, sx: 1, op: 1 } };
+    n.cenario = true; const i = P.raiz.findIndex(x => x.cenario); // fica na frente dos cenários que já existem e atrás do resto
+    if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); this.sel = n.id; this.commit('Cenário ' + n.nome); return n;
+  },
+  menuCenario(x, y) {
+    UI.ctx(x, y, [
+      { label: 'Prontos e com a IA (estilo da casa)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() },
+      { label: 'Salvos na nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() },
+    ]);
+  },
+  async salvarNaNuvem(n) {
+    if (n?.tipo !== 'imagem') return;
+    const t = UI.toast('<span class="spin-dot"></span> Salvando o cenário na nuvem da equipe…', { time: 60000 });
+    try { n.nuvem = await Nuvem.salvarCenario(n); this.commit('Salvar na nuvem', { semArvore: false }); t.remove(); UI.toast(`<b>${esc(n.nome)}</b> está nos cenários da equipe: todo mundo pode usar.`, { kind: 'ok' }); }
+    catch (e) { t.remove(); UI.toast('Não salvou: ' + esc(e.message), { kind: 'err' }); }
+  },
   addPasta() {
     const n = Modelo.novoNo('pasta', { nome: 'Pasta' }); const s = this.noSel();
     if (s && s.tipo !== 'pasta') { const r = Modelo.achar(this.P, s.id); const i = r.lista.indexOf(s); r.lista.splice(i, 1, n); n.filhos.push(s); this.sel = n.id; n.chaves = { [this.q]: { x: 0, y: 0, r: 0, s: 1, sx: 1, op: 1 } }; return this.commit('Nova pasta'); }
@@ -180,7 +201,8 @@ const App = {
     menu(e) {
       const s = App.noSel();
       UI.ctx(e.clientX, e.clientY, [
-        { label: 'Personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Imagem…', icon: 'image', action: () => App.addImagem() }, { label: 'Texto', icon: 'text', action: () => App.addTexto() }, '-',
+        { label: 'Personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Imagem…', icon: 'image', action: () => App.addImagem() }, { label: 'Cenário (prontos e IA)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() }, { label: 'Cenário da nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() }, { label: 'Texto', icon: 'text', action: () => App.addTexto() }, '-',
+        s?.tipo === 'imagem' && (s.nuvem ? { label: 'Já está na nuvem da equipe', icon: 'check', disabled: true } : { label: 'Salvar na nuvem', icon: 'cloud', action: () => App.salvarNaNuvem(s) }),
         s && { label: 'Chave neste quadro', icon: 'diamond', key: 'K', action: () => App.chaveAqui() },
         s && { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
         s && { label: 'Pôr numa pasta', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },

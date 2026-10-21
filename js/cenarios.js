@@ -247,8 +247,8 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
     await UI.modal({ title: 'Cenário', icon: 'paisagem', width: 720, body, sticky: true, onOpen: a => {
       [btAjuste, btCriar, btPor] = a.foot.querySelectorAll('.btn'); btPor.disabled = true; btAjuste.style.display = 'none';
     }, buttons: [
-      { label: 'Ajustar', left: true, onClick: () => { ia(true); return false; } },
-      { label: 'Criar com a IA', icon: 'sparkles', onClick: () => { ia(false); return false; } },
+      { label: 'Ajustar', kind: 'ia', left: true, onClick: () => { ia(true); return false; } },
+      { label: 'Criar com a IA', icon: 'sparkles', kind: 'ia', onClick: () => { ia(false); return false; } },
       { label: 'Pôr na cena', kind: 'primary', onClick: async () => { if (!cvAtual || ocupado) return false; let ok = false; await usa(async () => { await this.porNaCena(cvAtual, atual); ok = true; }); return ok; } },
     ] });
   },
@@ -260,6 +260,6 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
     const n = Modelo.novoNo('imagem', { arq: id, nome: 'Cenário: ' + String(cena?.nome || 'novo').slice(0, 30), s }); n.cena = cena;
     n.de = 0; n.chaves = { 0: { x: Math.round(P.w / 2), y: Math.round(P.h / 2), r: 0, s, sx: 1, op: 1 } };
     Arq.img.set(id, bm); P.raiz.push(n); App.sel = n.id; App.commit('Cenário'); // último da lista = atrás de tudo
-    UI.toast(`<b>${esc(cena?.nome || 'Cenário')}</b> entrou no fundo da cena.`, { kind: 'ok' });
+    UI.toast(`<b>${esc(cena?.nome || 'Cenário')}</b> entrou no fundo da cena (só nesta animação). Para a equipe usar: botão direito nele › <b>Salvar na nuvem</b>.`, { kind: 'ok', time: 6000 });
   },
 };

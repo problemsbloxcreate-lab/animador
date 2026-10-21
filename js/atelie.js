@@ -59,7 +59,9 @@ const Atelie = {
     $('#at-voltar').onclick = () => this.sair(); $('#at-salvar').onclick = () => this.salvar(); $('#at-undo').onclick = () => this.undo(); $('#at-redo').onclick = () => this.redo();
     $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); };
     $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); };
-    $('#at-add-parte').onclick = () => this.novaParte(); $('#at-add-img').onclick = () => this.addImagens();
+    $('#at-add-parte').onclick = () => this.novaParte(); $$('#at-vista-partes [data-v]').forEach(b => b.onclick = () => { this.vistaPartes = b.dataset.v; this.pintaPartes(); }); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
+    // soltar imagens no palco do ateliê: entram na parte escolhida (sem parte escolhida, cada uma vira uma parte)
+    const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); this.addImagens([...ev.dataTransfer.files], !this.parte()); } };
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
     $('#at-so-img').onclick = () => { this.soImagem = !this.soImagem; this.pinta(); };
@@ -156,7 +158,7 @@ const Atelie = {
     if (k === '+' || k === '=' || k === '-') { this.mudar(p.id, { s: round(clamp((est.s ?? 1) * (k === '-' ? .96 : 1.04), .05, 10), 3) }); return leva(); }
     if (kk === 'f') { this.mudar(p.id, { sx: (est.sx || 1) * -1 }); return leva(); }
     if (kk === 'h') { this.mudar(p.id, { vis: est.vis === false }); return leva(); }
-    if (k === '[' || k === ']') { p.z = (p.z || 0) + (k === ']' ? 1 : -1); return this.commit(); }
+    if (k === '[' || k === ']') return this.passoCamada(p, k === ']' ? 1 : -1);
   },
 
   /* ---------- painéis ---------- */
@@ -171,6 +173,8 @@ const Atelie = {
   },
   pintaPartes() {
     const el = $('#at-partes'), ps = this.def.partes; el.innerHTML = '';
+    $$('#at-vista-partes [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === (this.vistaPartes || 'arvore')));
+    if (this.vistaPartes === 'camadas' && ps.length) return this.pintaCamadas(el);
     if (!ps.length) { el.innerHTML = '<div class="vazio">Comece criando as partes: corpo, cabeça, cabelo, olhos, braços, pernas…<br>(ou solte as imagens aqui: cada imagem vira uma parte)</div>'; }
     const filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => (b.z || 0) - (a.z || 0)), est = this.estado();
     const vai = (pai, nivel) => { for (const p of filhos(pai)) {
@@ -180,13 +184,47 @@ const Atelie = {
       r.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
       r.oncontextmenu = ev => { ev.preventDefault(); this.sel = p.id; this.menuParte(ev, p); };
       r.ondragstart = ev => { ev.dataTransfer.setData('text/parte', p.id); };
-      r.ondragover = ev => { if (ev.dataTransfer.types.includes('text/parte')) { ev.preventDefault(); r.classList.add('drop-dentro'); } };
+      r.ondragover = ev => { const t = ev.dataTransfer.types; if (t.includes('text/parte') || t.includes('Files')) { ev.preventDefault(); ev.stopPropagation(); r.classList.add('drop-dentro'); } };
       r.ondragleave = () => r.classList.remove('drop-dentro');
-      r.ondrop = ev => { ev.preventDefault(); r.classList.remove('drop-dentro'); const id = ev.dataTransfer.getData('text/parte'); if (id && id !== p.id) this.porNoPai(id, p.id); };
+      r.ondrop = ev => { ev.preventDefault(); ev.stopPropagation(); r.classList.remove('drop-dentro');
+        if (ev.dataTransfer.files?.length) { this.sel = p.id; return this.addImagens([...ev.dataTransfer.files], false); } // arquivo em cima da parte: vira imagem dela
+        const id = ev.dataTransfer.getData('text/parte'); if (id && id !== p.id) this.porNoPai(id, p.id); };
       el.appendChild(r); vai(p.id, nivel + 1); } };
     vai(null, 0);
     el.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); };
     el.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); this.addImagens([...ev.dataTransfer.files], true); } };
+  },
+  // CAMADAS: a ordem real de desenho (de cima = na frente), igual às camadas do Photoshop.
+  // Mexer aqui só muda o Z; quem encaixa em quem (a hierarquia) continua igual.
+  ordemCamadas() { const est = this.estado(); return this.def.partes.map((p, i) => ({ p, i, z: (p.z || 0) + (est[p.id]?.z || 0) })).sort((a, b) => a.z - b.z || a.i - b.i).map(x => x.p); },
+  passoCamada(p, d) { const L = this.ordemCamadas().reverse(), i = L.indexOf(p), j = i - d; if (j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; this.reordenar(L); },
+  reordenar(frenteParaTras) { // reescreve os Z da base: 0 = mais atrás
+    const n = frenteParaTras.length, pr = this.preset(), est = pr ? pr.estado : null;
+    frenteParaTras.forEach((p, i) => { p.z = (n - 1 - i) - (est?.[p.id]?.z || 0); });
+    this.commit();
+  },
+  pintaCamadas(el) {
+    const est = this.estado(), lista = this.ordemCamadas().reverse(), nomeDe = id => this.parte(id)?.nome;
+    el.appendChild(h(`<div class="cam-dica">De cima para baixo: quem fica <b>na frente</b>. Arraste para mudar a ordem (o encaixe não muda).${this.preset() ? ' Vale para a base e para todos os presets.' : ''}</div>`));
+    lista.forEach((p, i) => {
+      const e = est[p.id] || {}, img = p.imgs.find(x => x.id === e.img), bm = img ? Arq.bitmap(img.k, () => this.pintaPartes()) : null;
+      const r = h(`<div class="cam ${p.id === this.sel ? 'sel' : ''}" draggable="true"><span class="grip">${ic('dots', 12)}</span><canvas width="52" height="52"></canvas>
+        <span class="nm"><b>${esc(p.nome)}</b><small>${p.pai ? 'encaixa em ' + esc(nomeDe(p.pai) || '?') : 'raiz'}</small></span><span class="zz" title="Z (maior = mais na frente)">${(p.z || 0) + (e.z || 0)}</span>
+        <button class="ibtn" data-up title="Para a frente ( ] )" ${i ? '' : 'disabled'}>${ic('up', 12)}</button><button class="ibtn" data-dn title="Para trás ( [ )" ${i < lista.length - 1 ? '' : 'disabled'}>${ic('down', 12)}</button>
+        <button class="ibtn ${e.vis === false ? 'off' : ''}" data-vis title="Mostrar/esconder (H)">${ic(e.vis === false ? 'eyeOff' : 'eye', 12)}</button></div>`);
+      if (bm) { const c = $('canvas', r), x = c.getContext('2d'), k = Math.min(52 / bm.width, 52 / bm.height); x.drawImage(bm, (52 - bm.width * k) / 2, (52 - bm.height * k) / 2, bm.width * k, bm.height * k); }
+      const move = d => { const L = lista.slice(), j = i + d; [L[i], L[j]] = [L[j], L[i]]; this.reordenar(L); };
+      r.onclick = ev => { if (ev.target.closest('button')) return; this.sel = p.id; this.pinta(); };
+      r.oncontextmenu = ev => { ev.preventDefault(); this.sel = p.id; this.menuParte(ev, p); };
+      $('[data-up]', r).onclick = () => move(-1); $('[data-dn]', r).onclick = () => move(1);
+      $('[data-vis]', r).onclick = () => { this.mudar(p.id, { vis: e.vis === false }); this.commit(); };
+      r.ondragstart = ev => ev.dataTransfer.setData('text/camada', p.id);
+      r.ondragover = ev => { if (!ev.dataTransfer.types.includes('text/camada')) return; ev.preventDefault(); const b = r.getBoundingClientRect(), cima = ev.clientY < b.top + b.height / 2; r.classList.toggle('drop-antes', cima); r.classList.toggle('drop-depois', !cima); };
+      r.ondragleave = () => r.classList.remove('drop-antes', 'drop-depois');
+      r.ondrop = ev => { ev.preventDefault(); const cima = r.classList.contains('drop-antes'); r.classList.remove('drop-antes', 'drop-depois');
+        const q = this.parte(ev.dataTransfer.getData('text/camada')); if (!q || q === p) return; const L = lista.filter(x => x !== q); L.splice(L.indexOf(p) + (cima ? 0 : 1), 0, q); this.reordenar(L); };
+      el.appendChild(r);
+    });
   },
   menuParte(e, p) {
     UI.ctx(e.clientX, e.clientY, [
@@ -194,7 +232,7 @@ const Atelie = {
       { label: 'Parte nova encaixada nesta', icon: 'plus', action: () => this.novaParte(p.id) },
       { label: 'Duplicar (ex.: braço esquerdo → direito)', icon: 'dup', action: () => this.duplicarParte(p) },
       p.pai && { label: 'Soltar do pai', icon: 'layers', action: () => this.porNoPai(p.id, null) },
-      '-', { label: 'Para a frente', icon: 'up', key: ']', action: () => { p.z = (p.z || 0) + 1; this.commit(); } }, { label: 'Para trás', icon: 'down', key: '[', action: () => { p.z = (p.z || 0) - 1; this.commit(); } },
+      '-', { label: 'Para a frente', icon: 'up', key: ']', action: () => this.passoCamada(p, 1) }, { label: 'Para trás', icon: 'down', key: '[', action: () => this.passoCamada(p, -1) }, { label: 'Ver as camadas', icon: 'layers', action: () => { this.vistaPartes = 'camadas'; this.pintaPartes(); } },
       '-', { label: 'Apagar a parte', icon: 'trash', danger: true, action: () => this.apagarParte(p) },
     ].filter(Boolean));
   },
@@ -220,8 +258,8 @@ const Atelie = {
     this.sel = this.def.partes[0]?.id || null; this.commit();
   },
   // imagens: viram variações da parte escolhida (ou, soltas na lista de partes, uma parte nova cada)
-  async addImagens(fs, cadaUmaParte) {
-    fs = fs || await pickFiles('image/png,image/webp,image/gif,image/jpeg', true); if (!fs?.length) return;
+  async addImagens(fs, cadaUmaParte, pasta = null) {
+    fs = fs || await pickFiles('image/png,image/webp,image/gif,image/jpeg', true); fs = (fs || []).filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g)$/i.test(f.name)); if (!fs.length) return;
     let p = this.parte();
     for (const f of fs) {
       const bm = await createImageBitmap(f).catch(() => null); if (!bm) { UI.toast(`"${esc(f.name)}" não é uma imagem que dá para usar`, { kind: 'err' }); continue; }
@@ -231,25 +269,68 @@ const Atelie = {
       const nome = f.name.replace(/\.[^.]+$/, '').slice(0, 40);
       if (cadaUmaParte || !p) { p = Modelo.novaParte(nome, null); p.z = this.def.partes.length; this.def.partes.push(p); }
       const img = { id: uid('i'), nome, k, w: bm.width > 2048 || bm.height > 2048 ? Math.round(bm.width * Math.min(1, 2048 / Math.max(bm.width, bm.height))) : bm.width, h: bm.width > 2048 || bm.height > 2048 ? Math.round(bm.height * Math.min(1, 2048 / Math.max(bm.width, bm.height))) : bm.height };
-      img.pivo = { x: img.w / 2, y: img.h / 2 }; img.ajuste = { x: 0, y: 0 }; p.imgs.push(img);
+      img.pivo = { x: img.w / 2, y: img.h / 2 }; img.ajuste = { x: 0, y: 0 }; if (pasta && !cadaUmaParte) img.pasta = pasta; p.imgs.push(img);
       if (!p.base.img) p.base.img = img.id; else if (!cadaUmaParte) this.mudar(p.id, { img: img.id });
       if (cadaUmaParte) p = null;
     }
     if (!this.sel) this.sel = this.def.partes[0]?.id; this.commit(); this.enquadrar();
   },
+  // imagens da parte escolhida, em pastas (ex.: "olhos", "bocas"). Arrastar arquivos aqui põe nesta parte; numa pasta, dentro dela.
   pintaImgs() {
     const el = $('#at-imgs'), p = this.parte(); $('#at-imgs-t').textContent = p ? `Imagens de "${p.nome}"` : 'Imagens'; el.innerHTML = '';
     if (!p) { el.innerHTML = '<div class="vazio" style="grid-column:1/-1">Escolha uma parte.</div>'; return; }
-    const atual = this.estado()[p.id]?.img;
-    for (const img of p.imgs) {
-      const bm = Arq.bitmap(img.k, () => this.pintaImgs()), c = h(`<div class="im ${img.id === atual ? 'on' : ''}" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'}"><span>${esc(img.nome)}</span><button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
+    p.pastas = [...new Set([...(p.pastas || []), ...p.imgs.map(i => i.pasta).filter(Boolean)])];
+    const atual = this.estado()[p.id]?.img, fechadas = this.pastasFechadas || (this.pastasFechadas = new Set());
+    const solta = (alvo, pasta) => { // soltar arquivos do computador ou uma imagem arrastada daqui
+      alvo.ondragover = ev => { const t = ev.dataTransfer.types; if (t.includes('Files') || t.includes('text/img')) { ev.preventDefault(); ev.stopPropagation(); alvo.classList.add('drop-dentro'); } };
+      alvo.ondragleave = ev => { if (!alvo.contains(ev.relatedTarget)) alvo.classList.remove('drop-dentro'); };
+      alvo.ondrop = ev => { ev.preventDefault(); ev.stopPropagation(); alvo.classList.remove('drop-dentro');
+        if (ev.dataTransfer.files?.length) return this.addImagens([...ev.dataTransfer.files], false, pasta);
+        const img = p.imgs.find(i => i.id === ev.dataTransfer.getData('text/img')); if (img && (img.pasta || null) !== pasta) { if (pasta) img.pasta = pasta; else delete img.pasta; this.commit(); } };
+    };
+    const card = img => {
+      const bm = Arq.bitmap(img.k, () => this.pintaImgs()), c = h(`<div class="im ${img.id === atual ? 'on' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span><button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
       if (bm) { const cv = document.createElement('canvas'); cv.width = 96; cv.height = 96; const k = Math.min(96 / bm.width, 96 / bm.height); cv.getContext('2d').drawImage(bm, (96 - bm.width * k) / 2, (96 - bm.height * k) / 2, bm.width * k, bm.height * k); c.style.backgroundImage = `url(${cv.toDataURL()})`; }
       c.onclick = ev => { if (ev.target.closest('.x')) return; this.mudar(p.id, { img: img.id }); this.commit(); };
-      c.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da imagem', label: 'Ex.: aberto, fechado, chutando', value: img.nome }); if (n) { img.nome = n; this.commit(); } };
-      $('.x', c).onclick = async () => { if (!(await UI.confirm({ title: `Tirar a imagem "${esc(img.nome)}"?`, ok: 'Tirar', danger: true }))) return; p.imgs = p.imgs.filter(i => i !== img); if (p.base.img === img.id) p.base.img = p.imgs[0]?.id || null; for (const s of this.def.sessoes) for (const pr of s.presets) if (pr.estado[p.id]?.img === img.id) delete pr.estado[p.id].img; this.commit(); };
-      el.appendChild(c);
+      c.ondblclick = () => this.renomearImg(img);
+      c.ondragstart = ev => { ev.dataTransfer.setData('text/img', img.id); ev.dataTransfer.effectAllowed = 'move'; };
+      c.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [
+        { label: 'Usar esta imagem', icon: 'check', action: () => { this.mudar(p.id, { img: img.id }); this.commit(); } },
+        { label: 'Renomear', icon: 'edit', action: () => this.renomearImg(img) },
+        { label: 'Mover para a pasta', icon: 'folder', sub: [{ label: '(sem pasta)', checked: !img.pasta, action: () => { delete img.pasta; this.commit(); } }, ...p.pastas.map(n => ({ label: n, checked: img.pasta === n, action: () => { img.pasta = n; this.commit(); } })), '-', { label: 'Pasta nova…', icon: 'plus', action: async () => { const n = await this.novaPastaImg(p); if (n) { img.pasta = n; this.commit(); } } }] },
+        '-', { label: 'Tirar a imagem', icon: 'trash', danger: true, action: () => this.tirarImg(p, img) },
+      ]); };
+      $('.x', c).onclick = () => this.tirarImg(p, img);
+      return c;
+    };
+    for (const nome of p.pastas) {
+      const dentro = p.imgs.filter(i => i.pasta === nome), aberta = !fechadas.has(p.id + '/' + nome);
+      const cab = h(`<div class="pasta-img ${aberta ? 'aberta' : ''}" title="Clique para abrir/fechar · solte imagens aqui · botão direito: opções">${ic(aberta ? 'down' : 'right', 12)}${ic('folder', 14)}<b>${esc(nome)}</b><small>${dentro.length}</small><span class="sp"></span><button class="ibtn" data-add title="Pôr imagens nesta pasta">${ic('plus', 13)}</button></div>`);
+      cab.onclick = ev => { if (ev.target.closest('[data-add]')) return; const k = p.id + '/' + nome; fechadas.has(k) ? fechadas.delete(k) : fechadas.add(k); this.pintaImgs(); };
+      $('[data-add]', cab).onclick = () => this.addImagens(null, false, nome);
+      cab.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [
+        { label: 'Pôr imagens nesta pasta…', icon: 'plus', action: () => this.addImagens(null, false, nome) },
+        { label: 'Renomear a pasta', icon: 'edit', action: async () => { const n = (await UI.prompt({ title: 'Nome da pasta', value: nome }))?.trim(); if (!n || n === nome) return; if (p.pastas.includes(n)) return UI.toast('Já existe uma pasta com esse nome'); p.pastas = p.pastas.map(x => x === nome ? n : x); dentro.forEach(i => i.pasta = n); this.commit(); } },
+        '-', { label: 'Desfazer a pasta (as imagens ficam)', icon: 'trash', action: () => { p.pastas = p.pastas.filter(x => x !== nome); dentro.forEach(i => delete i.pasta); this.commit(); } },
+      ]); };
+      solta(cab, nome); el.appendChild(cab);
+      if (aberta) { for (const img of dentro) el.appendChild(card(img)); if (!dentro.length) el.appendChild(h('<div class="vazio pasta-vazia">Pasta vazia: arraste imagens para cá.</div>')); }
     }
-    const add = h(`<div class="im add" title="Pôr imagens nesta parte">${ic('plus', 18)}</div>`); add.onclick = () => this.addImagens(); el.appendChild(add);
+    const soltas = p.imgs.filter(i => !i.pasta);
+    if (p.pastas.length && soltas.length) el.appendChild(h(`<div class="pasta-img solta">${ic('image', 14)}<b>Sem pasta</b><small>${soltas.length}</small></div>`));
+    for (const img of soltas) el.appendChild(card(img));
+    const add = h(`<div class="im add" title="Pôr imagens nesta parte (ou arraste os arquivos para cá)">${ic('plus', 18)}</div>`); add.onclick = () => this.addImagens(); el.appendChild(add);
+    solta(el, null);
+  },
+  async novaPastaImg(p) {
+    const n = (await UI.prompt({ title: 'Pasta nova', label: 'Ex.: olhos, bocas, mãos, roupas', value: '' }))?.trim().slice(0, 30); if (!n) return null;
+    p.pastas = p.pastas || []; if (!p.pastas.includes(n)) p.pastas.push(n); this.commit(); return n;
+  },
+  async renomearImg(img) { const n = await UI.prompt({ title: 'Nome da imagem', label: 'Ex.: aberto, fechado, chutando', value: img.nome }); if (n) { img.nome = n; this.commit(); } },
+  async tirarImg(p, img) {
+    if (!(await UI.confirm({ title: `Tirar a imagem "${esc(img.nome)}"?`, ok: 'Tirar', danger: true }))) return;
+    p.imgs = p.imgs.filter(i => i !== img); if (p.base.img === img.id) p.base.img = p.imgs[0]?.id || null;
+    for (const s of this.def.sessoes) for (const pr of s.presets) if (pr.estado[p.id]?.img === img.id) delete pr.estado[p.id].img; this.commit();
   },
   pintaPeca(el) {
     const p = this.parte(); if (!p) { el.appendChild(h('<div class="vazio">Escolha uma parte na lista ou clique numa peça.</div>')); return; }
@@ -275,13 +356,13 @@ const Atelie = {
     el.appendChild(box);
   },
   pintaSessoes(el) {
-    const def = this.def, box = h(`<div class="sessoes-at"><div class="campo2"><button class="btn sm" data-nova>${ic('plus', 13)} Sessão</button><button class="btn sm" data-prontas>${ic('sparkles', 13)} Sessões prontas</button></div></div>`);
+    const def = this.def, box = h(`<div class="sessoes-at"><div class="campo2"><button class="btn sm" data-nova>${ic('plus', 13)} Sessão</button><button class="btn sm" data-prontas>${ic('layers', 13)} Sessões prontas</button></div></div>`);
     $('[data-nova]', box).onclick = () => this.novaSessao(); $('[data-prontas]', box).onclick = () => this.sessoesProntas();
     if (!def.sessoes.length) box.appendChild(h('<div class="vazio">Sessões são grupos de presets: <b>Olhos</b> (assustado, surpreso, triste, fechado…), <b>Boca</b>, <b>Perna direita</b> (chutando, inclinada…), <b>Pose</b> (corpo todo).<br><br>Na animação, cada sessão vira uma fila de botões: clicou, virou chave naquele quadro.</div>'));
     for (const s of def.sessoes) {
       const aberta = this.edit?.s === s.id, nomesPartes = (s.partes || []).map(id => this.parte(id)?.nome).filter(Boolean);
       const c = h(`<div class="sess ${aberta ? 'aberta' : ''}"><div class="cab"><b>${esc(s.nome)}</b><small title="Partes que esta sessão mexe">${nomesPartes.length ? esc(nomesPartes.slice(0, 3).join(', ')) + (nomesPartes.length > 3 ? '…' : '') : 'todas as partes'}</small>
-        <button class="ibtn" data-ia title="Criar um preset com a IA">${ic('sparkles', 13)}</button><button class="ibtn" data-m title="Mais">${ic('dots', 13)}</button></div><div class="lista presets"></div></div>`);
+        <button class="ibtn ia" data-ia title="Criar um preset com a IA">${ic('sparkles', 13)}</button><button class="ibtn" data-m title="Mais">${ic('dots', 13)}</button></div><div class="lista presets"></div></div>`);
       const l = $('.lista', c);
       for (const pr of s.presets) { const b = h(`<button class="${aberta && this.edit.p === pr.id ? 'on' : ''}" title="Clique para editar · botão direito: opções">${esc(pr.nome)}</button>`);
         b.onclick = () => { this.edit = { s: s.id, p: pr.id }; this.pinta(); }; b.oncontextmenu = ev => { ev.preventDefault(); this.menuPreset(ev, s, pr); }; l.appendChild(b); }
@@ -314,7 +395,7 @@ const Atelie = {
     const pr = { id: uid('pr'), nome, estado }; s.presets.push(pr); this.edit = { s: s.id, p: pr.id }; this.aba = 'sessoes'; this.commit();
   },
   async presetIA(s) {
-    const pedido = await UI.prompt({ title: `Preset com a IA em "${s.nome}"`, label: 'Descreva (ex.: "olhos de susto, bem abertos", "chutando para a frente")', ok: 'Criar' }); if (!pedido) return;
+    const pedido = await UI.prompt({ title: `Preset com a IA em "${s.nome}"`, label: 'Descreva (ex.: "olhos de susto, bem abertos", "chutando para a frente")', ok: 'Criar', icon: 'sparkles', ia: true }); if (!pedido) return;
     const t = UI.toast('<span class="spin-dot"></span> A IA está montando o preset…', { time: 120000 });
     try { const pr = await IA.criarPreset(this.def, s, pedido); t.remove(); s.presets.push(pr); this.edit = { s: s.id, p: pr.id }; this.commit(); UI.toast(`Preset "${esc(pr.nome)}" criado. Confira e ajuste se precisar.`, { kind: 'ok' }); }
     catch (e) { t.remove(); UI.toast('A IA não conseguiu: ' + esc(e.message), { kind: 'err' }); }

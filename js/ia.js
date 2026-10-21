@@ -47,6 +47,7 @@ Ações possíveis:
  {"tipo":"camera","quadro":N,"x":0,"y":0,"zoom":1}
  {"tipo":"efeito","efeito":"vinheta|granulado|cinema|flash|tremor|desfoque|brilho|vhs|escurecer|clarear","de":N,"ate":N,"forca":0.5}
  {"tipo":"visual","visual":"normal|vivo|quente|frio|noite|por-do-sol|vintage|pb|sonho|terror|desbotado|neon"}
+ {"tipo":"cenario","descricao":"o lugar em português, sem personagens"}   (só se a pessoa pedir um cenário/fundo novo; sai no estilo da casa e fica só nesta animação)
 Regras: use só nomes de sessões e presets que existem. Para atuação pela fala, mude expressões nas palavras fortes (piscar de vez em quando: olhos fechados por 2-3 quadros), sem trocar a cada quadro. Respeite o pedido.`,
   async abrir(foco) {
     const P = App.P;
@@ -54,19 +55,21 @@ Regras: use só nomes de sessões e presets que existem. Para atuação pela fal
       <label class="field">O que fazer?<textarea rows="4" placeholder="Ex.: anima o ${esc(foco?.nome || 'Problems')} pela fala: olhos assustados quando ele grita, pisca de vez em quando, e um tremor de tela no fim"></textarea></label>
       <div class="ia-res" hidden></div></div>`);
     const res = $('.ia-res', body);
-    await UI.modal({ title: 'Animar com a IA', icon: 'sparkles', width: 620, body, buttons: [{ label: 'Fechar', value: null }, { label: 'Pedir', kind: 'primary', onClick: async api => {
+    await UI.modal({ title: 'Animar com a IA', icon: 'sparkles', kind: 'ia', width: 620, body, buttons: [{ label: 'Fechar', value: null }, { label: 'Pedir', kind: 'primary ia', onClick: async api => {
       const txt = $('textarea', body).value.trim(); if (!txt) return false;
       const bt = api.foot.querySelector('.btn.primary'); bt.disabled = true; res.hidden = false; res.textContent = 'Pensando…';
       try {
         const out = await this.chama(this.SIS_CENA, `PROJETO:\n${JSON.stringify(this.contexto(P))}\n\nPEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`, t => { res.textContent = t.slice(-600); });
-        const j = this.json(out), n = this.aplicar(j.acoes || []);
-        res.textContent = (j.explica || 'Pronto.') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.`;
+        const j = this.json(out); let n = this.aplicar(j.acoes || []);
+        for (const c of this.cenariosPedidos) { res.textContent = 'Montando o cenário: ' + c.descricao + '…'; const r = await Cenarios.pedirIA(c.descricao, null, t => { res.textContent = 'Montando o cenário… (' + t.length + ' letras)'; }); Cenarios.guardaUltimo(r.cena); await Cenarios.porNaCena(await Cenarios.desenhar(r.cena), r.cena); const nn = App.noSel(); if (nn) nn.ia = true; n++; }
+        res.textContent = (j.explica || 'Pronto.') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (this.cenariosPedidos.length ? '\nO cenário fica só nesta animação: para guardar na equipe, botão direito nele › Salvar na nuvem.' : '');
       } catch (e) { res.textContent = 'Não deu: ' + e.message; }
       bt.disabled = false; return false;
     } }] });
   },
+  cenariosPedidos: [],
   aplicar(acoes) {
-    const P = App.P, todos = Modelo.todos(P); let n = 0;
+    const P = App.P, todos = Modelo.todos(P); let n = 0; this.cenariosPedidos = [];
     const q = v => clamp(Math.round(+v || 1) - 1, 0, P.duracao - 1);
     for (const a of acoes) {
       try {
@@ -78,6 +81,7 @@ Regras: use só nomes de sessões e presets que existem. Para atuação pela fal
         } else if (a.tipo === 'camera') { const k = q(a.quadro); P.camera.chaves[k] = { ...Modelo.camera(P, k), ...Object.fromEntries(['x', 'y', 'zoom', 'r'].filter(c => a[c] != null).map(c => [c, +a[c]])) }; n++; }
         else if (a.tipo === 'efeito' && Efeitos.TELA.some(e => e.id === a.efeito)) { P.efeitos.tela.push({ id: uid('ef'), tipo: a.efeito, de: q(a.de), ate: Math.max(q(a.de), q(a.ate)), forca: clamp(+a.forca || .5, 0, 1) }); n++; }
         else if (a.tipo === 'visual' && Efeitos.VISUAIS.some(v => v.id === a.visual)) { P.efeitos.visual = a.visual; n++; }
+        else if (a.tipo === 'cenario' && a.descricao) this.cenariosPedidos.push(a);
       } catch (e) { console.warn('ação da IA', a, e); }
     }
     if (n) App.commit('IA: ' + n + ' ações');
