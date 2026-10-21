@@ -15,13 +15,13 @@ const Animacoes = {
   rotulo(p) {
     const d = this.def, out = [];
     for (const [sid, pid] of Object.entries(p.s || {})) { const s = d.sessoes.find(x => x.id === sid); const pr = s?.presets.find(x => x.id === pid); out.push(pr ? pr.nome : '?'); }
-    for (const [pid, e] of Object.entries(p.p || {})) { const pt = Atelie.parte(pid); const im = pt?.imgs.find(i => i.id === e.img); out.push((im ? im.nome : pt?.nome || '?') + (e.r ? ` ${e.r > 0 ? '+' : ''}${e.r}°` : '')); }
+    for (const [pid, e] of Object.entries(p.p || {})) { const pt = Atelie.parte(pid); const im = pt?.imgs.find(i => i.id === e.img); out.push((im ? im.nome : pt?.nome || '?') + (e.r ? ` ${e.r > 0 ? '+' : ''}${e.r}°` : '') + (e.x || e.y ? ' ↕' : '')); }
     return out.join(' · ') || '(base)';
   },
   detalhe(p) {
     const d = this.def, l = [];
     for (const [sid, pid] of Object.entries(p.s || {})) { const s = d.sessoes.find(x => x.id === sid); l.push(`${s?.nome || '?'}: ${s?.presets.find(x => x.id === pid)?.nome || '?'}`); }
-    for (const [pid, e] of Object.entries(p.p || {})) { const pt = Atelie.parte(pid); l.push(`${pt?.nome || '?'}: ${pt?.imgs.find(i => i.id === e.img)?.nome || '—'}${e.r ? ` (giro ${e.r}°)` : ''}`); }
+    for (const [pid, e] of Object.entries(p.p || {})) { const pt = Atelie.parte(pid); l.push(`${pt?.nome || '?'}: ${pt?.imgs.find(i => i.id === e.img)?.nome || '—'}${e.r ? ` (giro ${e.r}°)` : ''}${e.x || e.y ? ` (mexe ${Math.round(e.x || 0)},${Math.round(e.y || 0)})` : ''}`); }
     return l.join('\n') || 'nada muda (base)';
   },
 
@@ -30,13 +30,37 @@ const Animacoes = {
     const T = Atelie.teste || (Atelie.teste = { sessoes: {}, partes: {} });
     for (const p of passos) { if (!p) continue; Object.assign(T.sessoes, p.s || {}); for (const [pid, e] of Object.entries(p.p || {})) T.partes[pid] = { ...e }; }
   },
-  tocar(a) {
+  // o quadro i da animação (todas as trilhas juntas): { sessoes, partes }
+  frame(a, i) { const T = { sessoes: {}, partes: {} }; for (const t of (a.trilhas || []).filter(t => t.length)) { const p = t[((i % t.length) + t.length) % t.length]; Object.assign(T.sessoes, p.s || {}); for (const [pid, e] of Object.entries(p.p || {})) T.partes[pid] = { ...e }; } return T; },
+  // passos que estão na tela agora (um por trilha) — para saber o que editar quando clica numa peça com a animação pausada
+  passosAgora(a, i) { return (a.trilhas || []).map((t, ti) => t.length ? { ti, pi: ((i % t.length) + t.length) % t.length, p: t[((i % t.length) + t.length) % t.length] } : null).filter(Boolean); },
+  // PAUSADO (animação parada num passo) ou POSE FIXA (veio do editor: "Editar no Ateliê"): a tela mostra esse quadro e dá para arrumar as peças
+  get parado() { return !!(this.poseFixa || (this.tocando && this.pausado)); },
+  frameAtual() { if (this.poseFixa) return this.poseFixa; const a = this.achar(this.tocando); return a ? this.frame(a, this.i) : null; },
+  tocar(a, de = 0) {
     this.parar(true); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem passos. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
-    Atelie.edit = null; Atelie.teste = { sessoes: {}, partes: {} }; this.tocando = a.id; this.sel = a.id; this.passo = null;
-    let i = 0; const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = { sessoes: {}, partes: {} }; this.aplicar(trilhas.map(t => t[i % t.length])); i++; Atelie.desenha(); Atelie.pintaTeste(); };
+    this.poseFixa = null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, de); this.tocando = a.id; this.sel = a.id; this.passo = null; this.pausado = false; this.i = de;
+    const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = this.frame(a, this.i); Atelie.desenha(); Atelie.pintaTeste(); this.i++; };
     vai(); this._t = setInterval(vai, +a.vel || 250); Atelie.pinta();
   },
-  parar(quieto) { clearInterval(this._t); this._t = null; const tinha = this.tocando; this.tocando = null; if (tinha && !quieto) Atelie.pinta(); },
+  // pausa no passo que está na tela (clicar numa peça arruma aquele passo/preset); continuar segue dali
+  pausar() { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; this.pausado = true; this.i = Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); UI.toast('Pausado. Clique numa peça para arrumar <b>este passo</b> (ou o preset que ele usa).', { time: 4000 }); },
+  continuar() { const a = this.achar(this.tocando); if (!a) return; Atelie.edit = null; Atelie.editPasso = null; this.tocar(a, this.i + 1); },
+  passoMais(d) { const a = this.achar(this.tocando); if (!a) return; if (!this.pausado) this.pausar(); this.i = this.i + d; Atelie.teste = this.frame(a, this.i); Atelie.edit = null; Atelie.editPasso = null; Atelie.pinta(); },
+  parar(quieto) { clearInterval(this._t); this._t = null; const tinha = this.tocando; this.tocando = null; this.pausado = false; if (Atelie.editPasso) Atelie.editPasso = null; if (tinha && !quieto) Atelie.pinta(); },
+  // com a animação pausada (ou a pose do editor): clicou na peça → o que ela edita (o passo da trilha, o preset da sessão, ou a base)
+  alvoPausa(pid) {
+    Atelie.edit = null; Atelie.editPasso = null; const def = this.def, F = this.frameAtual(); if (!F) return;
+    const a = this.poseFixa ? null : this.achar(this.tocando);
+    if (a) { const L = this.passosAgora(a, this.i).filter(x => x.p.p?.[pid]); if (L.length) { const x = L[L.length - 1]; Atelie.editPasso = { a: a.id, ti: x.ti, pi: x.pi }; return; } }
+    let achou = null; for (const s of def.sessoes) { const prId = F.sessoes?.[s.id]; const pr = prId && s.presets.find(p => p.id === prId); if (pr?.estado?.[pid]) achou = { s: s.id, p: pr.id }; }
+    if (achou) Atelie.edit = achou;
+  },
+  passoEditado() { const e = Atelie.editPasso, a = e && this.achar(e.a); return a?.trilhas?.[e.ti]?.[e.pi] || null; },
+  textoAlvo() { // para o selo "editando: …"
+    const p = this.passoEditado(); if (p) { const a = this.achar(Atelie.editPasso.a); return `passo ${Atelie.editPasso.pi + 1} de "${a.nome}"`; }
+    const s = Atelie.sessao(), pr = Atelie.preset(); return pr ? `${s.nome} › ${pr.nome}` : 'a base';
+  },
   mostrarPasso(a, ti, pi) { this.parar(true); Atelie.edit = null; Atelie.teste = { sessoes: {}, partes: {} }; this.sel = a.id; this.passo = { t: ti, i: pi };
     // o passo aparece por cima do que as outras trilhas têm no passo 1, para ver o conjunto
     this.aplicar(a.trilhas.map((t, n) => n === ti ? null : t[0])); this.aplicar([a.trilhas[ti][pi]]); Atelie.pinta(); },
@@ -147,16 +171,40 @@ const Animacoes = {
     const body = h(`<div><label class="field">Quadros por passo<input type="number" min="1" max="48" value="${fppPadrao}" data-f></label><label class="field">Quantas vezes repetir<input type="number" min="1" max="50" value="2" data-r></label>
       <div style="color:var(--tx3);font-size:12px">Começa no quadro ${App.q + 1}. No fim, as partes voltam ao normal.</div></div>`);
     const r = await UI.modal({ title: `Pôr "${a.nome}" na animação`, icon: 'film', body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Pôr', kind: 'primary', collect: x => ({ f: clamp(+$('[data-f]', x.body).value || 1, 1, 48), r: clamp(+$('[data-r]', x.body).value || 1, 1, 50) }) }] });
-    if (!r) return; const total = maior * r.r, mexe = new Set(), sess = new Set();
-    for (const t of trilhas) for (const p of t) { Object.keys(p.p || {}).forEach(x => mexe.add(x)); Object.keys(p.s || {}).forEach(x => sess.add(x)); }
+    if (!r) return; const fim = this.escreve(n, a, App.q, r.f, r.r); App.commit(`Animação "${a.nome}"`); UI.toast(`"${esc(a.nome)}" posta do quadro ${App.q + 1} ao ${fim}.`, { kind: 'ok' });
+  },
+  // escreve a animação como chaves no editor: de q0, fpp quadros por passo, reps vezes (devolve o último quadro)
+  escreve(n, a, q0, fpp, reps) {
+    const P = App.P, trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return q0; const maior = Math.max(...trilhas.map(t => t.length)), total = maior * reps, mexe = new Set();
+    for (const t of trilhas) for (const p of t) Object.keys(p.p || {}).forEach(x => mexe.add(x));
     for (let i = 0; i < total; i++) {
-      const q = App.q + i * r.f, k = Modelo.chave(n, q); k.partes = { ...(k.partes || {}) }; k.sessoes = { ...(k.sessoes || {}) };
-      for (const t of trilhas) { const p = t[i % t.length]; Object.assign(k.sessoes, p.s || {}); for (const [pid, e] of Object.entries(p.p || {})) k.partes[pid] = { img: e.img, r: e.r || 0 }; }
+      const q = q0 + i * fpp, k = Modelo.chave(n, q); k.partes = { ...(k.partes || {}) }; k.sessoes = { ...(k.sessoes || {}) };
+      for (const t of trilhas) { const p = t[i % t.length]; Object.assign(k.sessoes, p.s || {}); for (const [pid, e] of Object.entries(p.p || {})) k.partes[pid] = { ...(e.img ? { img: e.img } : {}), r: e.r || 0, x: e.x || 0, y: e.y || 0, ...(e.d ? { d: e.d } : {}) }; }
       if (!Object.keys(k.sessoes).length) delete k.sessoes; if (!Object.keys(k.partes).length) delete k.partes;
     }
-    const fim = App.q + total * r.f, kf = Modelo.chave(n, fim); // volta ao normal no fim
+    const fim = q0 + total * fpp, kf = Modelo.chave(n, fim); // volta ao normal no fim
     if (mexe.size) { kf.partes = { ...(kf.partes || {}) }; for (const pid of mexe) kf.partes[pid] = null; }
-    if (P.duracao < fim + 1) P.duracao = fim + 1;
-    App.commit(`Animação "${a.nome}"`); UI.toast(`"${esc(a.nome)}" posta do quadro ${App.q + 1} ao ${fim}.`, { kind: 'ok' });
+    if (P.duracao < fim + 1) P.duracao = fim + 1; return fim;
   },
+  /* ---------- editor → "Editar no Ateliê": abre o personagem numa aba nova, parado nesta pose (deste quadro) ---------- */
+  async editarNoAtelie(n) {
+    const P = App.P, def = P?.personagens?.[n?.ref]; if (!def) return; App.pausa?.(); // pausa a animação no quadro atual
+    const est = Modelo.estadoPersonagem(n, App.q), partes = {}; for (const [k, v] of Object.entries(est.partes || {})) if (v) partes[k] = v;
+    await DB.put('arquivos', { def: clone(def), sessoes: est.sessoes || {}, partes, quadro: App.q, anim: P.nome, em: Date.now() }, 'pose-abrir:' + def.id);
+    const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', def.id); u.searchParams.set('pose', '1');
+    const w = window.open(u.href, '_blank'); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
+    else UI.toast(`<b>${esc(def.nome)}</b> abriu no Ateliê na pose do quadro ${App.q + 1}. Quando o personagem for salvo lá, esta animação recebe a mudança sozinha.`, { kind: 'ok', time: 6000 });
+  },
+  // no Ateliê (aba aberta pelo editor): entra na pose guardada
+  async entrarNaPose(id) {
+    const r = await DB.get('arquivos', 'pose-abrir:' + id).catch(() => null); if (!r) return false; DB.del('arquivos', 'pose-abrir:' + id).catch(() => { });
+    // animações que só existem na cópia da animação (ex.: criadas pela IA do editor) entram no personagem
+    const novas = (r.def?.animacoes || []).filter(x => !(Atelie.def.animacoes || []).some(y => y.id === x.id || y.nome === x.nome));
+    if (novas.length) { (Atelie.def.animacoes ||= []).push(...clone(novas)); Atelie.commit(); UI.toast(`${novas.length} animação(ões) da animação aberta entraram no personagem (${esc(novas.map(x => x.nome).join(', '))}).`, { kind: 'ok', time: 6000 }); }
+    this.poseFixa = { sessoes: r.sessoes || {}, partes: r.partes || {}, quadro: r.quadro || 0, anim: r.anim || '' };
+    Atelie.teste = { sessoes: { ...this.poseFixa.sessoes }, partes: clone(this.poseFixa.partes) }; Atelie.edit = null; Atelie.editPasso = null; Atelie.pinta(); Atelie.enquadrar();
+    UI.toast(`Pose do quadro ${this.poseFixa.quadro + 1} de "${esc(this.poseFixa.anim)}". Clique numa peça para arrumar o preset que ela usa (ou a base).`, { time: 7000 });
+    return true;
+  },
+  async reservaDaPose(id) { const r = await DB.get('arquivos', 'pose-abrir:' + id).catch(() => null); return r?.def || null; },
 };

@@ -168,7 +168,8 @@ addEventListener('DOMContentLoaded', async () => {
   $('#home-brand').onclick = () => App.P ? App.fechar() : Home.pinta();
   // aba do Ateliê (aberta pelo botão Ateliê): abre direto o personagem; Voltar fecha a aba
   const at = new URLSearchParams(location.search).get('atelie');
-  if (at) { Atelie.emAba = true; await Atelie.abrir(at === 'novo' ? null : at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
+  const naPose = new URLSearchParams(location.search).get('pose') === '1';
+  if (at) { Atelie.emAba = true; await Atelie.abrir(at === 'novo' ? null : at, naPose ? { reserva: await Animacoes.reservaDaPose(at) } : {}); if (naPose && Atelie.def) await Animacoes.entrarNaPose(at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
   else Home.pinta();
   // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
   try { new BroadcastChannel('animador').onmessage = async ev => {

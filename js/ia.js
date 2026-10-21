@@ -28,12 +28,21 @@ const IA = {
         try { const o = JSON.parse(d); if (o.type === 'content_block_delta' && o.delta?.text) { txt += o.delta.text; aoEscrever?.(txt); } if (o.type === 'error') throw new Error(o.error?.message || 'erro da IA'); } catch (e) { if (e.message !== 'Unexpected end of JSON input' && !(e instanceof SyntaxError)) throw e; } } }
     return txt;
   },
+  // trilhas com nomes (da IA) → trilhas com ids
+  trilhasDe(def, trilhas0) {
+    return (trilhas0 || []).map(t => (t || []).map(p0 => { const p = { s: {}, p: {} };
+      for (const [pn, v0] of Object.entries(p0 || {})) { const pt = this.acha(def.partes, pn); if (!pt) continue; const v = typeof v0 === 'string' ? { img: v0 } : v0 || {}, im = v.img ? this.acha(pt.imgs, v.img) : null; const num = c => v[c] != null && isFinite(+v[c]); if (!im && !num('r') && !num('x') && !num('y')) continue;
+        p.p[pt.id] = { ...(im ? { img: im.id } : {}), ...(num('r') ? { r: +v.r } : {}), ...(num('x') ? { x: +v.x } : {}), ...(num('y') ? { y: +v.y } : {}) }; }
+      return p; }).filter(p => Object.keys(p.p).length)).filter(t => t.length);
+  },
   json(txt) { const m = String(txt).match(/\{[\s\S]*\}/); if (!m) throw new Error('A IA não devolveu as ações.'); return JSON.parse(m[0]); },
   acha(lista, nomeOuId, campo = 'nome') { const n = String(nomeOuId || '').trim().toLowerCase(); return lista.find(x => x.id === nomeOuId) || lista.find(x => String(x[campo]).toLowerCase() === n) || lista.find(x => String(x[campo]).toLowerCase().includes(n) && n.length > 2); },
 
   /* ---------- animar na cena ---------- */
   contexto(P) {
-    const pers = Object.values(P.personagens).map(d => ({ personagem: d.nome, sessoes: d.sessoes.map(s => ({ sessao: s.nome, presets: s.presets.map(p => p.nome) })), partes: d.partes.map(p => p.nome) }));
+    const pers = Object.values(P.personagens).map(d => ({ personagem: d.nome, sessoes: d.sessoes.map(s => ({ sessao: s.nome, presets: s.presets.map(p => p.nome) })),
+      partes: d.partes.map(p => ({ parte: p.nome, imagens: p.imgs.slice(0, 14).map(i => i.nome) })), raiz: d.partes.find(p => p.id === d.raiz)?.nome,
+      animacoes: (d.animacoes || []).map(a => ({ animacao: a.nome, passos: Math.max(0, ...a.trilhas.map(t => t.length)), ms_por_passo: +a.vel || 250 })) }));
     const camadas = Modelo.todos(P).map(n => ({ camada: n.nome, tipo: n.tipo, personagem: n.tipo === 'personagem' ? P.personagens[n.ref]?.nome : undefined, de: (n.de || 0) + 1, ate: Modelo.fimNo(P, n) + 1, posicao: (({ x, y, s }) => ({ x: Math.round(x), y: Math.round(y), s: round(s, 2) }))(Modelo.transf(n, App.q)) }));
     const fala = (P.legendas || []).map(g => `${g.de + 1}-${g.ate + 1}: ${g.texto}`).join('\n');
     return { quadros: P.duracao, fps: P.fps, tamanho: `${P.w}x${P.h}`, quadroAtual: App.q + 1, personagens: pers, camadas, efeitos: Efeitos.TELA.map(e => e.id), visuais: Efeitos.VISUAIS.map(v => v.id), fala };
@@ -49,13 +58,18 @@ Ações possíveis:
  {"tipo":"tremulo","camada":"nome","modo":"tremer|ondular|nenhum","forca":0.4}   (deixa uma imagem/camada parada "viva", tremendo ou ondulando)
  {"tipo":"visual","visual":"normal|vivo|quente|frio|noite|por-do-sol|vintage|pb|sonho|terror|desbotado|neon"}
  {"tipo":"cenario","descricao":"o lugar em português, sem personagens"}   (só se a pessoa pedir um cenário/fundo novo; sai no estilo da casa e fica só nesta animação)
-Regras: use só nomes de sessões e presets que existem. Para atuação pela fala, mude expressões nas palavras fortes (piscar de vez em quando: olhos fechados por 2-3 quadros), sem trocar a cada quadro. Respeite o pedido.`,
+ {"tipo":"animacao","camada":"nome","animacao":"Andar","quadro":N,"repeticoes":2,"quadros_por_passo":3}   (põe um CICLO pronto do personagem — andar, falar, piscar, respirar… — como chaves a partir do quadro N)
+ {"tipo":"criar_animacao","personagem":"nome","nome":"Pular","vel":200,"trilhas":[[{"Parte":"imagem"},{"Parte":{"img":"imagem","r":graus,"x":px,"y":px}}]]}   (cria um preset de animação novo no personagem desta animação, quando não existe um que sirva; depois use com "animacao")
+CICLOS: para andar/correr/falar/piscar/respirar, use as "animacoes" do personagem (ação "animacao") em vez de trocar peça por peça; para andar até um lugar, junte "animacao" (Andar, várias repetições) com "mover" do começo ao fim no mesmo trecho; quadros_por_passo ≈ ms_por_passo × fps / 1000 (2-4 é o normal); calcule as repetições para cobrir o trecho.
+Se não existir a animação que precisa, crie com "criar_animacao" seguindo: ciclo emendado (o último passo liga no primeiro), andar com pernas alternando e braços opostos e o corpo subindo/descendo poucos px, piscar com olhos abertos muito tempo e fechando rápido, falar variando as bocas.
+Regras: use só nomes de sessões, presets, partes, imagens e animações que existem (ou que você criou nesta resposta). Para atuação pela fala, mude expressões nas palavras fortes (piscar de vez em quando: olhos fechados por 2-3 quadros), sem trocar a cada quadro. Respeite o pedido.`,
   // faz o pedido na animação aberta (o mesmo do botão IA) e devolve o texto do que fez
   async executar(txt, foco, mostra) {
     const P = App.P, out = await this.chama(this.SIS_CENA, `PROJETO:\n${JSON.stringify(this.contexto(P))}\n\nPEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`, t => mostra?.(t.slice(-600)));
     const j = this.json(out); let n = this.aplicar(j.acoes || []);
     for (const c of this.cenariosPedidos) { mostra?.('Montando o cenário: ' + c.descricao + '…'); const r = await Cenarios.pedirIA(c.descricao, null, t => mostra?.('Montando o cenário… (' + t.length + ' letras)')); Cenarios.guardaUltimo(r.cena); await Cenarios.porNaCena(await Cenarios.desenhar(r.cena), r.cena); const nn = App.noSel(); if (nn) nn.ia = true; n++; }
-    return (j.explica || 'Pronto.') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (this.cenariosPedidos.length ? '\nO cenário fica só nesta animação: para guardar na equipe, botão direito nele › Salvar na nuvem.' : '');
+    const cr = this.criadas || 0; this.criadas = 0;
+    return (j.explica || 'Pronto.') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (cr ? `\n${cr} animação(ões) nova(s) no personagem desta animação: para guardar no personagem da equipe, botão direito nele › Editar no Ateliê e salve lá.` : '') + (this.cenariosPedidos.length ? '\nO cenário fica só nesta animação: para guardar na equipe, botão direito nele › Salvar na nuvem.' : '');
   },
   async abrir(foco) {
     const P = App.P;
@@ -74,6 +88,7 @@ Regras: use só nomes de sessões e presets que existem. Para atuação pela fal
   cenariosPedidos: [],
   aplicar(acoes) {
     const P = App.P, todos = Modelo.todos(P); let n = 0; this.cenariosPedidos = [];
+    acoes = [...acoes.filter(a => a.tipo === 'criar_animacao'), ...acoes.filter(a => a.tipo !== 'criar_animacao')]; // cria os presets de animação antes de usar
     const q = v => clamp(Math.round(+v || 1) - 1, 0, P.duracao - 1);
     for (const a of acoes) {
       try {
@@ -87,6 +102,11 @@ Regras: use só nomes de sessões e presets que existem. Para atuação pela fal
         else if (a.tipo === 'tremulo') { const no = this.acha(todos, a.camada); if (no) { if (a.modo === 'nenhum') delete no.tremulo; else no.tremulo = { modo: a.modo === 'ondular' ? 'ondular' : 'tremer', forca: clamp(+a.forca || .4, .05, 1), ritmo: 2 }; n++; } }
         else if (a.tipo === 'visual' && Efeitos.VISUAIS.some(v => v.id === a.visual)) { const t = App.efeitoTopo(); t.efeitos = t.efeitos.filter(e => e.tipo !== 'cor'); if (a.visual !== 'normal') t.efeitos.push({ id: uid('ef'), tipo: 'cor', visual: a.visual }); App.nomeEfeito(t); n++; }
         else if (a.tipo === 'cenario' && a.descricao) this.cenariosPedidos.push(a);
+        else if (a.tipo === 'criar_animacao') { const def = this.acha(Object.values(P.personagens), a.personagem) || Object.values(P.personagens)[0]; if (!def) continue; const trilhas = this.trilhasDe(def, a.trilhas); if (!trilhas.length) continue;
+          const L = def.animacoes ||= [], velha = L.find(x => x.nome.toLowerCase() === String(a.nome || '').toLowerCase()), an = { id: velha?.id || uid('an'), nome: String(a.nome || 'Animação').slice(0, 40), vel: clamp(+a.vel || 250, 60, 2000), trilhas };
+          if (velha) L[L.indexOf(velha)] = an; else L.push(an); this.criadas = (this.criadas || 0) + 1; n++; }
+        else if (a.tipo === 'animacao') { const no = this.acha(todos, a.camada); const def = no?.tipo === 'personagem' && P.personagens[no.ref]; const an = def && this.acha(def.animacoes || [], a.animacao); if (!an) continue;
+          Animacoes.escreve(no, an, q(a.quadro), clamp(Math.round(+a.quadros_por_passo || Math.max(1, Math.round((+an.vel || 250) / 1000 * P.fps))), 1, 48), clamp(Math.round(+a.repeticoes || 1), 1, 60)); n++; }
       } catch (e) { console.warn('ação da IA', a, e); }
     }
     if (n) App.commit('IA: ' + n + ' ações');
@@ -136,7 +156,17 @@ O que fica do lado de trás (braço/perna de trás, cauda, cabelo de trás) vai 
 Se algo atrapalhar a animação (ex.: uma imagem só com o personagem inteiro, peças de ângulos diferentes misturadas, falta de bocas para falar), explique em "avisos" (frases curtas em português) — a pessoa pode recortar as peças no Ateliê.
 Regras: use SÓ partes e imagens que existem (nomes exatos, ou os novos nomes que você mesmo deu). Sessões por grupo de peça (Olhos, Boca, Braço direito, Pernas, Pose…),
 um preset por imagem útil + poses combinadas que façam sentido. Animações de teste curtas e úteis com o que ESTE personagem tem: piscar, falar (bocas A/E/O/U/M…), andar (pernas alternando), acenar, gesticular, mexer a cauda… só as que as peças permitem.
-Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":graus}}; trilhas diferentes andam juntas (ex.: pernas + boca + olhos). vel em ms (120 a 700).
+COMO FAZER ANIMAÇÕES DE TESTE BOAS (ciclos que repetem sem pulo):
+- CICLO: o último passo tem que emendar no primeiro (o player volta ao começo). Não repita o primeiro passo no fim.
+- ANDAR (6 a 8 passos se tiver imagens, senão 4): contato (perna da frente esticada à frente, a de trás atrás) → descida/apoio → passagem (pernas cruzando) → subida → contato do outro lado → apoio → passagem → subida.
+  Braços OPOSTOS às pernas (perna direita à frente = braço esquerdo à frente). Corpo/cabeça sobem e descem 2-6 px (use "y" no corpo/raiz: mais baixo no contato/apoio, mais alto na passagem) e giram ±1-3° ("r").
+- CORRER: igual andar, mais rápido (vel 80-140), corpo inclinado para a frente (r 5-10° na raiz), sobe/desce mais (6-12 px), braços com mais giro.
+- PARADO / RESPIRAR (idle): 4-6 passos lentos (vel 300-500): corpo sobe 1-3 px e volta, cabeça gira ±1-2°, braços acompanham pouco. Bem sutil.
+- PISCAR: olhos abertos por 8-14 passos, depois meio fechados, fechados, meio fechados (vel 80-120) — numa trilha própria para juntar com outras.
+- FALAR: bocas variadas (A, E, O, U, M/B/P, F/V…) sem repetir a mesma 2 vezes seguidas, voltando à fechada/sorriso de vez em quando; 8-14 passos, vel 100-150.
+- ACENAR / GESTICULAR: 2-4 passos alternando imagens ou giro (r ±8-20°) do braço, com uma trilha de rosto (olhos/boca) junto.
+- Trilhas separadas para coisas que andam em ritmos diferentes (pernas, boca, olhos). Cada passo só diz o que MUDA naquela trilha.
+Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":graus,"x":px,"y":px}} (x/y = deslocamento pequeno, em pixels do desenho; r = giro no encaixe). vel em ms (60 a 700) = tempo de cada passo.
 "juntar" só quando tiver certeza (a peça é claramente outra versão da mesma parte). Não invente coisas que as imagens não mostram.`,
   async miniaturas(def, max = 70) {
     const out = []; const todas = def.partes.flatMap(p => p.imgs.map(i => ({ p, i }))), pega = todas.length > max ? def.partes.flatMap(p => p.imgs.slice(0, Math.max(1, Math.floor(max / def.partes.length))).map(i => ({ p, i }))).slice(0, max) : todas;

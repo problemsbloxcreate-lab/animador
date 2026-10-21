@@ -50,6 +50,7 @@ const Arvore = {
   },
   menu(e, n) {
     UI.ctx(e.clientX, e.clientY, [
+      n.tipo === 'personagem' && { label: `Editar no Ateliê (pose do quadro ${App.q + 1})`, icon: 'edit', action: () => Animacoes.editarNoAtelie(n) }, n.tipo === 'personagem' && '-',
       { label: 'Renomear', icon: 'edit', action: () => this.renomear(n, $(`.no[data-id="${n.id}"]`)) },
       { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
       { label: 'Pôr numa pasta nova', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },

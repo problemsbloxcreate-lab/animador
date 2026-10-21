@@ -33,7 +33,8 @@ const Atelie = {
     let doRascunho = false, novo = null;
     if (o.def) def = o.def; // veio de um arquivo .atelieanimador
     else if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }), r = await DB.get('arquivos', this.chaveRascunho(id)).catch(() => null); this._rascNuvem = !!r?.nuvem;
-      try { def = await Nuvem.abrir(id); this._temNuvem = true; } catch (e) { this._temNuvem = false; if (!r?.def) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } } t.remove();
+      try { def = await Nuvem.abrir(id); this._temNuvem = true; } catch (e) { this._temNuvem = false; if (!r?.def && !o.reserva) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } } t.remove();
+      if (!def && !r?.def && o.reserva) { def = o.reserva; doRascunho = true; } // só existe na animação (ex.: veio de um .animador): usa a cópia de lá
       if (r?.def && !def) { def = r.def; doRascunho = true; } // ainda não foi para a nuvem: só existe o rascunho deste computador
       else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def)) {
         const usa = await UI.modal({ title: 'Tem um rascunho neste computador', icon: 'save', width: 460, body: `<div>As mudanças de <b>${esc(r.def.nome)}</b> feitas neste computador (guardadas ${fmtDate(r.em)}) <b>ainda não foram para a nuvem</b>.<br><br>A versão da nuvem é de ${def.modificado ? fmtDate(def.modificado) : 'antes'}.</div>`,
@@ -131,6 +132,7 @@ const Atelie = {
   },
   // Ctrl+S: guarda neste computador (NÃO manda para a nuvem; só o botão da nuvem manda — ou sozinho, se ele já está lá)
   async salvarLocal() {
+    try { new BroadcastChannel('animador').postMessage({ tipo: 'personagem', def: JSON.parse(JSON.stringify(this.def)) }); } catch { } // a animação aberta na outra aba recebe já
     if (!this.def) return; const ok = await this.guardarLocalJa(); if (ok === false) return;
     if (this.naNuvem) { UI.toast(`<b>${esc(this.def.nome)}</b> guardado neste computador e indo para a nuvem.`, { kind: 'ok' }); this.sincronizar(); }
     else UI.toast(`<b>${esc(this.def.nome)}</b> guardado <b>neste computador</b>. Para a equipe ver, clique na nuvem (Salvar na nuvem).`, { kind: 'ok', time: 5000 });
@@ -175,10 +177,14 @@ const Atelie = {
   escolhe(id) { this.sel = id; this.multi.clear(); this.focoImg = null; },
   sessao() { return this.edit ? this.def.sessoes.find(s => s.id === this.edit.s) : null; },
   preset() { const s = this.sessao(); return s ? s.presets.find(p => p.id === this.edit.p) : null; },
-  estado() { return Modelo.partesNoEstado(this.def, this.edit ? { sessoes: { [this.edit.s]: this.edit.p } } : this.teste || {}); },
+  estado() {
+    if (this.teste && Animacoes.parado) return Modelo.partesNoEstado(this.def, Animacoes.frameAtual()); // pausado / pose do editor: o quadro inteiro (as edições caem no passo ou preset certo)
+    return Modelo.partesNoEstado(this.def, this.teste ? this.teste : this.edit ? { sessoes: { [this.edit.s]: this.edit.p } } : {});
+  },
   // muda um campo da parte no modo atual (base ou o preset em edição)
   mudar(pid, vals) {
     const p = this.parte(pid); if (!p) return;
+    const ps = this.editPasso && Animacoes.passoEditado(); if (ps) { ps.p = ps.p || {}; ps.p[pid] = { ...(ps.p[pid] || {}), ...vals }; return; } // passo de uma animação de teste (pausada)
     const pr = this.preset();
     if (pr) { const s = this.sessao(); if (s.partes?.length && !s.partes.includes(pid)) { s.partes.push(pid); } pr.estado[pid] = { ...(pr.estado[pid] || {}), ...vals }; }
     else Object.assign(p.base, vals);
@@ -230,7 +236,7 @@ const Atelie = {
     ctx.save(); ctx.setTransform(V); Animacoes.desenhaFantasma(ctx); ctx.restore();
     // parte escolhida: só a caixa tracejada (numa cor que contrasta com a peça) e uma cruzinha discreta no centro.
     // O pivô (ponto de giro) só aparece segurando Alt (Alt+arrastar muda o pivô); a alça com seta circular (ou Ctrl+arrastar) gira a peça.
-    const it = this.teste ? null : itens.find(x => x.parte.id === this.sel); this._giro = null;
+    const it = this.teste && !Animacoes.parado ? null : itens.find(x => x.parte.id === this.sel); this._giro = null;
     if (it?.img) {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); const T = V.multiply(it.m), px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, ax = it.img.ajuste?.x || 0, ay = it.img.ajuste?.y || 0;
       const c = [[0, 0], [it.img.w, 0], [it.img.w, it.img.h], [0, it.img.h]].map(([x, y]) => T.transformPoint(new DOMPoint(x - px + ax, y - py + ay))), cor = this.corContraste(it.img);
@@ -275,7 +281,7 @@ const Atelie = {
     const fim = (mov, up) => { const m = ev => mov(ev), u = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', u); up?.(ev); }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', u); };
     if (e.button === 1 || e.button === 2 || this.espaco) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; let mexeu = false;
       this._panMexeu = false; return fim(ev => { if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 3) mexeu = this._panMexeu = true; v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); }
-    if (this.teste && e.button === 0) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); } // testando: só move a tela
+    if (this.teste && !Animacoes.parado && e.button === 0) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); } // testando: só move a tela
     if (e.button === 0 && Pintura.ferr !== 'mover') return Pintura.desce(e); // pincel, borracha, balde, conta-gotas
     // girar: Ctrl+arrastar na peça escolhida (gira em volta do pivô)
     let pegaGiro = this._giro && Math.hypot(e.offsetX * d - this._giro.x, e.offsetY * d - this._giro.y) < 14 * d; // a alça de girar
@@ -286,7 +292,7 @@ const Atelie = {
     }
     const w = this.mundo(e), it = this.acha(w);
     if (!it) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; let mexeu = false; return fim(ev => { mexeu = true; v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }, () => { if (!mexeu) { this.escolhe(null); this.pinta(); } }); }
-    if (it.parte.id !== this.sel || this.multi.size || this.focoImg) { this.escolhe(it.parte.id); this.pinta(); }
+    if (it.parte.id !== this.sel || this.multi.size || this.focoImg || this.teste) { this.escolhe(it.parte.id); if (this.teste) Animacoes.alvoPausa(it.parte.id); this.pinta(); }
     const p = it.parte, est = this.estado(), w0 = w;
     if (e.altKey && it.img) { // pivô: muda o ponto de giro sem tirar a peça do lugar
       const img = it.img, inv = it.m.inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), piv0 = { ...(img.pivo || { x: img.w / 2, y: img.h / 2 }) }, enc0 = { ...p.encaixe }, filhos = this.def.partes.filter(f => f.pai === p.id).map(f => [f, { ...f.encaixe }]);
@@ -310,7 +316,7 @@ const Atelie = {
     // MOVER TODOS: a parte inteira. Na Base muda o encaixe (onde ela fica no pai); num preset muda só o preset
     const inv = this.matPai(p.id, est).inverse(), a0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), e0 = { ...est[p.id] }, enc0 = { ...p.encaixe };
     fim(ev => { const w2 = this.mundo(ev), a = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = a.x - a0.x, dy = a.y - a0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
-      if (this.edit) this.mudar(p.id, { x: round((e0.x || 0) + dx, 1), y: round((e0.y || 0) + dy, 1) }); else p.encaixe = { x: round(enc0.x + dx, 1), y: round(enc0.y + dy, 1) }; this.desenha(); }, () => this.commit());
+      if (this.edit || this.editPasso) this.mudar(p.id, { x: round((e0.x || 0) + dx, 1), y: round((e0.y || 0) + dy, 1) }); else p.encaixe = { x: round(enc0.x + dx, 1), y: round(enc0.y + dy, 1) }; this.desenha(); }, () => this.commit());
   },
   teclas(e) {
     if ($('#atelie').classList.contains('hidden') || $('#modal-root').children.length) return;
@@ -320,7 +326,9 @@ const Atelie = {
     if (ctrl && k.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
     if (ctrl && k.toLowerCase() === 's') { e.preventDefault(); return this.salvarLocal(); } // Ctrl+S = guardar neste computador
     if (ctrl) { Pintura.teclaCtrl(e); return; }
-    if (this.teste) { if (k === 'Escape' || k.toLowerCase() === 't') { e.preventDefault(); this.testar(false); } return; } // testando: nada mexe nas peças
+    if (this.teste && (k.toLowerCase() === 'p' || k === 'Enter') && Animacoes.tocando) { e.preventDefault(); return Animacoes.pausado ? Animacoes.continuar() : Animacoes.pausar(); } // P: pausa/continua
+    if (this.teste && Animacoes.parado && (k === ',' || k === '.')) { e.preventDefault(); return Animacoes.passoMais(k === '.' ? 1 : -1); }
+    if (this.teste) { if (k === 'Escape' || k.toLowerCase() === 't') { e.preventDefault(); this.testar(false); return; } if (!Animacoes.parado) return; } // testando: só pausado dá para mexer nas peças
     if (k.toLowerCase() === 't' && !e.shiftKey && !e.altKey) { e.preventDefault(); return this.testar(true); }
     if (e.type === 'keydown' && Pintura.tecla(e)) return;
     if ((k === 'Delete' || k === 'Backspace') && Pintura.temSelecao()) { e.preventDefault(); return Pintura.mexeDentro('apagar'); } // área selecionada na imagem
@@ -334,7 +342,7 @@ const Atelie = {
       const im = p.imgs.find(i => i.id === est.img);
       if (this.modoMover === 'preset' && im) { const d0 = est.d?.[im.id] || { x: 0, y: 0 }; this.poeD(p, im, { x: round(d0.x + dd[0], 1), y: round(d0.y + dd[1], 1) }); } // só neste preset
       else if (this.modoMover === 'imagem' && im) im.ajuste = { x: round((im.ajuste?.x || 0) + dd[0], 1), y: round((im.ajuste?.y || 0) + dd[1], 1) }; // a mesma imagem em todos
-      else if (this.edit) this.mudar(p.id, { x: (est.x || 0) + dd[0], y: (est.y || 0) + dd[1] }); else p.encaixe = { x: p.encaixe.x + dd[0], y: p.encaixe.y + dd[1] }; return leva(); }
+      else if (this.edit || this.editPasso) this.mudar(p.id, { x: (est.x || 0) + dd[0], y: (est.y || 0) + dd[1] }); else p.encaixe = { x: p.encaixe.x + dd[0], y: p.encaixe.y + dd[1] }; return leva(); }
     if (kk === 'q' || kk === 'e') { this.mudar(p.id, { r: round((est.r || 0) + (kk === 'q' ? -1 : 1) * (e.shiftKey ? 15 : 2), 1) }); return leva(); }
     if (k === '+' || k === '=' || k === '-') { this.mudar(p.id, { s: round(clamp((est.s ?? 1) * (k === '-' ? .96 : 1.04), .05, 10), 3) }); return leva(); }
     if (kk === 'f') { this.mudar(p.id, { sx: (est.sx || 1) * -1 }); return leva(); }
@@ -348,8 +356,8 @@ const Atelie = {
     this.pintaBotaoNuvem(); this.pintaEstado();
     const au = $('#at-autores'); if (au && au._de !== this.def.autor?.em + '/' + (this.def.edicoes || []).length) { au._de = this.def.autor?.em + '/' + (this.def.edicoes || []).length; au.innerHTML = ''; const sl = Autores.selo(this.def); if (sl) au.appendChild(sl); }
     const pr = this.preset(), s = this.sessao();
-    $('#at-modo').innerHTML = Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
-    $('#at-base').hidden = !pr; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover').hidden = !!this.teste;
+    $('#at-modo').innerHTML = this.teste && Animacoes.parado ? `${Animacoes.poseFixa ? `Pose do quadro ${Animacoes.poseFixa.quadro + 1}` : 'Pausado'} · arrumando <b>${esc(Animacoes.textoAlvo())}</b>` : Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
+    $('#at-base').hidden = !pr; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover').hidden = !!this.teste && !Animacoes.parado;
     $('#at-testar').classList.toggle('on', !!this.teste); $('#at-testar').innerHTML = `${ic(this.teste ? 'x' : 'play', 13)} ${this.teste ? 'Sair do teste' : 'Testar'}`; this.pintaTeste(); Pintura.pintaBarra();
     this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
@@ -417,6 +425,7 @@ const Atelie = {
   setMoverTodos(v) { this.setModo(v ? 'todos' : 'preset'); },
   // posição desta imagem SÓ no preset que está na tela (ou só na base)
   poeD(p, img, v, onde = this.preset()) {
+    if (arguments.length < 4 && this.editPasso) { const ps = Animacoes.passoEditado(); if (ps) { const e = ps.p[p.id] = ps.p[p.id] || {}, d = { ...(e.d || {}) }; if (!v || (!v.x && !v.y)) delete d[img.id]; else d[img.id] = { x: v.x, y: v.y }; e.d = d; if (!Object.keys(d).length) delete e.d; return; } }
     const st = onde ? (onde.estado[p.id] || {}) : p.base, d = { ...(st.d || {}) };
     if (!v || (!v.x && !v.y)) delete d[img.id]; else d[img.id] = { x: v.x, y: v.y };
     if (onde) { const s = this.sessao(); if (s?.partes?.length && !s.partes.includes(p.id)) s.partes.push(p.id); onde.estado[p.id] = { ...(onde.estado[p.id] || {}), d }; if (!Object.keys(d).length) delete onde.estado[p.id].d; }
@@ -736,7 +745,7 @@ const Atelie = {
   /* ---------- TESTAR: os mesmos botões do editor (sessões, presets e imagens por nome), para ver se tudo funciona.
      Nada muda o personagem; achou algo errado, "Arrumar" abre o preset (ou a parte) para corrigir. ---------- */
   testar(on) {
-    clearInterval(this._roda); this._roda = null; Animacoes.parar(true); Animacoes.passo = null;
+    clearInterval(this._roda); this._roda = null; Animacoes.parar(true); Animacoes.passo = null; Animacoes.poseFixa = null; this.editPasso = null; if (!on) this.edit = null;
     const antes = !!this.teste; this.teste = on ? { sessoes: {}, partes: {} } : null; if (on) { this.edit = null; this.multi.clear(); this.focoImg = null; }
     this.pinta(); if (antes !== !!on) this.enquadrar();
   },
@@ -752,6 +761,13 @@ const Atelie = {
     const T = this.teste, def = this.def, rol = el.scrollTop; el.innerHTML = '';
     el.appendChild(h(`<div class="tt-cab"><b>${ic('play', 13)} Testar os botões</b><span class="sp"></span><button class="btn sm" data-zera title="Tudo na base">Base</button><button class="ibtn" data-min title="${this.testeMin ? 'Abrir o painel' : 'Recolher o painel'}">${ic(this.testeMin ? 'down' : 'up', 13)}</button><button class="ibtn" data-x title="Sair do teste (Esc)">${ic('x', 13)}</button></div>`));
     $('[data-zera]', el).onclick = () => { Animacoes.parar(true); this.teste = { sessoes: {}, partes: {} }; this.pinta(); }; $('[data-min]', el).onclick = () => { this.testeMin = !this.testeMin; this.pintaTeste(); this.enquadrar(); }; $('[data-x]', el).onclick = () => this.testar(false);
+    if (Animacoes.tocando || Animacoes.poseFixa) { const a = Animacoes.achar(Animacoes.tocando), pf = Animacoes.poseFixa;
+      const bar = h(`<div class="tt-play">${pf ? `<b>${ic('film', 13)} ${esc(pf.anim || 'Animação')} · quadro ${pf.quadro + 1}</b><small>clique numa peça para arrumar; ao salvar, a animação recebe a mudança</small>` : `
+        <button class="btn sm" data-pp title="Pausar / continuar (P)">${ic(Animacoes.pausado ? 'play' : 'pause', 13)} ${Animacoes.pausado ? 'Continuar' : 'Pausar'}</button>
+        <button class="ibtn" data-ant title="Passo anterior ( , )">${ic('prev', 13)}</button><button class="ibtn" data-prox title="Próximo passo ( . )">${ic('next', 13)}</button>
+        <span>${esc(a?.nome || '')} · passo ${(Animacoes.i % Math.max(1, ...(a?.trilhas || [[1]]).map(t => t.length))) + 1}</span>`}</div>`);
+      if (!pf) { $('[data-pp]', bar).onclick = () => Animacoes.pausado ? Animacoes.continuar() : Animacoes.pausar(); $('[data-ant]', bar).onclick = () => Animacoes.passoMais(-1); $('[data-prox]', bar).onclick = () => Animacoes.passoMais(1); }
+      el.appendChild(bar); }
     el.appendChild(h('<div class="tt-dica">Clique como no editor e veja a peça mudar. Botão vermelho = tem problema (passe o mouse). Errado? Clique em <b>Arrumar</b>.</div>'));
     if (!def.sessoes.length) el.appendChild(h('<div class="vazio">Ainda não tem sessões (olhos, boca, poses…). Crie na aba <b>Sessões e poses</b>.</div>'));
     for (const s of def.sessoes) {
@@ -838,7 +854,7 @@ const Atelie = {
       if (n) feito.push(`${n} preset(s)`);
     }
     let n = 0; for (const a0 of pl.animacoes || []) {
-      const trilhas = (a0.trilhas || []).map(t => (t || []).map(p0 => { const p = { s: {}, p: {} }; for (const [pn, v0] of Object.entries(p0 || {})) { const pt = nome(pn); if (!pt) continue; const v = typeof v0 === 'string' ? { img: v0 } : v0 || {}, im = img(pt, v.img); if (!im && !v.r) continue; p.p[pt.id] = { ...(im ? { img: im.id } : {}), ...(v.r ? { r: +v.r } : {}) }; } return p; }).filter(p => Object.keys(p.p).length)).filter(t => t.length);
+      const trilhas = (a0.trilhas || []).map(t => (t || []).map(p0 => { const p = { s: {}, p: {} }; for (const [pn, v0] of Object.entries(p0 || {})) { const pt = nome(pn); if (!pt) continue; const v = typeof v0 === 'string' ? { img: v0 } : v0 || {}, im = img(pt, v.img); const num = c => v[c] != null && isFinite(+v[c]); if (!im && !num('r') && !num('x') && !num('y')) continue; p.p[pt.id] = { ...(im ? { img: im.id } : {}), ...(num('r') ? { r: +v.r } : {}), ...(num('x') ? { x: +v.x } : {}), ...(num('y') ? { y: +v.y } : {}) }; } return p; }).filter(p => Object.keys(p.p).length)).filter(t => t.length);
       if (!trilhas.length) continue; const L = def.animacoes ||= [], velha = L.find(x => x.nome.toLowerCase() === String(a0.nome || '').toLowerCase());
       const a = { id: velha?.id || uid('an'), nome: String(a0.nome || 'Animação').slice(0, 40), vel: clamp(+a0.vel || 250, 60, 2000), trilhas };
       if (velha) L[L.indexOf(velha)] = a; else L.push(a); n++;
