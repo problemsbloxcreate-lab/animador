@@ -267,14 +267,9 @@ const App = {
     }
     const V = pc.vista(), c = Modelo.camera(P, this.q), cw = P.w / (c.zoom || 1), ch = P.h / (c.zoom || 1);
     const camM = new DOMMatrix().translate(c.x, c.y).rotate(c.r || 0), cantosCam = [[-cw / 2, -ch / 2], [cw / 2, -ch / 2], [cw / 2, ch / 2], [-cw / 2, ch / 2]].map(([x, y]) => camM.transformPoint(new DOMPoint(x, y)));
-    // canvas infinito: quadriculado cinza clarinho em toda a volta; a folha (cor do fundo) tem o tamanho da câmera, no lugar dela
-    this.quadriculado(ctx, V, W, H);
-    ctx.save(); ctx.setTransform(V); ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 18 * pc.dpr; // sombrinha embaixo do Fundo padrão
-    for (const n of Modelo.todos(P)) if (n.fundoPadrao && n.vis !== false && Modelo.aparece(P, n, this.q) && !Modelo.ancestrais(P, n.id).length) { const t = Modelo.transf(n, this.q); ctx.setTransform(Render.matNo(V, t)); ctx.fillStyle = n.cor; ctx.fillRect(-n.w / 2, -n.h / 2, n.w, n.h); }
-    ctx.restore();
     // casca de cebola: quadros vizinhos bem clarinhos
     if (this.onion && !this.tocando) for (const [d, a] of [[-2, .1], [-1, .22], [1, .16]]) { const qq = this.q + d; if (qq < 0 || qq > Modelo.ultimoQuadro(P)) continue; ctx.save(); ctx.filter = d < 0 ? 'sepia(1) hue-rotate(160deg) saturate(3)' : 'sepia(1) hue-rotate(-40deg) saturate(3)'; Render.camadas(ctx, P, qq, V, a); ctx.restore(); }
-    ctx.save(); ctx.filter = Efeitos.filtro(P, this.q); Render.camadas(ctx, P, this.q, V); ctx.restore();
+    ctx.save(); ctx.filter = Efeitos.filtro(P, this.q); Render.camadas(ctx, P, this.q, V, 1, { fundo: true, sombra: pc.dpr }); ctx.restore(); // o fundo (quadriculado/liso) entra como a camada mais de baixo: os efeitos valem nele também
     // fora da câmera fica escurecido
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.beginPath(); ctx.rect(0, 0, W, H); const ct = cantosCam.map(p => V.transformPoint(p)); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();
     ctx.fillStyle = 'rgba(21,21,21,.38)'; ctx.fill('evenodd');

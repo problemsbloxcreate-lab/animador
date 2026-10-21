@@ -115,14 +115,12 @@ const Lado = {
     // projeto
     const pj = h(`<div class="props" style="border-top:1px solid var(--bd)"><div class="titulo-p">Projeto</div>
       <label class="field">Nome<input type="text" value="${esc(P.nome)}" data-nm></label>
-      <div class="campo2"><span style="color:var(--tx2)">Tamanho</span><input type="number" value="${P.w}" data-w style="width:70px"> × <input type="number" value="${P.h}" data-h style="width:70px"></div>
-      <div class="campo2"><span style="color:var(--tx2)">Fundo</span><input type="color" value="${P.fundo}" data-f></div></div>`);
+      <div class="campo2"><span style="color:var(--tx2)">Tamanho</span><input type="number" value="${P.w}" data-w style="width:70px"> × <input type="number" value="${P.h}" data-h style="width:70px"></div></div>`);
     $('[data-nm]', pj).onchange = ev => { P.nome = ev.target.value.trim() || P.nome; $('#proj-nome').textContent = P.nome; App.titulo(); App.commit('Nome'); };
     $('[data-w]', pj).onchange = ev => { P.w = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); }; $('[data-h]', pj).onchange = ev => { P.h = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); };
-    $('[data-f]', pj).oninput = ev => { P.fundo = ev.target.value; for (const x of Modelo.todos(P)) if (x.fundoPadrao) x.cor = P.fundo; App.pinta(); }; $('[data-f]', pj).onchange = () => App.commit('Fundo');
     el.appendChild(pj);
     // fundo onde não tem nada (canvas infinito): quadriculado ou cor lisa. Aparece na Cena, na Câmera e no vídeo
-    const fp = App.fundoPalco(), pa = h(`<div class="props" style="border-top:1px solid var(--bd)"><div class="titulo-p">Fundo do canvas <small style="color:var(--tx3);text-transform:none;letter-spacing:0">onde não tem nada · aparece na câmera e no vídeo</small></div>
+    const fp = App.fundoPalco(), pa = h(`<div class="props" style="border-top:1px solid var(--bd)"><div class="titulo-p">Fundo <small style="color:var(--tx3);text-transform:none;letter-spacing:0">onde não tem nada · aparece na câmera, no vídeo e recebe os efeitos</small></div>
       <div class="presets"><button data-m="quadriculado" class="${fp.modo === 'quadriculado' ? 'on' : ''}">Quadriculado</button><button data-m="cor" class="${fp.modo === 'cor' ? 'on' : ''}">Cor lisa</button></div>
       <div class="campo2"><span style="color:var(--tx2)">Cor</span><input type="color" value="${fp.cor}" data-c><span class="sp"></span><button class="btn sm" data-pad title="Cinza claro padrão">Padrão</button></div><div data-f></div></div>`);
     $$('[data-m]', pa).forEach(b => b.onclick = () => { App.mudaFundoPalco({ modo: b.dataset.m }); this.pinta(); });

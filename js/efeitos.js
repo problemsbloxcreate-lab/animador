@@ -55,7 +55,7 @@ const Efeitos = {
   },
   umPorCima(ctx, e, q, W, H, de, ate, soNoConteudo) {
       ctx.save(); if (soNoConteudo && !['cinema', 'flash'].includes(e.tipo)) ctx.globalCompositeOperation = 'source-atop';
-      if (e.tipo === 'cor') { const v = this.visual(e.visual); if (v.tinta) { ctx.fillStyle = v.tinta; ctx.fillRect(0, 0, W, H); } }
+      if (e.tipo === 'cor') { const v = this.visual(e.visual); if (v.tinta) { ctx.fillStyle = v.tinta; if (soNoConteudo) ctx.fillRect(-1e5, -1e5, 2e5, 2e5); else ctx.fillRect(0, 0, W, H); } } // a cor vale em tudo (também fora da câmera, no canvas)
       if (e.tipo === 'vinheta') { const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .32, W / 2, H / 2, Math.hypot(W, H) * .58); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${e.forca})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
       if (e.tipo === 'granulado') { const n = this.ruido(q); ctx.globalAlpha = e.forca * .55; if (!soNoConteudo) ctx.globalCompositeOperation = 'overlay'; const pat = ctx.createPattern(n, 'repeat'); ctx.fillStyle = pat; ctx.fillRect(0, 0, W, H); }
       if (e.tipo === 'cinema') { const b = H * e.forca; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, b); ctx.fillRect(0, H - b, W, b); }

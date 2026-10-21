@@ -37,19 +37,25 @@ const Render = {
     return Modelo.montar(def, Modelo.partesNoEstado(def, Modelo.estadoPersonagem(n, q)), m);
   },
   // desenha as camadas no ctx (que já está com a transformação do "mundo" aplicada em base)
-  camadas(ctx, P, q, base, alfa = 1) {
+  // o.fundo: desenha o fundo do canvas (quadriculado/liso) como a camada mais de baixo da raiz (assim as camadas de efeito valem nele)
+  camadas(ctx, P, q, base, alfa = 1, o = {}) {
     let fr; try { fr = base.multiply(this.matCamera(P, q, P.w, P.h).inverse()); } catch { fr = base; } // quadro da câmera (px do vídeo) → tela
-    this.lista(ctx, P, q, base, P.raiz, new DOMMatrix(), alfa, fr, 0);
+    this.lista(ctx, P, q, base, P.raiz, new DOMMatrix(), alfa, fr, 0, o.fundo ? c => { this.fundo(c, P, base, c.canvas.width, c.canvas.height); if (o.sombra) this.sombraFundo(c, P, q, base, o.sombra); } : null);
+  },
+  sombraFundo(ctx, P, q, V, d) { // sombrinha embaixo do Fundo padrão (só no palco)
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 18 * d;
+    for (const n of P.raiz) if (n.fundoPadrao && this.vivo(P, n, q)) { const t = Modelo.transf(n, q); ctx.setTransform(this.matNo(V, t)); ctx.fillStyle = n.cor; ctx.fillRect(-n.w / 2, -n.h / 2, n.w, n.h); }
+    ctx.restore();
   },
   vivo(P, n, q) { return n.vis !== false && Modelo.aparece(P, n, q); },
   // uma lista (raiz ou pasta), do fundo para a frente. Camadas de efeito dividem a lista em trechos:
   // cada trecho é desenhado à parte e recebe SÓ o efeito logo acima dele (o de cima não soma com o de baixo).
-  lista(ctx, P, q, base, lista, m, alfa, fr, nivel) {
+  lista(ctx, P, q, base, lista, m, alfa, fr, nivel, fundo) {
     const efs = n => n.tipo === 'efeito' && this.vivo(P, n, q) && (n.efeitos || []).some(e => Efeitos.ativoEf(e, q));
-    if (!lista.some(efs)) { for (let i = lista.length - 1; i >= 0; i--) this.umNo(ctx, P, q, base, lista[i], m, alfa, fr, nivel); return; }
+    if (!lista.some(efs)) { fundo?.(ctx); for (let i = lista.length - 1; i >= 0; i--) this.umNo(ctx, P, q, base, lista[i], m, alfa, fr, nivel); return; }
     const seg = this.buf(nivel, ctx.canvas), sc = seg.getContext('2d'); let sujo = false;
     const limpa = () => { sc.setTransform(1, 0, 0, 1, 0, 0); sc.clearRect(0, 0, seg.width, seg.height); sujo = false; };
-    limpa();
+    limpa(); if (fundo) { fundo(sc); sujo = true; }
     for (let i = lista.length - 1; i >= 0; i--) {
       const n = lista[i];
       if (n.tipo === 'efeito') { if (efs(n) && sujo) { this.aplica(ctx, seg, n, P, q, fr, nivel); limpa(); } continue; }
@@ -147,8 +153,8 @@ const Render = {
   quadro(ctx, P, q, W, H) {
     if (!this._tmp || this._tmp.width !== W || this._tmp.height !== H) this._tmp = new OffscreenCanvas(W, H);
     const t = this._tmp.getContext('2d');
-    const mc = this.matCamera(P, q, W, H); this.fundo(t, P, mc, W, H); // o mesmo fundo da Cena (quadriculado ou cor lisa), visto pela câmera
-    this.camadas(t, P, q, mc);
+    t.setTransform(1, 0, 0, 1, 0, 0); t.clearRect(0, 0, W, H);
+    this.camadas(t, P, q, this.matCamera(P, q, W, H), 1, { fundo: true }); // o mesmo fundo da Cena (quadriculado ou cor lisa), visto pela câmera
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.filter = Efeitos.filtro(P, q); ctx.drawImage(this._tmp, 0, 0); ctx.filter = 'none';
     Efeitos.porCima(ctx, P, q, W, H); this.legenda(ctx, P, q, W, H); ctx.restore();
   },
