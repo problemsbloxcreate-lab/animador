@@ -173,5 +173,10 @@ const Arq = {
     })().then(bm => { this.carregando.delete(id); aoChegar?.(bm); return bm; }));
     return null;
   },
+  // ORIGINAL sem perda: imagens que foram para a nuvem em webp continuam com a PNG original guardada neste navegador (arquivos["orig:<chave webp>"] = chave da original)
+  async original(k) { if (!/\.webp$/i.test(k || '')) return null; try { const o = await DB.get('arquivos', 'orig:' + k); return o ? await this.pegaBlob(o) : null; } catch { return null; } },
+  async blobMelhor(k) { return (await this.original(k)) || (await this.pegaBlob(k)); },
+  // na memória, a imagem da webp passa a ser desenhada/editada a partir da original (editar não acumula perda)
+  async usarOriginais(ids) { await Promise.all([...new Set(ids.filter(k => /\.webp$/i.test(k || '')))].map(async k => { const b = await this.original(k); if (b) { const bm = await createImageBitmap(b).catch(() => null); if (bm) this.img.set(k, bm); } })); },
   async garantir(ids) { await Promise.all([...new Set(ids.filter(Boolean))].map(id => new Promise(ok => { if (this.bitmap(id, ok)) ok(); }))); },
 };

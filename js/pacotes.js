@@ -17,7 +17,7 @@ const AtelieArq = {
       const d = clone(def); await Autores.limpa(d); const eu = await Autores.eu(), enc = new TextEncoder();
       const files = [{ name: 'personagem.json', data: enc.encode(JSON.stringify(d)) }, { name: 'info.json', data: enc.encode(JSON.stringify({ tipo: 'atelieanimador', v: 1, por: eu, em: Date.now() })) }];
       for (const k of [...new Set(d.partes.flatMap(p => p.imgs.map(i => i.k)).filter(Boolean))]) {
-        let b = await Arq.pegaBlob(k); if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null);
+        let b = await Arq.blobMelhor(k); if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null);
         if (b) files.push({ name: 'arq/' + encodeURIComponent(k), data: new Uint8Array(await b.arrayBuffer()) });
       }
       t.remove(); downloadBlob(Zip.create(files), safeName(d.nome) + this.EXT);

@@ -60,7 +60,7 @@ const Nuvem = {
       try { let b = await Arq.pegaBlob(k); if (!b) b = await this.baixar(k).catch(() => null); if (!b) continue; aoAndar?.(`Compactando as imagens (webp)… ${++n}/${alvos.length}`);
         const bm = await createImageBitmap(b), c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0);
         const w = await c.convertToBlob({ type: 'image/webp', quality: .92 }); if (w.type !== 'image/webp' || w.size >= b.size * .95) continue; // navegador sem webp, ou não ficou menor
-        const nk = k.replace(/\.(png|jpe?g)$/i, '.webp'); await Arq.guardar(w, nk); Arq.img.set(nk, await createImageBitmap(w)); troca[k] = nk;
+        const nk = k.replace(/\.(png|jpe?g)$/i, '.webp'); await Arq.guardar(w, nk); Arq.img.set(nk, bm); await DB.put('arquivos', k, 'orig:' + nk).catch(() => { }); troca[k] = nk; // aqui continua valendo a ORIGINAL (sem perda): a webp é só para a nuvem
       } catch { }
     }
     for (const p of def.partes) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k];
