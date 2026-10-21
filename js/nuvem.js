@@ -15,7 +15,7 @@ const Nuvem = {
     const j = await (await this.pede('/personagens')).json(), ids = new Set();
     for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) ids.add(m[1]); }
     const out = [];
-    await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por }); } catch { } }));
+    await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes }); } catch { } }));
     return out.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
   },
   // definição do personagem (da nuvem; se estiver sem internet, a cópia do navegador)
@@ -34,7 +34,7 @@ const Nuvem = {
       aoAndar?.(`Enviando imagens… ${++n}/${falta.length}`);
       await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'POST', body: b });
     }
-    def.modificado = Date.now();
+    def.modificado = Date.now(); await Autores.marca(def); // quem subiu (fica para sempre) e quem editou
     aoAndar?.('Salvando o personagem…');
     await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${def.id}/personagem.json`) + '&nome=' + encodeURIComponent(def.nome || ''), { method: 'POST', body: JSON.stringify(def), headers: { 'content-type': 'application/json' } });
     await DB.put('personagens', JSON.parse(JSON.stringify(def)));
@@ -83,5 +83,45 @@ const CenariosNuvem = {
       }
     };
     pinta(); await p; urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 3000));
+  },
+};
+
+/* ---------- quem subiu / quem editou cada personagem da nuvem ----------
+   def.autor = quem subiu primeiro (nunca muda) · def.edicoes = a última vez que cada pessoa salvou (as 12 mais recentes).
+   No cartão aparece a foto e o nome no canto; passando o mouse, um balão mostra quando subiu e quem mexeu, com as datas. */
+const Autores = {
+  _eu: null,
+  async eu() {
+    if (this._eu) return this._eu;
+    const p = await TurmaAuth.perfil().catch(() => ({})), email = p.email || TurmaAuth.email || '';
+    return (this._eu = { nome: p.nome || String(email).split('@')[0] || 'Alguém', foto: await this.miniFoto(p.foto), id: email });
+  },
+  // foto pequena (a "Minha conta" pode guardar a foto inteira; aqui basta 64 px para não pesar o personagem)
+  async miniFoto(f) {
+    if (!f) return null; if (!/^data:/.test(f) && f.length < 1000) return f;
+    try { const im = new Image(); im.src = f; await im.decode(); const S = 64, c = document.createElement('canvas'); c.width = c.height = S; const k = Math.max(S / im.naturalWidth, S / im.naturalHeight), w = im.naturalWidth * k, hh = im.naturalHeight * k;
+      c.getContext('2d').drawImage(im, (S - w) / 2, (S - hh) / 2, w, hh); return c.toDataURL('image/jpeg', .82); } catch { return null; }
+  },
+  async marca(def) {
+    const eu = await this.eu(), agora = Date.now();
+    if (!def.autor) def.autor = { ...eu, em: agora };
+    def.edicoes = [...(def.edicoes || []).filter(x => x.id !== eu.id), { ...eu, em: agora }].slice(-12);
+  },
+  // quem mexeu, sem contar quem subiu (mais recente primeiro)
+  editores(d) { return (d.edicoes || []).filter(x => x.id !== d.autor?.id).sort((a, b) => b.em - a.em); },
+  av(p, cls = '') { const ini = esc(String(p?.nome || '?').trim().charAt(0).toUpperCase() || '?'); return p?.foto ? `<img class="aut-av ${cls}" src="${esc(p.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=&quot;aut-av ${cls}&quot;>${ini}</span>'">` : `<span class="aut-av ${cls}">${ini}</span>`; },
+  // selo do canto do cartão: a foto e o nome de quem subiu; se outra pessoa editou, a foto dela por cima e "editado por"
+  selo(d) {
+    if (!d?.autor) return null; const eds = this.editores(d), ult = eds[0];
+    const el = h(`<div class="autores" title="">${this.av(d.autor)}${ult ? this.av(ult, 'sob') : ''}<span class="aut-nm">${esc(d.autor.nome)}${ult ? `<small> · editado por ${esc(ult.nome)}${eds.length > 1 ? ` +${eds.length - 1}` : ''}</small>` : ''}</span></div>`);
+    let pop = null; const fecha = () => { pop?.remove(); pop = null; };
+    el.onmouseenter = () => { fecha();
+      pop = h(`<div class="aut-pop"><div class="aut-l">${this.av(d.autor)}<div><b>${esc(d.autor.nome)}</b><small>subiu para a nuvem · ${fmtDate(d.autor.em)}</small></div></div>
+        ${eds.length ? `<div class="aut-t">Editado por</div>${eds.map(x => `<div class="aut-l">${this.av(x)}<div><b>${esc(x.nome)}</b><small>última edição · ${fmtDate(x.em)}</small></div></div>`).join('')}` : '<div class="aut-t">Ninguém mais editou</div>'}
+        ${d.modificado ? `<div class="aut-t">Salvo pela última vez ${fmtDate(d.modificado)}</div>` : ''}</div>`);
+      document.body.appendChild(pop); const r = el.getBoundingClientRect(), pr = pop.getBoundingClientRect();
+      pop.style.left = Math.max(6, Math.min(r.left, innerWidth - pr.width - 6)) + 'px'; pop.style.top = (r.bottom + pr.height + 6 > innerHeight ? r.top - pr.height - 6 : r.bottom + 6) + 'px'; };
+    el.onmouseleave = fecha; el.addEventListener('click', fecha);
+    return el;
   },
 };
