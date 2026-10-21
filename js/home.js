@@ -83,6 +83,8 @@ const Toon = {
 /* ---------- começar (só depois do login do Google conferido no servidor) ---------- */
 addEventListener('DOMContentLoaded', async () => {
   const email = await TurmaAuth.gate(); if (!email || !TurmaAuth.passed) return;
+  // "Sair da conta" (botão da conta): salva a animação aberta antes de sair
+  (window.ESTUDIO_AO_SAIR ||= []).push(() => App.salvarJa());
   $('#home-brand').onclick = () => App.P ? App.fechar() : Home.pinta();
   Home.pinta();
   // círculo de espaço (padrão de todos os projetos): as animações deste computador, com "Baixar .toon"

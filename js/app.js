@@ -30,8 +30,8 @@ const App = {
   salvarLogo() { clearTimeout(this._tSalvar); this.salvoTxt('Salvando…'); this._tSalvar = setTimeout(() => this.salvarJa(), 700); },
   async salvarJa() {
     clearTimeout(this._tSalvar); if (!this.P) return;
-    try { this.P.thumb = Render.miniatura(this.P, this.q); await DB.put('projetos', JSON.parse(JSON.stringify(this.P))); this.salvoTxt('Salvo neste computador'); EstudioConta?.espaco?.atualizar?.(); }
-    catch (e) { this.salvoTxt('Não salvou: ' + e.message); }
+    try { this.P.thumb = Render.miniatura(this.P, this.q); await DB.put('projetos', JSON.parse(JSON.stringify(this.P))); this.salvoTxt('Salvo neste computador'); EstudioConta?.espaco?.atualizar?.(); return true; }
+    catch (e) { this.salvoTxt('Não salvou: ' + e.message); return false; }
   },
   salvoTxt(t) { const e = $('#salvo'); if (e) e.textContent = t; },
 
