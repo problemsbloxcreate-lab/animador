@@ -1,84 +1,121 @@
-/* ===================== cenarios.js — cenários no estilo da casa (feltro/giz pastel) =====================
+/* ===================== cenarios.js — cenários no estilo da casa (RABISCADO imperfeito, como rascunho) =====================
    Um cenário é um JSON de CAMADAS de formas chapadas, sempre em 1920×1080, desenhadas de trás para a frente:
-     { nome, camadas: [ { c:"#cor", t:textura, b:borda, f:[formas] } | { degrade:{ de, ate, cor, forca } } ] }
+     { nome, total, camadas: [ { o:"Objeto", c:"#cor", l:0|1, h:0-3, v:0|1, f:[formas] } | { degrade:{ de, ate, cor, forca } } ] }
    Formas: ["ret",x0,y0,x1,y1] · ["red",x0,y0,x1,y1,raio] · ["elipse",x0,y0,x1,y1] · ["poli",x,y,x,y,…]
            ["linha",esp,x,y,x,y,…] · ["anel",x0,y0,x1,y1,esp] · ["arco",x0,y0,x1,y1,grau0,grau1,esp]
-   O desenho dá o acabamento: borda felpuda (como feltro/papel rasgado), granulado dentro de cada cor e um grão fino
-   por cima, tudo nítido (sem desfoque). Os cenários prontos ficam em cenarios/*.json; a IA aprende o estilo com eles
-   (guia completo em cenarios/ESTILO.md). */
+           ["nuvem",cx,cy,escala] · ["copa",cx,cy,rx,ry,calombos] (copa de árvore/arbusto numa forma só)
+   O desenho dá o jeito de rascunho: cantos fora do lugar, lados com barriga e tremidos, contorno da mesma cor mais
+   escura riscado lado a lado (passando do canto), às vezes um 2º risco leve, hachuras diagonais e brilho riscado no
+   vidro. Os prontos ficam em cenarios/*.json; a IA aprende o estilo com eles (guia em cenarios/ESTILO.md). */
 'use strict';
 const Cenarios = {
   W: 1920, H: 1080,
   PRONTOS: [
-    { id: 'sala', nome: 'Sala de estar' }, { id: 'cozinha', nome: 'Cozinha' }, { id: 'jardim', nome: 'Jardim' },
-    { id: 'sala-de-aula', nome: 'Sala de aula' }, { id: 'escola', nome: 'Frente da escola' }, { id: 'cidade', nome: 'Cidade pequena' },
+    { id: 'quintal', nome: 'Quintal' }, { id: 'quarto', nome: 'Quarto' }, { id: 'sala-de-aula', nome: 'Sala de aula' },
+    { id: 'praca', nome: 'Praça' }, { id: 'cozinha', nome: 'Cozinha' },
   ],
   _json: {},
   async pronto(id) {
     if (!this._json[id]) { const r = await fetch('cenarios/' + id + '.json'); if (!r.ok) throw new Error('Não achei o cenário "' + id + '".'); this._json[id] = await r.json(); }
     return this._json[id];
   },
+  // aleatório com semente: a mesma camada treme sempre igual (o cenário inteiro e as peças batem certinho)
+  rnd(semente) { let s = (semente >>> 0) || 7; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; },
+  cor(hex) { const m = String(hex || '').match(/^#?([0-9a-f]{6})$/i); const v = m ? parseInt(m[1], 16) : 0xcccccc; return [v >> 16 & 255, v >> 8 & 255, v & 255]; },
+  rgb(c, a = 1) { return `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`; },
+  escuro(c) { const l = (.3 * c[0] + .59 * c[1] + .11 * c[2]) / 255, k = l > .75 ? .55 : l > .45 ? .62 : .7; return c.map(v => v * k); },
+  claro(c, k) { return c.map(v => v + (255 - v) * k); },
 
-  /* ---------- ruído (gerado uma vez) ---------- */
-  _rnd: null,
-  rnd() { // aleatório com semente, para o mesmo cenário sair sempre igual
-    let s = this._semente >>> 0 || 7;
-    return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+  /* ---------- formas → pontos ---------- */
+  pontos(s) {
+    const t = s[0], v = s.slice(1).map(Number), W = this.W, H = this.H, P = [];
+    if (t === 'ret') { let [x0, y0, x1, y1] = v; // encostou na borda: passa dela, para o tremido não deixar fresta
+      if (x0 <= 2) x0 = -30; if (y0 <= 2) y0 = -30; if (x1 >= W - 2) x1 = W + 30; if (y1 >= H - 2) y1 = H + 30;
+      return { P: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], fech: true, esp: 0 }; }
+    if (t === 'red') { const [x0, y0, x1, y1] = v, r = Math.max(0, Math.min(v[4] || 0, (x1 - x0) / 2, (y1 - y0) / 2));
+      for (const [cx, cy, a0] of [[x1 - r, y0 + r, -90], [x1 - r, y1 - r, 0], [x0 + r, y1 - r, 90], [x0 + r, y0 + r, 180]]) for (let k = 0; k < 7; k++) { const a = (a0 + 15 * k) * Math.PI / 180; P.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+      return { P, fech: true, esp: 0 }; }
+    if (t === 'elipse') { const cx = (v[0] + v[2]) / 2, cy = (v[1] + v[3]) / 2, rx = Math.abs(v[2] - v[0]) / 2, ry = Math.abs(v[3] - v[1]) / 2, n = Math.max(16, (rx + ry) / 6 | 0);
+      for (let k = 0; k < n; k++) P.push([cx + rx * Math.cos(2 * Math.PI * k / n), cy + ry * Math.sin(2 * Math.PI * k / n)]); return { P, fech: true, esp: 0 }; }
+    if (t === 'poli') { for (let i = 0; i + 1 < v.length; i += 2) P.push([v[i], v[i + 1]]); return { P, fech: true, esp: 0 }; }
+    if (t === 'linha') { for (let i = 1; i + 1 < v.length; i += 2) P.push([v[i], v[i + 1]]); return { P, fech: false, esp: v[0] }; }
+    if (t === 'anel' || t === 'arco') { const e = t === 'anel' ? v[4] : v[6], [a0, a1] = t === 'anel' ? [0, 360] : [v[4], v[5]];
+      const cx = (v[0] + v[2]) / 2, cy = (v[1] + v[3]) / 2, rx = Math.abs(v[2] - v[0]) / 2 - e / 2, ry = Math.abs(v[3] - v[1]) / 2 - e / 2, n = Math.max(12, Math.abs(a1 - a0) / 6 | 0);
+      for (let k = 0; k <= n; k++) { const a = (a0 + (a1 - a0) * k / n) * Math.PI / 180; P.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]); } return { P, fech: false, esp: e }; }
+    if (t === 'nuvem') { const [cx, cy, e] = v, bumps = [[-80 * e, cy + 4 * e, 50 * e], [-10 * e, cy - 30 * e, 64 * e], [68 * e, cy - 2 * e, 50 * e]], base = cy + 38 * e, x0 = cx - 130 * e, x1 = cx + 128 * e;
+      for (let k = 0; k <= 60; k++) { const x = x0 + (x1 - x0) * k / 60; let y = base; for (const [bx, by, r] of bumps) { const dx = x - (cx + bx); if (Math.abs(dx) < r * 1.08) y = Math.min(y, by - Math.sqrt(Math.max(0, (r * 1.08) ** 2 - dx * dx)) * .85); } P.push([x, y]); }
+      for (let k = 1; k < 8; k++) { const t2 = k / 8; P.push([x1 - (x1 - x0) * t2, base + 5 * e * Math.sin(Math.PI * t2)]); } return { P, fech: true, esp: 0 }; }
+    if (t === 'copa') { const [cx, cy, rx, ry] = v, n = clamp(Math.round(v[4] || 8), 3, 16), m = n * 8;
+      for (let k = 0; k < m; k++) { const a = 2 * Math.PI * k / m, o = 1 + .07 * Math.abs(Math.sin(a * n / 2)) ** .6 - .035; P.push([cx + rx * o * Math.cos(a), cy + ry * o * Math.sin(a)]); } return { P, fech: true, esp: 0 }; }
+    return { P, fech: true, esp: 0 };
   },
-  campo(escala, R) { // ruído de valor suavizado, centrado em 0 (de -0.5 a 0.5)
-    const W = this.W, H = this.H, out = new Float32Array(W * H);
-    if (escala <= 1) { for (let i = 0; i < out.length; i++) out[i] = R() - .5; return out; }
-    const gw = Math.ceil(W / escala) + 2, gh = Math.ceil(H / escala) + 2, g = new Float32Array(gw * gh);
-    for (let i = 0; i < g.length; i++) g[i] = R() - .5;
-    const sm = t => t * t * (3 - 2 * t);
-    for (let y = 0; y < H; y++) { const fy = y / escala, iy = fy | 0, ty = sm(fy - iy);
-      for (let x = 0; x < W; x++) { const fx = x / escala, ix = fx | 0, tx = sm(fx - ix), a = iy * gw + ix;
-        const v0 = g[a] + (g[a + 1] - g[a]) * tx, v1 = g[a + gw] + (g[a + gw + 1] - g[a + gw]) * tx; out[y * W + x] = v0 + (v1 - v0) * ty; } }
-    return out;
-  },
-  ruidos() {
-    if (this._ruidos) return this._ruidos;
-    this._semente = 7; const R = this.rnd(), n = this.W * this.H;
-    const a3 = this.campo(3, R), a1 = this.campo(1, R), b40 = this.campo(40, R), b6 = this.campo(6, R), b1 = this.campo(1, R);
-    const borda = new Float32Array(n), tex = new Float32Array(n);
-    for (let i = 0; i < n; i++) { borda[i] = (a3[i] * .55 + a1[i] * .35) * .35; tex[i] = b40[i] * .6 + b6[i] * .5 + b1[i]; }
-    return (this._ruidos = { borda, tex });
-  },
-
-  /* ---------- formas → máscara (só na caixa da camada) ---------- */
   caixa(f) {
-    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; const p = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
-    for (const s of f) { const [t, ...v] = s;
-      if (t === 'poli') for (let i = 0; i + 1 < v.length; i += 2) p(v[i], v[i + 1]);
-      else if (t === 'linha') for (let i = 1; i + 1 < v.length; i += 2) { p(v[i] - v[0], v[i + 1] - v[0]); p(v[i] + v[0], v[i + 1] + v[0]); }
-      else { p(v[0], v[1]); p(v[2], v[3]); } }
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const s of f) { const { P, esp } = this.pontos(s), m = (esp || 0) / 2 + 3; for (const [x, y] of P) { x0 = Math.min(x0, x - m); y0 = Math.min(y0, y - m); x1 = Math.max(x1, x + m); y1 = Math.max(y1, y + m); } }
     return { x0, y0, x1, y1 };
   },
-  // monta o caminho da forma; devolve a espessura se for traço (linha/anel/arco) ou 0 se for preenchimento
+  // caminho simples (sem tremido): usado pelos rabiscos da prévia
   caminho(ctx, s) {
-    const [t, ...v] = s.map((x, i) => i ? +x : x); ctx.beginPath();
-    if (t === 'ret') ctx.rect(v[0], v[1], v[2] - v[0] + 1, v[3] - v[1] + 1);
-    else if (t === 'red') { const [a, b, c, d] = v, r = Math.max(0, Math.min(v[4] || 0, (c - a) / 2, (d - b) / 2)); ctx.moveTo(a + r, b); ctx.arcTo(c, b, c, d, r); ctx.arcTo(c, d, a, d, r); ctx.arcTo(a, d, a, b, r); ctx.arcTo(a, b, c, b, r); ctx.closePath(); }
-    else if (t === 'elipse') ctx.ellipse((v[0] + v[2]) / 2, (v[1] + v[3]) / 2, Math.abs(v[2] - v[0]) / 2, Math.abs(v[3] - v[1]) / 2, 0, 0, Math.PI * 2);
-    else if (t === 'poli') { for (let i = 0; i + 1 < v.length; i += 2) i ? ctx.lineTo(v[i], v[i + 1]) : ctx.moveTo(v[i], v[i + 1]); ctx.closePath(); }
-    else if (t === 'linha') { for (let i = 1; i + 1 < v.length; i += 2) i > 1 ? ctx.lineTo(v[i], v[i + 1]) : ctx.moveTo(v[i], v[i + 1]); return v[0]; }
-    else if (t === 'anel' || t === 'arco') { // a espessura fica para dentro da caixa
-      const e = t === 'anel' ? v[4] : v[6], rx = Math.max(.5, Math.abs(v[2] - v[0]) / 2 - e / 2), ry = Math.max(.5, Math.abs(v[3] - v[1]) / 2 - e / 2);
-      ctx.ellipse((v[0] + v[2]) / 2, (v[1] + v[3]) / 2, rx, ry, 0, t === 'anel' ? 0 : v[4] * Math.PI / 180, t === 'anel' ? Math.PI * 2 : v[5] * Math.PI / 180); return e; }
-    return 0;
+    const { P, fech, esp } = this.pontos(s); ctx.beginPath(); P.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    if (s[0] === 'anel' || !fech) return esp || 1; ctx.closePath(); return 0;
   },
-  tracar(ctx, s) { const e = this.caminho(ctx, s); if (e) { ctx.lineWidth = e; ctx.lineCap = 'butt'; ctx.stroke(); } else ctx.fill(); },
-  desfoca(m, w, h, sigma) { // 3 passadas de caixa ≈ gaussiano
-    const r = Math.max(1, Math.round((Math.sqrt(4 * sigma * sigma + 1) - 1) / 2 + .25)), tmp = new Float32Array(m.length), d = 2 * r + 1;
-    for (let p = 0; p < 3; p++) {
-      for (let y = 0; y < h; y++) { const o = y * w; let s = 0; for (let x = -r; x <= r; x++) s += m[o + clamp(x, 0, w - 1)];
-        for (let x = 0; x < w; x++) { tmp[o + x] = s / d; s += m[o + Math.min(x + r + 1, w - 1)] - m[o + Math.max(x - r, 0)]; } }
-      for (let x = 0; x < w; x++) { let s = 0; for (let y = -r; y <= r; y++) s += tmp[clamp(y, 0, h - 1) * w + x];
-        for (let y = 0; y < h; y++) { m[y * w + x] = s / d; s += tmp[Math.min(y + r + 1, h - 1) * w + x] - tmp[Math.max(y - r, 0) * w + x]; } }
+  tracar(ctx, s) { const e = this.caminho(ctx, s); if (e) { ctx.lineWidth = e; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); } else ctx.fill(); },
+
+  /* ---------- o jeito de rascunho ---------- */
+  cantos(R, P, st) { // mexe cada canto um pouco; curvas ganham uma deformação suave (sem pontas)
+    const xs = P.map(p => p[0]), ys = P.map(p => p[1]), tam = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 1);
+    st.k = clamp(tam / 90, .2, 1);
+    if (P.length <= 12) { const a = Math.min(9, 1.5 + tam * .018) * st.k; return P.map(([x, y]) => [x + (R() - .5) * 2 * a, y + (R() - .5) * 2 * a]); }
+    const cx = xs.reduce((a, b) => a + b, 0) / P.length, cy = ys.reduce((a, b) => a + b, 0) / P.length, a = Math.min(7, 1 + tam * .02) * st.k, f1 = R() * 6, f2 = R() * 6, n = P.length;
+    return P.map(([x, y], i) => { const dx = x - cx, dy = y - cy, r = Math.hypot(dx, dy) || 1, d = a * (Math.sin(2 * Math.PI * i / n * 2 + f1) * .7 + Math.sin(2 * Math.PI * i / n * 3 + f2) * .3); return [x + dx / r * d, y + dy / r * d]; });
+  },
+  curva(R, st, A, B, bojo, onda = 1.3, passo = 14) { // um lado à mão: barriga suave + tremidinha
+    const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, nx = -(B[1] - A[1]) / L, ny = (B[0] - A[0]) / L, n = Math.max(2, L / passo | 0), f = R() * 9, out = [];
+    for (let k = 0; k <= n; k++) { const t = k / n, d = bojo * Math.sin(Math.PI * t) + onda * st.k * (Math.sin(f + t * L / 23) * .7 + Math.sin(f * 2 + t * L / 9) * .3); out.push([A[0] + (B[0] - A[0]) * t + nx * d, A[1] + (B[1] - A[1]) * t + ny * d]); }
+    return out;
+  },
+  bojo(R, st, L) { return clamp((R() - .5) * 2 * (1.2 + L * .012), -7, 7) * st.k; },
+  risco(ctx, Q, cor, larg) { if (Q.length < 2) return; ctx.beginPath(); Q.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.strokeStyle = cor; ctx.lineWidth = larg; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); },
+  contornoMao(ctx, R, st, P, cor, larg) { // cada lado é um risco próprio, passando um pouco do canto
+    const seq = P.map((a, i) => [a, P[(i + 1) % P.length]]);
+    if (P.length <= 12) for (const [A, B] of seq) {
+      const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, ux = (B[0] - A[0]) / L, uy = (B[1] - A[1]) / L, e0 = R() * Math.min(10, L * .08), e1 = R() * Math.min(14, L * .1);
+      const A2 = [A[0] - ux * e0 + (R() - .5) * 3, A[1] - uy * e0 + (R() - .5) * 3], B2 = [B[0] + ux * e1, B[1] + uy * e1];
+      this.risco(ctx, this.curva(R, st, A2, B2, this.bojo(R, st, L)), cor, larg * (.8 + R() * .45));
+    } else { let Q = []; for (const [A, B] of seq) Q = Q.concat(this.curva(R, st, A, B, 0, .6, 10).slice(0, -1)); Q = Q.concat(Q.slice(0, Math.max(2, Q.length / 14 | 0))); this.risco(ctx, Q, cor, larg); }
+  },
+  camada(ctx, L, idx, semente, rg, opac) {
+    const R = this.rnd(semente * 7919 + idx * 104729 + 1), st = { k: 1 };
+    if (L.degrade) { const g = L.degrade, c = this.cor(g.cor), de = +g.de || 0, ate = Math.max(de + 1, +g.ate || this.H), fo = clamp(+g.forca || .5, 0, 1);
+      const gr = ctx.createLinearGradient(0, de, 0, ate); gr.addColorStop(0, this.rgb(c, 0)); gr.addColorStop(1, this.rgb(c, fo));
+      ctx.save(); if (!opac) ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = gr; ctx.fillRect(rg.x, Math.max(de, rg.y), rg.w, rg.y + rg.h - Math.max(de, rg.y)); ctx.restore(); return; }
+    if (!Array.isArray(L.f)) return;
+    const c = this.cor(L.c), oc = this.escuro(c), cs = this.rgb(c), ocs = this.rgb(oc), contorno = L.l !== 0, hach = L.h, vidro = !!L.v;
+    for (const s of L.f) {
+      let { P, fech, esp } = this.pontos(s); if (P.length < 2) continue;
+      if (s[0] === 'anel') fech = false;
+      if (!fech) { // traço grosso: contorno escuro por baixo e a cor por cima
+        st.k = 1; let Q = []; for (let i = 0; i + 1 < P.length; i++) { const A = P[i], B = P[i + 1]; Q = Q.concat(this.curva(R, st, A, B, this.bojo(R, st, Math.hypot(B[0] - A[0], B[1] - A[1])) * .4, 1.4).slice(0, -1)); } Q.push(P[P.length - 1]);
+        if (contorno) this.risco(ctx, Q, ocs, esp + 5); this.risco(ctx, Q, cs, esp); continue; }
+      if (s[0] === 'ret' && P[0][0] < 0 && P[0][1] < 0 && P[2][0] > this.W && P[2][1] > this.H) { ctx.fillStyle = cs; ctx.fillRect(rg.x, rg.y, rg.w, rg.h); continue; }
+      P = this.cantos(R, P, st);
+      const poucos = P.length <= 12; let Q = [];
+      for (let i = 0; i < P.length; i++) { const A = P[i], B = P[(i + 1) % P.length]; Q = Q.concat(this.curva(R, st, A, B, poucos ? this.bojo(R, st, Math.hypot(B[0] - A[0], B[1] - A[1])) * .8 : 0, poucos ? 1.6 : .5).slice(0, -1)); }
+      const path = new Path2D(); Q.forEach(([x, y], i) => i ? path.lineTo(x, y) : path.moveTo(x, y)); path.closePath();
+      ctx.fillStyle = cs; ctx.fill(path);
+      const xs = P.map(p => p[0]), ys = P.map(p => p[1]), mx = Math.min(...xs), my = Math.min(...ys), bw = Math.max(...xs) - mx, bh = Math.max(...ys) - my, area = bw * bh;
+      const nh = hach != null ? clamp(+hach || 0, 0, 3) : (area > 40000 && bw < 1500 ? 1 : 0);
+      if (nh && area > 4000) { // hachuras diagonais soltas
+        ctx.save(); ctx.clip(path); const qtd = Math.min(10, area / 60000 * nh * 3 | 0) + nh;
+        for (let i = 0; i < qtd; i++) { const x = mx + R() * bw, y = my + R() * bh, Lh = 25 + R() * 45, nn = 1 + (R() * 3 | 0);
+          for (let k = 0; k < nn; k++) { const ox = k * 9 + R() * 3; ctx.beginPath(); ctx.moveTo(x + ox, y + Lh * .5); ctx.lineTo(x + ox + Lh * .7, y - Lh * .5); ctx.strokeStyle = this.rgb(oc, .18); ctx.lineWidth = 2; ctx.stroke(); } }
+        ctx.restore(); }
+      if (vidro) for (let k = 0; k < 2; k++) { const [a, b2] = k ? [.33, .62] : [.18, .55];
+        this.risco(ctx, this.curva(R, st, [mx + bw * (a + .18), my + bh * .15 + k * bh * .12], [mx + bw * a, my + bh * b2 + k * bh * .08], 1.5, .6), this.rgb(this.claro(c, .55)), 3.2 - k * .6); }
+      if (contorno) { const larg = area > 3000 ? 3.8 : 2.6; this.contornoMao(ctx, R, st, P, ocs, larg);
+        if (area > 2500 && R() < .55) this.contornoMao(ctx, R, st, P.map(([x, y]) => [x + (R() - .5) * 4, y + (R() - .5) * 4]), this.rgb(oc, .32), 1.3); }
     }
   },
-  cor(hex) { const m = String(hex || '').match(/^#?([0-9a-f]{6})$/i); const v = m ? parseInt(m[1], 16) : 0xcccccc; return [v >> 16 & 255, v >> 8 & 255, v & 255]; },
-
   /* ---------- PEÇAS: cada objeto do cenário ("o" marca o começo de um objeto; as camadas seguintes são dele) ---------- */
   pecas(cena) {
     const out = [], por = {}; let atual = null;
@@ -86,65 +123,36 @@ const Cenarios = {
       let nome = L.o ? String(L.o).trim().slice(0, 30) : atual;
       if (!nome) nome = i === 0 ? 'Fundo' : 'Peça ' + (out.length + 1);
       atual = nome;
-      if (!por[nome]) out.push(por[nome] = { nome, camadas: [], primeira: i });
-      por[nome].camadas.push(L);
+      if (!por[nome]) out.push(por[nome] = { nome, camadas: [], idx: [], primeira: i });
+      por[nome].camadas.push(L); por[nome].idx.push(i);
     });
     return out;
   },
-
-  /* ---------- pinta camadas num pedaço da tela (cor pré-multiplicada + transparência) ---------- */
-  async compor(camadas, rg, opac, prog) {
-    const W = this.W, H = this.H, { borda, tex } = this.ruidos(), rw = rg.w, rh = rg.h;
-    const img = new Float32Array(rw * rh * 3), A = new Float32Array(rw * rh);
-    if (opac) { img.fill(255); A.fill(1); }
-    const R = this.rnd(), cv = this._cv || (this._cv = document.createElement('canvas')), ctx = cv.getContext('2d', { willReadFrequently: true });
-    for (let ci = 0; ci < camadas.length; ci++) {
-      const L = camadas[ci];
-      if (ci % 10 === 9) { prog?.(ci / camadas.length); await sleep(0); }
-      if (L.degrade) { const g = L.degrade, c = this.cor(g.cor), de = +g.de || 0, ate = Math.max(de + 1, +g.ate || H), fo = clamp(+g.forca || .5, 0, 1);
-        for (let y = 0; y < rh; y++) { const t = clamp((rg.y + y - de) / (ate - de), 0, 1) * fo; if (!t) continue;
-          for (let x = 0, p = y * rw; x < rw; x++, p++) { const a = A[p] * t, i = p * 3; if (!a) continue; img[i] += (c[0] * A[p] - img[i]) * t; img[i + 1] += (c[1] * A[p] - img[i + 1]) * t; img[i + 2] += (c[2] * A[p] - img[i + 2]) * t; } }
-        continue; }
-      if (!Array.isArray(L.f) || !L.f.length) continue;
-      const sig = clamp(+(L.b ?? 4) || 1, .5, 40), tx = clamp(+(L.t ?? 10), 0, 30), c = this.cor(L.c), mg = Math.ceil(sig * 3) + 4, bb = this.caixa(L.f);
-      const x0 = clamp(Math.floor(bb.x0) - mg, rg.x, rg.x + rw), y0 = clamp(Math.floor(bb.y0) - mg, rg.y, rg.y + rh), x1 = clamp(Math.ceil(bb.x1) + mg + 1, rg.x, rg.x + rw), y1 = clamp(Math.ceil(bb.y1) + mg + 1, rg.y, rg.y + rh);
-      const w = x1 - x0, h = y1 - y0; if (w <= 0 || h <= 0) { R(); R(); R(); R(); continue; }
-      cv.width = w; cv.height = h; ctx.setTransform(1, 0, 0, 1, -x0, -y0); ctx.fillStyle = ctx.strokeStyle = '#fff';
-      for (const s of L.f) { try { this.tracar(ctx, s); } catch { } }
-      const px = ctx.getImageData(0, 0, w, h).data, m = new Float32Array(w * h);
-      for (let i = 0; i < m.length; i++) m[i] = px[i * 4 + 3] / 255;
-      this.desfoca(m, w, h, sig);
-      const ox = (R() * W) | 0, oy = (R() * H) | 0, ex = (R() * W) | 0, ey = (R() * H) | 0;
-      for (let y = 0; y < h; y++) { const gy = y0 + y, ty = ((gy + oy) % H) * W, ey2 = ((gy + ey) % H) * W;
-        for (let x = 0; x < w; x++) { const a0 = m[y * w + x]; if (a0 <= .02) continue; const gx = x0 + x;
-          const a = clamp((a0 - .5 + borda[ey2 + (gx + ex) % W]) * 16 + .5, 0, 1); if (!a) continue;
-          const t = tex[ty + (gx + ox) % W] * tx, p = (gy - rg.y) * rw + (gx - rg.x), i = p * 3;
-          img[i] += (c[0] + t - img[i]) * a; img[i + 1] += (c[1] + t - img[i + 1]) * a; img[i + 2] += (c[2] + t - img[i + 2]) * a; A[p] += (1 - A[p]) * a; } }
+  // pinta camadas num pedaço da tela; idx = número de cada camada no cenário (a semente do tremido)
+  async compor(camadas, idx, rg, opac, prog, semente = 11) {
+    const cv = document.createElement('canvas'); cv.width = rg.w; cv.height = rg.h;
+    const ctx = cv.getContext('2d'); ctx.translate(-rg.x, -rg.y);
+    if (opac) { ctx.fillStyle = '#fff'; ctx.fillRect(rg.x, rg.y, rg.w, rg.h); }
+    for (let i = 0; i < camadas.length; i++) {
+      if (i % 15 === 14) { prog?.(i / camadas.length); await sleep(0); }
+      try { this.camada(ctx, camadas[i], idx[i], semente, rg, opac); } catch (e) { console.warn('camada do cenário', e); }
     }
-    // grão fino por cima e vira canvas
-    const out = document.createElement('canvas'); out.width = rw; out.height = rh;
-    const oc = out.getContext('2d'), id = oc.createImageData(rw, rh), d = id.data;
-    for (let p = 0, i = 0; p < rw * rh; p++, i += 3) { const a = A[p]; if (a <= .004) continue; const g = (R() + R() + R() - 1.5) * 10, k = 1 / a;
-      d[p * 4] = img[i] * k + g; d[p * 4 + 1] = img[i + 1] * k + g; d[p * 4 + 2] = img[i + 2] * k + g; d[p * 4 + 3] = a * 255; }
-    oc.putImageData(id, 0, 0); prog?.(1);
-    return out;
+    prog?.(1); return cv;
   },
   // cenário inteiro (canvas 1920×1080)
   async desenhar(cena, aoProgresso) {
-    this.ruidos(); this._semente = 99;
-    return this.compor((cena?.camadas || []).slice(0, 400), { x: 0, y: 0, w: this.W, h: this.H }, true, aoProgresso);
+    const cs = (cena?.camadas || []).slice(0, 400);
+    return this.compor(cs, cs.map((_, i) => i), { x: 0, y: 0, w: this.W, h: this.H }, true, aoProgresso);
   },
   // cada peça numa imagem própria, recortada, com a posição dela no cenário
   async desenharPecas(cena, aoProgresso) {
-    const ps = this.pecas(cena), out = []; this.ruidos();
+    const ps = this.pecas({ camadas: (cena?.camadas || []).slice(0, 400) }), out = [];
     for (let k = 0; k < ps.length; k++) {
       const p = ps[k], bb = { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 };
-      for (const L of p.camadas) { if (L.degrade || !L.f?.length) continue; const b = this.caixa(L.f), mg = Math.ceil(clamp(+(L.b ?? 4) || 1, .5, 40) * 3) + 4;
-        bb.x0 = Math.min(bb.x0, b.x0 - mg); bb.y0 = Math.min(bb.y0, b.y0 - mg); bb.x1 = Math.max(bb.x1, b.x1 + mg); bb.y1 = Math.max(bb.y1, b.y1 + mg); }
+      for (const L of p.camadas) { if (L.degrade || !L.f?.length) continue; const b = this.caixa(L.f); bb.x0 = Math.min(bb.x0, b.x0 - 22); bb.y0 = Math.min(bb.y0, b.y0 - 22); bb.x1 = Math.max(bb.x1, b.x1 + 22); bb.y1 = Math.max(bb.y1, b.y1 + 22); }
       const x = clamp(Math.floor(bb.x0), 0, this.W), y = clamp(Math.floor(bb.y0), 0, this.H), w = clamp(Math.ceil(bb.x1), 0, this.W) - x, h = clamp(Math.ceil(bb.y1), 0, this.H) - y;
       if (w <= 0 || h <= 0) continue;
-      this._semente = 1000 + k;
-      const cv = await this.compor(p.camadas, { x, y, w, h }, false, f => aoProgresso?.((k + f) / ps.length));
+      const cv = await this.compor(p.camadas, p.idx, { x, y, w, h }, false, f => aoProgresso?.((k + f) / ps.length));
       out.push({ nome: p.nome, cv, x, y, w, h, primeira: p.primeira });
     }
     aoProgresso?.(1);
@@ -193,36 +201,37 @@ const Cenarios = {
   },
 
   /* ---------- IA: aprende o estilo com os cenários prontos ---------- */
-  SIS: `Você é o cenarista do ANIMADOR do Estúdio Problems. Você desenha CENÁRIOS SIMPLES de fundo para animação 2D, sempre no MESMO estilo da casa, descrevendo o cenário como camadas de formas num JSON (o Animador desenha e dá o acabamento sozinho).
+  SIS: `Você é o cenarista do ANIMADOR do Estúdio Problems. Você desenha CENÁRIOS SIMPLES de fundo para animação 2D, sempre no MESMO estilo da casa, descrevendo o cenário como camadas de formas num JSON. O Animador desenha e dá sozinho o jeito de RASCUNHO (cantos tortinhos, lados tremidos, contorno riscado à mão, hachuras), então você só escreve formas simples e limpas.
 
 O ESTILO DA CASA (siga sempre):
-- Ilustração chapada estilo feltro/giz pastel: formas geométricas simples (retângulos, retângulos arredondados, elipses, polígonos), SEM CONTORNO, SEM sombra realista, SEM perspectiva — vista frontal, como cenário de teatro. O acabamento felpudo e o granulado o Animador põe sozinho.
-- Cores chapadas pastéis, um pouco apagadas. Paleta da casa (use estas antes de inventar):
-  parede #E4DCCF (sombra de canto #DCD3C5) · piso creme #F2E5D2, faixas do piso #E6D3BC, rodapé #CFC4B4 · piso de madeira #D8B98A/#C7A577
-  céu #A6D2F0 + {"degrade":{"de":200,"ate":600,"cor":"#C2E1F6","forca":0.6}} · nuvem #F8F8F3 · sol #F8DC7A · morros #9ACD86 · grama #7EC05F (faixas #6EB253)
-  vidro #A6D2F0, reflexo do vidro #C6E4F8 (triângulo no canto), moldura #8A8580 ou #9A948C
-  madeira #9C6B43 / escura #7B5233 / clara #A97650 / risco de porta #74492C · puxador #E8D9B8
-  folhagem #57A055 / #4E9A4D / clara #68B464 · sofá #5EA65A · tronco #7B5233
-  metal #A8ADB2 / #8A8F95 / #9AA0A6 · escuro (tela, forno) #3E4853 / #0F2B3F / #2D333A
-  destaques: vermelho #D35A4C / telhado #C8574A · rosa #F29BB8 · amarelo #F4D35E · azul-claro #CFE0E4 · menta #CFE3D8 · creme de prédio #EFE7D8
-- Detalhes pequenos dão a graça: risco mais escuro dividindo portas, puxadores redondinhos, reflexo diagonal no vidro, faixas horizontais no piso, flores de 4 pétalas, costura no sofá.
-- Composição para animação: chão/faixa livre embaixo (de y≈760 a 1080) para os personagens andarem; o centro não pode ficar poluído; móveis encostados na parede, lado a lado; 3 a 6 elementos principais, nada minúsculo demais.
-- Ordem: de TRÁS para a FRENTE (fundo inteiro primeiro: {"c":"#E4DCCF","f":[["ret",0,0,1920,1080]],"t":9,"b":1}).
+- Desenho chapado com cara de rascunho feito à mão: formas geométricas simples, cores chapadas pastéis um pouco apagadas, contorno da MESMA cor do objeto só que mais escura (o Animador faz). Nada de sombra realista, nada de perspectiva: vista de frente, como cenário de teatro.
+- Paleta da casa (use estas antes de inventar):
+  parede #E9DFD0 / #E4DCCF / sala de aula #EDE4CC · piso de madeira #D8B98A com riscos #C7A577 · piso creme #F2E5D2 com faixas #E6D3BC · rodapé #CDBFA8
+  céu #A6D2F0 + {"degrade":{"de":200,"ate":620,"cor":"#C9E4F7","forca":0.6}} · nuvem #F8F8F3 · morros #9ACD86 · grama #7EC05F (riscos #6EB253) · chão de praça #E6D6BE
+  vidro #A6D2F0 (com "v":1), moldura #8A8580 · madeira #9C6B43 / escura #8A5C38 / clara #A97650 / cerca #C99560 / risco de porta #74492C · puxador #E8D9B8
+  folhagem #5EA65A / #57A055 / clara #6DB868 · arbusto #4E9A4D · tronco #8A5A38 · metal #8A8F95 / #5E646B / pedra #BFC4C8
+  destaques: vermelho #D35A4C / telhado #C8574A · rosa #F29BB8 · amarelo #F4D35E · azul #7FB3D8 / #6A9BC3 · creme #F2D9A6 · menta #CFE3D8
+- NUVEM é SEMPRE ["nuvem",cx,cy,escala] (escala 0.5 a 1). COPA de árvore e ARBUSTO são SEMPRE ["copa",cx,cy,rx,ry,calombos] — uma forma só. NUNCA monte nuvem, copa ou arbusto com bolas/elipses sobrepostas (fica feio). Árvore = tronco ("poli" afinando para cima, cor #8A5A38, "h":0) + "copa" + uma "copa" menor mais clara no alto com "l":0 + alguns risquinhos de folha ("linha" curta, "l":0).
+- NÃO desenhe flores pequenas espalhadas no chão (ficam feias).
+- Detalhes simples dão a graça: risco mais escuro dividindo portas, puxadores redondinhos, vidro com "v":1, riscos horizontais no piso (várias "linha" curtas, "l":0), cortinas, quadros.
+- Composição para animação: chão livre embaixo (de y≈780 a 1080) para os personagens andarem; centro sem poluição; móveis encostados na parede, lado a lado; 3 a 7 objetos principais.
+- Ordem: de TRÁS para a FRENTE. Comece pelo fundo inteiro: {"o":"Fundo","c":"#E9DFD0","f":[["ret",0,0,1920,1080]],"l":0}.
 
 FORMATO (responda SÓ o JSON, sem texto fora dele):
-{"nome":"nome curto","total":N,"camadas":[ {"o":"Fundo","c":"#RRGGBB","t":textura,"b":borda,"f":[formas]}, {"degrade":{...}}, ... ]}
+{"nome":"nome curto","total":N,"camadas":[ {"o":"Fundo","c":"#RRGGBB","f":[formas]}, {"c":"#RRGGBB","l":0,"h":0,"v":1,"f":[...]}, {"degrade":{...}}, ... ]}
 - "total" = quantas camadas você vai escrever (escreva logo no começo; serve para mostrar o tempo que falta).
-- "o" = nome do OBJETO (Fundo, Janela, Sofá, TV, Árvore…). Ponha "o" só na PRIMEIRA camada de cada objeto; as camadas seguintes são desse objeto até aparecer outro "o". Escreva cada objeto inteiro de uma vez (todas as camadas dele juntas), porque cada objeto vira uma peça separada que dá para mover ou usar sozinha. Parede, piso, rodapé e faixas do piso = "Fundo"; céu = "Céu"; chão de grama/rua = "Chão".
-- Tela 1920×1080, números inteiros. "t" = granulado da cor (6 a 12; 4-7 em detalhes pequenos; padrão 10 se omitir). "b" = suavidade da borda (padrão 4; 1 para o fundo inteiro; 2-3 em detalhes pequenos; nunca acima de 8, exceto uma sombra suave larga com 30).
-- Formas (várias formas da mesma cor podem ir na mesma camada):
+- "o" = nome do OBJETO (Fundo, Céu, Janela, Cama, Árvore…). Ponha "o" só na PRIMEIRA camada de cada objeto; as seguintes são desse objeto até aparecer outro "o". Escreva cada objeto inteiro de uma vez, porque cada objeto vira uma peça separada. Parede, piso, rodapé e riscos do piso = "Fundo"; céu = "Céu"; grama/rua = "Grama"/"Chão".
+- "l":0 = sem contorno (use no fundo inteiro, no céu, no chão e nos riscos finos). "h" = hachuras diagonais 0 a 3 (padrão: automático nas áreas grandes; use "h":0 em peças pequenas e detalhes). "v":1 = vidro com brilho riscado.
+- Tela 1920×1080, números inteiros. Formas (várias formas da mesma cor podem ir na mesma camada):
   ["ret",x0,y0,x1,y1]  ["red",x0,y0,x1,y1,raio]  ["elipse",x0,y0,x1,y1]  ["poli",x,y,x,y,...]
   ["linha",espessura,x,y,x,y,...]  ["anel",x0,y0,x1,y1,espessura]  ["arco",x0,y0,x1,y1,grau0,grau1,espessura] (180→360 = metade de cima)
+  ["nuvem",cx,cy,escala]  ["copa",cx,cy,rx,ry,calombos]
 - No máximo ~120 camadas. Seja econômico: junte formas da mesma cor numa camada.
 
 EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
   async sistema() {
     if (this._sis) return this._sis;
-    const ex = await Promise.all(['sala', 'jardim', 'sala-de-aula'].map(id => this.pronto(id).then(j => JSON.stringify(j)).catch(() => '')));
+    const ex = await Promise.all(['quarto', 'quintal', 'sala-de-aula'].map(id => this.pronto(id).then(j => JSON.stringify(j)).catch(() => '')));
     const sis = this.SIS + '\n' + ex.filter(Boolean).join('\n\n');
     if (ex.every(Boolean)) this._sis = sis; // só guarda se os exemplos vieram todos (sem internet, tenta de novo na próxima)
     return sis;
@@ -254,7 +263,7 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
   num(v, lim) { v = +v; return isFinite(v) ? clamp(Math.round(v * 10) / 10, -lim, lim) : null; },
   // confere cada camada e cada forma: tira o que não presta, limita números, garante o fundo
   limpar(j, semFundo) {
-    const L = this.LIM, TIPOS = { ret: 4, red: 5, elipse: 4, poli: 6, linha: 5, anel: 5, arco: 7 }, out = []; let tirou = 0;
+    const L = this.LIM, TIPOS = { ret: 4, red: 5, elipse: 4, poli: 6, linha: 5, anel: 5, arco: 7, nuvem: 3, copa: 5 }, out = []; let tirou = 0;
     const obj = (c, n) => { if (c.o != null && String(c.o).trim()) n.o = String(c.o).replace(/[<>"]/g, '').trim().slice(0, 30); return n; };
     const corOk = c => /^#?[0-9a-f]{6}$/i.test(String(c || '').trim()) ? '#' + String(c).trim().replace('#', '').toUpperCase() : null;
     for (const c of (Array.isArray(j?.camadas) ? j.camadas : []).slice(0, L.camadas)) {
@@ -266,20 +275,22 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
       for (const s of c.f.slice(0, L.formas)) {
         if (!Array.isArray(s) || !(s[0] in TIPOS)) { tirou++; continue; }
         const v = s.slice(1, 1 + (s[0] === 'poli' || s[0] === 'linha' ? L.pontos * 2 + 1 : TIPOS[s[0]])).map(x => this.num(x, L.coord));
-        if (v.some(x => x === null) || v.length < TIPOS[s[0]] - 1) { tirou++; continue; }
+        if (v.some(x => x === null) || v.length < TIPOS[s[0]] - 1 || (s[0] === 'nuvem' && v.length < 3)) { tirou++; continue; }
+        if (s[0] === 'nuvem') v[2] = clamp(v[2], .2, 4);
+        if (s[0] === 'copa') { v[2] = clamp(Math.abs(v[2]), 5, 1500); v[3] = clamp(Math.abs(v[3]), 5, 1500); if (v[4] != null) v[4] = clamp(Math.round(v[4]), 3, 16); }
         if (s[0] === 'poli' && v.length % 2) v.pop();
         if (s[0] === 'linha' && !(v.length % 2)) v.pop();
         if (s[0] === 'linha' || s[0] === 'anel' || s[0] === 'arco') { const ie = s[0] === 'linha' ? 0 : v.length - 1; v[ie] = clamp(v[ie], 1, 200); }
         f.push([s[0], ...v]);
       }
       if (!f.length) { tirou++; continue; }
-      const n = { c: cor, f }; if (c.t != null && isFinite(+c.t)) n.t = clamp(+c.t, 0, 20); if (c.b != null && isFinite(+c.b)) n.b = clamp(+c.b, .5, 40);
+      const n = { c: cor, f }; if (c.l === 0 || c.l === '0' || c.l === false) n.l = 0; if (c.h != null && isFinite(+c.h)) n.h = clamp(Math.round(+c.h), 0, 3); if (c.v) n.v = 1;
       out.push(obj(c, n));
     }
     if (semFundo) return { cena: { camadas: out }, tirou, uteis: out.length };
     // sem um fundo cobrindo a tela inteira, sairiam buracos brancos: põe a parede da casa atrás
     const cobre = c => c.f?.some(s => s[0] === 'ret' && s[1] <= 0 && s[2] <= 0 && s[3] >= this.W - 1 && s[4] >= this.H - 1);
-    if (!out.length || !cobre(out.find(c => !c.degrade) || {})) out.unshift({ o: 'Fundo', c: '#E4DCCF', t: 9, b: 1, f: [['ret', 0, 0, this.W, this.H]] });
+    if (!out.length || !cobre(out.find(c => !c.degrade) || {})) out.unshift({ o: 'Fundo', c: '#E9DFD0', l: 0, f: [['ret', 0, 0, this.W, this.H]] });
     return { cena: { nome: String(j?.nome || 'Cenário').replace(/[<>]/g, '').slice(0, 40), camadas: out }, tirou, uteis: out.length };
   },
   async pedirIA(pedido, anterior, aoEscrever, aoTentar) {
@@ -297,8 +308,8 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
       if (tent) { if (r.uteis >= 2) return { ...r, cortado: lido.cortado }; throw new Error('A IA não conseguiu montar o cenário. Tente descrever com menos coisas.'); }
     }
   },
-  guardaUltimo(cena) { this.ultimo = cena; try { localStorage.setItem('animador-cenario-ultimo', JSON.stringify(cena)); } catch { } },
-  pegaUltimo() { if (this.ultimo) return this.ultimo; try { const j = JSON.parse(localStorage.getItem('animador-cenario-ultimo') || 'null'); return j?.camadas ? (this.ultimo = { ...this.limpar(j).cena, ia: true }) : null; } catch { return null; } },
+  guardaUltimo(cena) { this.ultimo = cena; try { localStorage.setItem('animador-cenario-ultimo-v2', JSON.stringify(cena)); } catch { } },
+  pegaUltimo() { if (this.ultimo) return this.ultimo; try { const j = JSON.parse(localStorage.getItem('animador-cenario-ultimo-v2') || 'null'); return j?.camadas ? (this.ultimo = { ...this.limpar(j).cena, ia: true }) : null; } catch { return null; } },
 
   /* ---------- janela "Cenário" ---------- */
   async abrir() {
