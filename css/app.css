@@ -39,7 +39,8 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .brand .logo{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:linear-gradient(135deg,#8a8a8a,#d8d8d8);flex:none}
 .brand b{display:block;font-size:15px;letter-spacing:.8px;font-weight:800;line-height:1}.brand small{display:block;color:var(--tx2);font-size:11px;margin-top:2px}
 .proj-nome{display:flex;align-items:center;gap:8px;min-width:0;color:var(--tx2)}
-.proj-nome b{color:var(--tx);font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text}
+.proj-nome b{color:var(--tx);font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text;padding:3px 7px;margin-left:-8px;border:1px solid transparent;border-radius:6px;transition:background .12s,border-color .12s}
+.proj-nome b:hover{background:var(--bg3);border-color:var(--bd2)}
 .salvo{font-size:11.5px;color:var(--tx3)}
 .ferr{display:flex;align-items:center;gap:2px;padding:2px;border-radius:7px;background:var(--bg0);border:1px solid var(--bd)}
 
@@ -294,3 +295,6 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .pt-pal{display:grid;grid-template-columns:repeat(9,1fr);gap:4px}
 .pt-cor{aspect-ratio:1;border-radius:5px;border:1px solid rgba(255,255,255,.15);cursor:pointer;padding:0}.pt-cor.on{outline:2px solid #fff;outline-offset:1px}
 .pt-selec{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:6px}.pt-selec i{width:20px;height:20px;border-radius:5px;border:1px solid rgba(255,255,255,.2)}
+
+/* nome do personagem no ateliê: parece texto, mostra a caixa ao passar o mouse */
+#at-nome{background:transparent;border-color:transparent;transition:background .12s,border-color .12s}#at-nome:hover{background:var(--bg3);border-color:var(--bd2)}#at-nome:focus{background:var(--bg0);border-color:#888}
