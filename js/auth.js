@@ -14,7 +14,9 @@ document.documentElement.classList.add('turma-locked');
 #turma-login .ep-nm{font:800 26px/1.05 'Segoe UI',system-ui,sans-serif;letter-spacing:1.5px}
 #turma-login .ep-sb{color:#9aa0ab;font-size:12.5px;letter-spacing:.4px}
 #turma-login .ep-br{width:180px;height:4px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden;margin:18px 0 8px;position:relative}
-#turma-login .ep-br::after{content:'';position:absolute;top:0;bottom:0;left:0;width:40%;border-radius:4px;background:linear-gradient(90deg,#3d8bff,#19d3f0);animation:epBarra 1.1s ease-in-out infinite}
+#turma-login .ep-br>i{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:4px;background:linear-gradient(90deg,#3d8bff,#19d3f0);transition:width .2s linear}
+#turma-login .ep-br::after{content:'';position:absolute;top:0;bottom:0;left:0;width:30%;border-radius:4px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:epBarra 1.3s ease-in-out infinite}
+#turma-login .ep-pc{display:flex;gap:8px;justify-content:center;align-items:baseline;font-size:11.5px;color:#8d929c;min-height:17px;max-width:340px;margin:-4px 0 4px}#turma-login .ep-pc b{color:#cfd3da;font-weight:700;font-variant-numeric:tabular-nums;min-width:34px;text-align:right}#turma-login .ep-pc span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;text-align:left}#turma-login.ep-erro .ep-pc{display:none}
 #turma-login.ep-erro .ep-br{display:none}#turma-login.ep-erro .ep-lg{animation:none;background:linear-gradient(135deg,#ff6b6b,#ff9a62)}
 #turma-login .ep-m{color:#b9bdc6;font-size:13px;min-height:20px;max-width:340px}#turma-login .ep-m .e,#turma-login .ep-m.err{color:#ff8a9a}
 #turma-login [hidden]{display:none!important}#turma-login a.ep-bt{display:inline-flex;margin-top:12px;padding:9px 18px;border-radius:10px;background:#3d8bff;color:#fff;text-decoration:none;font-weight:600}#turma-login a.ep-bt:hover{filter:brightness(1.08)}
@@ -68,7 +70,7 @@ const TurmaAuth = {
       // logo = o ícone do ANIMADOR (o mesmo da aba e do cabeçalho; o Ateliê usa o mesmo logo)
       const icone = '<img class="ep-img" alt="" src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 28 28%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238a8a8a%27/%3E%3Cstop offset=%271%27 stop-color=%27%23d8d8d8%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2728%27 height=%2728%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Cg transform=%27translate(5.5 5.5) scale(.7083)%27 fill=%27none%27 stroke=%27%231b1b1b%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2712%27 cy=%275%27 r=%272.2%27/%3E%3Cpath d=%27M12 7.2v6.4M12 9.3l-4.2 2.4-1.5 3.3M12 9.3l4.2-1.8 2.3-2.5M12 13.6l-2.9 3.6-.6 4.3M12 13.6l3.3 3 1.5 4%27/%3E%3C/g%3E%3C/svg%3E">';
       if (at) document.title = 'ATELIÊ · ANIMADOR · Estúdio Problems';
-      el.innerHTML = `<div class="ep-c"><div class="ep-lg ep-prog">${icone}</div><div class="ep-nm">ANIMADOR${at ? '<span style="opacity:.45;font-weight:300;margin:0 9px">|</span>ATELIÊ' : ''}</div><div class="ep-sb">Estúdio Problems</div><div class="ep-br"></div>
+      el.innerHTML = `<div class="ep-c"><div class="ep-lg ep-prog">${icone}</div><div class="ep-nm">ANIMADOR${at ? '<span style="opacity:.45;font-weight:300;margin:0 9px">|</span>ATELIÊ' : ''}</div><div class="ep-sb">Estúdio Problems</div><div class="ep-br"><i data-ep-barra></i></div><div class="ep-pc"><b data-ep-pct>0%</b><span data-ep-arq></span></div>
         <div class="ep-m" data-msg></div><a class="ep-bt" data-menu hidden>Ir para o menu</a></div>`;
       (document.body || document.documentElement).appendChild(el);
     }
@@ -110,6 +112,8 @@ const TurmaAuth = {
         // o Animador aparece por baixo e a tela de carregamento some com fade (igual em todos os programas)
         // espera o Animador desenhar a tela inicial por baixo (2 quadros) e só então começa o fade, para ele não ser engolido
         document.documentElement.classList.remove('turma-locked'); resolve(this.email);
+        // a tela só sai quando as imagens e arquivos que a tela inicial pediu terminaram de baixar (no máximo 12 s)
+        this.status('Abrindo…'); try { await window.EstudioProgresso?.esperarTudo(12000); } catch { }
         requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.add('ep-saindo'); setTimeout(() => el.remove(), 380); }));
       } catch (e) {
         if (e.denied) { try { await this.fb?.signOut(); } catch { } return fail(e.message + ' Entre com outra conta pelo menu.', false); }
