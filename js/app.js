@@ -98,6 +98,10 @@ const App = {
     n.cenario = true; const i = P.raiz.findIndex(x => x.cenario); // fica na frente dos cenários que já existem e atrás do resto
     if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); this.sel = n.id; this.commit('Cenário ' + n.nome); return n;
   },
+  menuTremulo(n) { // efeito "trêmulo" na camada (ver Render.tremor)
+    const poe = m => () => { if (!m) delete n.tremulo; else n.tremulo = { forca: .4, ritmo: 2, ...(n.tremulo || {}), modo: m }; this.commit(m ? 'Trêmulo' : 'Sem trêmulo'); };
+    return { label: 'Trêmulo', icon: 'wave', sub: [{ label: 'Tremer', checked: n.tremulo?.modo === 'tremer', action: poe('tremer') }, { label: 'Ondular', checked: n.tremulo?.modo === 'ondular', action: poe('ondular') }, { label: 'Desligado', checked: !n.tremulo, action: poe('') }] };
+  },
   menuCenario(x, y) {
     UI.ctx(x, y, [
       { label: 'Prontos e com a IA (estilo da casa)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() },
@@ -206,6 +210,7 @@ const App = {
         s && { label: 'Chave neste quadro', icon: 'diamond', key: 'K', action: () => App.chaveAqui() },
         s && { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
         s && { label: 'Pôr numa pasta', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },
+        s && App.menuTremulo(s),
         s && { label: 'Apagar', icon: 'trash', danger: true, key: 'Del', action: () => App.apagarSel() },
         '-', { label: 'Enquadrar a câmera', icon: 'crop', key: 'F', action: () => App.enquadrar() },
       ].filter(Boolean));

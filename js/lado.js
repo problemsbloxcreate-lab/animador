@@ -87,6 +87,7 @@ const Lado = {
       const tm = h(`<div class="campo2"><span style="color:var(--tx2)">Aparece do quadro</span><input type="number" min="1" value="${(n.de || 0) + 1}" data-de style="width:60px"><span style="color:var(--tx2)">até</span><input type="number" min="1" value="${n.ate == null ? '' : n.ate + 1}" placeholder="fim" data-ate style="width:60px"></div>`);
       $('[data-de]', tm).onchange = ev => { n.de = clamp(+ev.target.value - 1, 0, P.duracao - 1); App.commit('Começo'); }; $('[data-ate]', tm).onchange = ev => { n.ate = ev.target.value === '' ? null : Math.max(n.de || 0, +ev.target.value - 1); App.commit('Fim'); };
       box.appendChild(tm);
+      box.appendChild(this.tremulo(n));
       if (n.tipo === 'texto') {
         box.appendChild(h('<div class="titulo-p">Texto</div>'));
         const tx = h(`<textarea rows="3" style="width:100%">${esc(n.texto)}</textarea>`); tx.oninput = () => { n.texto = tx.value; App.pinta(); }; tx.onchange = () => App.commit('Texto'); box.appendChild(tx);
@@ -106,6 +107,17 @@ const Lado = {
     $('[data-w]', pj).onchange = ev => { P.w = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); }; $('[data-h]', pj).onchange = ev => { P.h = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); };
     $('[data-f]', pj).oninput = ev => { P.fundo = ev.target.value; App.pinta(); }; $('[data-f]', pj).onchange = () => App.commit('Fundo');
     el.appendChild(pj);
+  },
+  // Trêmulo: deixa a camada parada "viva" (treme ou ondula sozinha, quadro a quadro), como o efeito do Premiere
+  tremulo(n) {
+    const T = n.tremulo, box = h(`<div class="sessao" style="margin:6px -10px 0;padding:8px 10px"><h4>Trêmulo <small>a camada parada treme sozinha</small></h4>
+      <div class="presets">${[['', 'Desligado'], ['tremer', 'Tremer'], ['ondular', 'Ondular']].map(([m, nm]) => `<button data-m="${m}" class="${(T?.modo || '') === m ? 'on' : ''}">${nm}</button>`).join('')}</div><div data-c></div></div>`);
+    $$('[data-m]', box).forEach(b => b.onclick = () => { const m = b.dataset.m; if (!m) delete n.tremulo; else n.tremulo = { forca: .4, ritmo: 2, ...(n.tremulo || {}), modo: m }; App.commit(m ? 'Trêmulo' : 'Sem trêmulo', { semArvore: true }); });
+    if (T) { const c = $('[data-c]', box);
+      c.appendChild(this.campo('Força', T.forca ?? .4, .05, 1, .01, v => { T.forca = v; App.pinta(); }, () => App.commit('Força do trêmulo', { semArvore: true })));
+      c.appendChild(this.campo('Ritmo', T.ritmo || 2, 1, 8, 1, v => { T.ritmo = Math.round(v); App.pinta(); }, () => App.commit('Ritmo do trêmulo', { semArvore: true })));
+      c.appendChild(h(`<div style="color:var(--tx3);font-size:11.5px">Ritmo = quantos quadros até mudar (2 = 12 vezes por segundo num vídeo de 24). Toque o vídeo para ver.</div>`)); }
+    return box;
   },
   editarTexto(n) { App.selecionar(n.id); this.aba('props'); setTimeout(() => $('#lado textarea')?.focus(), 30); },
 
@@ -129,6 +141,7 @@ const Lado = {
       t.appendChild(b);
     }
     el.appendChild(t);
+    const ns = App.noSel(); if (ns) { el.appendChild(h(`<div class="p-cab" style="border:0"><h3>Na camada "${esc(ns.nome)}"</h3></div>`)); el.appendChild(this.tremulo(ns)); }
     const lista = P.efeitos.tela; if (!lista.length) return;
     el.appendChild(h('<div class="p-cab" style="border:0"><h3>Ligados</h3></div>'));
     for (const e of lista) {

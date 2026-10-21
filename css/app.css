@@ -51,7 +51,7 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .p-cab h3{margin:0;font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2);font-weight:700}
 .p-corpo{flex:1;overflow:auto;min-height:0}
 .abas{display:flex;gap:2px;padding:4px 4px 0;border-bottom:1px solid var(--bd);flex:none}
-.abas button{flex:1 1 auto;height:28px;padding:0 6px;white-space:nowrap;border:0;border-radius:6px 6px 0 0;background:none;color:var(--tx2);cursor:pointer;font-size:12px;font-weight:600}
+.abas button{flex:1 1 auto;height:28px;padding:0 4px;white-space:nowrap;letter-spacing:-.01em;border:0;border-radius:6px 6px 0 0;background:none;color:var(--tx2);cursor:pointer;font-size:12px;font-weight:600}
 .abas button.on{background:var(--bg2);color:var(--tx)}
 
 /* palco */

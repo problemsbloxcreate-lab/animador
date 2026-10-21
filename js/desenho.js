@@ -10,11 +10,27 @@ const Render = {
     const vai = (lista, m, alfa) => {
       for (let i = lista.length - 1; i >= 0; i--) {
         const n = lista[i]; if (n.vis === false || !Modelo.aparece(P, n, q)) continue;
-        const t = Modelo.transf(n, q), mm = this.matNo(m, t), a = alfa * (t.op ?? 1);
+        const t = Modelo.transf(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
         if (n.filhos) vai(n.filhos, mm, a); else fn(n, mm, a, t);
       }
     };
     vai(P.raiz, m0, alfa0);
+  },
+  /* ---------- TRÊMULO (como o "turbulento" do Premiere): a camada parada treme/ondula sozinha, quadro a quadro ----------
+     n.tremulo = { modo: 'tremer' | 'ondular', forca: 0–1, ritmo: quadros até mudar (2 = "em 12" num vídeo de 24) } */
+  sorte(id, k, i) { let h = 2166136261; const s = id + ':' + k + ':' + i; for (let c = 0; c < s.length; c++) { h ^= s.charCodeAt(c); h = Math.imul(h, 16777619); } return ((h >>> 0) % 100000) / 100000 - .5; },
+  passo(n, q) { return Math.floor(q / Math.max(1, n.tremulo.ritmo || 2)); },
+  tremor(n, q) {
+    const T = n.tremulo, f = T.forca ?? .4, k = this.passo(n, q), r = i => this.sorte(n.id, k, i);
+    if (T.modo === 'ondular') return new DOMMatrix().rotate(r(3) * f * .8); // o ondular mexe nos pixels (onda); aqui só um tiquinho de giro
+    return new DOMMatrix().translate(r(1) * f * 16, r(2) * f * 16).rotate(r(3) * f * 2.4).scale(1 + r(4) * f * .03);
+  },
+  // imagem em faixas deslocadas por uma onda que muda a cada passo (efeito "ondular")
+  ondulado(ctx, n, q, bm, x, y, w, h) {
+    const T = n.tremulo, f = T.forca ?? .4, k = this.passo(n, q), fase = this.sorte(n.id, k, 9) * 40, amp = 1.5 + f * 7, freq = .045 + (this.sorte(n.id, k, 8) + .5) * .03;
+    const faixa = Math.max(2, Math.round(bm.height / 120)), ky = h / bm.height;
+    for (let sy = 0; sy < bm.height; sy += faixa) { const sh = Math.min(faixa * 2, bm.height - sy), /* faixa dobrada: a próxima cobre a emenda (sem risquinhos) */ dx = Math.sin((sy * ky) * freq + fase) * amp + Math.sin((sy * ky) * freq * 2.3 - fase) * amp * .35;
+      ctx.drawImage(bm, 0, sy, bm.width, sh, x + dx, y + sy * ky, w, sh * ky); }
   },
   pecasPersonagem(P, n, q, m) {
     const def = P.personagens[n.ref]; if (!def) return [];
@@ -28,10 +44,11 @@ const Render = {
         for (const it of this.pecasPersonagem(P, n, q, m)) {
           if (!it.img) continue; const bm = this.bm(it.img.k); if (!bm) continue;
           const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
-          ctx.setTransform(base.multiply(it.m)); ctx.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h);
+          ctx.setTransform(base.multiply(it.m)); const x = -px + (it.img.ajuste?.x || 0), y = -py + (it.img.ajuste?.y || 0);
+          if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, x, y, it.img.w, it.img.h); else ctx.drawImage(bm, x, y, it.img.w, it.img.h);
         }
       } else if (n.tipo === 'imagem') {
-        const bm = this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(m)); ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
+        const bm = this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(m)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
       } else if (n.tipo === 'texto') {
         ctx.setTransform(base.multiply(m)); this.texto(ctx, n);
       }
