@@ -1,8 +1,9 @@
 # ANIMADOR · Estúdio Problems
 
-Editor de vídeo + animação do Estúdio Problems. Abre só pelo menu, com o login do Google:
-**https://estudio.problemsraiz.workers.dev/animador/**
+Programa de animação 2D quadro a quadro do Estúdio Problems, com personagens montados por partes.
+Abre pelo menu do Estúdio Problems.
 
-- Código direto aqui (sem criptografia, decisão do dono em 20/10/2026). O GitHub Pages publica a raiz; o porteiro do
-  Estúdio Problems serve em `/animador/` e o login é conferido no servidor (`servidor-ia/`, worker `turma-ia`).
-- Regras de segurança: **SEGURANCA.md**. Instruções para assistentes: **CLAUDE.md**.
+- **Palco** com canvas infinito e câmera, **timeline** quadro a quadro, **hierarquia** com pastas.
+- **No quadro**: os personagens que aparecem no quadro, com os botões das sessões deles (olhos, boca, poses…).
+- **Ateliê de personagens**: partes, imagens trocáveis, encaixe no pai, sessões, presets e poses, salvos na biblioteca da equipe.
+- Visual e efeitos de tela com 1 clique, voz, boca pela voz, legendas pela fala, IA e exportar MP4.

@@ -6,138 +6,136 @@
 <title>ANIMADOR · Estúdio Problems</title>
 <link rel="icon" href="icones/icone-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#17181c">
-<link rel="apple-touch-icon" href="icones/icone-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Bebas+Neue&family=Fredoka:wght@400;700&family=Luckiest+Guy&family=Montserrat:wght@400;700&family=Permanent+Marker&family=Poppins:wght@400;700&family=Press+Start+2P&display=swap">
-<link rel="stylesheet" href="css/style.css">
+<meta name="theme-color" content="#232323">
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div id="home" class="screen"></div>
-
-<div id="editor" class="screen hidden">
-  <header class="menubar">
-    <div class="brand" id="btn-home" title="Voltar à tela inicial"><span class="logo logo-ep"><img src="icones/icone-192.png" alt=""></span><span><b>ANIMADOR</b> <i class="brand-mod">Estúdio Problems</i></span></div>
-    <div class="ep-modo" id="ep-modo"><button data-m="edicao" class="on" title="Edição do vídeo">Edição</button><button data-m="ossos" title="Abrir o personagem selecionado nos ossos (tela cheia)">Ossos</button></div>
-    <nav class="menus" id="menus"></nav>
-    <div class="proj-title" id="proj-title"><span id="proj-name" title="Clique para renomear"></span><span class="save-state" id="save-state" title="Clique para salvar agora"></span><span class="proj-meta" id="proj-meta"></span></div>
-    <div class="menu-actions">
-      <button class="ibtn" id="btn-undo" title="Desfazer (Ctrl+Z)"></button>
-      <button class="ibtn" id="btn-redo" title="Refazer (Ctrl+Y)"></button>
-      <button class="btn ai-btn" id="btn-ai" title="Assistente: peça e ele anima pra você (Ctrl+J)"></button>
-      <button class="btn" id="btn-save" title="Salvar neste computador (Ctrl+S)"></button>
-      <button class="btn" id="btn-toon" title="Salvar arquivo .toon com todas as mídias (Ctrl+Shift+S)"></button>
-      <button class="btn primary" id="btn-export" title="Exportar vídeo (Ctrl+E)"></button>
-      <span data-estudio-conta></span><!-- foto, nome e conta do menu -->
-    </div>
+<!-- ====================== TELA INICIAL ====================== -->
+<div id="home" class="screen">
+  <header class="bar">
+    <div class="brand" id="home-brand" title="Início"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><path d="M12 7.2v6.4M12 9.3l-4.2 2.4-1.5 3.3M12 9.3l4.2-1.8 2.3-2.5M12 13.6l-2.9 3.6-.6 4.3M12 13.6l3.3 3 1.5 4"/></svg></span><span><b>ANIMADOR</b><small>Estúdio Problems</small></span></div>
+    <span class="sp"></span><span data-estudio-conta></span>
   </header>
-
-  <aside class="panel left">
-    <div class="ptabs" id="lib-tabs"></div>
-    <div class="psearch"><input id="lib-search" placeholder="Buscar..." autocomplete="off"></div>
-    <div class="pbody" id="lib-body"></div>
-    <div class="splitter-v" id="split-l" title="Arraste para mudar a largura"></div>
-  </aside>
-
-  <main class="center">
-    <div class="pv-toolbar">
-      <button class="btn sm" id="pv-autokey" title="Modo animar (A): tudo que você mexer na prévia ou nos valores vira keyframe no tempo do cursor"></button>
-      <div class="pv-modo" id="pv-modo" title="O que o mouse faz na prévia"><button data-v="mover" title="Mover, girar e escalar os clipes">✋ Mover</button><button data-v="ossos" title="Mexer nos ossos do personagem selecionado">🦴 Ossos</button><button data-v="desenhar" title="Pincel, lápis, borracha, balde, quadro a quadro">✏️ Desenhar</button><button data-v="camera" title="Mexer e animar a câmera: arrastar = mover, Shift = zoom, Alt = girar">🎥 Câmera</button></div>
-      <div class="vsep"></div>
-      <button class="btn sm pv-tg" id="pv-outside" title="Mostrar o que está fora do quadro (área em volta)"></button>
-      <button class="btn sm" id="pv-center" title="Centralizar a câmera na tela (rodinha = zoom, botão do meio ou Espaço + arrastar = andar)" style="display:none">⤢</button>
-      <button class="btn sm pv-tg" id="pv-guides" title="Guias de área segura"></button>
-      <button class="btn sm pv-tg" id="pv-final" title="Mostra um quadrinho com o resultado final (como vai sair no vídeo)"></button>
-      <button class="ibtn" id="pv-snapshot" title="Salvar uma foto (PNG) deste quadro"></button>
-      <div class="sp"></div>
-      <span class="pv-info" id="pv-info"></span>
-    </div>
-    <div class="pv-final" id="pv-final-box"><b>Resultado final</b><canvas id="pv-final-cv"></canvas></div><div class="pv-stage" id="pv-stage"><div class="pv-wrap" id="pv-wrap"><canvas id="pv-canvas"></canvas><canvas id="pv-overlay"></canvas></div></div>
-    <div class="transport">
-      <div class="tp-time"><span id="tp-cur">00:00:00</span><span class="tp-sep">/</span><span id="tp-dur">00:00:00</span></div>
-      <div class="tp-btns">
-        <button class="ibtn" id="tp-start" title="Ir para o início (Home)"></button>
-        <button class="ibtn" id="tp-prev" title="Quadro anterior (←)"></button>
-        <button class="ibtn play-btn" id="tp-play" title="Reproduzir / Pausar (Espaço)"></button>
-        <button class="ibtn" id="tp-next" title="Próximo quadro (→)"></button>
-        <button class="ibtn" id="tp-end" title="Ir para o fim (End)"></button>
-        <button class="ibtn" id="tp-loop" title="Repetir (loop)"></button>
-      </div>
-      <div class="tp-right"><select id="pv-zoom" title="Zoom da prévia">        <option value="fit">Ajustar</option><option value="0.25">25%</option><option value="0.5">50%</option>        <option value="0.75">75%</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option>      </select>      <select id="pv-quality" title="Qualidade da prévia (não afeta a exportação)">        <option value="auto">Qualidade: Auto</option><option value="1">Completa</option><option value="0.5">Metade</option><option value="0.25">Um quarto</option>      </select><span id="tp-vol-ic"></span><input type="range" id="tp-vol" min="0" max="1" step="0.01" value="1" title="Volume da prévia"></div>
-    </div>
-  </main>
-
-  <aside class="panel right"><div class="pbody" id="props"></div><div class="splitter-v" id="split-r" title="Arraste para mudar a largura"></div></aside>
-  <div class="splitter-h" id="split-tl" title="Arraste para redimensionar a linha do tempo"></div>
-  <section id="timeline"></section>
+  <div class="home"><div class="home-in" id="home-in"></div></div>
 </div>
 
-<div id="modal-root"></div>
-<div id="toast-root"></div>
-<div id="ctx-root"></div>
+<!-- ====================== ANIMADOR ====================== -->
+<div id="editor" class="screen hidden">
+  <header class="bar">
+    <div class="brand" id="ed-inicio" title="Voltar ao início (as animações ficam salvas)"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><path d="M12 7.2v6.4M12 9.3l-4.2 2.4-1.5 3.3M12 9.3l4.2-1.8 2.3-2.5M12 13.6l-2.9 3.6-.6 4.3M12 13.6l3.3 3 1.5 4"/></svg></span><span><b>ANIMADOR</b><small>Estúdio Problems</small></span></div>
+    <span class="sep"></span>
+    <div class="proj-nome"><b id="proj-nome" title="Clique para renomear"></b><span class="salvo" id="salvo"></span></div>
+    <span class="sep"></span>
+    <button class="ibtn" id="b-undo" title="Desfazer (Ctrl+Z)"></button><button class="ibtn" id="b-redo" title="Refazer (Ctrl+Y)"></button>
+    <span class="sp"></span>
+    <div class="ferr" title="Ferramentas">
+      <button class="ibtn on" data-ferr="mover" title="Mover, girar e tamanho (V)"></button>
+      <button class="ibtn" data-ferr="mao" title="Mão: arrastar a tela (H, ou botão do meio)"></button>
+      <button class="ibtn" data-ferr="camera" title="Câmera: arrastar para enquadrar (C)"></button>
+    </div>
+    <div class="ferr" title="O que o palco mostra (Tab)">
+      <button class="btn sm ghost on" data-vista="mundo" title="Canvas infinito, para montar a cena">Cena</button>
+      <button class="btn sm ghost" data-vista="camera" title="Só o que a câmera vê, com cor, efeitos e legendas (igual ao vídeo)">Câmera</button>
+    </div>
+    <button class="ibtn" id="b-onion" title="Casca de cebola: ver os quadros vizinhos (O)"></button>
+    <span class="sep"></span>
+    <button class="btn" id="b-ia" title="Animar com a IA"></button>
+    <button class="btn" id="b-atelie" title="Ateliê de personagens: montar partes, sessões e poses"></button>
+    <button class="btn primary" id="b-exportar"></button>
+    <span data-estudio-conta></span>
+  </header>
+  <div class="area">
+    <aside class="painel esq">
+      <div class="p-cab"><h3>Hierarquia</h3><span class="sp"></span>
+        <button class="ibtn" id="h-pers" title="Pôr um personagem da biblioteca"></button><button class="ibtn" id="h-img" title="Pôr uma imagem (cenário, objeto)"></button>
+        <button class="ibtn" id="h-txt" title="Pôr um texto"></button><button class="ibtn" id="h-pasta" title="Pasta nova (Ctrl+G põe o selecionado numa pasta)"></button></div>
+      <div class="p-corpo arvore" id="arvore"></div>
+    </aside>
+    <main class="palco" id="palco"><canvas id="palco-cv"></canvas>
+      <div class="palco-zoom"><button class="btn sm" id="z-menos">−</button><button class="btn sm" id="zoom-txt" title="Enquadrar a câmera (F)">100%</button><button class="btn sm" id="z-mais">+</button></div>
+    </main>
+    <aside class="painel dir">
+      <div class="abas" id="lado-abas"><button data-aba="quadro" class="on">No quadro</button><button data-aba="props">Propriedades</button><button data-aba="efeitos">Efeitos</button><button data-aba="som">Voz</button></div>
+      <div class="p-corpo" id="lado"></div>
+    </aside>
+    <section class="tl">
+      <div class="tl-barra">
+        <button class="ibtn" id="t-ini" title="Primeiro quadro (Home)"></button><button class="ibtn" id="t-ant" title="Quadro anterior ( , )"></button>
+        <button class="ibtn" id="b-tocar" title="Tocar / pausar (Espaço)"></button>
+        <button class="ibtn" id="t-prox" title="Próximo quadro ( . )"></button><button class="ibtn" id="t-fim" title="Último quadro (End)"></button>
+        <span class="qd" id="tl-q"></span>
+        <span class="sep"></span>
+        <label title="Quadros por segundo" style="color:var(--tx2);display:flex;gap:4px;align-items:center">fps <input type="number" id="tl-fps" min="1" max="60"></label>
+        <label title="Quantos quadros a animação tem" style="color:var(--tx2);display:flex;gap:4px;align-items:center">quadros <input type="number" id="tl-dur" min="1" max="20000" style="width:70px"></label>
+        <button class="ibtn on" id="t-loop" title="Repetir ao tocar"></button>
+        <span class="sep"></span>
+        <button class="btn sm" id="t-chave" title="Chave neste quadro na camada escolhida (K)"></button>
+        <button class="btn sm" id="t-tira" title="Tirar a chave deste quadro (Shift+K)"></button>
+        <span class="sp"></span>
+        <span style="color:var(--tx3);font-size:11.5px">◆ chave · <span style="color:#ffd36b">◆</span> pose/expressão</span>
+        <input type="range" id="tl-zoom" min="6" max="48" value="16" title="Largura dos quadros (Ctrl + rodinha)" style="width:110px">
+      </div>
+      <div class="tl-corpo"><div class="tl-nomes" id="tl-nomes"></div><div class="tl-grade" id="tl-grade"><canvas id="tl-cv"></canvas><div class="tl-espaco" id="tl-espaco"></div></div></div>
+    </section>
+  </div>
+</div>
 
-<script src="js/tema.js"></script>
+<!-- ====================== ATELIÊ DE PERSONAGENS ====================== -->
+<div id="atelie" class="screen hidden">
+  <header class="bar">
+    <button class="btn ghost" id="at-voltar" title="Voltar"></button>
+    <div class="brand"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><path d="M12 7.2v6.4M12 9.3l-4.2 2.4-1.5 3.3M12 9.3l4.2-1.8 2.3-2.5M12 13.6l-2.9 3.6-.6 4.3M12 13.6l3.3 3 1.5 4"/></svg></span><span><b>ATELIÊ</b><small>personagens · Animador</small></span></div>
+    <span class="sep"></span>
+    <input type="text" id="at-nome" title="Nome do personagem" style="width:180px;font-weight:600">
+    <label style="color:var(--tx2);display:flex;gap:6px;align-items:center" title="Pasta na biblioteca da equipe">Pasta<input type="text" id="at-pasta" style="width:140px"></label>
+    <button class="ibtn" id="at-undo" title="Desfazer (Ctrl+Z)"></button><button class="ibtn" id="at-redo" title="Refazer (Ctrl+Shift+Z)"></button>
+    <span class="sp"></span>
+    <button class="btn primary" id="at-salvar" title="Salvar na nuvem da equipe (Ctrl+S)"></button>
+    <span data-estudio-conta></span>
+  </header>
+  <div class="at">
+    <aside class="painel" style="border-right:1px solid var(--bd)">
+      <div class="p-cab"><h3>Partes</h3><span class="sp"></span><button class="btn sm" id="at-add-parte" title="Parte nova encaixada na escolhida">+ Parte</button></div>
+      <div class="p-corpo arvore at-partes" id="at-partes" style="flex:1.2"></div>
+      <div class="p-cab" style="border-top:1px solid var(--bd)"><h3 id="at-imgs-t">Imagens</h3><span class="sp"></span><button class="btn sm" id="at-add-img" title="Pôr imagens (PNG com fundo transparente) nesta parte">+ Imagens</button></div>
+      <div class="p-corpo imgs" id="at-imgs" style="flex:1;align-content:start"></div>
+    </aside>
+    <main class="at-palco"><canvas id="at-cv"></canvas>
+      <div class="modo-at"><span class="btn" id="at-modo" style="cursor:default"></span><button class="btn" id="at-base">Voltar à base</button><button class="btn" id="at-so-img" title="Arrastar corrige só a imagem atual da parte">Só esta imagem</button><button class="btn" id="at-enq">Enquadrar</button></div>
+      <div class="dica">Arrastar: posiciona · <b>Alt</b>+arrastar: muda o pivô (giro) · alça de cima: gira · setas, <b>Q/E</b> girar, <b>+/−</b> tamanho, <b>F</b> espelhar, <b>[ ]</b> frente/trás, <b>Tab</b> próxima parte, <b>H</b> esconder · espaço/botão do meio: mover a tela</div>
+    </main>
+    <aside class="painel" style="border-left:1px solid var(--bd)">
+      <div class="abas" id="at-abas"><button data-aba="peca" class="on">Peça</button><button data-aba="sessoes">Sessões e poses</button></div>
+      <div class="p-corpo" id="at-lado"></div>
+    </aside>
+  </div>
+</div>
+
+<div id="modal-root"></div><div id="ctx-root"></div><div id="toast-root"></div>
+
+<script src="js/util.js"></script>
 <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
-<script src="js/util.js"></script>
 <script src="js/pwa.js"></script>
-<script src="js/estudio.js"></script>
-<script src="js/library.js"></script>
-<script src="js/genre.js"></script>
-<script src="js/db.js"></script>
-<script src="js/render.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/timeline.js"></script>
-<script src="js/props.js"></script>
-<script src="js/libui.js"></script>
-<script src="js/app.js"></script>
-<script src="js/actions.js"></script>
 <script src="js/mp4mux.js"></script>
-<script src="js/export.js"></script>
-<script src="js/picker.js"></script>
-<script src="js/keys.js"></script>
-<script src="js/styleref.js"></script>
-<script src="js/transcribe.js"></script>
-<script src="js/assistant.js"></script>
-<script src="js/creator.js"></script>
-<script src="js/extras.js"></script>
-<script src="js/animacao.js"></script>
-<script src="js/alinhar.js"></script>
-<script src="js/anim/rig.js"></script>
-<script src="js/imgedit.js"></script>
-<script src="js/anim/acting.js"></script>
-<script src="js/anim/montar.js"></script>
-<script src="js/anim/desenho.js"></script>
-<script src="js/desenho-editor.js"></script>
-<script src="js/camera-editor.js"></script>
-<script src="js/timeline-animacao.js"></script>
-<script src="js/cena.js"></script>
-<script src="js/paineis.js"></script>
-<script src="js/cor.js"></script>
-<script src="js/ia-corrigir.js"></script>
-<script src="js/limpar-audio.js"></script>
-<script src="js/rigedit.js"></script>
-<script src="js/team.js"></script>
+<script src="js/modelo.js"></script>
+<script src="js/nuvem.js"></script>
+<script src="js/efeitos.js"></script>
+<script src="js/desenho.js"></script>
+<script src="js/app.js"></script>
+<script src="js/arvore.js"></script>
+<script src="js/folha.js"></script>
+<script src="js/lado.js"></script>
+<script src="js/som.js"></script>
+<script src="js/ia.js"></script>
+<script src="js/exportar.js"></script>
+<script src="js/atelie.js"></script>
 <script src="js/home.js"></script>
+<script src="js/inicio.js"></script>
 <script>/* itens do Animador no balão da conta (o resto é igual em todos os projetos) */
 window.ESTUDIO_CONTA = { extras: () => [
   typeof PWA !== 'undefined' && { texto: PWA.installed ? 'Já está como programa ✓' : 'Usar como programa (instalar)…', icone: 'tela', acao: () => PWA.install() },
-  typeof Tema !== 'undefined' && { texto: 'Tema e cores…', icone: 'paleta', acao: () => Tema.open() },
 ] };</script>
 <script src="/estudio-conta.js" defer></script>
-<script>
-/* círculo de espaço (padrão de todos os projetos): os projetos do Animador, com "Baixar .toon" */
-addEventListener('DOMContentLoaded', () => window.EstudioConta?.espaco.registrar({
-  programa: 'Animador',
-  async listar() {
-    if (App.project && App.dirty) await App.save(true);
-    const [ps, as] = await Promise.all([DB.all('projects'), DB.all('assets')]), tam = {};
-    as.forEach(a => tam[a.projectId] = (tam[a.projectId] || 0) + (a.size || a.blob?.size || 0));
-    return ps.sort((a, b) => b.modified - a.modified).map(p => ({ nome: p.name, bytes: (p.data?.length || 0) + (p.thumb?.length || 0) + (tam[p.id] || 0), data: p.modified, thumb: p.thumb,
-      info: p.kind === 'anim' ? 'animação' : 'vídeo', rotuloBaixar: 'Baixar .toon', baixar: () => Home.exportToon(p), apagar: () => Home.remove(p), confirma: false }));
-  },
-  detalhes: () => Home.storageModal(),
-}));
-</script>
 </body>
 </html>
