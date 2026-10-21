@@ -194,3 +194,12 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .ctx-label{flex:1}.ctx-key{margin-left:auto;color:var(--tx3);font:11px var(--mono)}
 .spin-dot{display:inline-block;width:10px;height:10px;border:2px solid #bbb;border-top-color:transparent;border-radius:50%;animation:gira .8s linear infinite}
 @keyframes gira{to{transform:rotate(360deg)}}
+/* janela Cenário */
+.cen{display:flex;flex-direction:column;gap:8px;user-select:none}
+.cen-sub{font-weight:600;color:var(--tx);margin-top:4px}.cen-sub span{font-weight:400;color:var(--tx3)}
+.cen-grade{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cen-item{display:flex;flex-direction:column;gap:4px;padding:4px;border:1px solid var(--bd2);border-radius:6px;background:var(--bg2);color:var(--tx2);cursor:pointer;font:inherit;font-size:12px}
+.cen-item:hover{border-color:var(--sel);color:var(--tx)}.cen-item img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:4px;display:block}
+.cen textarea{width:100%;resize:vertical}
+.cen-prev canvas{width:100%;max-width:520px;margin:0 auto;aspect-ratio:16/9;border-radius:6px;display:block;background:var(--bg2)}
+.cen-st{color:var(--tx2);font-size:12px;margin-top:6px}
