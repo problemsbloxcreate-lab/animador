@@ -78,9 +78,13 @@ const Atelie = {
   },
   async montarNovo(novo) {
     // com a IA: a tela fica bloqueada do começo ao fim (pôr as imagens, aparar e organizar)
-    const fim = novo.ia ? Ocupado.inicio({ tipo: 'novo', titulo: `A IA está montando "${novo.nome}"`, est: 75, subtitulo: 'Pondo as imagens…' }) : () => { };
+    let fim = () => { };
     try {
-      await this.addImagens(novo.fs, true); // cada imagem vira uma parte (camadas do mesmo tamanho já ficam no lugar)
+      // folhas de peças / fundo / tamanho: pergunta ANTES (e antes da IA começar)
+      const pr = await this.prepararFolhas(novo.fs, false); if (!pr) return;
+      if (pr.separou.length) novo.pedido = [novo.pedido, 'Algumas imagens vieram de folhas separadas automaticamente: ' + pr.separou.map(f => `"${f.nome} 1..${f.n}" (${f.modo === 'versoes' ? 'versões da mesma peça, cada uma aparada e no centro: junte as do mesmo tipo numa parte só; numa folha de duas fileiras, a de baixo costuma ser o lado de trás' : 'corpo desmontado: cada peça está no lugar em que estava na folha'})`).join('; ')].filter(Boolean).join('\n');
+      if (novo.ia) fim = Ocupado.inicio({ tipo: 'novo', titulo: `A IA está montando "${novo.nome}"`, est: 75, subtitulo: 'Pondo as imagens…' });
+      await this.addImagens(pr.fs, true, null, { semFolhas: true, montado: pr.montado }); // cada imagem vira uma parte (camadas do mesmo tamanho já ficam no lugar)
       const t = novo.ia ? { remove() { } } : UI.toast('<span class="spin-dot"></span> Aparando as sobras transparentes…', { time: 120000 }); if (novo.ia) Ocupado.passo('Aparando as sobras transparentes…');
       try { await Pintura.apararLista(this.def.partes.flatMap(p => p.imgs)); } catch { } t.remove(); this.commit(); this.enquadrar();
       if (novo.ia) await this.iaOrganizar('organizar', novo.pedido || '');
@@ -605,8 +609,10 @@ const Atelie = {
     this.tirarPartes([p]); this.sel = this.def.raiz || this.def.partes[0]?.id || null; this.multi.clear(); this.focoImg = null; this.commit();
   },
   // imagens: viram variações da parte escolhida (ou, soltas na lista de partes, uma parte nova cada)
-  async addImagens(fs, cadaUmaParte, pasta = null) {
+  async addImagens(fs, cadaUmaParte, pasta = null, o = {}) {
     fs = fs ? await semVetor(fs) : await pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true); fs = (fs || []).filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name)); if (!fs.length) return;
+    let montado = o.montado || new Set(); const novasMontado = [];
+    if (!o.semFolhas) { const pr = await this.prepararFolhas(fs, !cadaUmaParte && !!this.parte()?.imgs.length); if (!pr) return; fs = pr.fs; montado = pr.montado; } // folha de peças, fundo e tamanho: pergunta antes
     let p = this.parte();
     for (const f of fs) {
       const bm = await createImageBitmap(f).catch(() => null); if (!bm) { UI.toast(`"${esc(f.name)}" não é uma imagem que dá para usar`, { kind: 'err' }); continue; }
@@ -616,11 +622,25 @@ const Atelie = {
       const nome = f.name.replace(/\.[^.]+$/, '').slice(0, 40);
       if (cadaUmaParte || !p) { p = Modelo.novaParte(nome, null); p.z = this.def.partes.length; this.def.partes.push(p); }
       const img = { id: uid('i'), nome, k, w: bm.width > 2048 || bm.height > 2048 ? Math.round(bm.width * Math.min(1, 2048 / Math.max(bm.width, bm.height))) : bm.width, h: bm.width > 2048 || bm.height > 2048 ? Math.round(bm.height * Math.min(1, 2048 / Math.max(bm.width, bm.height))) : bm.height };
-      img.pivo = { x: img.w / 2, y: img.h / 2 }; img.ajuste = { x: 0, y: 0 }; if (pasta && !cadaUmaParte) img.pasta = pasta; p.imgs.push(img);
+      img.pivo = { x: img.w / 2, y: img.h / 2 }; img.ajuste = { x: 0, y: 0 }; if (pasta && !cadaUmaParte) img.pasta = pasta; p.imgs.push(img); if (montado.has(f)) novasMontado.push(img);
       if (!p.base.img) p.base.img = img.id; else if (!cadaUmaParte) this.mudar(p.id, { img: img.id });
       if (cadaUmaParte) p = null;
     }
+    if (novasMontado.length) try { await Pintura.apararLista(novasMontado); } catch { } // peças do "corpo desmontado": apara sem tirar do lugar
     if (!this.sel) this.sel = this.def.partes[0]?.id; this.commit(); this.enquadrar();
+  },
+  // pergunta sobre folhas de peças, fundo e tamanho (js/folhas.js). A referência de tamanho é a imagem da parte
+  // onde as imagens vão entrar (versões) ou a peça principal do personagem; sem nada ainda, a maior imagem do lote.
+  async prepararFolhas(fs, paraParte) {
+    let ref = null;
+    try {
+      const p = this.parte(), daParte = q => q.imgs.find(i => i.id === this.estado()[q.id]?.img) || q.imgs.find(i => i.id === q.base.img) || q.imgs[0];
+      let alvo = paraParte && p && daParte(p) ? { p, i: daParte(p) } : null;
+      if (!alvo) { const r = this.def.partes.find(q => q.id === this.def.raiz && q.imgs.length); if (r) alvo = { p: r, i: daParte(r) };
+        else alvo = this.def.partes.filter(q => q.imgs.length).map(q => ({ p: q, i: daParte(q) })).sort((x, y) => y.i.w * y.i.h - x.i.w * x.i.h)[0] || null; }
+      if (alvo) { await Arq.garantir([alvo.i.k]); ref = Folhas.refDaImagem(alvo.i, `${alvo.p.nome} › ${alvo.i.nome}`); }
+    } catch { }
+    return Folhas.preparar(fs, { paraParte, ref });
   },
   // imagens da parte escolhida, em pastas (ex.: "olhos", "bocas"). Arrastar arquivos aqui põe nesta parte; numa pasta, dentro dela.
   pintaImgs() {
