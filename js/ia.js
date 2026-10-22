@@ -18,7 +18,8 @@ const IA = {
     for (let tent = 0; tent < 3; tent++) {
       let r; try { r = await fetch(this.srv + '/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', ...(await Nuvem.hd()) }, body: JSON.stringify(corpo) }); }
       catch { if (tent < 2) { await sleep(2500 * (tent + 1)); continue; } throw new Error('Não consegui falar com o servidor da IA. Confira a internet.'); }
-      if (r.ok && /event-stream/.test(r.headers.get('content-type') || '')) return this.leStream(r, aoEscrever);
+      if (r.ok && /event-stream/.test(r.headers.get('content-type') || '')) { try { return await this.leStream(r, aoEscrever); } // a conexão caiu no meio da resposta (ex.: aba escondida e a rede piscou): pede de novo
+        catch (e) { if (tent < 2 && !/limite|login/i.test(e.message || '')) { Ocupado.passo('A conexão caiu, pedindo de novo…'); await sleep(2500 * (tent + 1)); continue; } throw e; } }
       const j = await r.json().catch(() => ({}));
       if (r.ok) return (j.content || []).map(c => c.text || '').join('');
       if ([429, 500, 502, 503, 529].includes(r.status) && tent < 2) { await sleep(4000 * (tent + 1)); continue; }

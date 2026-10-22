@@ -410,3 +410,39 @@ const TabTitle = {
   set(pct, label) { document.title = `${pct != null ? Math.round(pct * 100) + '% ' : '⏳ '}${label} — ${this.base()}`; },
   clear() { document.title = this.base(); },
 };
+
+/* ---------- régua e ímã (editor e Ateliê): réguas em cima e à esquerda do palco + guias de onde grudou ---------- */
+const Regua = {
+  caixa(cantos) { const xs = cantos.map(p => p.x), ys = cantos.map(p => p.y); const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys); return { x0, x1, y0, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 }; },
+  // ima = { box (do que está sendo arrastado), alvos: [{x0,x1,y0,y1,cx,cy,cam?}] } · z = zoom da tela · devolve { p (ponto já grudado), guias }
+  gruda(ima, w0, w, travado, z) {
+    const dx0 = w.x - w0.x, dy0 = w.y - w0.y, b = ima.box, lim = 8 / (z || 1);
+    const mx = [b.x0 + dx0, b.cx + dx0, b.x1 + dx0], my = [b.y0 + dy0, b.cy + dy0, b.y1 + dy0];
+    let bx = null, by = null;
+    for (const a of ima.alvos) {
+      for (const lx of [a.x0, a.cx, a.x1]) for (const m of mx) { const d = lx - m; if (Math.abs(d) <= lim && (!bx || Math.abs(d) < Math.abs(bx.d))) bx = { d, x: lx, a }; }
+      for (const ly of [a.y0, a.cy, a.y1]) for (const m of my) { const d = ly - m; if (Math.abs(d) <= lim && (!by || Math.abs(d) < Math.abs(by.d))) by = { d, y: ly, a }; }
+    }
+    if (travado) { if (w.y === w0.y) by = null; if (w.x === w0.x) bx = null; }
+    return { p: { x: w.x + (bx?.d || 0), y: w.y + (by?.d || 0) }, guias: [bx && { x: bx.x, cam: bx.a.cam }, by && { y: by.y, cam: by.a.cam }].filter(Boolean) };
+  },
+  // o: { guias, on (réguas ligadas), sel: caixa no mundo do que está escolhido }
+  desenha(ctx, V, W, H, d, o = {}) {
+    if (o.guias?.length) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.lineWidth = 1 * d;
+      for (const g of o.guias) { ctx.strokeStyle = g.cam ? '#ff5fd2' : '#19d3f0'; ctx.setLineDash(g.cam ? [] : [6 * d, 4 * d]); ctx.beginPath();
+        if (g.x != null) { const x = Math.round(V.transformPoint(new DOMPoint(g.x, 0)).x) + .5; ctx.moveTo(x, 0); ctx.lineTo(x, H); } else { const y = Math.round(V.transformPoint(new DOMPoint(0, g.y)).y) + .5; ctx.moveTo(0, y); ctx.lineTo(W, y); } ctx.stroke(); }
+      ctx.restore(); }
+    if (!o.on) return;
+    const T = 18 * d, z = Math.hypot(V.a, V.b), inv = V.inverse(); let passo = 10; for (const p of [10, 25, 50, 100, 250, 500, 1000, 2500, 5000]) { passo = p; if (p * z >= 60 * d) break; }
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = 'rgba(24,24,24,.92)'; ctx.fillRect(0, 0, W, T); ctx.fillRect(0, 0, T, H);
+    ctx.strokeStyle = '#555'; ctx.fillStyle = '#9a9a9a'; ctx.font = `${9.5 * d}px Segoe UI`; ctx.lineWidth = 1; ctx.beginPath();
+    const xa = inv.transformPoint(new DOMPoint(T, 0)).x, xb = inv.transformPoint(new DOMPoint(W, 0)).x, ya = inv.transformPoint(new DOMPoint(0, T)).y, yb = inv.transformPoint(new DOMPoint(0, H)).y;
+    for (let v = Math.ceil(xa / (passo / 5)) * (passo / 5); v <= xb; v += passo / 5) { const x = Math.round(V.transformPoint(new DOMPoint(v, 0)).x) + .5, g = Math.abs(v % passo) < 1e-6; ctx.moveTo(x, T); ctx.lineTo(x, T - (g ? 8 : 4) * d); if (g) ctx.fillText(String(Math.round(v)), x + 2 * d, 9 * d); }
+    for (let v = Math.ceil(ya / (passo / 5)) * (passo / 5); v <= yb; v += passo / 5) { const y = Math.round(V.transformPoint(new DOMPoint(0, v)).y) + .5, g = Math.abs(v % passo) < 1e-6; ctx.moveTo(T, y); ctx.lineTo(T - (g ? 8 : 4) * d, y);
+      if (g) { ctx.save(); ctx.translate(9 * d, y - 2 * d); ctx.rotate(-Math.PI / 2); ctx.fillText(String(Math.round(v)), 0, 0); ctx.restore(); } }
+    ctx.stroke();
+    const b = o.sel; // onde está o escolhido, marcado nas réguas
+    if (b) { const p0 = V.transformPoint(new DOMPoint(b.x0, b.y0)), p1 = V.transformPoint(new DOMPoint(b.x1, b.y1)); ctx.fillStyle = 'rgba(25,211,240,.35)'; ctx.fillRect(Math.max(T, p0.x), 0, p1.x - Math.max(T, p0.x), T); ctx.fillRect(0, Math.max(T, p0.y), T, p1.y - Math.max(T, p0.y)); }
+    ctx.fillStyle = '#202020'; ctx.fillRect(0, 0, T, T); ctx.restore();
+  },
+};

@@ -270,7 +270,7 @@ const Atelie = {
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
     $$('#at-mover [data-modo]').forEach(b => b.onclick = () => this.setModo(b.dataset.modo));
-    $('#at-enq').onclick = () => this.enquadrar(); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 13) + ' Pela referência'; $('#at-testar').onclick = () => this.painelTeste(!this.painelAberto);
+    $('#at-enq').onclick = () => this.enquadrar(); $('#at-regua').onclick = () => this.trocaRegua(); this.pintaRegua(); this.cv.addEventListener('pointerup', () => { if (this.guias) { this.guias = null; this.desenha(); } }); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 13) + ' Pela referência'; $('#at-testar').onclick = () => this.painelTeste(!this.painelAberto);
     $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
     addEventListener('keydown', e => this.teclas(e));
     Pintura.liga();
@@ -319,7 +319,22 @@ const Atelie = {
       ctx.restore();
     }
     Pintura.desenhaCursor(ctx);
+    // régua (em cima e à esquerda) e as guias de onde a peça grudou
+    const itS = itens.find(x => x.parte.id === this.sel && x.img);
+    Regua.desenha(ctx, V, W, H, d, { guias: this.guias, on: this.regua(), sel: itS ? this.caixaItem(itS) : null });
   },
+  /* ---------- régua e ímã (como no editor): R liga/desliga; arrastando, a peça gruda nas bordas e no meio das outras e no centro (0,0); Ctrl segura para não grudar ---------- */
+  regua() { if (this._regua == null) { try { this._regua = localStorage.getItem('animador-atelie-regua') !== '0'; } catch { this._regua = true; } } return this._regua; },
+  trocaRegua() { this._regua = !this.regua(); try { localStorage.setItem('animador-atelie-regua', this._regua ? '1' : '0'); } catch { } this.pintaRegua(); UI.toast(this._regua ? 'Régua e ímã ligados (Ctrl segura para não grudar)' : 'Régua e ímã desligados'); this.desenha(); },
+  pintaRegua() { const b = $('#at-regua'); if (b) { b.innerHTML = ic('ruler', 14); b.classList.toggle('on', this.regua()); } $('.at-palco')?.classList.toggle('com-regua', this.regua()); },
+  caixaItem(it) { const im = it.img, px = im.pivo?.x ?? im.w / 2, py = im.pivo?.y ?? im.h / 2, ax = im.ajuste?.x || 0, ay = im.ajuste?.y || 0; return Regua.caixa([[0, 0], [im.w, 0], [0, im.h], [im.w, im.h]].map(([x, y]) => it.m.transformPoint(new DOMPoint(x - px + ax, y - py + ay)))); },
+  imaInicio(it) {
+    if (!it?.img) return null; const fora = new Set([it.parte.id]); let mudou = true; while (mudou) { mudou = false; for (const q of this.def.partes) if (q.pai && fora.has(q.pai) && !fora.has(q.id)) { fora.add(q.id); mudou = true; } } // ela e as presas nela (vão junto)
+    const alvos = Modelo.montar(this.def, this.estado()).filter(x => x.img && !fora.has(x.parte.id)).map(x => this.caixaItem(x));
+    alvos.unshift({ x0: 0, x1: 0, y0: 0, y1: 0, cx: 0, cy: 0, cam: true }); // o centro do personagem (as linhas do 0)
+    return { box: this.caixaItem(it), alvos };
+  },
+  imaPonto(ev, ima, w0) { const w = this.mundo(ev); if (!ima || ev.ctrlKey || ev.metaKey) { this.guias = null; return w; } const r = Regua.gruda(ima, w0, w, false, this.vista.z); this.guias = r.guias; return r.p; },
   // partes roxas: as que estão em "Mover todos" (a escolhida, se for para todas; ou as que ligaram só para elas)
   partesTodas() {
     const out = new Set(); if (!this.def) return out; // só a própria parte fica roxa (as presas nela vão junto, mas sem roxo)
@@ -378,7 +393,7 @@ const Atelie = {
     const w = this.mundo(e), it = this.acha(w);
     if (!it) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; let mexeu = false; return fim(ev => { mexeu = true; v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }, () => { if (!mexeu) { this.escolhe(null); this.pinta(); } }); }
     if (it.parte.id !== this.sel || this.multi.size || this.focoImg || this.teste) { this.escolhe(it.parte.id); if (this.teste) Animacoes.alvoPausa(it.parte.id); this.pinta(); }
-    const p = it.parte, est = this.estado(), w0 = w;
+    const p = it.parte, est = this.estado(), w0 = w, ima = this.regua() && !e.ctrlKey ? this.imaInicio(it) : null; // régua ligada: gruda nas outras peças e no centro
     if (e.altKey && it.img) { // pivô: muda o ponto de giro sem tirar a peça do lugar
       const img = it.img, inv = it.m.inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), piv0 = { ...(img.pivo || { x: img.w / 2, y: img.h / 2 }) }, enc0 = { ...p.encaixe }, filhos = this.def.partes.filter(f => f.pai === p.id).map(f => [f, { ...f.encaixe }]);
       return fim(ev => { const w2 = this.mundo(ev), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)), dx = l.x - l0.x, dy = l.y - l0.y;
@@ -390,17 +405,17 @@ const Atelie = {
     }
     if (this.modoDe(p.id) === 'preset' && it.img) { // PADRÃO: esta imagem SÓ neste preset (ou só na base)
       const img = it.img, inv = (it.mp || it.m).inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), d0 = { ...(est[p.id]?.d?.[img.id] || { x: 0, y: 0 }) };
-      return fim(ev => { const w2 = this.mundo(ev), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+      return fim(ev => { const w2 = this.imaPonto(ev, ima, w0), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
         this.poeD(p, img, { x: round(d0.x + dx, 1), y: round(d0.y + dy, 1) }); this.desenha(); }, () => this.commit());
     }
     if (this.modoDe(p.id) === 'imagem' && it.img) { // a mesma imagem em TODOS os presets (e na base)
       const img = it.img, inv = it.m.inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), aj0 = { ...(img.ajuste || { x: 0, y: 0 }) };
-      return fim(ev => { const w2 = this.mundo(ev), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+      return fim(ev => { const w2 = this.imaPonto(ev, ima, w0), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
         img.ajuste = { x: round(aj0.x + dx, 1), y: round(aj0.y + dy, 1) }; this.desenha(); }, () => this.commit());
     }
     // MOVER TODOS: a parte inteira. Na Base muda o encaixe (onde ela fica no pai); num preset muda só o preset
     const inv = this.matPai(p.id, est).inverse(), a0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), e0 = { ...est[p.id] }, enc0 = { ...p.encaixe };
-    fim(ev => { const w2 = this.mundo(ev), a = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = a.x - a0.x, dy = a.y - a0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+    fim(ev => { const w2 = this.imaPonto(ev, ima, w0), a = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = a.x - a0.x, dy = a.y - a0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
       if (this.edit || this.editPasso) this.mudar(p.id, { x: round((e0.x || 0) + dx, 1), y: round((e0.y || 0) + dy, 1) }); else p.encaixe = { x: round(enc0.x + dx, 1), y: round(enc0.y + dy, 1) }; this.desenha(); }, () => this.commit());
   },
   teclas(e) {
@@ -408,6 +423,7 @@ const Atelie = {
     if (e.target.closest?.('input,textarea,select') && e.target.type !== 'range') return;
     const k = e.key, ctrl = e.ctrlKey || e.metaKey, p = this.parte();
     if (k === ' ') { this.espaco = e.type === 'keydown'; e.preventDefault(); return; }
+    if (e.type === 'keydown' && (k === 'r' || k === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest?.('input,textarea,select,[contenteditable]')) { e.preventDefault(); return this.trocaRegua(); }
     if (ctrl && k.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
     if (ctrl && k.toLowerCase() === 's') { e.preventDefault(); return this.salvarLocal(); } // Ctrl+S = guardar neste computador
     if (ctrl) { Pintura.teclaCtrl(e); return; }

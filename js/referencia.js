@@ -57,7 +57,8 @@ const Referencia = {
   // "Braço esquerdo" e "Braço direito" = mesmo grupo (não podem ficar no mesmo lugar). De trás/da frente PODEM se sobrepor, então não contam
   grupoLado(nome) { const n = this.nrm(nome), t = n.replace(/\b(esquerd[oa]s?|direit[oa]s?|left|right|[12])\b/g, '').replace(/\s+/g, ' ').trim(); return t !== n ? t : null; },
   espessura(bm, W, H) { try { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bm, 0, 0, W, H); return Folhas.espessura(x.getImageData(0, 0, W, H).data, W, H) || 0; } catch { return 0; } },
-  pausa: () => new Promise(r => setTimeout(r, 0)),
+  // dá a vez para a tela sem usar setTimeout: com a aba escondida o navegador estica cada setTimeout para 1 s (e até 1 min depois de 5 min)
+  pausa: () => new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); }),
 
   // calcula onde cada parte fica (sem mudar nada). Devolve { sigma, achados: [{ parte, u, v, custo }], ruins: [nomes] }
   async calcula(def, ref, aoPasso = () => { }) {
