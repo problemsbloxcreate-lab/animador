@@ -129,7 +129,7 @@ const Atelie = {
     this.enviando = (async () => {
       try { try { def.thumb = this.miniatura(); } catch { }
         if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
-        await Nuvem.salvar(def); this.aplicaTroca(Nuvem.ultimaTroca); const snapR = Nuvem.remapear(snap, Nuvem.ultimaTroca);
+        await Icone.prepara(def); await Nuvem.salvar(def); this.aplicaTroca(Nuvem.ultimaTroca); const snapR = Nuvem.remapear(snap, Nuvem.ultimaTroca);
         if ((this.ultimo || JSON.stringify(this.def)) === snapR) { this.sujo = false; await DB.del('arquivos', this.chaveRascunho(def.id)).catch(() => { }); this.rascunhoEm = null; }
         if (this.def?.id === def.id) { this.def.modificado = def.modificado; this.def.autor = def.autor; this.def.edicoes = def.edicoes; this.def.thumb = def.thumb; }
         this.baseNuvem = snapR; if (this.base0 === snapR || !this.sujo) this.base0 = snapR; this.avisaAnimador(def, false); this.pinta();
@@ -148,8 +148,9 @@ const Atelie = {
   avisaAnimador(def, local) {
     const c = clone(def); delete c._local;
     if (local) { const L = this.local(); c._local = { em: Date.now(), todo: !!L.todo, presets: [...L.presets], partes: [...L.partes] }; }
-    if (App.P?.personagens?.[c.id] && !this.emAba) { App.P.personagens[c.id] = clone(c); App.commit('Personagem atualizado'); }
-    try { (this._canal ||= new BroadcastChannel('animador')).postMessage({ tipo: 'personagem', def: c }); } catch { }
+    Icone.prepara(c).then(() => { // ícone (cabeça) e cor automáticos vão prontos para a hierarquia do editor
+      if (App.P?.personagens?.[c.id] && !this.emAba) { App.P.personagens[c.id] = clone(c); App.commit('Personagem atualizado'); }
+      try { (this._canal ||= new BroadcastChannel('animador')).postMessage({ tipo: 'personagem', def: c }); } catch { } });
   },
   // Ctrl+S: guarda neste computador (NÃO manda para a nuvem; só o botão da nuvem manda — ou sozinho, se ele já está lá)
   async salvarLocal() {
@@ -383,7 +384,7 @@ const Atelie = {
     $('#at-modo').innerHTML = this.teste && Animacoes.parado ? `${Animacoes.poseFixa ? `Pose do quadro ${Animacoes.poseFixa.quadro + 1}` : 'Pausado'} · arrumando <b>${esc(Animacoes.textoAlvo())}</b>` : Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
     $('#at-base').hidden = !pr; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover').hidden = !!this.teste && !Animacoes.parado;
     $('#at-testar').classList.toggle('on', !!this.painelAberto); $('#at-testar').innerHTML = `${ic('play', 13)} Testar`; $('#at-testar').title = 'Abrir/fechar o painel Testar (T)'; this.pintaTeste(); Pintura.pintaBarra();
-    this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
+    this.pintaIcone(); this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
   },
   pintaPartes() {
@@ -856,6 +857,35 @@ const Atelie = {
     await this.criaVista({ ...r, de: this.def.vistaAtual, fs: r.como === 'imagens' ? fs : [], ia: r.ia && r.como === 'imagens' && fs.length > 0 });
   },
   vistaDe() { return Modelo.vistaDe(this.def); },
+  /* ---------- ÍCONE e COR do personagem (hierarquia e timeline do editor) ---------- */
+  pintaIcone() {
+    const b = $('#at-icone'); if (!b || !this.def) return; const def = this.def, auto = (def.iconeModo || 'auto') === 'auto', cAuto = (def.corModo || 'auto') === 'auto';
+    if ((auto || cAuto) && this._icAuto?.de !== def.id + def.vistaAtual) { const m = this._icAuto = { de: def.id + def.vistaAtual }; Icone.cabeca(def).then(i => { m.img = i; if (this._icAuto === m) this.pintaIcone(); }).catch(() => { }); Icone.corAuto(def).then(c => { m.cor = c; if (this._icAuto === m) this.pintaIcone(); }).catch(() => { }); }
+    const img = def.iconeModo === 'nenhum' ? null : auto ? this._icAuto?.img : def.icone, cor = cAuto ? this._icAuto?.cor : def.cor;
+    b.style.setProperty('--cp', cor || '#888'); b.innerHTML = img ? `<img src="${img}" alt="">` : ic('layers', 16); b.onclick = () => this.configIcone();
+  },
+  async configIcone() {
+    const def = this.def; let modo = def.iconeModo || 'auto', img = def.icone || null, corModo = def.corModo || 'auto', cor = def.cor || '#8fb3ff';
+    const auto = { img: await Icone.cabeca(def).catch(() => null), cor: await Icone.corAuto(def).catch(() => '#8fb3ff') }; if (corModo === 'auto') cor = auto.cor;
+    const body = h(`<div class="ico-cfg"><div class="ico-prev"><div class="ico-grande" data-g></div><div class="ico-ex"><small>Na hierarquia do editor</small><div class="ico-linha" data-l></div><small>Na timeline</small><div class="ico-linha tl" data-t></div></div></div>
+      <div class="field">Ícone</div><div class="seg ico-seg" data-mi><button data-v="auto">Cabeça (automático)</button><button data-v="proprio">Imagem própria…</button><button data-v="nenhum">Sem ícone</button></div>
+      <div class="field" style="margin-top:12px">Cor</div><div class="campo2"><div class="seg ico-seg" data-mc><button data-v="auto">Automática</button><button data-v="propria">Escolher</button></div><input type="color" data-c value="${cor}"><code data-hex>${cor}</code></div>
+      <div style="color:var(--tx3);font-size:11.5px;margin-top:10px">A automática é a cor que mais aparece no personagem, ajustada para ficar fácil de ver no fundo escuro. O nome que aparece é sempre o nome do personagem/camada.</div></div>`);
+    const pinta = () => { const i = modo === 'nenhum' ? null : modo === 'auto' ? auto.img : img, c = corModo === 'auto' ? auto.cor : Icone.legivel(cor), d = { iconeModo: modo, icone: i, cor: c };
+      $('[data-g]', body).innerHTML = i ? `<img src="${i}" alt="" style="border-color:${c}">` : `<span style="border-color:${c}">${ic('layers', 30)}</span>`;
+      $('[data-l]', body).innerHTML = `<span class="no pers-cor" style="--cp:${c}"><span class="ti">${Icone.html(d, 18)}</span><span class="nm">${esc(def.nome)}</span></span>`;
+      $('[data-t]', body).innerHTML = `<span class="reg pers-cor" style="--cp:${c}">${Icone.html(d, 15)}<span class="nm">${esc(def.nome)}</span></span><i style="background:${c}88"></i>`;
+      $$('[data-mi] button', body).forEach(b => b.classList.toggle('on', b.dataset.v === modo)); $$('[data-mc] button', body).forEach(b => b.classList.toggle('on', b.dataset.v === corModo));
+      $('[data-c]', body).value = c; $('[data-hex]', body).textContent = c; };
+    $$('[data-mi] button', body).forEach(b => b.onclick = async () => { if (b.dataset.v === 'proprio') { const fs = await pickFiles('image/*', false); const f = fs?.[0]; if (!f) return; img = await Icone.deArquivo(f); } modo = b.dataset.v; pinta(); });
+    $$('[data-mc] button', body).forEach(b => b.onclick = () => { corModo = b.dataset.v; pinta(); });
+    $('[data-c]', body).oninput = ev => { corModo = 'propria'; cor = ev.target.value; pinta(); };
+    pinta();
+    const ok = await UI.modal({ title: 'Ícone e cor do personagem', icon: 'image', width: 520, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Aplicar', kind: 'primary', value: true }] }); if (!ok) return;
+    def.iconeModo = modo; if (modo === 'proprio') def.icone = img; else if (modo === 'nenhum') delete def.icone;
+    def.corModo = corModo; if (corModo === 'propria') def.cor = Icone.legivel(cor);
+    this._icAuto = null; this.commit(); UI.toast('Ícone e cor guardados. Vão para o editor quando o personagem for salvo (Ctrl+S ou nuvem).', { kind: 'ok' });
+  },
   // a pose padrão (base) passa a ser igual a este preset (nas partes que ele mexe)
   virarPadrao(s, pr) {
     let n = 0; for (const [pid, e] of Object.entries(pr.estado || {})) { const p = this.parte(pid); if (!p) continue; const { d, ...resto } = e; Object.assign(p.base, resto); if (d) p.base.d = { ...(p.base.d || {}), ...d }; n++; }
@@ -1022,7 +1052,7 @@ const Atelie = {
     // aprendizado: o que a equipe corrigiu depois da IA organizar vai junto (a IA lê isso nos próximos personagens)
     if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
     const t = UI.toast('<span class="spin-dot"></span> <span data-p>Salvando na nuvem…</span>', { time: 600000 });
-    try { await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); this.aplicaTroca(Nuvem.ultimaTroca); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.base0 = this.baseNuvem = this.ultimo; this.pinta();
+    try { await Icone.prepara(def); await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); this.aplicaTroca(Nuvem.ultimaTroca); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.base0 = this.baseNuvem = this.ultimo; this.pinta();
       this.avisaAnimador(def, false); // a animação aberta (aqui ou na outra aba) atualiza o personagem e tira o "não está na nuvem"
       this.naNuvem = true; this.pintaBotaoNuvem(); this.pintaEstado();
       UI.toast(`<b>${esc(def.nome)}</b> salvo na nuvem da equipe (pasta "${esc(def.pasta)}"). Agora as mudanças vão sozinhas para a nuvem.`, { kind: 'ok', time: 5000 });

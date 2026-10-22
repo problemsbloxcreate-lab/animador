@@ -543,3 +543,19 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .fl-dica{color:var(--tx3);font-size:11px}.fl-ad{border-radius:7px;background:repeating-conic-gradient(#2a2a2a 0 25%,#202020 0 50%) 0 0/14px 14px;overflow-x:auto;padding:4px 0}
 .fl-op .chk{display:flex;gap:7px;align-items:flex-start}.fl-op .chk small{color:var(--tx3)}
 @media (max-width:640px){.fl-card{grid-template-columns:1fr}}
+/* ícone e cor do personagem (hierarquia, timeline e Ateliê) */
+.ico-p{display:block;border-radius:50%;object-fit:cover;background:#1d1d1d;border:1.5px solid var(--cp,#777);box-sizing:border-box;flex:none}
+.no.pers-cor,.reg.pers-cor{box-shadow:inset 3px 0 0 var(--cp)}
+.no.pers-cor .nm,.reg.pers-cor .nm{color:var(--cp);font-weight:600}
+.no.pers-cor:not(.sel){background:linear-gradient(90deg,color-mix(in srgb,var(--cp) 14%,transparent),transparent 70%)}
+.reg.pers-cor .ico-p{margin-right:2px}
+.at-icone{width:34px;height:34px;border-radius:50%;padding:0;display:grid;place-items:center;border:2px solid var(--cp,#888);background:#1d1d1d;color:var(--tx2);cursor:pointer;overflow:hidden;flex:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--cp,#888) 25%,transparent)}
+.at-icone img{width:100%;height:100%;object-fit:cover}.at-icone:hover{filter:brightness(1.15)}
+.ico-prev{display:flex;gap:16px;align-items:center;margin-bottom:12px}
+.ico-grande img,.ico-grande span{width:84px;height:84px;border-radius:50%;border:3px solid;display:grid;place-items:center;object-fit:cover;background:#1d1d1d;color:var(--tx2)}
+.ico-ex{flex:1;display:grid;gap:4px}.ico-ex small{color:var(--tx3);font-size:10.5px}
+.ico-linha{background:#1b1b1b;border:1px solid var(--bd);border-radius:6px;overflow:hidden;position:relative}
+.ico-linha .no,.ico-linha .reg{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px}
+.ico-linha.tl{display:flex;align-items:center}.ico-linha.tl .reg{width:150px;border-right:1px solid var(--bd)}.ico-linha.tl i{flex:1;height:14px;margin:0 8px;border-radius:4px}
+.ico-seg button{text-transform:none;letter-spacing:0;font-weight:600}
+.ico-linha .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ico-linha.tl .reg{width:180px;flex:none}

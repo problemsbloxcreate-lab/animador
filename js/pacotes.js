@@ -16,7 +16,7 @@ const AtelieArq = {
   async montar(def, o = {}) {
     const t = UI.toast('<span class="spin-dot"></span> Montando o .atelieanimador…', { time: 300000 });
     try {
-      const d = clone(def); await Autores.limpa(d); const eu = await Autores.eu(), enc = new TextEncoder();
+      const d = clone(def); await Autores.limpa(d); await Icone.prepara(d); const eu = await Autores.eu(), enc = new TextEncoder();
       const files = [{ name: 'personagem.json', data: enc.encode(JSON.stringify(d)) }, { name: 'info.json', data: enc.encode(JSON.stringify({ tipo: 'atelieanimador', v: 1, por: eu, em: Date.now() })) }];
       for (const k of [...new Set([...Modelo.chavesImgs(d), ...(d.audios || []).map(x => x.k)].filter(Boolean))]) { // imagens, fantasma e áudios de teste
         let b = await Arq.blobMelhor(k); if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null);
