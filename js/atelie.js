@@ -231,7 +231,7 @@ const Atelie = {
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
     $$('#at-mover [data-modo]').forEach(b => b.onclick = () => this.setModo(b.dataset.modo));
-    $('#at-enq').onclick = () => this.enquadrar(); $('#at-testar').onclick = () => this.painelTeste(!this.painelAberto);
+    $('#at-enq').onclick = () => this.enquadrar(); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 13) + ' Pela referência'; $('#at-testar').onclick = () => this.painelTeste(!this.painelAberto);
     $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
     addEventListener('keydown', e => this.teclas(e));
     Pintura.liga();
@@ -1009,6 +1009,7 @@ const Atelie = {
       const plano = await IA.organizar(this.def, modo, pedido, txt => Ocupado.passo(`Organizando… (${Math.round(txt.length / 100) / 10} mil letras)`));
       Ocupado.passo('Aplicando o plano…'); fim(); const feito = this.aplicarPlano(plano, modo), alinhou = (this.def.vistas || []).length > 1 ? Modelo.alinhaIds(this.def) : 0, avisos = (plano.avisos || []).filter(Boolean).slice(0, 5);
       if (alinhou) { feito.push(`${alinhou} nome(s) iguais aos das outras vistas`); this.commit(); }
+      if (modo !== 'animacoes' && Referencia.tem(this.def)) { try { const r = await Referencia.aplicar(this, { quieto: true }); if (r) feito.push(`${r.achados.length} peça(s) no lugar da referência${r.duvidas.length ? ` (confira: ${r.duvidas.map(esc).join(", ")})` : ""}`); } catch (e) { feito.push('não deu para seguir a referência (' + esc(e.message) + ')'); } }
       this.aba = (this.def.animacoes || []).length ? 'animacoes' : 'sessoes'; this.testar(true);
       UI.toast(`<b>Pronto.</b> ${feito.join(' · ') || 'A IA achou que já estava tudo certo.'}<br>Confira no <b>Testar</b> e na aba <b>Animações</b>; ajuste à mão o que precisar (Ctrl+Z desfaz tudo).`, { kind: 'ok', time: 12000 });
       if (avisos.length) UI.modal({ title: 'A IA deixou uns avisos', icon: 'info', width: 460, body: `<div>${avisos.map(a => `<p style="margin:0 0 8px">• ${esc(String(a))}</p>`).join('')}<div style="color:var(--tx3);font-size:12px">Dá para separar peças com <b>Seleção</b>/<b>Laço</b> › <b>Recortar → parte nova</b> na aba Pintar, e depois pedir para a IA organizar de novo.</div></div>`, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] });
@@ -1021,8 +1022,8 @@ const Atelie = {
       let n = 0; for (const j of pl.juntar || []) { const alvo = nome(j.em), ps = (j.partes || []).map(nome).filter(p => p && p !== alvo); if (alvo && ps.length) { this.virarImagens(ps, alvo, null, { semCommit: true }); n += ps.length; } } if (n) feito.push(`${n} parte(s) viraram imagens`);
       n = 0; for (const [de, para] of Object.entries(pl.renomear_partes || {})) { const p = nome(de); if (p && para) { p.nome = String(para).slice(0, 40); n++; } }
       for (const r of pl.renomear_imagens || []) { const p = nome(r.parte), i = img(p, r.de); if (i && r.para) { i.nome = String(r.para).slice(0, 40); n++; } } if (n) feito.push(`${n} nome(s) arrumados`);
-      const rz = nome(pl.raiz); if (rz) { if (rz.pai) this.porNoPai(rz.id, null, { semCommit: true }); def.raiz = rz.id; feito.push(`raiz: ${rz.nome}`); }
-      n = 0; for (const [fi, pa] of Object.entries(pl.pais || {})) { const f = nome(fi), p = pa ? nome(pa) : null; if (f && f !== rz && (p?.id || null) !== (f.pai || null) && (!pa || p)) { let a = p?.id, ciclo = false; while (a) { if (a === f.id) { ciclo = true; break; } a = this.parte(a)?.pai; } if (!ciclo) { this.porNoPai(f.id, p?.id || null, { semCommit: true }); n++; } } } if (n) feito.push(`${n} encaixe(s)`);
+      const rz0 = nome(pl.raiz), rz = rz0 && !Referencia.ehRef(rz0) ? rz0 : null; if (rz) { if (rz.pai) this.porNoPai(rz.id, null, { semCommit: true }); def.raiz = rz.id; feito.push(`raiz: ${rz.nome}`); }
+      n = 0; for (const [fi, pa] of Object.entries(pl.pais || {})) { const f = nome(fi), p = pa ? nome(pa) : null; if (f && !Referencia.ehRef(f) && !(p && Referencia.ehRef(p)) && f !== rz && (p?.id || null) !== (f.pai || null) && (!pa || p)) { let a = p?.id, ciclo = false; while (a) { if (a === f.id) { ciclo = true; break; } a = this.parte(a)?.pai; } if (!ciclo) { this.porNoPai(f.id, p?.id || null, { semCommit: true }); n++; } } } if (n) feito.push(`${n} encaixe(s)`);
       n = 0; for (const [pn, v] of Object.entries(pl.pivos || {})) { const p = nome(pn), est = this.estado(), im = p && p.imgs.find(i => i.id === est[p.id]?.img); if (!im || !v || !isFinite(+v.x) || !isFinite(+v.y)) continue; this.pivoEm(p, clamp(+v.x, -.2, 1.2) * im.w, clamp(+v.y, -.2, 1.2) * im.h, est); n++; } if (n) feito.push(`${n} ponto(s) de giro`);
       if (Array.isArray(pl.camadas) && pl.camadas.length) { const L = pl.camadas.map(nome).filter(Boolean), resto = def.partes.filter(p => !L.includes(p)); const ordem = [...new Set([...resto, ...L])]; ordem.forEach((p, i) => p.z = i); feito.push('camadas'); }
       n = 0; for (const s0 of pl.sessoes || []) {
