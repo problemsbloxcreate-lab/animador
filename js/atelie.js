@@ -41,7 +41,7 @@ const Atelie = {
           buttons: [{ label: 'Abrir a da nuvem (descartar o rascunho)', value: 'nuvem' }, { label: 'Continuar o rascunho', kind: 'primary', value: 'rascunho' }] });
         if (usa === 'rascunho') { this.base0Nuvem = JSON.stringify(def); def = r.def; doRascunho = true; } else if (usa === 'nuvem') await this.apagarRascunho(id); else return;
       } }
-    else { novo = await this.assistenteNovo(); if (!novo) return; def = Modelo.novoPersonagem(novo.nome); Modelo.garanteVistas(def); Object.assign(def.vistas[0], { tipo: novo.vtipo || 'frente', nome: Modelo.nomeTipo(novo.vtipo || 'frente') }); }
+    else { novo = await this.assistenteNovo(); if (!novo) return; def = Modelo.novoPersonagem(novo.nome); Modelo.garanteVistas(def); Object.assign(def.vistas[0], { tipo: novo.vtipo || 'frente', nome: (novo.vtipo === 'outra' && novo.vnome) || Modelo.nomeTipo(novo.vtipo || 'frente') }); }
     // NA NUVEM: depois da 1ª vez em "Salvar na nuvem", toda mudança vai sozinha para a nuvem. Antes disso o personagem é LOCAL (só neste computador).
     this.naNuvem = !o.def && !!id && !!def && !(doRascunho && !this._temNuvem && !this._rascNuvem); this._temNuvem = this._rascNuvem = false; this.erroNuvem = null; clearTimeout(this._tn);
     this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.baseNuvem = this._temNuvem && !o.def ? (doRascunho ? this.base0Nuvem || null : this.ultimo) : null; this.base0 = o.def || !id ? this.ultimo : this.base0Nuvem || this.ultimo; this.base0Nuvem = null; this.modoMover = 'preset'; this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; window.Falas?.parar(); Falas.aberto = null; this.teste = this.painelAberto ? { sessoes: {}, partes: {} } : null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
@@ -55,11 +55,12 @@ const Atelie = {
   async assistenteNovo() {
     let fs = [], raiz = null; // raiz: { parte: nome da pasta } ou { arquivo: File solto }
     const body = h(`<div class="novo-p"><div class="campo2" style="gap:10px;align-items:flex-end"><label class="field" style="flex:2">Nome do personagem<input type="text" data-n placeholder="Nome do personagem"></label>
-      <label class="field" style="flex:1" title="De que ângulo são estas imagens. Depois dá para pôr as outras vistas (frente, lado, costas…)">Vista<select data-vt>${Modelo.TIPOS_VISTA.map(([t, n]) => `<option value="${t}" ${t === 'frente' ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
+      <label class="field" style="flex:1" title="De que ângulo são estas imagens. Depois dá para pôr as outras vistas (frente, lado, costas…)">Vista<select data-vt>${this.opcoesVista('frente')}</select></label></div>
       <div class="field">Imagens <small>(opcional) — as peças do personagem em PNG com fundo transparente. O melhor: as camadas do desenho exportadas no mesmo tamanho (já encaixam sozinhas).</small></div>
       <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens ou PASTAS aqui</b><small>ou clique para escolher imagens ou uma pasta · arrastando pastas, cada pasta vira uma parte (ex.: "perna_frente" → Perna frente)</small></div><div class="np-lista" data-l></div>
       <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, profundidade, sessões, presets e animações de teste)</label>
       <textarea rows="2" data-p placeholder="Opcional: dicas para a IA. Ex.: &quot;as bocas são para falar&quot;, &quot;o corpo é a raiz&quot;"></textarea></div>`);
+    this.ligaVistaSel($('[data-vt]', body)); // "Adicionar…" = vista com nome à vontade
     const lista = $('[data-l]', body), drop = $('[data-d]', body), ia = $('[data-ia]', body), urls = [];
     const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = '';
       // agrupado por pasta: "Pasta X" (a parte que vai virar) e embaixo as imagens dela; depois um separador e a próxima.
@@ -105,8 +106,8 @@ const Atelie = {
     const pega = a => { const n = $('[data-n]', a.body).value.trim(); if (!n) { $('[data-n]', a.body).focus(); UI.toast('Dê um nome ao personagem'); return false; } return n; };
     const r = await UI.modal({ title: 'Personagem novo', icon: 'layers', width: 560, body, buttons: [
       { label: 'Cancelar', value: null, left: true },
-      { label: 'Pular (só o nome)', onClick: a => { const n = pega(a); return n ? { nome: n, fs: [], ia: false, vtipo: $('[data-vt]', a.body).value } : false; } },
-      { label: 'Criar', kind: 'primary', onClick: a => { const n = pega(a); return n ? { nome: n, fs, raiz, ia: ia.checked && !!fs.length, pedido: $('[data-p]', a.body).value.trim(), vtipo: $('[data-vt]', a.body).value } : false; } }] });
+      { label: 'Pular (só o nome)', onClick: a => { const n = pega(a); return n ? { nome: n, fs: [], ia: false, vtipo: $('[data-vt]', a.body).value, vnome: $('[data-vt]', a.body).dataset.nome } : false; } },
+      { label: 'Criar', kind: 'primary', onClick: a => { const n = pega(a); return n ? { nome: n, fs, raiz, ia: ia.checked && !!fs.length, pedido: $('[data-p]', a.body).value.trim(), vtipo: $('[data-vt]', a.body).value, vnome: $('[data-vt]', a.body).dataset.nome } : false; } }] });
     urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 2000)); return r;
   },
   // a parte que a pessoa marcou como raiz na tela do personagem novo (pasta → a parte dela; imagem solta → a parte com o nome dela)
@@ -948,7 +949,7 @@ const Atelie = {
       { head: v.nome },
       !on && { label: 'Abrir esta vista', icon: 'eye', action: () => this.trocaVista(v.id) },
       { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da vista', label: 'Ex.: Lado direito, Frente (bravo), Costas', value: v.nome }); if (n) { v.nome = n.slice(0, 30); this.commit(); } } },
-      { label: 'Tipo', icon: 'eye', sub: Modelo.TIPOS_VISTA.map(([t, n]) => ({ label: n, checked: v.tipo === t, action: () => { if (v.nome === Modelo.nomeTipo(v.tipo)) v.nome = n; v.tipo = t; this.commit(); } })) },
+      { label: 'Tipo', icon: 'eye', sub: Modelo.TIPOS_VISTA.map(([t, n]) => t === 'outra' ? { label: 'Adicionar…', checked: v.tipo === t, action: async () => { const nn = await this.nomeVista(v.tipo === 'outra' ? v.nome : ''); if (!nn) return; v.nome = nn; v.tipo = 'outra'; this.commit(); } } : { label: n, checked: v.tipo === t, action: () => { if (v.nome === Modelo.nomeTipo(v.tipo)) v.nome = n; v.tipo = t; this.commit(); } }) },
       '-', { label: 'Duplicar (copiar para uma vista nova)', icon: 'dup', action: () => this.criaVista({ nome: v.nome + ' (cópia)', tipo: v.tipo, de: v.id, como: 'copia' }) },
       { label: 'Espelhar (criar o outro lado)', icon: 'transition', action: () => this.criaVista({ nome: v.tipo === 'lado' ? 'Lado (espelhado)' : v.nome + ' (espelhado)', tipo: v.tipo, de: v.id, como: 'espelho' }) },
       on && { label: 'Usar os mesmos nomes das outras vistas (alinhar)', icon: 'layers', action: () => { const n = Modelo.alinhaIds(this.def); this.commit(); UI.toast(n ? `${n} item(ns) agora batem com as outras vistas: no editor, trocar de vista mantém as poses escolhidas.` : 'Nada para alinhar (nenhum nome igual ao das outras vistas).', { kind: n ? 'ok' : 'warn', time: 6000 }); } },
@@ -970,7 +971,7 @@ const Atelie = {
   },
   async novaVista() {
     let fs = []; const usados = new Set(this.def.vistas.map(v => v.tipo)), tipo0 = (Modelo.TIPOS_VISTA.find(([t]) => !usados.has(t)) || ['outra'])[0];
-    const body = h(`<div class="novo-p"><div class="campo2" style="gap:10px"><label class="field" style="flex:1">Tipo<select data-t>${Modelo.TIPOS_VISTA.map(([t, n]) => `<option value="${t}" ${t === tipo0 ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label class="field" style="flex:1">Nome<input type="text" data-n value="${esc(Modelo.nomeTipo(tipo0))}"></label></div>
+    const body = h(`<div class="novo-p"><div class="campo2" style="gap:10px"><label class="field" style="flex:1">Tipo<select data-t>${this.opcoesVista(tipo0)}</select></label><label class="field" style="flex:1">Nome<input type="text" data-n value="${esc(Modelo.nomeTipo(tipo0))}"></label></div>
       <div class="field">Começar com</div><div class="nv-como">
         <label class="chk"><input type="radio" name="como" value="imagens" checked> As imagens desta vista (desenho novo)</label>
         <label class="chk"><input type="radio" name="como" value="copia"> Uma cópia da vista atual (<b>${esc(this.vistaDe()?.nome || '')}</b>)</label>
@@ -978,7 +979,7 @@ const Atelie = {
         <label class="chk"><input type="radio" name="como" value="vazia"> Vazia</label></div>
       <div data-img><div class="np-drop" data-d>${ic('upload', 22)}<b>Arraste as imagens desta vista aqui</b><small>ou clique para escolher · o melhor: as camadas do desenho, todas no mesmo tamanho</small></div><div class="np-lista" data-l></div>
       <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza esta vista (e usa os mesmos nomes das outras vistas)</label></div></div>`);
-    const nm = $('[data-n]', body), tp = $('[data-t]', body); let mexeuNome = false; nm.oninput = () => mexeuNome = true; tp.onchange = () => { if (!mexeuNome) nm.value = Modelo.nomeTipo(tp.value); };
+    const nm = $('[data-n]', body), tp = $('[data-t]', body); let mexeuNome = false; nm.oninput = () => mexeuNome = true; this.ligaVistaSel(tp, n => { if (n) { nm.value = n; mexeuNome = false; } else if (!mexeuNome || nm.value === tp.dataset.ultimo) nm.value = Modelo.nomeTipo(tp.value); tp.dataset.ultimo = nm.value; });
     const lista = $('[data-l]', body), drop = $('[data-d]', body), urls = [];
     const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = ''; fs.forEach((f, i) => { const u = URL.createObjectURL(f); urls.push(u); const c = h(`<div class="np-im"><img src="${u}" alt=""><span>${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); }; lista.appendChild(c); }); $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns) — arraste mais se quiser` : 'Arraste as imagens desta vista aqui'; };
     const poe = L => { fs = fs.concat([...L].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name))); pintaL(); };
@@ -991,6 +992,17 @@ const Atelie = {
     await this.criaVista({ ...r, de: this.def.vistaAtual, fs: r.como === 'imagens' ? fs : [], ia: r.ia && r.como === 'imagens' && fs.length > 0 });
   },
   vistaDe() { return Modelo.vistaDe(this.def); },
+  // opções do tipo de vista: no lugar de "Outra", "Adicionar…" pede um nome à vontade (o tipo fica 'outra')
+  opcoesVista(sel) { return Modelo.TIPOS_VISTA.map(([t, n]) => `<option value="${t}" ${t === sel ? 'selected' : ''}>${t === 'outra' ? 'Adicionar…' : n}</option>`).join(''); },
+  async nomeVista(atual = '') { return (await UI.prompt({ title: 'Vista nova', label: 'Nome da vista (ex.: Costas sem chapéu, Sentada)', value: atual }))?.trim().slice(0, 40) || ''; },
+  ligaVistaSel(sel, aoNome) {
+    let antes = sel.value; const op = $('option[value="outra"]', sel);
+    sel.onchange = async () => {
+      if (sel.value !== 'outra') { antes = sel.value; delete sel.dataset.nome; op.textContent = 'Adicionar…'; aoNome?.(null); return; }
+      const n = await this.nomeVista(sel.dataset.nome || ''); if (!n) { sel.value = antes; return; }
+      sel.dataset.nome = n; op.textContent = n; antes = 'outra'; aoNome?.(n);
+    };
+  },
   /* ---------- ÍCONE e COR do personagem (hierarquia e timeline do editor) ---------- */
   pintaIcone() {
     const b = $('#at-icone'); if (!b || !this.def) return; const def = this.def, auto = (def.iconeModo || 'auto') === 'auto', cAuto = (def.corModo || 'auto') === 'auto';
