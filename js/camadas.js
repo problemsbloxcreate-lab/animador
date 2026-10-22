@@ -23,9 +23,9 @@ const Camadas = {
   async achata(img) { await this.garante(img); img.k = await this.guarda(this.compoe(img)); return img.k; },
   async mudou(img) { await this.achata(img); Atelie.commit(); },
   // ---------- virar imagem com camadas / voltar a ser simples ----------
-  async virar(img) {
+  async virar(img, quieto) {
     if (this.tem(img)) return; await Arq.garantir([img.k]); const id = uid('cm');
-    img.camadas = [{ id, nome: img.nome || 'Camada 1', k: img.k, op: 1, modo: 'source-over', vis: true }]; img.camAtiva = id; Atelie.commit();
+    img.camadas = [{ id, nome: img.nome || 'Camada 1', k: img.k, op: 1, modo: 'source-over', vis: true }]; img.camAtiva = id; if (quieto) return; Atelie.commit();
     UI.toast(`<b>${esc(img.nome)}</b> agora tem camadas: veja em <b>Pintar e cores › Camadas</b>.`, { kind: 'ok' });
   },
   async achatarTudo(img) { if (!this.tem(img)) return; await this.achata(img); delete img.camadas; delete img.camAtiva; Atelie.commit(); UI.toast('Camadas juntadas: voltou a ser uma imagem só (Ctrl+Z desfaz).', { kind: 'ok' }); },
@@ -64,8 +64,18 @@ const Camadas = {
     const a = Pintura.alvo(), box = h(`<div class="sessao cam-sec"><h4>${ic('layers', 13)} Camadas</h4></div>`); el.appendChild(box);
     if (!a) { box.appendChild(h('<div class="vazio">Escolha uma parte com imagem.</div>')); return; }
     const img = a.img;
-    if (!this.tem(img)) { box.appendChild(h(`<div style="color:var(--tx3);font-size:11.5px;margin-bottom:6px">"${esc(img.nome)}" é uma imagem só. Com camadas dá para pôr outras imagens dentro dela, pintar separado, mudar opacidade e modo de mistura, como no Photoshop.</div>`));
-      const b = h(`<button class="btn sm">${ic('layers', 13)} Editar com camadas</button>`); b.onclick = () => this.virar(img); box.appendChild(b); return; }
+    // imagem sem camadas: já aparece com a camada pronta (a própria imagem); a primeira coisa que mexer nas camadas cria de verdade
+    if (!this.tem(img)) {
+      const r = h(`<div class="cam-lista"><div class="cam-l on" title="A imagem inteira é a primeira camada. Ponha mais camadas com os botões de baixo."><span class="ibtn" style="opacity:.5">${ic('eye', 13)}</span><canvas width="40" height="40"></canvas><span class="nm">${esc(img.nome || 'Camada 1')}</span><small>100%</small></div></div>`);
+      const bm = Arq.img.get(img.k); if (bm) { const x = $('canvas', r).getContext('2d'), k = Math.min(40 / bm.width, 40 / bm.height); x.drawImage(bm, (40 - bm.width * k) / 2, (40 - bm.height * k) / 2, bm.width * k, bm.height * k); }
+      box.appendChild(r);
+      const outras = Atelie.def.partes.flatMap(p => p.imgs.filter(i => i !== img).map(i => ({ p, i })));
+      const bar = h(`<div class="cam-bar"><button class="btn sm" data-n title="Camada vazia por cima">${ic('plus', 12)} Camada</button><button class="btn sm" data-f title="Uma imagem do computador vira camada">${ic('upload', 12)} Imagem…</button><button class="btn sm" data-o2 title="Outra imagem do personagem vira camada" ${outras.length ? '' : 'disabled'}>${ic('image', 12)} Do personagem</button></div>`);
+      $('[data-n]', bar).onclick = async () => { await this.virar(img, true); await this.vazia(img); };
+      $('[data-f]', bar).onclick = async () => { const fs = await pickFiles('image/*', true); if (!fs?.length) return; await this.virar(img, true); for (const f of fs) await this.deArquivo(img, f); };
+      $('[data-o2]', bar).onclick = ev => UI.ctx(ev.clientX, ev.clientY, [{ head: 'Pôr como camada' }, ...[...new Set(outras.map(o => o.p))].map(p => ({ label: p.nome, icon: 'layers', sub: outras.filter(o => o.p === p).map(o => ({ label: o.i.nome, action: async () => { await this.virar(img, true); await this.deImagem(img, o.i); } })) }))]);
+      box.appendChild(bar); return;
+    }
     const lista = h('<div class="cam-lista"></div>'); box.appendChild(lista);
     [...img.camadas].reverse().forEach(c => { // de cima para baixo, como no Photoshop
       const at = c.id === img.camAtiva, r = h(`<div class="cam-l ${at ? 'on' : ''}" draggable="true" title="Clique: pintar nesta camada · duplo clique: renomear · arraste para mudar a ordem"><button class="ibtn" data-v title="Mostrar/esconder">${ic(c.vis === false ? 'eyeOff' : 'eye', 13)}</button><canvas width="40" height="40"></canvas><span class="nm">${esc(c.nome)}</span><small>${Math.round((c.op ?? 1) * 100)}%${c.modo && c.modo !== 'source-over' ? ' · ' + (this.MODOS.find(m => m[0] === c.modo)?.[1] || '') : ''}</small></div>`);
