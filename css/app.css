@@ -559,3 +559,9 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .ico-linha.tl{display:flex;align-items:center}.ico-linha.tl .reg{width:150px;border-right:1px solid var(--bd)}.ico-linha.tl i{flex:1;height:14px;margin:0 8px;border-radius:4px}
 .ico-seg button{text-transform:none;letter-spacing:0;font-weight:600}
 .ico-linha .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ico-linha.tl .reg{width:180px;flex:none}
+
+/* prévia animada ao passar o mouse no cartão do personagem */
+.th{position:relative}.th.previa{background-image:none!important;background-color:#121212}
+.prev-cv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.prev-nome{position:absolute;left:6px;bottom:6px;max-width:calc(100% - 12px);padding:2px 7px;border-radius:6px;background:rgba(0,0,0,.62);color:#eee;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.prev-carr{position:absolute;right:6px;bottom:6px;pointer-events:none}

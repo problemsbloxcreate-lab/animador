@@ -1081,13 +1081,13 @@ const Biblioteca = {
       body.innerHTML = '';
       // personagens LOCAIS (só neste computador): dá para usar na animação; a equipe não vê até ele ir para a nuvem
       if (locais.length) { body.appendChild(h(`<div class="sec">${ic('save', 14)} Só neste computador <small style="color:var(--tx3);font-weight:400;margin-left:6px">a equipe não vê</small></div>`)); const g = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))"></div>');
-        for (const r of locais) { const c = h(`<div class="pc rasc"><div class="th" style="aspect-ratio:1;${r.thumb ? `background-image:url('${r.thumb}')` : ''}"></div><div class="in"><b>${esc(r.def.nome)}</b></div><span class="tag-local">${ic('save', 11)} só aqui</span></div>`);
+        for (const r of locais) { const c = h(`<div class="pc rasc" data-prev-rasc="${esc(r.def.id)}"><div class="th" style="aspect-ratio:1;${r.thumb ? `background-image:url('${r.thumb}')` : ''}"></div><div class="in"><b>${esc(r.def.nome)}</b></div><span class="tag-local">${ic('save', 11)} só aqui</span></div>`);
           c.onclick = async () => { c.style.opacity = .5; escolhido = clone(r.def); await Arq.garantir(Modelo.chavesImgs(r.def)).catch(() => { }); $('#modal-root .modal-back [data-x]')?.click(); }; g.appendChild(c); }
         body.appendChild(g); if (lista.length) body.appendChild(h(`<div class="sec">${ic('cloud', 14)} Na nuvem da equipe</div>`)); }
       if (!lista.length && !locais.length) body.innerHTML = '<div class="vazio">Nenhum personagem ainda. Crie o primeiro no Ateliê.</div>';
       else if (lista.length) { const pastas = [...new Set(lista.map(x => x.pasta))];
         for (const pa of pastas) { body.appendChild(Home.tituloPasta(pa)); const g = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))"></div>');
-          for (const it of lista.filter(x => x.pasta === pa)) { const c = h(`<div class="pc"><div class="th" style="aspect-ratio:1;${it.thumb ? `background-image:url('${it.thumb}')` : ''}"></div><div class="in"><b>${esc(it.nome)}</b></div></div>`);
+          for (const it of lista.filter(x => x.pasta === pa)) { const c = h(`<div class="pc" data-prev-id="${esc(it.id)}"><div class="th" style="aspect-ratio:1;${it.thumb ? `background-image:url('${it.thumb}')` : ''}"></div><div class="in"><b>${esc(it.nome)}</b></div></div>`);
             const selo = Autores.selo(it); if (selo) c.appendChild(selo);
             c.onclick = async () => { c.style.opacity = .5; try { escolhido = await Nuvem.abrir(it.id); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } $('#modal-root .modal-back [data-x]')?.click(); }; g.appendChild(c); }
           body.appendChild(g); } }
