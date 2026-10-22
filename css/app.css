@@ -754,3 +754,10 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 #atelie.ed-img .ferr-op>*{flex:0 0 auto}
 #atelie.ed-img .ferr-at{left:0!important;top:84px;transform:none;border-radius:0 10px 10px 0;border-left:0}
 #atelie.ed-img .dock-pega{display:none}
+
+/* cursores de quem está junto ao vivo: por cima de tudo (painéis e janelas), sem pegar o mouse */
+.av-cursores{position:fixed;inset:0;pointer-events:none;z-index:2147483000;overflow:hidden}
+.av-cur{position:absolute;left:0;top:0;transition:transform .09s linear;will-change:transform;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
+.av-cur svg{display:block}.av-cur.esq span{left:auto;right:4px}.av-cur span{position:absolute;left:13px;top:19px;background:var(--c);font:600 11.5px 'Segoe UI',sans-serif;padding:2px 7px;border-radius:9px;white-space:nowrap}
+#at-salvar.salvo-nuvem{color:#7bd88f;border-color:rgba(123,216,143,.35)}
+.at-estado[hidden],.at-autores[hidden]{display:none}

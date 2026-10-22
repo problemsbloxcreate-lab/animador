@@ -89,7 +89,7 @@ const AoVivo = {
   async quem() {
     if (this.eu) return this.eu; let aba; try { aba = sessionStorage.getItem('animador-aovivo-aba') || (sessionStorage.setItem('animador-aovivo-aba', aba = Math.random().toString(36).slice(2, 8)), aba); } catch { aba = Math.random().toString(36).slice(2, 8); }
     const p = await TurmaAuth.perfil?.().catch(() => null), base = TurmaAuth.fb?.currentUser?.uid || (await Autores.eu().catch(() => null))?.codigo || 'pessoa', h = [...base].reduce((s, c) => s * 31 + c.charCodeAt(0) >>> 0, 7);
-    return (this.eu = { id: (base + '-' + aba).replace(/[.#$\[\]\/]/g, ''), nome: p?.nome || 'Alguém', foto: p?.foto || null, cor: this.CORES[h % this.CORES.length] });
+    return (this.eu = { id: (base + '-' + aba).replace(/[.#$\[\]\/]/g, ''), nome: p?.nome || 'Alguém', foto: await Autores.miniFoto(p?.foto).catch(() => null), cor: this.CORES[h % this.CORES.length] }); // foto própria (/conta/foto) só abre para a própria pessoa: vai pequena dentro (64 px)
   },
   // ---------- entrar numa sala ----------
   // ad (adaptador): { ctx:'atelie'|'animador', sala, get(), set(doc), chaves(doc), redesenha(), nome }
@@ -195,20 +195,27 @@ const AoVivo = {
   // ---------- cursores e quem está junto ----------
   outros() { return Object.entries(this.gente).filter(([id, g]) => id !== this.eu?.id && g && g.onde === this.ad?.ctx).map(([id, g]) => ({ id, ...g })); },
   cursor(x, y, extra = {}) { if (!this.ativo) return; const t = performance.now(); this._cur = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, ...extra }; if (t - (this._curT || 0) < 70) { clearTimeout(this._curTo); this._curTo = setTimeout(() => this.cursor(this._cur.x, this._cur.y, extra), 80); return; } this._curT = t; this.t.presenca(this.sala, this.eu.id, this._cur); },
-  desenha(ctx, V, d = devicePixelRatio || 1) {
-    if (!this.ativo) return;
-    for (const g of this.outros()) { if (g.x == null) continue; const q = V.transformPoint(new DOMPoint(g.x, g.y)), c = g.cor || '#19d3f0';
-      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.translate(q.x, q.y); ctx.scale(d, d);
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 17); ctx.lineTo(4.5, 13); ctx.lineTo(8, 20); ctx.lineTo(10.5, 19); ctx.lineTo(7.2, 12.3); ctx.lineTo(13, 12); ctx.closePath(); ctx.fillStyle = c; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
-      const txt = (g.nome || 'Alguém').split(' ')[0] + (g.fazendo ? ' · ' + g.fazendo : ''); ctx.font = '600 11.5px Segoe UI, sans-serif'; const w = ctx.measureText(txt).width + 12;
-      ctx.fillStyle = c; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(12, 18, w, 19, 9) : ctx.rect(12, 18, w, 19); ctx.fill(); ctx.fillStyle = this.claro(c) ? '#111' : '#fff'; ctx.fillText(txt, 18, 31.5); ctx.restore(); }
+  // cursores dos outros: numa camada por cima de TUDO (painéis, janelas), na posição do palco
+  desenha(ctx, V) {
+    const lay = this._lay || (this._lay = document.body.appendChild(h('<div class="av-cursores" aria-hidden="true"></div>'))), vivos = new Set();
+    const cv = ctx?.canvas; if (!this.ativo) { lay.innerHTML = ''; return; }
+    if (cv && this.ad && cv !== (this.ad.ctx === 'atelie' ? Atelie.cv : App.palco?.cv)) return; // o palco do outro programa (escondido) não mexe nos cursores
+    const r = cv?.getBoundingClientRect?.(), k = r && cv.width ? r.width / cv.width : 0; if (!k || !(r.width > 0)) return;
+    for (const g of this.outros()) { if (g.x == null) continue; vivos.add(g.id);
+      const q = V.transformPoint(new DOMPoint(g.x, g.y)), x = clamp(r.left + q.x * k, 0, innerWidth - 14), y = clamp(r.top + q.y * k, 0, innerHeight - 22), c = g.cor || '#19d3f0';
+      let el = lay.querySelector(`[data-id="${CSS.escape(g.id)}"]`);
+      if (!el) { el = h(`<div class="av-cur" data-id="${esc(g.id)}"><svg width="16" height="22" viewBox="0 0 16 22"><path d="M1 1 L1 18 L5.5 14 L9 21 L11.5 20 L8.2 13.3 L14 13 Z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg><span></span></div>`); lay.appendChild(el); }
+      el.classList.toggle('esq', x > innerWidth - 180); el.style.setProperty('--c', c); el.style.transform = `translate(${Math.round(x)}px,${Math.round(y)}px)`; $('path', el).setAttribute('fill', c);
+      const txt = (g.nome || 'Alguém').split(' ')[0] + (g.fazendo ? ' · ' + g.fazendo : ''), sp = $('span', el); if (sp.textContent !== txt) sp.textContent = txt; sp.style.color = this.claro(c) ? '#111' : '#fff'; }
+    for (const el of [...lay.children]) if (!vivos.has(el.dataset.id)) el.remove();
   },
   claro(hex) { const v = parseInt(hex.slice(1), 16); return ((v >> 16 & 255) * .3 + (v >> 8 & 255) * .59 + (v & 255) * .11) > 150; },
   atividade(nome, r) { const k = nome + r, t = Date.now(); if (this._ult?.k === k && t - this._ult.t < 4000) return; this._ult = { k, t }; UI.toast(`<b>${esc((nome || 'Alguém').split(' ')[0])}</b> ${esc(r)}`, { time: 2200 }); },
   pintaBarra() {
     for (const el of $$('[data-aovivo]')) { const outros = this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx ? this.outros() : [];
-      el.hidden = !(this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx); if (el.hidden) { el.innerHTML = ''; continue; }
-      el.innerHTML = `<span class="av-ao" title="Trabalhando junto ao vivo">${ic('users', 13)} ${outros.length ? 'ao vivo' : 'só você'}</span>` + outros.map(g => `<span class="av-p" style="--c:${g.cor}" title="${esc(g.nome)}${g.fazendo ? ' · ' + esc(g.fazendo) : ''}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer">` : esc((g.nome || '?')[0])}</span>`).join('')
+      el.hidden = !(this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx); if (el.dataset.aovivo === 'atelie') { const au = document.getElementById('at-autores'); if (au) au.hidden = !el.hidden; } // ao vivo: some o "editado por…" (mais espaço)
+      if (el.hidden) { el.innerHTML = ''; continue; }
+      el.innerHTML = `<span class="av-ao" title="Trabalhando junto ao vivo">${ic('users', 13)} ${outros.length ? 'ao vivo' : 'só você'}</span>` + outros.map(g => `<span class="av-p" style="--c:${g.cor}" title="${esc(g.nome)}${g.fazendo ? ' · ' + esc(g.fazendo) : ''}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(document.createTextNode('${esc((g.nome || '?')[0]).replace(/'/g, '')}'))">` : esc((g.nome || '?')[0])}</span>`).join('')
         + (this.ad.ctx === 'animador' ? `<button class="btn sm" data-sair>Sair</button>${this.ad.dono ? '<button class="btn sm" data-fim>Encerrar</button>' : ''}` : '');
       if ($('[data-sair]', el)) $('[data-sair]', el).onclick = () => App.sairJunto(false); if ($('[data-fim]', el)) $('[data-fim]', el).onclick = () => App.sairJunto(true); }
   },

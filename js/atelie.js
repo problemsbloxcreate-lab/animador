@@ -220,8 +220,8 @@ const Atelie = {
   },
   pintaBotaoNuvem() {
     const b = $('#at-salvar'); if (!b) return;
-    const txt = !this.naNuvem ? 'Salvar na nuvem' : this.enviando ? 'Enviando…' : this.sujo ? 'Enviar agora' : 'Na nuvem';
-    b.innerHTML = `${ic('cloud', 15)} ${txt}`; b.classList.toggle('primary', !this.naNuvem || !!this.sujo);
+    const txt = !this.naNuvem ? 'Salvar na nuvem' : this.enviando ? 'Enviando…' : this.sujo ? 'Enviar agora' : 'Salvo na nuvem'; // salvo: o selo do lado some e o botão já diz
+    b.innerHTML = `${ic('cloud', 15)} ${txt}`; b.classList.toggle('primary', !this.naNuvem || !!this.sujo); b.classList.toggle('salvo-nuvem', !!this.naNuvem && !this.sujo && !this.enviando);
     b.title = this.naNuvem ? 'Este personagem está na nuvem da equipe: as mudanças vão sozinhas (clique para mandar agora).' : 'Salvar na nuvem da equipe (Ctrl+S guarda só neste computador)';
   },
   async apagarRascunho(id = this.def?.id) { clearTimeout(this._tr); this.salvandoLocal = false; this.rascunhoEm = null; try { await DB.del('arquivos', this.chaveRascunho(id)); } catch { } },
@@ -237,6 +237,7 @@ const Atelie = {
       : this.salvandoLocal ? ['local', 'save', 'Guardando no computador…', 'Guardando neste navegador para não perder nada.']
       : ['local', 'save', 'Só neste computador' + (this.rascunhoEm ? ' · ' + hora(this.rascunhoEm) : ''), 'Personagem LOCAL: guardado neste navegador (Ctrl+S), a equipe ainda não vê. Clique na nuvem (Salvar na nuvem) para mandar; depois disso as mudanças vão sozinhas.'];
     el.className = 'at-estado ' + cls; el.title = dica; el.innerHTML = `${ic(ico, 13)}<span>${esc(txt)}</span>`;
+    el.hidden = !!this.naNuvem && !this.enviando && !this.sujo; this.pintaBotaoNuvem(); // salvo na nuvem: só o botão mostra (economiza espaço)
   },
 
   /* ---------- estado que está na tela (base ou preset em edição) ---------- */
