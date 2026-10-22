@@ -322,7 +322,7 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
       <textarea rows="2" maxlength="600" placeholder="Ex.: um quarto de criança com cama, estante e janela à noite"></textarea>
       <div class="cen-prev" hidden><div class="ce-barra"></div><canvas width="960" height="540"></canvas><div class="cen-barra" hidden><i></i></div><div class="cen-st"></div>
         <div class="cen-pecas" hidden><div class="cen-sub">Peças <span>(a da frente em cima · clique para escolher · botão direito: mais)</span></div><div class="cen-lista"></div>
-          <div class="cen-op">${editando ? '' : '<label class="ck"><input type="checkbox" data-sep checked> Pôr na cena em camadas separadas (uma por peça)</label>'}<button class="btn sm" data-todas>${ic('download', 13)} Todas as peças para a Mídia</button></div></div></div></div>`);
+          <div class="cen-op"><small class="ce-dica">Na cena o cenário entra como uma PASTA com uma camada por peça (dá para mexer depois, à mão ou pela IA).</small><button class="btn sm" data-todas>${ic('download', 13)} Todas as peças para a Mídia</button></div></div></div></div>`);
     const prev = $('.cen-prev', body), st = $('.cen-st', body), pc = $('canvas', prev), ta = $('textarea', body), barra = $('.cen-barra', body), boxPecas = $('.cen-pecas', body);
     let ocupado = false, btPor, btAjuste, btCriar, rab = null, vez = 0;
     const slug = t => String(t || 'cenario').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'cenario';
@@ -405,8 +405,8 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
     }, buttons: [
       { label: 'Ajustar tudo', kind: 'ia', left: true, onClick: () => { const p = ed.est?.pecas.find(x => x.id === ed.sel); p ? ajustar(p) : ia(true, ed.area); return false; } },
       { label: 'Criar com a IA', icon: 'sparkles', kind: 'ia', onClick: () => { ia(false); return false; } },
-      { label: editando ? 'Atualizar na cena' : 'Pôr na cena', kind: 'primary', onClick: async () => { if (!ed.est?.pecas.length || ocupado) return false; let ok = false; const sep = $('[data-sep]', body)?.checked;
-        await usa(async () => { if (editando) await this.atualizar(editando, ed.est); else if (sep && ed.est.pecas.length > 1) await this.porEmCamadas(ed.est); else await this.porNaCena(this.compoe(ed.est), this.cenaDe(ed.est), ed.est); ok = true; }); return ok; } },
+      { label: editando ? 'Atualizar na cena' : 'Pôr na cena', kind: 'primary', onClick: async () => { if (!ed.est?.pecas.length || ocupado) return false; let ok = false;
+        await usa(async () => { if (editando) await this.atualizar(editando, ed.est); else await this.porEmCamadas(ed.est); ok = true; }); return ok; } },
     ] });
     rab?.parar();
   },
@@ -432,7 +432,7 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
     return out;
   },
   // uma pasta com uma camada de imagem por peça, cada uma no lugar dela (a pasta cobre a câmera, como o cenário inteiro)
-  async porEmCamadas(est) {
+  async porEmCamadas(est, o = {}) {
     const P = App.P, q = App.q; if (!P) throw new Error('Nenhuma animação aberta.');
     const c = Modelo.camera(P, q), z = c.zoom || 1, s = round(Math.max(P.w / z / this.W, P.h / z / this.H) * 1.02, 3);
     const pasta = Modelo.novoNo('pasta', { nome: 'Cenário: ' + String(est.nome || 'novo').slice(0, 30) });
@@ -440,8 +440,9 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
     pasta.chaves = { [q]: { x: Math.round(c.x - this.W / 2 * s), y: Math.round(c.y - this.H / 2 * s), r: 0, s, sx: 1, op: 1 } };
     pasta.filhos.push(...await this.nosDasPecas(est, q));
     const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); // na frente dos cenários (e do Fundo padrão) e atrás do resto
-    if (i >= 0) P.raiz.splice(i, 0, pasta); else P.raiz.push(pasta); App.sel = pasta.id; App.commit('Cenário em camadas');
+    if (i >= 0) P.raiz.splice(i, 0, pasta); else P.raiz.push(pasta); App.sel = pasta.id; if (o.semAviso) return pasta; App.commit('Cenário em camadas');
     UI.toast(`<b>${esc(est.nome || 'Cenário')}</b> entrou no fundo da cena com ${pasta.filhos.length} peças separadas. Para mudar: botão direito › <b>Editar cenário</b>.`, { kind: 'ok', time: 6000 });
+    return pasta;
   },
   // "Editar cenário": o que já está na cena (pasta de peças, imagem do cenário inteiro ou uma peça dentro da pasta)
   async editarNo(n) {
@@ -451,17 +452,25 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
     if (no.cenaEd) est = await this.deSerial(no.cenaEd);
     else if (no.cena?.camadas) est = await this.estadoDe(no.cena);
     else if (no.tipo === 'imagem') { const b = await Arq.pegaBlob(no.arq).catch(() => null); if (!b) return UI.toast('Não achei a imagem deste cenário neste computador.', { kind: 'err' });
-      const cv = await CenaEd.canvasDe(b), k = Math.min(this.W / cv.width, this.H / cv.height), w = cv.width * k, hh = cv.height * k;
-      est = { nome: String(no.nome || 'Cenário').replace(/^Cenário: /, ''), pecas: [{ id: uid('pc'), nome: 'Cenário', tipo: 'img', cv, x: (this.W - w) / 2, y: (this.H - hh) / 2, w, h: hh, trava: true }] }; }
+      est = await this.estadoDaImagem(b, no.nome); }
     else return UI.toast('Este cenário não tem as peças guardadas para editar.', { kind: 'warn' });
     return this.abrir({ estado: est, sel, no });
+  },
+  // uma imagem inteira (cenário da nuvem) → estado com uma peça só, travada
+  async estadoDaImagem(blob, nome) {
+    const cv = await CenaEd.canvasDe(blob), k = Math.min(this.W / cv.width, this.H / cv.height), w = cv.width * k, hh = cv.height * k;
+    return { nome: String(nome || 'Cenário').replace(/^Cenário: /, ''), pecas: [{ id: uid('pc'), nome: 'Cenário', tipo: 'img', cv, x: (this.W - w) / 2, y: (this.H - hh) / 2, w, h: hh, trava: true }] };
   },
   // "Atualizar na cena": troca as peças do que já estava (mesmo lugar no tempo e na hierarquia; chaves das peças vão junto)
   async atualizar(no, est) {
     const P = App.P; if (!Modelo.achar(P, no.id)) throw new Error('Esse cenário não está mais na animação.');
     no.cena = this.cenaDe(est); no.cenaEd = await this.serial(est); if (est.ia) no.ia = true; delete no.nuvem;
     if (no.tipo === 'pasta') no.filhos = await this.nosDasPecas(est, no.de || 0, no.filhos.filter(f => f.pecaCen));
-    else { const blob = await this.blob(this.compoe(est)), id = await Arq.guardar(blob); Arq.img.set(id, await createImageBitmap(blob)); no.arq = id; }
+    else { // cenário antigo numa imagem só: vira PASTA com uma camada por peça (no mesmo lugar e no mesmo tempo)
+      const r = Modelo.achar(P, no.id), bm = Arq.img.get(no.arq), bw = bm?.width || this.W, bh = bm?.height || this.H, kk = Math.min(bw / this.W, bh / this.H) || 1;
+      const pasta = Modelo.novoNo('pasta', { nome: no.nome }); Object.assign(pasta, { de: no.de, ate: no.ate, aberto: false, cenario: true, cena: no.cena, cenaEd: no.cenaEd, interp: no.interp, ...(no.ia ? { ia: true } : {}) });
+      pasta.chaves = Object.fromEntries(Object.entries(no.chaves || {}).map(([q, c]) => { const s0 = (c.s ?? 1) * kk, o = { ...c }; if (c.s != null) o.s = round(s0, 4); if (c.x != null) o.x = Math.round(c.x - this.W / 2 * s0); if (c.y != null) o.y = Math.round(c.y - this.H / 2 * s0); return [q, o]; }));
+      pasta.filhos.push(...await this.nosDasPecas(est, no.de || 0)); r.lista.splice(r.lista.indexOf(no), 1, pasta); no = pasta; }
     App.sel = no.id; App.commit('Editar cenário'); UI.toast(`<b>${esc(est.nome || 'Cenário')}</b> foi atualizado na cena.`, { kind: 'ok' });
   },
 };
