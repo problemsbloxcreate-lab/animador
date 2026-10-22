@@ -64,11 +64,19 @@ const Som = {
       const fim = App.q + Math.ceil(b.duration * App.P.fps); if (fim > App.P.duracao) App.P.duracao = fim; }
     App.commit('Pôr áudio'); Lado.aba('som');
   },
+  // volume do áudio no quadro q (volume geral × volume do trecho, se tiver)
+  ganho(a, q) { let v = 1; for (const t of a.volTrechos || []) if (q >= t.de && q <= t.ate) v = t.vol; return (a.vol ?? 1) * v; },
+  // agenda as trocas de volume dos trechos (q0 = quadro que toca no tempo t0 do contexto)
+  agenda(g, a, q0, t0, fps) {
+    g.gain.setValueAtTime(this.ganho(a, q0), Math.max(0, t0));
+    const bs = [...new Set((a.volTrechos || []).flatMap(t => [t.de, t.ate + 1]))].filter(b => b > q0).sort((x, y) => x - y);
+    for (const b of bs) { const t = t0 + (b - q0) / fps; g.gain.setValueAtTime(this.ganho(a, b - 1), Math.max(t0, t - .02)); g.gain.linearRampToValueAtTime(this.ganho(a, b), t); }
+  },
   toca(q) {
     this.para(); const P = App.P, ac = this.ac(); ac.resume(); const t0 = ac.currentTime + .03;
     for (const a of P.audios || []) {
       const b = this.buf.get(a.arq); if (!b) continue; const off = (q - (a.de || 0)) / P.fps; if (off >= b.duration) continue;
-      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; g.gain.value = a.vol ?? 1; src.connect(g).connect(ac.destination);
+      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; this.agenda(g, a, q, t0, P.fps); src.connect(g).connect(ac.destination);
       if (off >= 0) src.start(t0, off); else src.start(t0 - off, 0); this.fontes.push(src);
     }
   },
@@ -77,12 +85,12 @@ const Som = {
   raspa(q) {
     const P = App.P, ac = this.ac(); ac.resume();
     for (const a of P.audios || []) { const b = this.buf.get(a.arq); if (!b) continue; const off = (q - (a.de || 0)) / P.fps; if (off < 0 || off >= b.duration) continue;
-      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; g.gain.value = (a.vol ?? 1) * .9; src.connect(g).connect(ac.destination); src.start(ac.currentTime, off, 1.2 / P.fps); }
+      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; g.gain.value = this.ganho(a, q) * .9; src.connect(g).connect(ac.destination); src.start(ac.currentTime, off, 1.2 / P.fps); }
   },
   // mistura tudo (para exportar)
   async mistura(P, sr = 48000) {
     const dur = P.duracao / P.fps, off = new OfflineAudioContext(2, Math.max(1, Math.ceil(dur * sr)), sr);
-    for (const a of P.audios || []) { const b = await this.decod(a.arq); if (!b) continue; const src = off.createBufferSource(), g = off.createGain(); src.buffer = b; g.gain.value = a.vol ?? 1; src.connect(g).connect(off.destination); const t = (a.de || 0) / P.fps; src.start(t); }
+    for (const a of P.audios || []) { const b = await this.decod(a.arq); if (!b) continue; const src = off.createBufferSource(), g = off.createGain(); src.buffer = b; const t = (a.de || 0) / P.fps; this.agenda(g, a, a.de || 0, t, P.fps); src.connect(g).connect(off.destination); src.start(t); }
     return off.startRendering();
   },
 

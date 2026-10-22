@@ -22,33 +22,37 @@ const RefsAnim = {
   async conteudo(lista = [], o = {}) {
     const out = [], base = o.base === false ? [] : await this.base(), meus = (lista || []).slice(0, 6);
     if (!base.length && !meus.length) return out;
-    out.push({ type: 'text', text: 'VÍDEOS DE REFERÊNCIA DE ANIMAÇÃO (cada imagem é uma folha de quadros do vídeo, lida da esquerda para a direita e de cima para baixo). Use o TIMING, as poses-chave, o jeito de mexer (sobe-e-desce do andar, antecipação, segurar a pose, trocas de expressão) e a organização por vistas. Não copie o desenho: adapte às peças deste personagem.' });
+    const editor = o.modo === 'editor';
+    out.push({ type: 'text', text: editor
+      ? 'VÍDEOS DE REFERÊNCIA DE ANIMAÇÃO E EDIÇÃO (cada imagem é uma folha de quadros do vídeo, lida da esquerda para a direita e de cima para baixo; o tempo aparece no canto de cada quadro). COPIE O ESTILO deles nesta animação: o jeito de animar (timing, poses-chave, segurar a pose, antecipação, troca de expressão na palavra forte, sobe-e-desce do andar, troca de vista) E o jeito de EDITAR (quando a câmera aproxima/afasta ou corta, enquadramento, zoom na fala/na piada, tremor/flash nos impactos, ritmo das trocas de cena, legendas). Não copie o desenho nem a história: use as camadas e personagens deste projeto.'
+      : 'VÍDEOS DE REFERÊNCIA DE ANIMAÇÃO (cada imagem é uma folha de quadros do vídeo, lida da esquerda para a direita e de cima para baixo). Use só como GUIA para as animações de teste deste personagem: o TIMING, as poses-chave e o jeito de mexer (sobe-e-desce do andar, antecipação, segurar a pose, trocas de expressão). Não copie o desenho: adapte às peças deste personagem.' });
     for (const r of base) { const b = this.bloco(r.img); if (!b) continue; out.push(b); out.push({ type: 'text', text: `↑ ${r.nome} (${r.segundos} s, ${r.quadros_na_folha}). ${r.descricao} ${r.como_usar || ''}` }); }
     for (const r of meus) {
       const blob = r.k ? await Arq.pegaBlob(r.k).catch(() => null) || (/^personagens\//.test(r.k) ? await Nuvem.baixar(r.k).catch(() => null) : null) : null; if (!blob) continue;
       const b = this.bloco(await this.b64(blob)); if (!b) continue;
-      out.push(b); out.push({ type: 'text', text: `↑ REFERÊNCIA DESTE PROJETO (siga com prioridade): ${r.nome || 'vídeo'}${r.tipo === 'youtube' ? ' — do YouTube (4 cenas espalhadas pelo vídeo)' : ` — ${r.quadros || 12} quadros de ${r.seg ? r.seg.toFixed(1) + ' s' : 'um vídeo'}`}${r.nota ? '. Nota: ' + r.nota : ''}` });
+      out.push(b); out.push({ type: 'text', text: `↑ ${editor ? 'REFERÊNCIA DESTA ANIMAÇÃO (copie o estilo de animação e edição dela com prioridade)' : 'REFERÊNCIA DESTE PERSONAGEM (siga com prioridade)'}: ${r.nome || 'vídeo'}${r.tipo === 'youtube' ? ' — do YouTube (4 cenas espalhadas pelo vídeo)' : ` — ${r.quadros || 12} quadros espalhados por ${r.seg ? r.seg.toFixed(1) + ' s' : 'um vídeo'}`}${r.nota ? '. Nota: ' + r.nota : ''}` });
     }
     return out;
   },
   // ---------- montar a folha ----------
-  async folha(imgs, cols, larg = 256) {
+  async folha(imgs, cols, larg = 256, rotulos) {
     const im0 = imgs[0], k = larg / (im0.width || im0.videoWidth), H = Math.round((im0.height || im0.videoHeight) * k), rows = Math.ceil(imgs.length / cols);
     const c = document.createElement('canvas'); c.width = cols * larg; c.height = rows * H; const x = c.getContext('2d'); x.fillStyle = '#111'; x.fillRect(0, 0, c.width, c.height);
-    imgs.forEach((im, i) => x.drawImage(im, (i % cols) * larg, Math.floor(i / cols) * H, larg, H));
+    imgs.forEach((im, i) => { const px = (i % cols) * larg, py = Math.floor(i / cols) * H; x.drawImage(im, px, py, larg, H);
+      if (rotulos?.[i]) { x.font = '600 13px sans-serif'; const w = x.measureText(rotulos[i]).width + 10; x.fillStyle = 'rgba(0,0,0,.72)'; x.fillRect(px + 3, py + 3, w, 19); x.fillStyle = '#fff'; x.fillText(rotulos[i], px + 8, py + 17); } });
     return new Promise(ok => c.toBlob(ok, 'image/jpeg', .8));
   },
   async doVideo(f, n = 12) {
     const url = URL.createObjectURL(f), v = document.createElement('video'); v.muted = true; v.preload = 'auto'; v.src = url;
     try {
       await new Promise((ok, no) => { v.onloadedmetadata = ok; v.onerror = () => no(new Error('o navegador não abriu este vídeo')); setTimeout(() => no(new Error('o vídeo demorou demais para abrir')), 20000); });
-      const dur = v.duration || 1, quadros = [];
+      const dur = v.duration || 1, quadros = [], rot = [];
       for (let i = 0; i < n; i++) {
         v.currentTime = Math.min(dur - .05, (i + .5) * dur / n); await new Promise(ok => { const f2 = () => { v.removeEventListener('seeked', f2); ok(); }; v.addEventListener('seeked', f2); setTimeout(ok, 4000); });
-        const c = document.createElement('canvas'), k = Math.min(1, 512 / Math.max(v.videoWidth, v.videoHeight)); c.width = Math.max(1, v.videoWidth * k); c.height = Math.max(1, v.videoHeight * k); c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); quadros.push(c);
+        const c = document.createElement('canvas'), k = Math.min(1, 512 / Math.max(v.videoWidth, v.videoHeight)); c.width = Math.max(1, v.videoWidth * k); c.height = Math.max(1, v.videoHeight * k); c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); quadros.push(c); rot.push(Trechos.txt(v.currentTime, 1));
       }
       const vertical = v.videoHeight > v.videoWidth;
-      return { blob: await this.folha(quadros, vertical ? 6 : 4, vertical ? 170 : 256), seg: dur, quadros: n };
+      return { blob: await this.folha(quadros, vertical ? 6 : 4, vertical ? 170 : 256, rot), seg: dur, quadros: n };
     } finally { URL.revokeObjectURL(url); }
   },
   async doYoutube(id) {
@@ -62,7 +66,7 @@ const RefsAnim = {
   // ---------- campo: chips + caixa de links (vírgula, espaço ou Enter separam) + vídeo do computador ----------
   // o = { lista(): array guardada no projeto, chave(): nome do arquivo novo, mudou() }
   campo(o) {
-    const el = h(`<div class="refs-anim"><div class="refs-cab">${ic('film', 14)} <b>Vídeos de referência</b><small>a IA usa o jeito de mexer deles ao criar animações (além do test drive da equipe)</small></div>
+    const el = h(`<div class="refs-anim"><div class="refs-cab">${ic('film', 14)} <b>Vídeos de referência</b><small>${o.modo === 'editor' ? 'a IA copia o estilo de animação e de edição deles ao criar (além do test drive da equipe)' : 'só guiam a IA nas animações de teste deste personagem (além do test drive da equipe)'}</small></div>
       <div class="refs-l"></div><div class="refs-in"><input type="text" placeholder="Cole links do YouTube (vírgula, espaço ou Enter separam)"><button class="btn sm" data-arq title="Vídeo do computador (MP4, WEBM, MOV)">${ic('upload', 13)} Vídeo</button></div><div class="refs-st"></div></div>`);
     const inp = $('input', el), st = $('.refs-st', el);
     const pinta = () => {
@@ -90,10 +94,10 @@ const RefsAnim = {
     inp.addEventListener('paste', () => setTimeout(() => le(true), 0));
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); le(true); } e.stopPropagation(); });
     inp.addEventListener('blur', () => { if (inp.value.trim()) le(true); });
-    $('[data-arq]', el).onclick = async () => { const fs = await pickFiles('video/*', true); for (const f of fs) await add(async () => { const r = await this.doVideo(f); return { blob: r.blob, info: { tipo: 'video', nome: f.name.replace(/\.[^.]+$/, '').slice(0, 60), seg: r.seg, quadros: r.quadros } }; }, `Tirando os quadros de "${f.name}"`); };
+    $('[data-arq]', el).onclick = async () => { const fs = await pickFiles('video/*', true); for (const f of fs) await add(async () => { const r = await this.doVideo(f, o.quadros || 12); return { blob: r.blob, info: { tipo: 'video', nome: f.name.replace(/\.[^.]+$/, '').slice(0, 60), seg: r.seg, quadros: r.quadros } }; }, `Tirando os quadros de "${f.name}"`); };
     el.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.stopPropagation(); } };
     el.ondrop = async e => { const fs = [...e.dataTransfer.files].filter(f => /^video\//.test(f.type) || /\.(mp4|webm|mov|m4v)$/i.test(f.name)); if (!fs.length) return; e.preventDefault(); e.stopPropagation();
-      for (const f of fs) await add(async () => { const r = await this.doVideo(f); return { blob: r.blob, info: { tipo: 'video', nome: f.name.replace(/\.[^.]+$/, '').slice(0, 60), seg: r.seg, quadros: r.quadros } }; }, `Tirando os quadros de "${f.name}"`); };
+      for (const f of fs) await add(async () => { const r = await this.doVideo(f, o.quadros || 12); return { blob: r.blob, info: { tipo: 'video', nome: f.name.replace(/\.[^.]+$/, '').slice(0, 60), seg: r.seg, quadros: r.quadros } }; }, `Tirando os quadros de "${f.name}"`); };
     pinta(); return el;
   },
 };

@@ -212,6 +212,11 @@ const Lado = {
       const b = h(`<div class="sessao" style="${App.sel === a.id ? 'background:var(--bg2)' : ''}"><h4>${ic('mic', 12)} ${esc(a.nome)}<span class="sp"></span><button class="ibtn" data-x title="Tirar">${ic('trash', 13)}</button></h4>
         <div class="campo2" style="margin-bottom:4px"><span style="color:var(--tx2)">Começa no quadro</span><input type="number" min="1" value="${(a.de || 0) + 1}" style="width:64px" data-de></div><div class="props" style="padding:0"></div></div>`);
       $('.props', b).appendChild(this.campo('Volume', a.vol ?? 1, 0, 2, .01, v => { a.vol = v; Folha.desenha(); }, () => App.commit('Volume')));
+      if ((a.volTrechos || []).length) { const vt = h(`<div class="vol-trechos"><div class="vt-cab">Volume em trechos</div></div>`);
+        a.volTrechos.slice().sort((x, y) => x.de - y.de).forEach(t => { const r = h(`<div class="campo2 vt-row"><button class="btn sm" data-ir title="Ir até lá">${esc(Trechos.rotulo(t, P))}</button><span class="sp"></span><input type="number" min="0" max="200" step="5" value="${Math.round(t.vol * 100)}" style="width:62px"><span>%</span><button class="ibtn" data-x title="Tirar (volta ao volume geral)">${ic('x', 12)}</button></div>`);
+          $('[data-ir]', r).onclick = () => App.setQ(t.de); $('input', r).onchange = ev => { t.vol = clamp(+ev.target.value / 100, 0, 2); App.commit('Volume do trecho'); };
+          $('[data-x]', r).onclick = () => { a.volTrechos = a.volTrechos.filter(x => x !== t); App.commit('Volume do trecho'); }; vt.appendChild(r); });
+        b.appendChild(vt); }
       $('[data-de]', b).onchange = ev => { a.de = Math.max(0, +ev.target.value - 1); App.commit('Áudio'); };
       $('[data-x]', b).onclick = () => { P.audios = P.audios.filter(x => x !== a); App.commit('Tirar áudio'); };
       el.appendChild(b);

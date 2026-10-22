@@ -54,7 +54,8 @@ const IA = {
       vistas: d.vistas?.length > 1 ? d.vistas.map(v => { const dv = Modelo.naVista(d, v.id); return { vista: v.nome, tipo: Modelo.nomeTipo(v.tipo), sessoes: (dv.sessoes || []).map(s => s.nome), animacoes: (dv.animacoes || []).map(a => a.nome) }; }) : undefined }));
     const camadas = Modelo.todos(P).map(n => ({ camada: n.nome, tipo: n.tipo, personagem: n.tipo === 'personagem' ? P.personagens[n.ref]?.nome : undefined, de: (n.de || 0) + 1, ate: Modelo.fimNo(P, n) + 1, posicao: (({ x, y, s }) => ({ x: Math.round(x), y: Math.round(y), s: round(s, 2) }))(Modelo.transf(n, App.q)) }));
     const fala = (P.legendas || []).map(g => `${g.de + 1}-${g.ate + 1}: ${g.texto}`).join('\n');
-    return { quadros: P.duracao, fps: P.fps, tamanho: `${P.w}x${P.h}`, quadroAtual: App.q + 1, personagens: pers, camadas, efeitos: Efeitos.TELA.map(e => e.id), visuais: Efeitos.VISUAIS.map(v => v.id), fala };
+    const audios = (P.audios || []).map(a => ({ audio: a.nome, de: (a.de || 0) + 1, ate: (a.de || 0) + Math.round((Som.dur(a.arq) || 0) * P.fps), volume: round(a.vol ?? 1, 2), volume_em_trechos: (a.volTrechos || []).map(t => ({ de: t.de + 1, ate: t.ate + 1, volume: t.vol })) }));
+    return { quadros: P.duracao, fps: P.fps, tamanho: `${P.w}x${P.h}`, quadroAtual: App.q + 1, personagens: pers, camadas, audios, efeitos: Efeitos.TELA.map(e => e.id), visuais: Efeitos.VISUAIS.map(v => v.id), fala };
   },
   SIS_CENA: `Você é o animador assistente do ANIMADOR do Estúdio Problems (canal Problems, animação 2D de personagens montados por partes).
 Você recebe o projeto em JSON: quadros (numerados a partir de 1), fps, personagens com SESSÕES e PRESETS (ex.: sessão "Olhos" com "assustado", "fechado"; sessão "Pose" com "chutando"), camadas e a fala com os quadros de cada frase.
@@ -69,41 +70,51 @@ Ações possíveis:
  {"tipo":"cenario","descricao":"o lugar em português, sem personagens"}   (só se a pessoa pedir um cenário/fundo novo; sai no estilo da casa e fica só nesta animação)
  {"tipo":"vista","camada":"nome","quadro":N,"vista":"Lado"}   (troca o ÂNGULO do personagem a partir do quadro N: frente, três-quartos, lado, costas… — para virar, andar de lado, dar as costas)
  {"tipo":"animacao","camada":"nome","animacao":"Andar","quadro":N,"repeticoes":2,"quadros_por_passo":3}   (põe um CICLO pronto do personagem — andar, falar, piscar, respirar… — como chaves a partir do quadro N)
+ {"tipo":"apagar_chaves","camada":"nome ou camera","de":N,"ate":N}   (tira as chaves da camada nesse trecho, para refazer o que ficou ruim)
+ {"tipo":"volume","audio":"nome do áudio","de":N,"ate":N,"volume":0.5}   (muda o volume SÓ nesse trecho: 1 = como está, 0.5 = metade, 0 = mudo, até 2)
  {"tipo":"criar_animacao","personagem":"nome","nome":"Pular","vel":200,"trilhas":[[{"Parte":"imagem"},{"Parte":{"img":"imagem","r":graus,"x":px,"y":px}}]]}   (cria um preset de animação novo no personagem desta animação, quando não existe um que sirva; depois use com "animacao")
 CICLOS: para andar/correr/falar/piscar/respirar, use as "animacoes" do personagem (ação "animacao") em vez de trocar peça por peça; para andar até um lugar, junte "animacao" (Andar, várias repetições) com "mover" do começo ao fim no mesmo trecho; quadros_por_passo ≈ ms_por_passo × fps / 1000 (2-4 é o normal); calcule as repetições para cobrir o trecho.
 Se não existir a animação que precisa, crie com "criar_animacao" seguindo: ciclo emendado (o último passo liga no primeiro), andar com pernas alternando e braços opostos e o corpo subindo/descendo poucos px, piscar com olhos abertos muito tempo e fechando rápido, falar variando as bocas.
+VÍDEOS DE REFERÊNCIA: se vierem folhas de quadros de vídeos, copie o estilo de animação e de edição deles (timing, poses, câmera, cortes, zooms, efeitos nos impactos).
+TRECHOS: se o pedido disser "SÓ ESTES TRECHOS", todas as ações têm que cair dentro deles (quadros, de/ate); não mexa em mais nada.
 Regras: use só nomes de sessões, presets, partes, imagens e animações que existem (ou que você criou nesta resposta). Para atuação pela fala, mude expressões nas palavras fortes (piscar de vez em quando: olhos fechados por 2-3 quadros), sem trocar a cada quadro. Respeite o pedido.`,
   // faz o pedido na animação aberta (o mesmo do botão IA) e devolve o texto do que fez
-  async executar(txt, foco, mostra) {
-    const P = App.P, texto = `PROJETO:\n${JSON.stringify(this.contexto(P))}\n\nPEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`;
-    // pedido de animação (ou projeto com vídeos de referência): os vídeos vão junto como folhas de quadros
-    const anima = (P.refsAnim || []).length || /anim|and(a|ar)|corr|pul|ciclo|mex|dan[çc]|acen|fal(a|ar)|pisc|test/i.test(txt);
-    const refC = anima ? await RefsAnim.conteudo(P.refsAnim).catch(() => []) : [];
-    const out = await this.chama(this.SIS_CENA, refC.length ? [...refC, { type: 'text', text: texto }] : texto, t => mostra?.(t.slice(-600)));
-    const j = this.json(out); let n = this.aplicar(j.acoes || []);
-    for (const c of this.cenariosPedidos) { mostra?.('Montando o cenário: ' + c.descricao + '…'); const r = await Cenarios.pedirIA(c.descricao, null, t => mostra?.('Montando o cenário… (' + t.length + ' letras)')); Cenarios.guardaUltimo(r.cena); await Cenarios.porNaCena(await Cenarios.desenhar(r.cena), r.cena); const nn = App.noSel(); if (nn) nn.ia = true; n++; }
+  async executar(txt, foco, mostra, o = {}) {
+    const P = App.P, tr = (o.trechos || []).filter(t => t && t.ate >= t.de);
+    const texto = `PROJETO:\n${JSON.stringify(this.contexto(P))}\n\n${tr.length ? Trechos.texto(P, tr) + '\n\n' : ''}PEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`;
+    // no ANIMADOR os vídeos de referência (test drive da equipe + os desta animação) vão em todo pedido: a IA copia o estilo de animação e de edição
+    const refC = await RefsAnim.conteudo(P.refsAnim, { modo: 'editor' }).catch(() => []);
+    const trC = tr.length ? await Trechos.quadros(P, tr).catch(() => []) : [];
+    const content = refC.length || trC.length ? [...refC, ...trC, { type: 'text', text: texto }] : texto;
+    const foto = tr.length ? Trechos.foto(P) : null;
+    const out = await this.chama(this.SIS_CENA, content, t => mostra?.(t.slice(-600)));
+    this.trechos = tr.length ? tr : null;
+    const j = this.json(out); let n; try { n = this.aplicar(j.acoes || [], foto); } finally { this.trechos = null; }
+    for (const c of this.cenariosPedidos) { mostra?.('Montando o cenário: ' + c.descricao + '…'); const r = await Cenarios.pedirIA(c.descricao, null, t => mostra?.('Montando o cenário… (' + t.length + ' letras)')); Cenarios.guardaUltimo(r.cena); await Cenarios.porNaCena(await Cenarios.desenhar(r.cena), r.cena); const nn = App.noSel(); if (nn) { nn.ia = true; if (tr.length) { nn.de = Math.min(...tr.map(t => t.de)); nn.ate = Math.max(...tr.map(t => t.ate)); App.commit('Cenário no trecho'); } } n++; }
     const cr = this.criadas || 0; this.criadas = 0;
-    return (j.explica || 'Pronto.') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (cr ? `\n${cr} animação(ões) nova(s) no personagem desta animação: para guardar no personagem da equipe, botão direito nele › Editar no Ateliê e salve lá.` : '') + (this.cenariosPedidos.length ? '\nO cenário fica só nesta animação: para guardar na equipe, botão direito nele › Salvar na nuvem.' : '');
+    return (j.explica || 'Pronto.') + (tr.length ? `\n\nSó mexi ${tr.length > 1 ? 'nos trechos' : 'no trecho'} ${tr.map(t => Trechos.rotulo(t, P)).join(', ')}; o resto ficou igual.` : '') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (cr ? `\n${cr} animação(ões) nova(s) no personagem desta animação: para guardar no personagem da equipe, botão direito nele › Editar no Ateliê e salve lá.` : '') + (this.cenariosPedidos.length ? '\nO cenário fica só nesta animação: para guardar na equipe, botão direito nele › Salvar na nuvem.' : '');
   },
-  async abrir(foco) {
-    const P = App.P;
+  async abrir(foco, o = {}) {
+    const P = App.P, trechos = (o.trechos || []).map(t => ({ ...t }));
     const body = h(`<div><p>Peça em português. A IA usa os personagens, as sessões e presets deles${P.legendas.length ? ', e a <b>fala</b> (legendas)' : ''}.</p>
-      <label class="field">O que fazer?<textarea rows="4" placeholder="Ex.: anima o ${esc(foco?.nome || 'Problems')} pela fala: olhos assustados quando ele grita, pisca de vez em quando, e um tremor de tela no fim"></textarea></label>
+      <label class="field">O que fazer?<textarea rows="4" placeholder="Ex.: anima o ${esc(foco?.nome || 'Problems')} pela fala: olhos assustados quando ele grita, pisca de vez em quando, e um tremor de tela no fim. Ou: de 0:15 a 1:12 o andar ficou ruim e o áudio está alto"></textarea></label>
       <div class="ia-res" hidden></div></div>`);
-    const res = $('.ia-res', body);
-    $('.ia-res', body).before(RefsAnim.campo({ lista: () => (P.refsAnim ||= []), chave: () => uid('a'), mudou: () => App.commit('Vídeos de referência', { semArvore: true }) }));
-    await UI.modal({ title: 'Animar com a IA', icon: 'sparkles', kind: 'ia', width: 620, body, buttons: [{ label: 'Fechar', value: null }, { label: 'Pedir', icon: 'sparkles', kind: 'primary ia', onClick: async api => {
-      const txt = $('textarea', body).value.trim(); if (!txt) return false;
+    const res = $('.ia-res', body), ta = $('textarea', body);
+    res.before(Trechos.campo(P, { lista: trechos, texto: ta }));
+    res.before(RefsAnim.campo({ modo: 'editor', quadros: 24, lista: () => (P.refsAnim ||= []), chave: () => uid('a'), mudou: () => App.commit('Vídeos de referência', { semArvore: true }) }));
+    if (o.texto) ta.value = o.texto;
+    await UI.modal({ title: 'Animar com a IA', icon: 'sparkles', kind: 'ia', width: 660, body, buttons: [{ label: 'Fechar', value: null }, { label: 'Pedir', icon: 'sparkles', kind: 'primary ia', onClick: async api => {
+      const txt = ta.value.trim(); if (!txt) return false; Trechos._sinc?.();
       const bt = api.foot.querySelector('.btn.primary'); bt.disabled = true; res.hidden = false; res.textContent = 'Pensando…';
-      try { res.textContent = await this.executar(txt, foco, t => { res.textContent = t; });
+      try { res.textContent = await this.executar(txt, foco, t => { res.textContent = t; }, { trechos });
       } catch (e) { res.textContent = 'Não deu: ' + e.message; }
       bt.disabled = false; return false;
     } }] });
   },
   cenariosPedidos: [],
-  aplicar(acoes) {
-    const P = App.P, todos = Modelo.todos(P); let n = 0; this.cenariosPedidos = [];
-    acoes = [...acoes.filter(a => a.tipo === 'criar_animacao'), ...acoes.filter(a => a.tipo === 'vista'), ...acoes.filter(a => a.tipo !== 'criar_animacao' && a.tipo !== 'vista')]; // cria as animações e troca as vistas antes de usar // cria os presets de animação antes de usar
+  aplicar(acoes, foto) {
+    const P = App.P, todos = Modelo.todos(P), tr = this.trechos; let n = 0; this.cenariosPedidos = [];
+    acoes = [...acoes.filter(a => a.tipo === 'apagar_chaves'), ...acoes.filter(a => a.tipo === 'criar_animacao'), ...acoes.filter(a => a.tipo === 'vista'), ...acoes.filter(a => !['apagar_chaves', 'criar_animacao', 'vista'].includes(a.tipo))]; // apaga primeiro, cria as animações e troca as vistas antes de usar // cria as animações e troca as vistas antes de usar // cria os presets de animação antes de usar
     const q = v => clamp(Math.round(+v || 1) - 1, 0, P.duracao - 1);
     for (const a of acoes) {
       try {
@@ -114,6 +125,13 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
           if (a.tipo === 'mover') { const v = {}; for (const c of ['x', 'y', 'r', 's', 'op']) if (a[c] != null && isFinite(+a[c])) v[c] = +a[c]; Modelo.poeTransf(no, q(a.quadro), v); n++; }
         } else if (a.tipo === 'camera') { const k = q(a.quadro); P.camera.chaves[k] = { ...Modelo.camera(P, k), ...Object.fromEntries(['x', 'y', 'zoom', 'r'].filter(c => a[c] != null).map(c => [c, +a[c]])) }; n++; }
         else if (a.tipo === 'efeito' && Efeitos.TELA.some(e => e.id === a.efeito)) { const t = App.efeitoTopo(); t.efeitos.push({ id: uid('ef'), tipo: a.efeito, de: q(a.de), ate: Math.max(q(a.de), q(a.ate)), forca: clamp(+a.forca || .5, 0, 1) }); App.nomeEfeito(t); n++; }
+        else if (a.tipo === 'apagar_chaves') { const de = q(a.de), ate = Math.max(de, q(a.ate)), ch = /^c[aâ]mera$/i.test(String(a.camada || '').trim()) ? P.camera.chaves : this.acha(todos, a.camada)?.chaves; if (!ch) continue;
+          for (const k of Object.keys(ch)) if (+k >= de && +k <= ate && (!tr || Trechos.dentro(tr, +k)) && !(ch === P.camera.chaves && +k === 0)) delete ch[k]; n++; }
+        else if (a.tipo === 'volume') { const au = this.acha(P.audios || [], a.audio) || (P.audios || [])[0]; if (!au) continue; let de = q(a.de), ate = Math.max(de, q(a.ate)); const v = clamp(+a.volume, 0, 2); if (!isFinite(v)) continue;
+          const pedacos = tr ? tr.map(t => [Math.max(de, t.de), Math.min(ate, t.ate)]).filter(([x, y]) => y >= x) : [[de, ate]];
+          for (const [x, y] of pedacos) { au.volTrechos = (au.volTrechos || []).filter(t => !(t.de >= x && t.ate <= y)); au.volTrechos.push({ de: x, ate: y, vol: v }); } if (pedacos.length) n++; }
+        else if (a.tipo === 'tremulo' && tr) continue; // vale para a camada inteira: fora do modo trecho
+        else if (a.tipo === 'visual' && tr && Efeitos.VISUAIS.some(v => v.id === a.visual)) { if (a.visual === 'normal') continue; const t = App.efeitoTopo(); for (const x of tr) t.efeitos.push({ id: uid('ef'), tipo: 'cor', visual: a.visual, de: x.de, ate: x.ate }); App.nomeEfeito(t); n++; }
         else if (a.tipo === 'tremulo') { const no = this.acha(todos, a.camada); if (no) { if (a.modo === 'nenhum') delete no.tremulo; else no.tremulo = { modo: a.modo === 'ondular' ? 'ondular' : 'tremer', forca: clamp(+a.forca || .4, .05, 1), ritmo: 2 }; n++; } }
         else if (a.tipo === 'visual' && Efeitos.VISUAIS.some(v => v.id === a.visual)) { const t = App.efeitoTopo(); t.efeitos = t.efeitos.filter(e => e.tipo !== 'cor'); if (a.visual !== 'normal') t.efeitos.push({ id: uid('ef'), tipo: 'cor', visual: a.visual }); App.nomeEfeito(t); n++; }
         else if (a.tipo === 'cenario' && a.descricao) this.cenariosPedidos.push(a);
@@ -126,7 +144,8 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
           Animacoes.escreve(no, an, q(a.quadro), clamp(Math.round(+a.quadros_por_passo || Math.max(1, Math.round((+an.vel || 250) / 1000 * P.fps))), 1, 48), clamp(Math.round(+a.repeticoes || 1), 1, 60)); n++; }
       } catch (e) { console.warn('ação da IA', a, e); }
     }
-    if (n) App.commit('IA: ' + n + ' ações');
+    if (tr && foto) Trechos.protege(P, tr, foto); // o que caiu fora dos trechos volta a ser como era
+    if (n) App.commit('IA: ' + n + ' ações' + (tr ? ' no trecho' : ''));
     return n;
   },
 

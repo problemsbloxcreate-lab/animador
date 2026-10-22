@@ -59,6 +59,13 @@ const Modelo = {
   fimNo(P, n) { return n.ate == null ? Modelo.ultimoQuadro(P) : n.ate; },
   aparece(P, n, q) { return q >= (n.de || 0) && q <= Modelo.fimNo(P, n); },
   quadrosChave(n) { return Object.keys(n.chaves || {}).map(Number).sort((a, b) => a - b); },
+  // intercala entre as chaves a e b ([quadro, valor]) com ease; a chave a pode guardar curva[c] = [t0, t1] = só um pedaço da curva
+  // original (a IA mudou só um trecho: a chave que segura a borda do trecho continua a mesma curva de antes, sem degrau)
+  mistura(ch, a, b, c, q) {
+    const t = (q - a[0]) / (b[0] - a[0]), cv = ch[a[0]]?.curva?.[c]; let e = Ease.inOut(t);
+    if (cv) { const e0 = Ease.inOut(cv[0]), e1 = Ease.inOut(cv[1]); e = Math.abs(e1 - e0) < 1e-9 ? t : (Ease.inOut(cv[0] + (cv[1] - cv[0]) * t) - e0) / (e1 - e0); }
+    return a[1] + (b[1] - a[1]) * e;
+  },
   // transformação no quadro q: segura a última chave (ou intercala até a próxima, se interp)
   transf(n, q) {
     const ks = Modelo.quadrosChave(n), base = { x: 0, y: 0, r: 0, s: 1, sx: 1, op: 1 };
@@ -69,7 +76,7 @@ const Modelo = {
       for (const k of ks) { const v = n.chaves[k][c]; if (v == null) continue; if (k <= q) a = [k, v]; else { b = [k, v]; break; } }
       if (!a && b) { out[c] = b[1]; continue; }
       if (!a) continue;
-      if (b && n.interp && c !== 'sx') { const t = (q - a[0]) / (b[0] - a[0]); out[c] = a[1] + (b[1] - a[1]) * Ease.inOut(t); } else out[c] = a[1];
+      if (b && n.interp && c !== 'sx') out[c] = Modelo.mistura(n.chaves, a, b, c, q); else out[c] = a[1];
     }
     return out;
   },
@@ -186,7 +193,7 @@ const Modelo = {
     const ks = Object.keys(P.camera.chaves).map(Number).sort((a, b) => a - b), out = { x: P.w / 2, y: P.h / 2, zoom: 1, r: 0 };
     for (const c of ['x', 'y', 'zoom', 'r']) {
       let a = null, b = null; for (const k of ks) { const v = P.camera.chaves[k][c]; if (v == null) continue; if (k <= q) a = [k, v]; else { b = [k, v]; break; } }
-      if (!a && b) out[c] = b[1]; else if (a && b) out[c] = a[1] + (b[1] - a[1]) * Ease.inOut((q - a[0]) / (b[0] - a[0])); else if (a) out[c] = a[1];
+      if (!a && b) out[c] = b[1]; else if (a && b) out[c] = Modelo.mistura(P.camera.chaves, a, b, c, q); else if (a) out[c] = a[1];
     }
     return out;
   },

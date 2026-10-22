@@ -1,10 +1,11 @@
 /* ===================== folha.js — timeline quadro a quadro (estilo folha de exposição): camadas, câmera, efeitos, legendas e voz =====================
    Cada coluna é UM quadro. Barra = de quando até quando a camada aparece. ◆ = chave (posição/pose naquele quadro).
    Clique: vai para o quadro · arrastar a régua: passa os quadros · arrastar ◆: muda a chave de quadro (Alt = copia)
-   · arrastar a ponta da barra: muda quando começa/termina · duplo clique: chave nova · botão direito: mais opções. */
+   · arrastar a ponta da barra: muda quando começa/termina · duplo clique: chave nova · botão direito: mais opções
+   · Shift + arrastar na régua: marca um TRECHO (Folha.trecho) para pedir à IA mudar só ali (botão direito na régua). */
 'use strict';
 const Folha = {
-  CW: 16, RH: 24, REG: 22, loop: true, copia: null, cv: null,
+  CW: 16, RH: 24, REG: 22, loop: true, copia: null, cv: null, trecho: null,
   liga() {
     if (this.cv) return this.pinta();
     this.cv = $('#tl-cv'); this.grade = $('#tl-grade'); this.nomes = $('#tl-nomes'); this.espaco = $('#tl-espaco');
@@ -88,11 +89,14 @@ const Folha = {
       else if (l.tipo === 'legenda') (P.legendas || []).forEach(g => this.bloco(c, g.de, g.ate, y, sx, '#4f6a58', g.texto));
       else if (l.tipo === 'audio') this.onda(c, P, l.a, y, sx, sel);
     });
+    // trecho marcado (Shift + arrastar na régua)
+    const tr = this.trecho; if (tr) { const x0 = tr.de * CW - sx, w = (tr.ate - tr.de + 1) * CW; c.fillStyle = 'rgba(25,211,240,.09)'; c.fillRect(x0, REG, w, H); c.fillStyle = 'rgba(25,211,240,.55)'; c.fillRect(x0, REG, 1, H); c.fillRect(x0 + w - 1, REG, 1, H); }
     // régua
     c.fillStyle = '#2b2b2b'; c.fillRect(0, 0, W, REG); c.fillStyle = '#3a3a3a'; c.fillRect(0, REG - 1, W, 1);
     c.font = '10.5px ' + getComputedStyle(document.body).getPropertyValue('--mono'); c.textBaseline = 'middle';
     const passo = CW >= 14 ? 5 : CW >= 9 ? 10 : 20;
     for (let q = q0; q <= q1; q++) { const x = q * CW - sx; if ((q + 1) % passo === 0 || q === 0) { c.fillStyle = '#8f8f8f'; c.fillText(String(q + 1), x + 2, REG / 2); c.fillStyle = '#4a4a4a'; c.fillRect(Math.round(x) + .5, REG - 6, 1, 6); } if (q % P.fps === 0 && q) { c.fillStyle = '#6a6a6a'; c.fillRect(Math.round(x), 0, 1, REG); } }
+    if (tr) { const x0 = tr.de * CW - sx, w = (tr.ate - tr.de + 1) * CW; c.fillStyle = '#19d3f0'; c.fillRect(x0, REG - 5, w, 4); }
     // cabeça de leitura
     const px = App.q * CW - sx; c.fillStyle = 'rgba(255,107,107,.16)'; c.fillRect(px, REG, CW, H); c.fillStyle = '#ff6b6b'; c.fillRect(px + CW / 2 - .5, REG, 1.5, H);
     c.fillStyle = '#ff6b6b'; c.beginPath(); c.roundRect(px - 2, 2, CW + 4, REG - 5, 4); c.fill(); c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText(String(App.q + 1), px + CW / 2, REG / 2 - 1); c.textAlign = 'start';
@@ -129,13 +133,17 @@ const Folha = {
     const pk = Som.picos(a.arq, P.fps), CW = this.CW, de = a.de || 0; c.fillStyle = sel ? '#6c8a7a' : '#4c6658';
     const n = pk ? pk.length : Math.round((Som.dur(a.arq) || 1) * P.fps); c.fillRect(de * CW - sx, y + 3, n * CW, this.RH - 7);
     if (!pk) return; c.fillStyle = '#d4f2e0'; const m = this.RH / 2 - 4;
-    for (let i = 0; i < pk.length; i++) { const x = (de + i) * CW - sx; if (x < -CW || x > this.cv.width) continue; const v = Math.max(1, pk[i] * m * (a.vol ?? 1)); c.fillRect(x + 1, y + this.RH / 2 - v, Math.max(1, CW - 2), v * 2); }
+    for (let i = 0; i < pk.length; i++) { const x = (de + i) * CW - sx; if (x < -CW || x > this.cv.width) continue; const v = Math.max(1, pk[i] * m * Som.ganho(a, de + i)); c.fillRect(x + 1, y + this.RH / 2 - v, Math.max(1, CW - 2), v * 2); }
   },
   /* ---------- mouse ---------- */
   ponto(e) { const r = this.cv.getBoundingClientRect(), x = e.clientX - r.left + this.grade.scrollLeft, y = e.clientY - r.top; return { q: Math.floor(x / this.CW), x, y, i: y < this.REG ? -1 : Math.floor((y - this.REG + this.grade.scrollTop) / this.RH) }; },
   desce(e) {
     const p = this.ponto(e), P = App.P, L = this._L; this.cv.setPointerCapture(e.pointerId);
     const mov = f => { const m = ev => f(this.ponto(ev), ev); const up = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', up); this.fimArr?.(ev); this.fimArr = null; }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', up); };
+    if (p.i < 0 && e.shiftKey) { // marcar um trecho
+      const ult = Modelo.ultimoQuadro(P), q0 = clamp(p.q, 0, ult); App.pausa(); this.trecho = { de: q0, ate: q0 }; this.desenha();
+      return mov(pp => { const q1 = clamp(pp.q, 0, ult); this.trecho = { de: Math.min(q0, q1), ate: Math.max(q0, q1) }; this.desenha(); });
+    }
     if (p.i < 0) { App.pausa(); App.setQ(p.q, { som: true }); return mov(pp => App.setQ(pp.q, { som: true })); }
     const l = L[p.i]; if (!l) return; this.selLinha(l);
     const perto = (q, borda) => Math.abs(p.x - (borda === 'fim' ? (q + 1) * this.CW : q * this.CW)) < 6;
@@ -176,7 +184,14 @@ const Folha = {
     const p = this.ponto(e), l = this._L[p.i];
     if (!l || (l.tipo !== 'no' && l.tipo !== 'camera')) { // régua dos quadros ou linha sem chaves: dá para citar o quadro
       if (!App.P || !Number.isFinite(p.q)) return; const q = clamp(p.q, 0, Modelo.ultimoQuadro(App.P)); App.setQ(q);
-      return UI.ctx(e.clientX, e.clientY, [{ head: `Quadro ${q + 1}` }, { label: `Citar o quadro ${q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, q, App.sel) }]);
+      const tr = this.trecho && q >= this.trecho.de && q <= this.trecho.ate ? this.trecho : null, P = App.P;
+      return UI.ctx(e.clientX, e.clientY, [
+        tr ? { head: `Trecho ${Trechos.rotulo(tr, P)} (quadros ${tr.de + 1} a ${tr.ate + 1})` } : { head: `Quadro ${q + 1}` },
+        tr && { label: 'Pedir para a IA mudar só este trecho…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco?.() || null, { trechos: [{ de: tr.de, ate: tr.ate, nota: '' }] }) },
+        tr && { label: 'Tirar a marcação do trecho', icon: 'x', action: () => { this.trecho = null; this.desenha(); } },
+        !tr && { label: 'Pedir para a IA mudar um trecho daqui…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco?.() || null, { trechos: [Trechos.novo(P, q / P.fps, q / P.fps + 2)] }) },
+        !tr && { label: 'Marcar um trecho: Shift + arrastar na régua', icon: 'cut', disabled: true },
+        '-', { label: `Citar o quadro ${q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, q, App.sel) }].filter(Boolean));
     }
     App.setQ(p.q);
     const ch = l.tipo === 'no' ? l.no.chaves : App.P.camera.chaves, tem = !!ch[p.q];
