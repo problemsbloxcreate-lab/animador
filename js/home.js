@@ -108,10 +108,19 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
     Nuvem.souAdm(); // o menu de cada personagem já sai certo (apagar da nuvem: só ADM)
     c.innerHTML = `<div class="novos"><button class="novo" data-novo><span class="fm">${ic('plus', 24)}</span><span><b>Personagem novo</b><small>montar pelas partes</small></span></button>
       <button class="novo" data-backup><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .atelieanimador</b><small>backup de um personagem</small></span></button></div>
-      <div data-local></div>
-      <section class="bloco-sec"><div class="sec">${ic('cloud', 14)} Na nuvem da equipe <small class="sec-sub">a equipe toda vê e usa</small><span class="sp"></span><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div></section>`;
+      <div class="pers-abas"><div class="seg-pers"><button data-s="nuvem">${ic('cloud', 14)} Na nuvem da equipe <small data-cn>…</small></button><button data-s="local">${ic('save', 14)} Só neste computador <small data-cl>0</small></button></div>
+        <span class="sp"></span><input type="search" data-busca placeholder="Buscar personagem" value="${esc(this.qp || '')}"></div>
+      <div data-local hidden><section class="bloco-sec local"><div class="vazio">Nenhum personagem só neste computador: tudo já está na nuvem da equipe.</div></section></div>
+      <section class="bloco-sec" data-nuvem><div class="sec">${ic('cloud', 14)} Na nuvem da equipe <small class="sec-sub">a equipe toda vê e usa</small><span class="sp"></span><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div></section>`;
     $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-backup]', c).onclick = () => AtelieArq.escolher(); $('[data-atu]', c).onclick = () => { Nuvem.lista(true).catch(() => { }); this.pinta(); };
     const l = $('[data-l]', c);
+    // as duas listas ficam em abas separadas (com quantos tem em cada): muitos personagens numa não empurram a outra
+    const sub = s => { this.subPers = s; try { localStorage.setItem('animador-pers-aba', s); } catch { } $$('[data-s]', c).forEach(b => b.classList.toggle('on', b.dataset.s === s)); $('[data-nuvem]', c).hidden = s !== 'nuvem'; $('[data-local]', c).hidden = s !== 'local'; };
+    if (!this.subPers) { try { this.subPers = localStorage.getItem('animador-pers-aba') || 'nuvem'; } catch { this.subPers = 'nuvem'; } }
+    $$('[data-s]', c).forEach(b => b.onclick = () => sub(b.dataset.s)); sub(this.subPers);
+    const filtra = () => { const q = (this.qp || '').trim().toLowerCase(); $$('.pc', c).forEach(card => { const n = $('.in b', card)?.textContent.toLowerCase() || ''; card.hidden = !!q && !n.includes(q); });
+      $$('.grade', c).forEach(g => { const t = g.previousElementSibling; if (t?.classList.contains('pasta-t')) t.hidden = g.children.length && [...g.children].every(x => x.hidden); }); };
+    $('[data-busca]', c).oninput = ev => { this.qp = ev.target.value; filtra(); };
     // rascunhos: mudanças guardadas só neste computador (ainda não foram para a nuvem)
     Atelie.rascunhos().then(rs => { if (!rs.length) return; const sec = h(`<section class="bloco-sec local"><div class="sec">${ic('save', 14)} Só neste computador <small class="sec-sub">personagens locais e mudanças que ainda não foram para a nuvem (a equipe não vê)</small></div><div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div></section>`), g = $('.grade', sec);
       for (const r of rs) { const card = h(`<div class="pc rasc"><div class="th" style="aspect-ratio:1;${r.thumb ? `background-image:url('${r.thumb}')` : ''}">${r.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(r.def.nome)}</b><small>guardado ${fmtDate(r.em)}</small></div><span class="tag-local">${ic('save', 11)} ${r.nuvem ? 'falta enviar' : 'só aqui'}</span><button class="ibtn mn">${ic('dots', 15)}</button></div>`);
@@ -121,9 +130,9 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
           { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.personagem(r.def, { thumb: r.thumb }) },
           '-', { label: 'Descartar o rascunho', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Descartar o rascunho de "${esc(r.def.nome)}"?`, msg: 'As mudanças que não foram para a nuvem somem deste computador.', ok: 'Descartar', danger: true })) { await Atelie.apagarRascunho(r.def.id); this.pinta(); } } }]); };
         g.appendChild(card); }
-      $('[data-local]', c)?.replaceWith(sec); });
+      $('[data-local]', c).innerHTML = ''; $('[data-local]', c).appendChild(sec); $('[data-cl]', c).textContent = rs.length; filtra(); });
     try {
-      const lista = await Nuvem.lista(); if (!lista.length) { l.innerHTML = '<div class="vazio">Ninguém criou personagens ainda. Clique em <b>Personagem novo</b>.</div>'; return; }
+      const lista = await Nuvem.lista(); $('[data-cn]', c).textContent = lista.length; if (!lista.length) { l.innerHTML = '<div class="vazio">Ninguém criou personagens ainda. Clique em <b>Personagem novo</b>.</div>'; return; }
       l.innerHTML = ''; for (const pa of [...new Set(lista.map(x => x.pasta))]) {
         l.appendChild(this.tituloPasta(pa)); const g = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div>');
         for (const it of lista.filter(x => x.pasta === pa)) {
@@ -140,6 +149,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
         }
         l.appendChild(g);
       }
+      filtra();
     } catch (e) { l.innerHTML = `<div class="vazio">Não consegui abrir a biblioteca: ${esc(e.message)}</div>`; }
   },
 };

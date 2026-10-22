@@ -349,9 +349,29 @@ function downloadBlob(blob, name) {
 function pickFiles(accept, multiple = true) {
   return new Promise(res => {
     const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.multiple = multiple;
-    i.onchange = () => res(Array.from(i.files || [])); i.click();
+    i.onchange = async () => { const l = Array.from(i.files || []); res(/image/.test(accept) ? await semVetor(l) : l); }; i.click();
   });
 }
+/* ---------- vetores (SVG): entram em todo lugar que aceita imagem (Ateliê, cenários, Mídia, palco…) ----------
+   O SVG vira uma imagem PNG bem grande e nítida na hora de entrar (o resto do programa e a nuvem trabalham com PNG). */
+const VETOR = 'image/svg+xml,.svg';
+function ehVetor(f) { return !!f && (f.type === 'image/svg+xml' || /\.svg$/i.test(f.name || '')); }
+async function vetorParaPng(f, max = 2048) {
+  const txt = await f.text(), doc = new DOMParser().parseFromString(txt, 'image/svg+xml'), svg = doc.documentElement;
+  if (!svg || svg.nodeName.toLowerCase() !== 'svg') throw new Error('SVG inválido');
+  const num = v => { const n = parseFloat(v); return Number.isFinite(n) && n > 0 && !/%$/.test(String(v)) ? n : 0; };
+  const vb = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number); let w = num(svg.getAttribute('width')), hh = num(svg.getAttribute('height'));
+  if (!w || !hh) { if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) { w = w || (hh ? hh * vb[2] / vb[3] : vb[2]); hh = hh || w * vb[3] / vb[2]; } else { w = w || 512; hh = hh || 512; } }
+  if (!svg.getAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${w} ${hh}`);
+  const longo = Math.max(w, hh), alvo = Math.min(max, Math.max(1024, longo * 2)), k = alvo / longo, W = Math.max(1, Math.round(w * k)), H = Math.max(1, Math.round(hh * k));
+  svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('preserveAspectRatio', svg.getAttribute('preserveAspectRatio') || 'xMidYMid meet');
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
+  try { const im = new Image(); im.src = url; await im.decode(); const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(im, 0, 0, W, H);
+    const b = await new Promise(ok => c.toBlob(ok, 'image/png')); if (!b) throw new Error('não deu para desenhar o SVG');
+    return new File([b], (f.name || 'vetor').replace(/\.svg$/i, '') + '.png', { type: 'image/png' }); }
+  finally { URL.revokeObjectURL(url); }
+}
+async function semVetor(fs) { return Promise.all([...(fs || [])].map(f => ehVetor(f) ? vetorParaPng(f).catch(() => { UI.toast(`Não consegui abrir o vetor "${esc(f.name)}"`, { kind: 'err' }); return null; }) : f)).then(l => l.filter(Boolean)); }
 function safeName(s) { return String(s || 'projeto').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'projeto'; }
 function hexToRgb(hx) { hx = (hx || '#000').replace('#', ''); if (hx.length === 3) hx = hx.split('').map(c => c + c).join(''); const n = parseInt(hx, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function seeded(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }

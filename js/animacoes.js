@@ -170,7 +170,7 @@ const Animacoes = {
     return box;
   },
   async escolherFantasma() {
-    const [f] = await pickFiles('image/png,image/jpeg,image/webp', false); if (!f) return;
+    const [f] = await pickFiles('image/png,image/jpeg,image/webp,' + VETOR, false); if (!f) return;
     const bm = await createImageBitmap(f).catch(() => null); if (!bm) return UI.toast('Não é uma imagem que dá para usar', { kind: 'err' });
     const k = `personagens/${this.def.id}/img/fantasma${uid('f').toLowerCase().replace(/[^a-z0-9]/g, '')}.${f.type === 'image/jpeg' ? 'jpg' : f.type === 'image/webp' ? 'webp' : 'png'}`;
     await Arq.guardar(f, k); Arq.img.set(k, bm);

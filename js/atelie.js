@@ -64,8 +64,8 @@ const Atelie = {
       fs.forEach((f, i) => { const u = URL.createObjectURL(f); urls.push(u); const c = h(`<div class="np-im" title="${esc(f.name)}"><img src="${u}" alt=""><span>${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn" title="Tirar">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); }; lista.appendChild(c); });
       drop.classList.toggle('tem', !!fs.length); $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns) — arraste mais se quiser` : 'Arraste as imagens aqui';
       $('.np-ia', body).hidden = $('[data-p]', body).hidden = !fs.length; };
-    const poe = l => { fs = fs.concat([...l].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g)$/i.test(f.name))); pintaL(); };
-    drop.onclick = async () => { const l = await pickFiles('image/png,image/webp,image/gif,image/jpeg', true); if (l) poe(l); };
+    const poe = l => { fs = fs.concat([...l].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name))); pintaL(); };
+    drop.onclick = async () => { const l = await pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true); if (l) poe(l); };
     drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
     drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); poe(e.dataTransfer.files); };
     pintaL(); setTimeout(() => $('[data-n]', body).focus(), 60);
@@ -606,7 +606,7 @@ const Atelie = {
   },
   // imagens: viram variações da parte escolhida (ou, soltas na lista de partes, uma parte nova cada)
   async addImagens(fs, cadaUmaParte, pasta = null) {
-    fs = fs || await pickFiles('image/png,image/webp,image/gif,image/jpeg', true); fs = (fs || []).filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g)$/i.test(f.name)); if (!fs.length) return;
+    fs = fs ? await semVetor(fs) : await pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true); fs = (fs || []).filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name)); if (!fs.length) return;
     let p = this.parte();
     for (const f of fs) {
       const bm = await createImageBitmap(f).catch(() => null); if (!bm) { UI.toast(`"${esc(f.name)}" não é uma imagem que dá para usar`, { kind: 'err' }); continue; }
@@ -826,8 +826,8 @@ const Atelie = {
     const nm = $('[data-n]', body), tp = $('[data-t]', body); let mexeuNome = false; nm.oninput = () => mexeuNome = true; tp.onchange = () => { if (!mexeuNome) nm.value = Modelo.nomeTipo(tp.value); };
     const lista = $('[data-l]', body), drop = $('[data-d]', body), urls = [];
     const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = ''; fs.forEach((f, i) => { const u = URL.createObjectURL(f); urls.push(u); const c = h(`<div class="np-im"><img src="${u}" alt=""><span>${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); }; lista.appendChild(c); }); $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns) — arraste mais se quiser` : 'Arraste as imagens desta vista aqui'; };
-    const poe = L => { fs = fs.concat([...L].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g)$/i.test(f.name))); pintaL(); };
-    drop.onclick = async () => { const L = await pickFiles('image/png,image/webp,image/gif,image/jpeg', true); if (L) poe(L); };
+    const poe = L => { fs = fs.concat([...L].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name))); pintaL(); };
+    drop.onclick = async () => { const L = await pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true); if (L) poe(L); };
     drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
     drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); poe(e.dataTransfer.files); };
     $$('input[name=como]', body).forEach(r => r.onchange = () => { $('[data-img]', body).hidden = $('input[name=como]:checked', body).value !== 'imagens'; });
