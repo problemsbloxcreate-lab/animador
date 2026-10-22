@@ -168,6 +168,14 @@ const Autores = {
     if (!def.autor) def.autor = { ...eu, em: agora };
     def.edicoes = [...(def.edicoes || []).filter(x => x.id !== eu.id), { ...eu, em: agora }].slice(-12);
   },
+  // arquivo sem criador conhecido (feito/editado pela IA, ou de antes da ficha): quem abre primeiro vira o dono. Devolve true se assumiu
+  desconhecido(a) { return !a || !/^u[0-9a-f]{16}$/.test(a.id || '') || !!a.ia; },
+  async assumir(o) {
+    if (!o || !this.desconhecido(o.autor)) return false; const eu = await this.eu(); if (!eu?.id || eu.id === 'anon') return false;
+    o.autorAntes = o.autor ? { nome: o.autor.nome || 'IA', ia: true } : null; o.autor = { ...eu, em: Date.now(), assumiu: true };
+    o.edicoes = [...(o.edicoes || []).filter(x => !this.desconhecido(x) && x.id !== eu.id), { ...eu, em: Date.now() }].slice(-12); return true;
+  },
+  AVISO_DONO: 'O criador deste arquivo é <b>desconhecido</b> (ele foi gerado ou editado pela IA). Como você foi a primeira pessoa a abrir, <b>você passa a ser a dona/o dono dele</b>: seu nome e sua foto aparecem como quem criou.',
   // quem mexeu, sem contar quem subiu (mais recente primeiro)
   editores(d) { return (d.edicoes || []).filter(x => x.id !== d.autor?.id).sort((a, b) => b.em - a.em); },
   av(p, cls = '') { const ini = esc(String(p?.nome || '?').trim().charAt(0).toUpperCase() || '?'); return p?.foto ? `<img class="aut-av ${cls}" src="${esc(p.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=&quot;aut-av ${cls}&quot;>${ini}</span>'">` : `<span class="aut-av ${cls}">${ini}</span>`; },
