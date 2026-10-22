@@ -60,6 +60,7 @@ const Arvore = {
       n.tipo !== 'efeito' && App.menuTremulo(n),
       n.tipo === 'efeito' && { label: 'Na timeline toda', icon: 'film', action: () => { n.de = 0; n.ate = null; App.commit('Na timeline toda'); } },
       (n.cenario || n.cena || n.cenaEd || n.pecaCen || Modelo.achar(App.P, n.id)?.pai?.cenario) && { label: 'Editar cenário…', icon: 'paisagem', ai: true, action: () => Cenarios.editarNo(n) },
+      n.tipo === 'imagem' && { label: 'Trocar a imagem…', icon: 'image', action: () => App.trocarImagem(n) },
       n.tipo === 'imagem' && '-',
       (n.tipo === 'imagem' || n.cenaEd) && (n.nuvem ? { label: 'Já está na nuvem da equipe', icon: 'check', disabled: true } : { label: 'Salvar na nuvem', icon: 'cloud', action: () => App.salvarNaNuvem(n) }),
       n.filhos && { label: 'Tirar tudo da pasta', icon: 'layers', action: () => { const r = Modelo.achar(App.P, n.id); r.lista.splice(r.lista.indexOf(n), 1, ...n.filhos); App.sel = null; App.commit('Desfazer a pasta'); } },

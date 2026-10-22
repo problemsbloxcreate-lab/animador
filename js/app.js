@@ -191,6 +191,18 @@ const App = {
     try { n.nuvem = await Nuvem.salvarCenario(n); this.commit('Salvar na nuvem', { semArvore: false }); t.remove(); UI.toast(`<b>${esc(n.nome)}</b> está nos cenários da equipe: todo mundo pode usar.`, { kind: 'ok' }); }
     catch (e) { t.remove(); UI.toast('Não salvou: ' + esc(e.message), { kind: 'err' }); }
   },
+  // trocar a imagem de uma camada de imagem: fica no mesmo lugar, do mesmo tamanho na tela (as chaves e a animação continuam)
+  async trocarImagem(n) {
+    if (n?.tipo !== 'imagem') return; const [f] = await pickFiles('image/*', false); if (!f) return;
+    const velho = Arq.img.get(n.arq), id = await Arq.guardar(f), bm = await createImageBitmap(f).catch(() => null); if (!bm) return UI.toast('Não abri essa imagem.', { kind: 'err' }); Arq.img.set(id, bm);
+    const k = velho ? Math.min(velho.width / bm.width, velho.height / bm.height) : 1;
+    if (Math.abs(k - 1) > .001) for (const c of Object.values(n.chaves || {})) if (c.s != null) c.s = round(c.s * k, 4);
+    n.arq = id;
+    const r = Modelo.achar(this.P, n.id), pa = r?.pai; // peça de um cenário: o editor de cenário também passa a usar a imagem nova
+    if (n.pecaCen && pa?.cenaEd) { const pc = pa.cenaEd.pecas.find(x => x.id === n.pecaCen); if (pc) { const w = bm.width * Math.min(pc.w / bm.width, pc.h / bm.height), hh = bm.height * Math.min(pc.w / bm.width, pc.h / bm.height);
+      Object.assign(pc, { tipo: 'img', k: id, x: pc.x + (pc.w - w) / 2, y: pc.y + pc.h - hh, w, h: hh }); delete pc.camadas; delete pc.idx; delete pa.nuvem; } }
+    this.commit('Trocar a imagem');
+  },
   addPasta() {
     const n = Modelo.novoNo('pasta', { nome: 'Pasta' }); const s = this.noSel();
     if (s && s.tipo !== 'pasta') { const r = Modelo.achar(this.P, s.id); const i = r.lista.indexOf(s); r.lista.splice(i, 1, n); n.filhos.push(s); this.sel = n.id; n.chaves = { [this.q]: { x: 0, y: 0, r: 0, s: 1, sx: 1, op: 1 } }; return this.commit('Nova pasta'); }
@@ -286,6 +298,7 @@ const App = {
       const s = App.noSel();
       UI.ctx(e.clientX, e.clientY, [
         { label: 'Personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Imagem…', icon: 'image', action: () => App.addImagem() }, { label: 'Cenário (prontos e IA)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() }, { label: 'Cenário da nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() }, { label: 'Texto', icon: 'text', action: () => App.addTexto() }, '-',
+        s?.tipo === 'imagem' && { label: 'Trocar a imagem…', icon: 'image', action: () => App.trocarImagem(s) },
         (s?.tipo === 'imagem' || s?.cenaEd) && (s.nuvem ? { label: 'Já está na nuvem da equipe', icon: 'check', disabled: true } : { label: 'Salvar na nuvem', icon: 'cloud', action: () => App.salvarNaNuvem(s) }),
         s?.tipo === 'personagem' && { label: `Editar no Ateliê (pose do quadro ${App.q + 1})`, icon: 'edit', action: () => Animacoes.editarNoAtelie(s) },
         s?.tipo === 'personagem' && { label: 'Abrir no Ateliê como pose nova…', icon: 'plus', action: () => Animacoes.poseNova(s) },
