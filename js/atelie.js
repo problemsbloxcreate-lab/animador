@@ -935,6 +935,14 @@ const Atelie = {
     if (abrir) { if (!this.teste) this.teste = { sessoes: {}, partes: {} }; this.edit = null; this.multi.clear(); this.focoImg = null; } else this.testar(false);
     this.pinta(); this.enquadrar();
   },
+  // tocando: só atualiza o número do passo e o que está aceso, SEM recriar os botões
+  // (recriar a cada passo fazia o clique em Parar/Tocar outra se perder quando caía bem na troca)
+  pintaTesteLeve() {
+    const el = $('#at-teste'); if (!el) return; const T = this.teste || { sessoes: {}, partes: {} }, est = this.estado();
+    const n = $('[data-pn]', el); if (n) n.textContent = `passo ${(Animacoes.i % Math.max(1, +n.dataset.pn)) + 1}/${n.dataset.pn}`;
+    for (const b of $$('[data-ts]', el)) b.classList.toggle('on', (T.sessoes[b.dataset.ts] || '') === b.dataset.tpr);
+    for (const b of $$('[data-tp]', el)) b.classList.toggle('on', est[b.dataset.tp]?.img === b.dataset.ti);
+  },
   pintaTeste() {
     const palco = $('.at-palco'); if (!palco) return; let el = $('#at-teste'), aba = $('#at-teste-aba');
     if (this.painelAberto === undefined) { try { this.painelAberto = localStorage.getItem('animador-painel-teste') === '1'; } catch { this.painelAberto = false; } if (this.painelAberto && !this.teste) this.teste = { sessoes: {}, partes: {} }; }
@@ -952,7 +960,7 @@ const Atelie = {
     if (Animacoes.poseFixa) { const pf = Animacoes.poseFixa; al.appendChild(h(`<div class="tt-play"><b>${ic('film', 13)} ${esc(pf.anim || 'Animação')} · quadro ${pf.quadro + 1}</b><small>clique numa peça para arrumar; ao salvar, a animação recebe a mudança</small></div>`)); }
     if (!L.length) al.appendChild(h('<div class="tt-nada">Nenhuma ainda. Crie na aba <b>Animações</b> ou peça à IA.</div>'));
     for (const a of L) { const toca = Animacoes.tocando === a.id, nP = Math.max(0, ...a.trilhas.map(t => t.length));
-      const r = h(`<div class="tt-a ${toca ? 'on' : ''}"><button class="ibtn" data-p title="${toca && !Animacoes.pausado ? 'Pausar (P)' : 'Tocar'}">${ic(toca && !Animacoes.pausado ? 'pause' : 'play', 13)}</button><span>${esc(a.nome)}</span>${toca ? `<small>passo ${(Animacoes.i % Math.max(1, nP)) + 1}/${nP}</small><button class="ibtn" data-ant title="Passo anterior ( , )">${ic('prev', 12)}</button><button class="ibtn" data-prox title="Próximo passo ( . )">${ic('next', 12)}</button><button class="ibtn" data-st title="Parar">${ic('square', 11)}</button>` : ''}</div>`);
+      const r = h(`<div class="tt-a ${toca ? 'on' : ''}"><button class="ibtn" data-p title="${toca && !Animacoes.pausado ? 'Pausar (P)' : 'Tocar'}">${ic(toca && !Animacoes.pausado ? 'pause' : 'play', 13)}</button><span>${esc(a.nome)}</span>${toca ? `<small data-pn="${nP}">passo ${(Animacoes.i % Math.max(1, nP)) + 1}/${nP}</small><button class="ibtn" data-ant title="Passo anterior ( , )">${ic('prev', 12)}</button><button class="ibtn" data-prox title="Próximo passo ( . )">${ic('next', 12)}</button><button class="ibtn" data-st title="Parar">${ic('square', 11)}</button>` : ''}</div>`);
       $('[data-p]', r).onclick = () => toca ? (Animacoes.pausado ? Animacoes.continuar() : Animacoes.pausar()) : Animacoes.tocar(a);
       if (toca) { $('[data-ant]', r).onclick = () => Animacoes.passoMais(-1); $('[data-prox]', r).onclick = () => Animacoes.passoMais(1); $('[data-st]', r).onclick = () => { Animacoes.parar(true); this.teste = { sessoes: {}, partes: {} }; this.pinta(); }; }
       al.appendChild(r); }
@@ -965,9 +973,9 @@ const Atelie = {
     if (!def.sessoes.length) bt.appendChild(h('<div class="vazio">Ainda não tem sessões (olhos, boca, poses…). Crie na aba <b>Sessões e poses</b>.</div>'));
     for (const s of def.sessoes) {
       const esc1 = T.sessoes[s.id], box = h(`<div class="tt-s"><div class="tt-t"><b>${esc(s.nome)}</b><span class="sp"></span><button class="ibtn" data-roda title="Passar por todos os presets">${ic('loop', 13)}</button><button class="btn sm" data-arruma ${esc1 ? '' : 'disabled'} title="Editar o preset escolhido">${ic('edit', 12)} Arrumar</button></div><div class="lista presets"></div></div>`);
-      const l = $('.lista', box), bP = h(`<button class="padrao ${!esc1 ? 'on' : ''}" title="Pose padrão">Padrão</button>`);
+      const l = $('.lista', box), bP = h(`<button class="padrao ${!esc1 ? 'on' : ''}" data-ts="${s.id}" data-tpr="" title="Pose padrão">Padrão</button>`);
       bP.onclick = () => { clearInterval(this._roda); this._roda = null; Animacoes.parar(true); this.edit = null; if (!this.teste) this.teste = { sessoes: {}, partes: {} }; delete this.teste.sessoes[s.id]; this.pinta(); }; l.appendChild(bP);
-      for (const pr of s.presets) { const pb = this.problemas(pr), b = h(`<button class="${esc1 === pr.id ? 'on' : ''} ${pb.length ? 'ruim' : ''} ${this.marcas().presets.has(pr.id) ? 'mod' : ''}" title="${pb.length ? esc('Problema: ' + pb.join('; ')) : 'Clique para ver · de novo para desmarcar'}">${esc(pr.nome)}</button>`);
+      for (const pr of s.presets) { const pb = this.problemas(pr), b = h(`<button data-ts="${s.id}" data-tpr="${pr.id}" class="${esc1 === pr.id ? 'on' : ''} ${pb.length ? 'ruim' : ''} ${this.marcas().presets.has(pr.id) ? 'mod' : ''}" title="${pb.length ? esc('Problema: ' + pb.join('; ')) : 'Clique para ver · de novo para desmarcar'}">${esc(pr.nome)}</button>`);
         b.onclick = () => { clearInterval(this._roda); this._roda = null; Animacoes.parar(true); this.edit = null; if (!this.teste) this.teste = { sessoes: {}, partes: {} }; if (this.teste.sessoes[s.id] === pr.id) delete this.teste.sessoes[s.id]; else this.teste.sessoes[s.id] = pr.id; this.pinta(); };
         b.ondblclick = () => this.arrumar(s, pr); b.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [{ label: 'Arrumar este preset', icon: 'edit', action: () => this.arrumar(s, pr) }, { label: 'Usar como pose padrão', icon: 'home', action: () => this.virarPadrao(s, pr) }]); };
         l.appendChild(b); }
@@ -980,7 +988,7 @@ const Atelie = {
     if (varias.length) { bt.appendChild(h('<div class="tt-t" style="margin-top:6px"><b>Imagens por nome</b></div>'));
       const est = this.estado();
       for (const p of varias) { const box = h(`<div class="tt-s"><div class="tt-t"><small>${esc(p.nome)}</small><span class="sp"></span><button class="btn sm" data-arruma title="Ir para a parte">${ic('edit', 12)} Arrumar</button></div><div class="lista presets"></div></div>`), l = $('.lista', box);
-        for (const img of p.imgs) { const b = h(`<button class="${est[p.id]?.img === img.id ? 'on' : ''}">${esc(img.nome)}</button>`); b.onclick = () => { Animacoes.parar(true); this.edit = null; if (!this.teste) this.teste = { sessoes: {}, partes: {} }; const atual = this.teste.partes[p.id]; if (atual?.img === img.id) delete this.teste.partes[p.id]; else this.teste.partes[p.id] = { ...(atual || {}), img: img.id }; this.pinta(); }; l.appendChild(b); }
+        for (const img of p.imgs) { const b = h(`<button data-tp="${p.id}" data-ti="${img.id}" class="${est[p.id]?.img === img.id ? 'on' : ''}">${esc(img.nome)}</button>`); b.onclick = () => { Animacoes.parar(true); this.edit = null; if (!this.teste) this.teste = { sessoes: {}, partes: {} }; const atual = this.teste.partes[p.id]; if (atual?.img === img.id) delete this.teste.partes[p.id]; else this.teste.partes[p.id] = { ...(atual || {}), img: img.id }; this.pinta(); }; l.appendChild(b); }
         $('[data-arruma]', box).onclick = () => { Animacoes.parar(true); this.teste = null; this.edit = null; this.escolhe(p.id); this.aba = 'peca'; this.pinta(); };
         bt.appendChild(box); } }
     el.scrollTop = rol;

@@ -51,7 +51,7 @@ const Animacoes = {
   tocar(a, de = 0) {
     this.parar(true); window.Falas?.parar(); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem passos. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
     this.poseFixa = null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, de); this.tocando = a.id; this.sel = a.id; this.passo = null; this.pausado = false; this.i = de;
-    const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = this.frame(a, this.i); Atelie.desenha(); Atelie.pintaTeste(); this.i++; };
+    const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = this.frame(a, this.i); Atelie.desenha(); Atelie.pintaTesteLeve(); this.i++; };
     vai(); this._t = setInterval(vai, +a.vel || 250); Atelie.pinta();
   },
   // pausa no passo que está na tela (clicar numa peça arruma aquele passo/preset); continuar segue dali
