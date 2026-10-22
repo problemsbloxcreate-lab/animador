@@ -610,12 +610,29 @@ const Atelie = {
       !varias && { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } } },
       !varias && { label: 'Parte nova encaixada nesta', icon: 'plus', action: () => this.novaParte(p.id) },
       !varias && { label: 'Duplicar (ex.: braço esquerdo → direito)', icon: 'dup', action: () => this.duplicarParte(p) },
+      !varias && p.imgs.length > 1 && { label: 'Todas as imagens na mesma posição', icon: 'move', sub: [
+        { head: `igual a "${(p.imgs.find(i => i.id === this.estado()[p.id]?.img) || p.imgs[0]).nome}" (a que aparece)` },
+        { label: 'Pelo centro', action: () => this.alinharImagens(p, 'centro') }, { label: 'Por baixo (pés no mesmo chão)', action: () => this.alinharImagens(p, 'baixo') }, { label: 'Por cima', action: () => this.alinharImagens(p, 'cima') }] },
       !varias && p.pai && { label: 'Soltar do pai', icon: 'layers', action: () => this.porNoPai(p.id, null) },
       !varias && '-', !varias && { label: 'Para a frente', icon: 'up', key: ']', action: () => this.passoCamada(p, 1) }, !varias && { label: 'Para trás', icon: 'down', key: '[', action: () => this.passoCamada(p, -1) }, !varias && { label: 'Ver as camadas', icon: 'layers', action: () => { this.vistaPartes = 'camadas'; this.pintaPartes(); } },
       '-', { label: varias ? `Apagar as ${lista.length} partes` : 'Apagar a parte', icon: 'trash', key: 'Delete', danger: true, action: () => this.apagarPartes(lista) },
     ].filter(Boolean); if (o.so) return itens; UI.ctx(e.clientX, e.clientY, itens);
   },
   // pôr a parte dentro de outra mantendo o lugar na tela
+  // todas as imagens da parte no mesmo lugar da que aparece agora (pelo centro, por baixo ou por cima) e sem os ajustes de "só neste preset" delas
+  alinharImagens(p, como = 'centro', modelo = null) {
+    const est = this.estado(), ref = modelo || p.imgs.find(i => i.id === est[p.id]?.img) || p.imgs[0]; if (!ref) return;
+    const ox = im => -(im.pivo?.x ?? im.w / 2) + (im.ajuste?.x || 0), oy = im => -(im.pivo?.y ?? im.h / 2) + (im.ajuste?.y || 0); // canto de cima da imagem, no espaço da parte
+    const cx = ox(ref) + ref.w / 2, alvoY = como === 'baixo' ? oy(ref) + ref.h : como === 'cima' ? oy(ref) : oy(ref) + ref.h / 2;
+    let n = 0;
+    for (const im of p.imgs) { if (im === ref) continue; const px = im.pivo?.x ?? im.w / 2, py = im.pivo?.y ?? im.h / 2;
+      const y0 = como === 'baixo' ? alvoY - im.h : como === 'cima' ? alvoY : alvoY - im.h / 2;
+      im.ajuste = { x: round(cx - im.w / 2 + px, 1), y: round(y0 + py, 1) }; n++; }
+    // ajustes por imagem nos presets, na base e nos passos das animações de teste tirariam do lugar de novo
+    const ids = new Set(p.imgs.map(i => i.id)), limpa = e => { if (e?.d) { for (const k of Object.keys(e.d)) if (ids.has(k)) delete e.d[k]; if (!Object.keys(e.d).length) delete e.d; } };
+    limpa(p.base); for (const se of this.def.sessoes) for (const pr of se.presets) limpa(pr.estado?.[p.id]); for (const a of this.def.animacoes || []) for (const t of a.trilhas || []) for (const ps of t) limpa(ps.p?.[p.id]);
+    this.commit(); UI.toast(`${n} imagem(ns) de <b>${esc(p.nome)}</b> no mesmo lugar de "${esc(ref.nome)}" (${como === 'baixo' ? 'por baixo' : como === 'cima' ? 'por cima' : 'pelo centro'}). Ctrl+Z desfaz.`, { kind: 'ok' });
+  },
   porNoPai(id, paiId, o = {}) {
     const p = this.parte(id); if (!p) return; let a = paiId; while (a) { if (a === id) return UI.toast('Uma parte não pode encaixar nela mesma'); a = this.parte(a)?.pai; }
     if (paiId && this.def.raiz === id) { delete this.def.raiz; if (!o.semCommit) UI.toast(`"${esc(p.nome)}" encaixou em outra parte e deixou de ser a raiz.`); }
@@ -759,6 +776,7 @@ const Atelie = {
       c.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [
         { label: 'Usar esta imagem', icon: 'check', action: () => { this.mudar(p.id, { img: img.id }); this.commit(); } },
         { label: 'Renomear', icon: 'edit', action: () => this.renomearImg(img) },
+        p.imgs.length > 1 && { label: 'Todas as outras no mesmo lugar desta', icon: 'move', sub: [{ label: 'Pelo centro', action: () => this.alinharImagens(p, 'centro', img) }, { label: 'Por baixo (pés no mesmo chão)', action: () => this.alinharImagens(p, 'baixo', img) }, { label: 'Por cima', action: () => this.alinharImagens(p, 'cima', img) }] },
         { label: 'Mover para a pasta', icon: 'folder', sub: [{ label: '(sem pasta)', checked: !img.pasta, action: () => { delete img.pasta; this.commit(); } }, ...p.pastas.map(n => ({ label: n, checked: img.pasta === n, action: () => { img.pasta = n; this.commit(); } })), '-', { label: 'Pasta nova…', icon: 'plus', action: async () => { const n = await this.novaPastaImg(p); if (n) { img.pasta = n; this.commit(); } } }] },
         '-', { label: 'Tirar a imagem', icon: 'trash', key: 'Delete', danger: true, action: () => this.tirarImg(p, img) },
       ]); };
@@ -964,48 +982,68 @@ const Atelie = {
     let propF = def.iconeFonte ? await Icone.aCanvas(def.iconeFonte).catch(() => null) : null; if (!propF && def.iconeModo === 'proprio' && def.icone) propF = await Icone.aCanvas(def.icone).catch(() => null);
     const fonte = () => modo === 'auto' ? autoF?.cv : modo === 'proprio' ? propF : null, padrao = () => modo === 'auto' ? autoF?.corte : propF ? Icone.cortePadrao(propF) : null;
     const cortes = { auto: def.iconeCorte?.modo === 'auto' ? { ...def.iconeCorte } : autoF?.corte && { ...autoF.corte }, proprio: def.iconeCorte?.modo === 'proprio' ? { ...def.iconeCorte } : propF && Icone.cortePadrao(propF) };
-    const body = h(`<div class="ico-cfg"><div class="ico-prev"><div class="ico-ed"><div class="ico-grande" data-g><canvas data-cv width="300" height="300"></canvas></div>
-        <div class="ico-zoom" data-z><button class="ibtn" data-zm title="Menos zoom">${ic('minus', 12)}</button><input type="range" min="0" max="100" data-zr><button class="ibtn" data-zp title="Mais zoom">${ic('plus', 12)}</button><button class="btn sm" data-zpad title="Voltar ao corte padrão">Padrão</button></div>
-        <small class="ico-dica" data-dz>Arraste a foto para mover · rodinha ou a barra para o zoom</small></div>
-        <div class="ico-ex"><small>Na hierarquia do editor</small><div class="ico-linha" data-l></div><small>Na timeline</small><div class="ico-linha tl" data-t></div></div></div>
-      <div class="field">Ícone</div><div class="seg ico-seg" data-mi><button data-v="auto">Cabeça (automático)</button><button data-v="proprio">Imagem própria…</button><button data-v="nenhum">Sem ícone</button></div>
+    // igual ao "Ajustar a foto" do menu: área grande (fora do círculo escurece), arrastar posiciona, zoom no ponto do mouse/pinça, duplo clique aproxima, girar, espelhar, recomeçar
+    const lupa = m => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M8 11h6${m ? 'M11 8v6' : ''}M20 20l-4-4"/></svg>`;
+    const body = h(`<div class="ico-cfg"><div class="ico-corte"><div class="ico-palco"><canvas data-cv width="600" height="600" tabindex="0" aria-label="Ajuste do ícone"></canvas><div class="ico-nada" data-nada>Sem ícone: aparece o ícone comum de camadas</div></div>
+        <div class="previas"><span><canvas class="pv" data-pv width="160" height="160"></canvas><small>grande</small></span><div class="ico-ex"><small>Na hierarquia do editor</small><div class="ico-linha" data-l></div><small>Na timeline</small><div class="ico-linha tl" data-t></div></div></div></div>
+      <div class="ctl" data-ctl><span class="hint">Arraste para posicionar · rodinha do mouse ou dois dedos para zoom no ponto · duplo clique aproxima · setas movem</span>
+        <span class="rng"><button class="btn sm ico" data-z="-" title="Afastar">${lupa(false)}</button><input type="range" min="-1.6" max="2.3" step=".01" data-zr aria-label="Zoom"><button class="btn sm ico" data-z="+" title="Aproximar">${lupa(true)}</button><output data-zo>100%</output></span>
+        <span class="rng"><button class="btn sm ico" data-g="-90" title="Girar 90° para a esquerda">${ic('undo', 14)}</button><input type="range" min="-180" max="180" step="1" value="0" data-rr aria-label="Girar"><button class="btn sm ico" data-g="90" title="Girar 90° para a direita">${ic('redo', 14)}</button><output data-ro>0°</output></span>
+        <div class="gira"><button class="btn sm" data-fx>${ic('flip', 13)} Espelhar</button><button class="btn sm" data-zpad>${ic('undo', 13)} Recomeçar</button></div></div>
+      <div class="field" style="margin-top:12px">Ícone</div><div class="seg ico-seg" data-mi><button data-v="auto">Cabeça (automático)</button><button data-v="proprio">Imagem própria…</button><button data-v="nenhum">Sem ícone</button></div>
       <div class="field" style="margin-top:12px">Cor</div><div class="campo2"><div class="seg ico-seg" data-mc><button data-v="auto">Automática</button><button data-v="propria">Escolher</button></div><input type="color" data-c value="${cor}"><code data-hex>${cor}</code></div>
       <div style="color:var(--tx3);font-size:11.5px;margin-top:10px">A automática é a cor que mais aparece no personagem, ajustada para ficar fácil de ver no fundo escuro. O nome que aparece é sempre o nome do personagem/camada.</div></div>`);
-    const cvE = $('[data-cv]', body), xE = cvE.getContext('2d'), zr = $('[data-zr]', body);
-    // zoom na barra: 0 = a imagem inteira cabe; 100 = bem de perto (escala logarítmica)
-    const ladoMax = () => { const F = fonte(); return F ? Math.max(1, F.height / F.width) * 1.15 : 1; }, ladoMin = () => ladoMax() / 14;
-    const zParaLado = v => ladoMax() * Math.pow(ladoMin() / ladoMax(), v / 100), ladoParaZ = l => Math.round(100 * Math.log(l / ladoMax()) / Math.log(ladoMin() / ladoMax()));
+    const cvE = $('[data-cv]', body), g = cvE.getContext('2d'), S = 600, RAIO = S * .42, zr = $('[data-zr]', body), rr = $('[data-rr]', body), pv = $('[data-pv]', body);
+    // zoom 100% = o corte padrão (a cabeça, ou a imagem inteira); a barra é logarítmica (30% a 1000%)
+    const lado0 = () => (padrao() || {}).lado || 1, zoomDe = c => lado0() / c.lado;
+    const cor_ = () => corModo === 'auto' ? corAuto : Icone.legivel(cor);
     let iconeAgora = null, _raf = 0;
-    const desenhaE = () => { const F = fonte(), c = cortes[modo], S = cvE.width, cr = corModo === 'auto' ? corAuto : Icone.legivel(cor); xE.setTransform(1, 0, 0, 1, 0, 0); xE.clearRect(0, 0, S, S);
-      xE.save(); xE.beginPath(); xE.arc(S / 2, S / 2, S / 2 - 6, 0, 7); xE.fillStyle = '#1d1d1d'; xE.fill(); xE.clip();
-      if (F && c) { const W = F.width, H = F.height, lado = c.lado * W, k = S / lado; xE.imageSmoothingQuality = 'high'; xE.drawImage(F, (S / 2) - (c.cx * W) * k, (S / 2) - (c.cy * H) * k, W * k, H * k); }
-      xE.restore(); xE.lineWidth = 8; xE.strokeStyle = cr; xE.beginPath(); xE.arc(S / 2, S / 2, S / 2 - 6, 0, 7); xE.stroke();
-      if (!F) { xE.fillStyle = '#888'; xE.font = '600 26px Segoe UI'; xE.textAlign = 'center'; xE.fillText(modo === 'nenhum' ? 'sem ícone' : '…', S / 2, S / 2 + 9); } };
+    const desenhaE = () => { const F = fonte(), c = cortes[modo]; g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#101114'; g.fillRect(0, 0, S, S); if (!F || !c) return;
+      const W = F.width, H = F.height, k = 2 * RAIO / (c.lado * W); g.translate(S / 2, S / 2); g.rotate((c.r || 0) * Math.PI / 180); g.scale(k * (c.fx || 1), k); g.translate(-c.cx * W, -c.cy * H); g.imageSmoothingQuality = 'high'; g.drawImage(F, 0, 0); g.setTransform(1, 0, 0, 1, 0, 0);
+      g.fillStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.rect(0, 0, S, S); g.arc(S / 2, S / 2, RAIO, 0, Math.PI * 2, true); g.fill('evenodd'); // fora do círculo escurece
+      g.strokeStyle = cor_(); g.lineWidth = 4; g.beginPath(); g.arc(S / 2, S / 2, RAIO, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 1.5; g.beginPath(); for (const t of [-1, 1]) { g.moveTo(S / 2 + t * RAIO / 3, S / 2 - RAIO); g.lineTo(S / 2 + t * RAIO / 3, S / 2 + RAIO); g.moveTo(S / 2 - RAIO, S / 2 + t * RAIO / 3); g.lineTo(S / 2 + RAIO, S / 2 + t * RAIO / 3); } g.stroke(); };
     const pinta = (soCorte) => { cancelAnimationFrame(_raf); _raf = requestAnimationFrame(async () => {
-      const F = fonte(), c = cortes[modo], cr = corModo === 'auto' ? corAuto : Icone.legivel(cor); desenhaE();
+      const F = fonte(), c = cortes[modo], cr = cor_(); desenhaE();
+      $('[data-ctl]', body).hidden = !F; cvE.hidden = !F; $('[data-nada]', body).hidden = !!F;
+      const px = pv.getContext('2d'); px.clearRect(0, 0, 160, 160); if (F && c) { Icone.pintaCorte(px, 160, F, c, '#1d1d1d'); px.globalCompositeOperation = 'destination-in'; px.beginPath(); px.arc(80, 80, 80, 0, 7); px.fill(); px.globalCompositeOperation = 'source-over'; }
+      pv.style.boxShadow = `0 0 0 3px ${cr}`;
+      if (F && c) { const z = zoomDe(c); zr.value = Math.log(z); $('[data-zo]', body).textContent = Math.round(z * 100) + '%'; rr.value = Math.round(c.r || 0); $('[data-ro]', body).textContent = Math.round(c.r || 0) + '°'; }
       iconeAgora = F && c ? await Icone.recorta(F, c) : null; const d = { iconeModo: modo, icone: iconeAgora, cor: cr };
-      $('[data-z]', body).hidden = $('[data-dz]', body).hidden = !F; if (F && c) zr.value = ladoParaZ(c.lado);
       $('[data-l]', body).innerHTML = `<span class="no pers-cor" style="--cp:${cr}"><span class="ti">${Icone.html(d, 18)}</span><span class="nm">${esc(def.nome)}</span></span>`;
       $('[data-t]', body).innerHTML = `<span class="reg pers-cor" style="--cp:${cr}">${Icone.html(d, 15)}<span class="nm">${esc(def.nome)}</span></span><i style="background:${cr}88"></i>`;
       if (soCorte) return;
       $$('[data-mi] button', body).forEach(b => b.classList.toggle('on', b.dataset.v === modo)); $$('[data-mc] button', body).forEach(b => b.classList.toggle('on', b.dataset.v === corModo));
       $('[data-c]', body).value = cr; $('[data-hex]', body).textContent = cr; }); };
-    // arrastar move a foto; rodinha e barra dão zoom (em volta do centro)
-    const lim = c => { const F = fonte(); if (!F) return c; c.lado = clamp(c.lado, ladoMin(), ladoMax()); const r = F.height / F.width; c.cx = clamp(c.cx, -.25, 1.25); c.cy = clamp(c.cy, -.25 , 1.25); return c; };
-    cvE.onpointerdown = e => { const c = cortes[modo], F = fonte(); if (!c || !F) return; cvE.setPointerCapture(e.pointerId); const x0 = e.clientX, y0 = e.clientY, c0 = { ...c }, tela = cvE.getBoundingClientRect().width;
-      cvE.onpointermove = ev => { const dx = (ev.clientX - x0) / tela * c0.lado, dy = (ev.clientY - y0) / tela * c0.lado * F.width / F.height; c.cx = c0.cx - dx; c.cy = c0.cy - dy; lim(c); pinta(true); };
-      cvE.onpointerup = () => { cvE.onpointermove = null; }; };
-    cvE.onwheel = e => { const c = cortes[modo]; if (!c) return; e.preventDefault(); e.stopPropagation(); c.lado *= Math.exp(e.deltaY * .0015); lim(c); pinta(true); };
-    zr.oninput = () => { const c = cortes[modo]; if (!c) return; c.lado = zParaLado(+zr.value); lim(c); pinta(true); };
-    $('[data-zm]', body).onclick = () => { const c = cortes[modo]; if (c) { c.lado *= 1.2; lim(c); pinta(true); } }; $('[data-zp]', body).onclick = () => { const c = cortes[modo]; if (c) { c.lado /= 1.2; lim(c); pinta(true); } };
+    // ponto da tela (em px da área, a partir do centro) → mexe no corte
+    const ponto = (x, y) => { const b = cvE.getBoundingClientRect(), e = S / b.width; return [(x - b.left) * e - S / 2, (y - b.top) * e - S / 2]; };
+    const naFonte = (c, dx, dy) => { const F = fonte(), k = 2 * RAIO / (c.lado * F.width), a = -(c.r || 0) * Math.PI / 180, x = (dx * Math.cos(a) - dy * Math.sin(a)) / k * (c.fx || 1), y = (dx * Math.sin(a) + dy * Math.cos(a)) / k; return [x / F.width, y / F.height]; };
+    const move = (dx, dy) => { const c = cortes[modo]; if (!c || !fonte()) return; const [u, v] = naFonte(c, dx, dy); c.cx -= u; c.cy -= v; pinta(true); };
+    const zoomEm = (z, px = 0, py = 0) => { const c = cortes[modo]; if (!c || !fonte()) return; z = clamp(z, Math.exp(-1.6), Math.exp(2.3)); const [u0, v0] = naFonte(c, px, py), antes = { ...c }; c.lado = lado0() / z; const [u1, v1] = naFonte(c, px, py); c.cx = antes.cx + u0 - u1; c.cy = antes.cy + v0 - v1; pinta(true); }; // o ponto embaixo do mouse fica parado
+    zr.oninput = () => zoomEm(Math.exp(+zr.value));
+    $$('[data-z]', body).forEach(b => b.onclick = () => { const c = cortes[modo]; if (c) zoomEm(zoomDe(c) * (b.dataset.z === '+' ? 1.25 : .8)); });
+    rr.oninput = () => { const c = cortes[modo]; if (c) { c.r = +rr.value; pinta(true); } };
+    $$('[data-g]', body).forEach(b => b.onclick = () => { const c = cortes[modo]; if (c) { c.r = (((c.r || 0) + +b.dataset.g + 540) % 360) - 180; pinta(true); } });
+    $('[data-fx]', body).onclick = () => { const c = cortes[modo]; if (c) { c.fx = -(c.fx || 1); pinta(true); } };
     $('[data-zpad]', body).onclick = () => { const p = padrao(); if (p) { cortes[modo] = { ...p }; pinta(true); } };
+    cvE.onwheel = e => { const c = cortes[modo]; if (!c) return; e.preventDefault(); e.stopPropagation(); const [px, py] = ponto(e.clientX, e.clientY); zoomEm(zoomDe(c) * Math.exp(-e.deltaY * (e.ctrlKey ? .01 : .0018)), px, py); };
+    cvE.ondblclick = e => { const c = cortes[modo]; if (!c) return; const [px, py] = ponto(e.clientX, e.clientY); zoomEm(zoomDe(c) * 1.6, px, py); };
+    const toques = new Map(); let ini = null;
+    cvE.onpointerdown = e => { cvE.setPointerCapture(e.pointerId); toques.set(e.pointerId, [e.clientX, e.clientY]); cvE.classList.add('arrastando');
+      if (toques.size === 2 && cortes[modo]) { const [a, b] = [...toques.values()]; ini = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), z: zoomDe(cortes[modo]) }; } };
+    cvE.onpointermove = e => { const ant = toques.get(e.pointerId); if (!ant) return; toques.set(e.pointerId, [e.clientX, e.clientY]);
+      if (toques.size === 2 && ini) { const [a, b] = [...toques.values()], [px, py] = ponto((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); return zoomEm(ini.z * Math.hypot(a[0] - b[0], a[1] - b[1]) / ini.d, px, py); } // pinça no celular
+      const b = cvE.getBoundingClientRect(), k = S / b.width; move((e.clientX - ant[0]) * k, (e.clientY - ant[1]) * k); };
+    cvE.onpointerup = cvE.onpointercancel = e => { toques.delete(e.pointerId); if (toques.size < 2) ini = null; if (!toques.size) cvE.classList.remove('arrastando'); };
+    cvE.onkeydown = e => { const p = e.shiftKey ? 30 : 8, m = { ArrowLeft: [-p, 0], ArrowRight: [p, 0], ArrowUp: [0, -p], ArrowDown: [0, p] }[e.key], c = cortes[modo];
+      if (m) { e.preventDefault(); e.stopPropagation(); move(m[0], m[1]); } else if (c && (e.key === '+' || e.key === '=')) zoomEm(zoomDe(c) * 1.15); else if (c && e.key === '-') zoomEm(zoomDe(c) / 1.15); };
     $$('[data-mi] button', body).forEach(b => b.onclick = async () => { if (b.dataset.v === 'proprio') { const fs = await pickFiles('image/*', false); const f = fs?.[0]; if (!f) return; propF = await Icone.fonteDeArquivo(f); cortes.proprio = Icone.cortePadrao(propF); } modo = b.dataset.v; pinta(); });
     $$('[data-mc] button', body).forEach(b => b.onclick = () => { corModo = b.dataset.v; pinta(); });
     $('[data-c]', body).oninput = ev => { corModo = 'propria'; cor = ev.target.value; pinta(); };
     pinta();
-    const ok = await UI.modal({ title: 'Ícone e cor do personagem', icon: 'image', width: 560, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Aplicar', kind: 'primary', value: true }] }); if (!ok) return;
+    const ok = await UI.modal({ title: 'Ícone e cor do personagem', icon: 'image', width: 640, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Aplicar', kind: 'primary', value: true }] }); if (!ok) return;
     def.iconeModo = modo; const c = cortes[modo];
-    if (modo === 'auto' && autoF) { const p = autoF.corte, igual = c && Math.abs(c.cx - p.cx) + Math.abs(c.cy - p.cy) + Math.abs(c.lado - p.lado) < .002; if (igual || !c) delete def.iconeCorte; else def.iconeCorte = { modo, ...c }; def.icone = await Icone.recorta(autoF.cv, c || p); }
+    if (modo === 'auto' && autoF) { const p = autoF.corte, igual = c && Math.abs(c.cx - p.cx) + Math.abs(c.cy - p.cy) + Math.abs(c.lado - p.lado) < .002 && !c.r && (c.fx || 1) === 1; if (igual || !c) delete def.iconeCorte; else def.iconeCorte = { modo, ...c }; def.icone = await Icone.recorta(autoF.cv, c || p); }
     else if (modo === 'proprio' && propF) { def.iconeFonte = propF.toDataURL('image/webp', .9); def.iconeCorte = { modo, ...(c || Icone.cortePadrao(propF)) }; def.icone = await Icone.recorta(propF, def.iconeCorte); }
     else if (modo === 'nenhum') delete def.icone;
     if (modo !== 'proprio') delete def.iconeFonte;

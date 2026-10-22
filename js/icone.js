@@ -35,11 +35,12 @@ const Icone = {
   },
   // corte padrão de uma imagem própria: o quadrado do meio
   cortePadrao(cv) { const l = Math.min(cv.width, cv.height); return { cx: .5, cy: .5, lado: l / cv.width }; },
-  // recorta o quadrado {cx, cy, lado} (frações) da imagem e devolve o ícone S×S
-  recorta(cv, c, S = 96) {
-    const W = cv.width, H = cv.height, lado = c.lado * W, o = document.createElement('canvas'); o.width = o.height = S;
-    o.getContext('2d').drawImage(cv, c.cx * W - lado / 2, c.cy * H - lado / 2, lado, lado, 0, 0, S, S); return this.dataUrl(o);
+  // o corte: centro (cx, cy) e lado do quadrado em frações da imagem, r = giro (graus), fx = -1 espelhado
+  pintaCorte(ctx, L, F, c, fundo) {
+    const W = F.width, H = F.height, k = L / (c.lado * W); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, L, L); if (fundo) { ctx.fillStyle = fundo; ctx.fillRect(0, 0, L, L); }
+    ctx.translate(L / 2, L / 2); ctx.rotate((c.r || 0) * Math.PI / 180); ctx.scale(k * (c.fx || 1), k); ctx.translate(-c.cx * W, -c.cy * H); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(F, 0, 0); ctx.setTransform(1, 0, 0, 1, 0, 0);
   },
+  recorta(cv, c, S = 96) { const o = document.createElement('canvas'); o.width = o.height = S; this.pintaCorte(o.getContext('2d'), S, cv, c); return this.dataUrl(o); },
   // imagem escolhida pela pessoa (guardada até 512 px, para poder mudar o zoom depois)
   async fonteDeArquivo(f) { const bm = await createImageBitmap(f), k = Math.min(1, 512 / Math.max(bm.width, bm.height)), c = document.createElement('canvas'); c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height); return c; },
   aCanvas(url) { return new Promise((ok, erro) => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; c.getContext('2d').drawImage(i, 0, 0); ok(c); }; i.onerror = erro; i.src = url; }); },
