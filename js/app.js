@@ -8,7 +8,7 @@ const App = {
   async abrir(P) {
     if (!P.temFundoPadrao) { P.temFundoPadrao = true; if (!Modelo.todos(P).some(n => n.fundoPadrao)) P.raiz.push(Modelo.fundoPadrao(P.w, P.h, P.fundo)); } // projetos de antes: a folha vira camada
     this.P = P; this.q = 0; this.sel = null; this.desfazer = []; this.refazer = []; this.ultimo = JSON.stringify(P);
-    for (const def of Object.values(P.personagens || {})) Arq.garantir(def.partes.flatMap(p => p.imgs.map(i => i.k)));
+    for (const def of Object.values(P.personagens || {})) Arq.garantir(Modelo.chavesImgs(def));
     Telas.mostra('editor'); $('#proj-nome').textContent = P.nome; this.titulo();
     this.palco.liga(); this.enquadrar(); Arvore.pinta(); Folha.liga(); Lado.pinta(); Som.prepara(P);
     this.salvoTxt('Salvo neste computador');
@@ -76,7 +76,7 @@ const App = {
   },
   async addPersonagem() {
     const def = await Biblioteca.escolher(); if (!def) return;
-    this.P.personagens[def.id] = def; await Arq.garantir(def.partes.flatMap(p => p.imgs.map(i => i.k)));
+    this.P.personagens[def.id] = def; await Arq.garantir(Modelo.chavesImgs(def));
     const b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, {})), s = b.h > 0 ? clamp(this.P.h * .55 / b.h, .1, 4) : 1;
     const n = Modelo.novoNo('personagem', { ref: def.id, nome: def.nome, s: round(s, 2) }); n.chaves[0].s = round(s, 2);
     this.inserir(n, 'Personagem ' + def.nome); UI.toast(`<b>${esc(def.nome)}</b> entrou no quadro ${this.q + 1}. Os botões das sessões estão no painel da direita.`, { kind: 'ok' });

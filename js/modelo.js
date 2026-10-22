@@ -75,13 +75,64 @@ const Modelo = {
   },
   // escolhas do personagem no quadro q (sessões e ajustes de parte seguram até a próxima chave)
   estadoPersonagem(n, q) {
-    const ks = Modelo.quadrosChave(n), sessoes = {}, partes = {};
-    for (const k of ks) { if (k > q) break; const c = n.chaves[k]; if (c.sessoes) Object.assign(sessoes, c.sessoes); if (c.partes) for (const [pid, v] of Object.entries(c.partes)) partes[pid] = v === null ? undefined : { ...(partes[pid] || {}), ...v }; }
-    return { sessoes, partes };
+    const ks = Modelo.quadrosChave(n), sessoes = {}, partes = {}; let vista = null;
+    for (const k of ks) { if (k > q) break; const c = n.chaves[k]; if (c.vista !== undefined) vista = c.vista; if (c.sessoes) Object.assign(sessoes, c.sessoes); if (c.partes) for (const [pid, v] of Object.entries(c.partes)) partes[pid] = v === null ? undefined : { ...(partes[pid] || {}), ...v }; }
+    return { sessoes, partes, vista };
   },
   chave(n, q, criar = true) { if (!n.chaves) n.chaves = {}; if (!n.chaves[q] && criar) n.chaves[q] = {}; return n.chaves[q]; },
   // grava uma transformação na chave do quadro q (criando a chave com o valor atual, para não pular)
   poeTransf(n, q, vals) { const atual = Modelo.transf(n, q), k = Modelo.chave(n, q); for (const c of Modelo.TRANSF) if (k[c] == null) k[c] = atual[c]; Object.assign(k, vals); },
+
+  /* ---------- VISTAS (ângulos): frente, três-quartos, lado, costas… ----------
+     Cada vista é um conjunto próprio de partes, sessões/poses, animações de teste, raiz e visualização.
+     A vista ativa fica no próprio def (def.partes, def.sessoes…, como sempre); as outras ficam guardadas em def.vistas
+     ({ id, nome, tipo, partes, sessoes, animacoes, raiz, vis }). A entrada da vista ativa em def.vistas só tem id/nome/tipo.
+     Sessões, presets e partes com o MESMO nome nas vistas usam o MESMO id: no editor, trocar de vista mantém as poses escolhidas. */
+  TIPOS_VISTA: [['frente', 'Frente'], ['tres-quartos', 'Três-quartos'], ['lado', 'Lado'], ['tres-quartos-costas', 'Três-quartos de costas'], ['costas', 'Costas'], ['cima', 'De cima'], ['outra', 'Outra']],
+  nomeTipo(t) { return (Modelo.TIPOS_VISTA.find(x => x[0] === t) || [, 'Vista'])[1]; },
+  CAMPOS_VISTA: ['partes', 'sessoes', 'animacoes', 'raiz', 'vis'],
+  // garante que o personagem tem a lista de vistas (personagens antigos: a vista que já existe vira a 1ª)
+  garanteVistas(def) {
+    if (def.vistas?.length && def.vistas.some(v => v.id === def.vistaAtual)) return def;
+    const t = /tr[eê]s.?quartos|3\/4/i.test(def.nome || '') ? 'tres-quartos' : /\blado\b|perfil/i.test(def.nome || '') ? 'lado' : /costas/i.test(def.nome || '') ? 'costas' : 'frente';
+    const id = uid('vi'); def.vistas = [{ id, nome: Modelo.nomeTipo(t), tipo: t }]; def.vistaAtual = id; return def;
+  },
+  // o personagem visto de uma vista (para desenhar no editor); sem vista = a ativa
+  // sem vista escolhida = a 1ª da lista (a "principal"; dá para mudar arrastando as vistas no Ateliê)
+  naVista(def, id) {
+    if (!id) id = def?.vistas?.[0]?.id;
+    if (!def || !id || !def.vistas || id === def.vistaAtual) return def;
+    const v = def.vistas.find(x => x.id === id); if (!v || !v.partes) return def;
+    return { ...def, partes: v.partes, sessoes: v.sessoes || [], animacoes: v.animacoes || [], raiz: v.raiz, vis: v.vis, _vista: v.id };
+  },
+  vistaDe(def, id = def?.vistaAtual) { return def?.vistas?.find(v => v.id === id) || null; },
+  // troca a vista ativa (guarda a atual na lista e traz a outra para o def)
+  ativaVista(def, id) {
+    Modelo.garanteVistas(def); if (id === def.vistaAtual) return def;
+    const cur = def.vistas.find(v => v.id === def.vistaAtual), tgt = def.vistas.find(v => v.id === id); if (!tgt) return def;
+    for (const c of Modelo.CAMPOS_VISTA) { cur[c] = def[c]; def[c] = tgt[c] ?? (c === 'raiz' || c === 'vis' ? undefined : []); delete tgt[c]; }
+    if (def.raiz === undefined) delete def.raiz; if (def.vis === undefined) delete def.vis; def.vistaAtual = id; return def;
+  },
+  // todas as partes de todas as vistas (para baixar, mandar para a nuvem, backup…)
+  todasPartes(def) { return [...(def?.partes || []), ...(def?.vistas || []).filter(v => v.id !== def.vistaAtual).flatMap(v => v.partes || [])]; },
+  chavesImgs(def) { return [...new Set([...Modelo.todasPartes(def).flatMap(p => p.imgs.map(i => i.k)), def?.vis?.fantasma?.k, ...(def?.vistas || []).map(v => v.vis?.fantasma?.k)].filter(Boolean))]; },
+  // a vista onde está uma animação de teste
+  vistaDaAnim(def, animId) { if ((def.animacoes || []).some(a => a.id === animId)) return def.vistaAtual || null; return (def.vistas || []).find(v => (v.animacoes || []).some(a => a.id === animId))?.id || null; },
+  // usa os mesmos ids das outras vistas para o que tem o mesmo nome (sessões, presets, partes, imagens, animações)
+  alinhaIds(def) {
+    Modelo.garanteVistas(def); const outras = def.vistas.filter(v => v.id !== def.vistaAtual && v.partes); if (!outras.length) return 0;
+    const n = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(), mapa = {}, usados = new Set(), poe = (velho, novo) => { if (velho !== novo && novo && !usados.has(novo)) { mapa[velho] = novo; usados.add(novo); } };
+    const ref = (lista, nome) => { for (const v of outras) { const x = (v[lista] || []).find(y => n(y.nome) === n(nome)); if (x) return x; } return null; };
+    const meus = new Set([...def.partes.map(p => p.id), ...def.sessoes.map(s => s.id)]);
+    for (const p of def.partes) { const o = ref('partes', p.nome); if (o && !meus.has(o.id)) { poe(p.id, o.id); for (const i of p.imgs) { const oi = o.imgs.find(y => n(y.nome) === n(i.nome)); if (oi) poe(i.id, oi.id); } } }
+    for (const s of def.sessoes) { const o = ref('sessoes', s.nome); if (o && !meus.has(o.id)) { poe(s.id, o.id); for (const pr of s.presets) { const op = o.presets.find(y => n(y.nome) === n(pr.nome)); if (op) poe(pr.id, op.id); } } }
+    for (const a of def.animacoes || []) { const o = ref('animacoes', a.nome); if (o) poe(a.id, o.id); }
+    const ks = Object.keys(mapa); if (!ks.length) return 0;
+    let txt = JSON.stringify(Object.fromEntries(Modelo.CAMPOS_VISTA.map(c => [c, def[c]]))); for (const k of ks) txt = txt.split(`"${k}"`).join(`"${mapa[k]}"`);
+    Object.assign(def, JSON.parse(txt)); return ks.length;
+  },
+  // o mesmo personagem espelhado (para fazer o outro lado): a raiz (ou as partes soltas) vira de costas no X
+  espelhar(campos) { const raizes = campos.partes.filter(p => campos.raiz ? p.id === campos.raiz : !p.pai); for (const p of raizes) p.base.sx = -(p.base.sx || 1); return campos; },
 
   /* ---------- personagem: estado de cada parte e matriz (ordem de desenho) ---------- */
   // estado final das partes = base → presets das sessões escolhidas → ajustes da chave

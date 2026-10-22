@@ -88,7 +88,7 @@ const Som = {
 
   /* ---------- boca pela voz: escolhe a pose da boca em cada quadro pela força da voz ---------- */
   async bocaPelaVoz(n) {
-    const P = App.P, def = P.personagens[n.ref]; if (!P.audios.length) return UI.toast('Ponha um áudio de voz primeiro (aba Voz).', { kind: 'warn' });
+    const P = App.P, def = Modelo.naVista(P.personagens[n.ref], Modelo.estadoPersonagem(n, App.q).vista); if (!P.audios.length) return UI.toast('Ponha um áudio de voz primeiro (aba Voz).', { kind: 'warn' });
     const sess = def.sessoes.find(s => /boca/i.test(s.nome)) || def.sessoes[0]; if (!sess) return UI.toast('Esse personagem não tem sessões. Crie a sessão "Boca" no Ateliê.', { kind: 'warn' });
     const body = h(`<div><label class="field">Sessão da boca<select data-s>${def.sessoes.map(s => `<option value="${s.id}" ${s === sess ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
       <label class="field">Voz<select data-a>${P.audios.map(a => `<option value="${a.id}">${esc(a.nome)}</option>`).join('')}</select></label>

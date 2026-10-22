@@ -49,7 +49,7 @@ const Nuvem = {
     // PERSONAGENS VÃO EM PNG (sem perda nenhuma; decisão do dono). Imagens que chegaram a ir em webp voltam para a PNG original, se ela estiver neste computador.
     const troca = await this.voltaPng(def, aoAndar); this.ultimaTroca = troca;
     const auds = (def.audios || []).map(a => a.k).filter(Boolean); // áudios de teste do Ateliê
-    const imgs = [...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k, ...auds].filter(Boolean), falta = imgs.filter(k => !existentes.has(k)), semAudio = [];
+    const imgs = [...Modelo.chavesImgs(def), ...auds].filter(Boolean), falta = imgs.filter(k => !existentes.has(k)), semAudio = [];
     let n = 0;
     for (const k of falta) {
       const b = await Arq.pegaBlob(k); if (!b) continue;
@@ -69,7 +69,7 @@ const Nuvem = {
   },
   // converte as imagens PNG/JPG do personagem para WEBP (só se ficar menor) e troca as chaves no def; devolve { chaveVelha: chaveNova }
   async paraWebp(def, aoAndar) {
-    const troca = {}, alvos = [...new Set([...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k].filter(k => k && /\.(png|jpe?g)$/i.test(k)))]; let n = 0;
+    const troca = {}, alvos = Modelo.chavesImgs(def).filter(k => /\.(png|jpe?g)$/i.test(k)); let n = 0;
     for (const k of alvos) {
       try { let b = await Arq.pegaBlob(k); if (!b) b = await this.baixar(k).catch(() => null); if (!b) continue; aoAndar?.(`Compactando as imagens (webp)… ${++n}/${alvos.length}`);
         const bm = await createImageBitmap(b), c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0);
@@ -77,16 +77,16 @@ const Nuvem = {
         const nk = k.replace(/\.(png|jpe?g)$/i, '.webp'); await Arq.guardar(w, nk); Arq.img.set(nk, bm); await DB.put('arquivos', k, 'orig:' + nk).catch(() => { }); troca[k] = nk; // aqui continua valendo a ORIGINAL (sem perda): a webp é só para a nuvem
       } catch { }
     }
-    for (const p of def.partes) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k];
+    for (const p of Modelo.todasPartes(def)) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k]; for (const v of def.vistas || []) if (v.vis?.fantasma?.k && troca[v.vis.fantasma.k]) v.vis.fantasma.k = troca[v.vis.fantasma.k];
     if (def.vis?.fantasma?.k && troca[def.vis.fantasma.k]) def.vis.fantasma.k = troca[def.vis.fantasma.k];
     return troca;
   },
   // desfaz a conversão: webp → a PNG original guardada aqui (arquivos["orig:<webp>"])
   async voltaPng(def, aoAndar) {
-    const troca = {}, alvos = [...new Set([...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k].filter(k => k && /\.webp$/i.test(k)))];
+    const troca = {}, alvos = Modelo.chavesImgs(def).filter(k => /\.webp$/i.test(k));
     for (const k of alvos) { try { const o = await DB.get('arquivos', 'orig:' + k); if (o && await Arq.pegaBlob(o)) troca[k] = o; } catch { } }
     if (Object.keys(troca).length) aoAndar?.('Voltando as imagens para PNG (sem perda)…');
-    for (const p of def.partes) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k];
+    for (const p of Modelo.todasPartes(def)) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k]; for (const v of def.vistas || []) if (v.vis?.fantasma?.k && troca[v.vis.fantasma.k]) v.vis.fantasma.k = troca[v.vis.fantasma.k];
     if (def.vis?.fantasma?.k && troca[def.vis.fantasma.k]) def.vis.fantasma.k = troca[def.vis.fantasma.k];
     return troca;
   },

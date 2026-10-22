@@ -49,7 +49,8 @@ const IA = {
   contexto(P) {
     const pers = Object.values(P.personagens).map(d => ({ personagem: d.nome, sessoes: d.sessoes.map(s => ({ sessao: s.nome, presets: s.presets.map(p => p.nome) })),
       partes: d.partes.map(p => ({ parte: p.nome, imagens: p.imgs.slice(0, 14).map(i => i.nome) })), raiz: d.partes.find(p => p.id === d.raiz)?.nome,
-      animacoes: (d.animacoes || []).map(a => ({ animacao: a.nome, passos: Math.max(0, ...a.trilhas.map(t => t.length)), ms_por_passo: +a.vel || 250 })) }));
+      animacoes: (d.animacoes || []).map(a => ({ animacao: a.nome, passos: Math.max(0, ...a.trilhas.map(t => t.length)), ms_por_passo: +a.vel || 250 })),
+      vistas: d.vistas?.length > 1 ? d.vistas.map(v => { const dv = Modelo.naVista(d, v.id); return { vista: v.nome, tipo: Modelo.nomeTipo(v.tipo), sessoes: (dv.sessoes || []).map(s => s.nome), animacoes: (dv.animacoes || []).map(a => a.nome) }; }) : undefined }));
     const camadas = Modelo.todos(P).map(n => ({ camada: n.nome, tipo: n.tipo, personagem: n.tipo === 'personagem' ? P.personagens[n.ref]?.nome : undefined, de: (n.de || 0) + 1, ate: Modelo.fimNo(P, n) + 1, posicao: (({ x, y, s }) => ({ x: Math.round(x), y: Math.round(y), s: round(s, 2) }))(Modelo.transf(n, App.q)) }));
     const fala = (P.legendas || []).map(g => `${g.de + 1}-${g.ate + 1}: ${g.texto}`).join('\n');
     return { quadros: P.duracao, fps: P.fps, tamanho: `${P.w}x${P.h}`, quadroAtual: App.q + 1, personagens: pers, camadas, efeitos: Efeitos.TELA.map(e => e.id), visuais: Efeitos.VISUAIS.map(v => v.id), fala };
@@ -65,6 +66,7 @@ Ações possíveis:
  {"tipo":"tremulo","camada":"nome","modo":"tremer|ondular|nenhum","forca":0.4}   (deixa uma imagem/camada parada "viva", tremendo ou ondulando)
  {"tipo":"visual","visual":"normal|vivo|quente|frio|noite|por-do-sol|vintage|pb|sonho|terror|desbotado|neon"}
  {"tipo":"cenario","descricao":"o lugar em português, sem personagens"}   (só se a pessoa pedir um cenário/fundo novo; sai no estilo da casa e fica só nesta animação)
+ {"tipo":"vista","camada":"nome","quadro":N,"vista":"Lado"}   (troca o ÂNGULO do personagem a partir do quadro N: frente, três-quartos, lado, costas… — para virar, andar de lado, dar as costas)
  {"tipo":"animacao","camada":"nome","animacao":"Andar","quadro":N,"repeticoes":2,"quadros_por_passo":3}   (põe um CICLO pronto do personagem — andar, falar, piscar, respirar… — como chaves a partir do quadro N)
  {"tipo":"criar_animacao","personagem":"nome","nome":"Pular","vel":200,"trilhas":[[{"Parte":"imagem"},{"Parte":{"img":"imagem","r":graus,"x":px,"y":px}}]]}   (cria um preset de animação novo no personagem desta animação, quando não existe um que sirva; depois use com "animacao")
 CICLOS: para andar/correr/falar/piscar/respirar, use as "animacoes" do personagem (ação "animacao") em vez de trocar peça por peça; para andar até um lugar, junte "animacao" (Andar, várias repetições) com "mover" do começo ao fim no mesmo trecho; quadros_por_passo ≈ ms_por_passo × fps / 1000 (2-4 é o normal); calcule as repetições para cobrir o trecho.
@@ -95,13 +97,13 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
   cenariosPedidos: [],
   aplicar(acoes) {
     const P = App.P, todos = Modelo.todos(P); let n = 0; this.cenariosPedidos = [];
-    acoes = [...acoes.filter(a => a.tipo === 'criar_animacao'), ...acoes.filter(a => a.tipo !== 'criar_animacao')]; // cria os presets de animação antes de usar
+    acoes = [...acoes.filter(a => a.tipo === 'criar_animacao'), ...acoes.filter(a => a.tipo === 'vista'), ...acoes.filter(a => a.tipo !== 'criar_animacao' && a.tipo !== 'vista')]; // cria as animações e troca as vistas antes de usar // cria os presets de animação antes de usar
     const q = v => clamp(Math.round(+v || 1) - 1, 0, P.duracao - 1);
     for (const a of acoes) {
       try {
         if (a.tipo === 'pose' || a.tipo === 'mover') {
           const no = this.acha(todos, a.camada); if (!no) continue;
-          if (a.tipo === 'pose' && no.tipo === 'personagem') { const def = P.personagens[no.ref], k = Modelo.chave(no, q(a.quadro)); k.sessoes = k.sessoes || {};
+          if (a.tipo === 'pose' && no.tipo === 'personagem') { const def = Modelo.naVista(P.personagens[no.ref], Modelo.estadoPersonagem(no, q(a.quadro)).vista), k = Modelo.chave(no, q(a.quadro)); k.sessoes = k.sessoes || {};
             for (const [sn, pn] of Object.entries(a.sessoes || {})) { const s = this.acha(def.sessoes, sn); const p = s && (pn ? this.acha(s.presets, pn) : null); if (s) { k.sessoes[s.id] = p ? p.id : null; } } n++; }
           if (a.tipo === 'mover') { const v = {}; for (const c of ['x', 'y', 'r', 's', 'op']) if (a[c] != null && isFinite(+a[c])) v[c] = +a[c]; Modelo.poeTransf(no, q(a.quadro), v); n++; }
         } else if (a.tipo === 'camera') { const k = q(a.quadro); P.camera.chaves[k] = { ...Modelo.camera(P, k), ...Object.fromEntries(['x', 'y', 'zoom', 'r'].filter(c => a[c] != null).map(c => [c, +a[c]])) }; n++; }
@@ -112,7 +114,9 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
         else if (a.tipo === 'criar_animacao') { const def = this.acha(Object.values(P.personagens), a.personagem) || Object.values(P.personagens)[0]; if (!def) continue; const trilhas = this.trilhasDe(def, a.trilhas); if (!trilhas.length) continue;
           const L = def.animacoes ||= [], velha = L.find(x => x.nome.toLowerCase() === String(a.nome || '').toLowerCase()), an = { id: velha?.id || uid('an'), nome: String(a.nome || 'Animação').slice(0, 40), vel: clamp(+a.vel || 250, 60, 2000), trilhas };
           if (velha) L[L.indexOf(velha)] = an; else L.push(an); this.criadas = (this.criadas || 0) + 1; n++; }
-        else if (a.tipo === 'animacao') { const no = this.acha(todos, a.camada); const def = no?.tipo === 'personagem' && P.personagens[no.ref]; const an = def && this.acha(def.animacoes || [], a.animacao); if (!an) continue;
+        else if (a.tipo === 'vista') { const no = this.acha(todos, a.camada); const def = no?.tipo === 'personagem' && P.personagens[no.ref]; const v = def?.vistas && (this.acha(def.vistas, a.vista) || def.vistas.find(x => Modelo.nomeTipo(x.tipo).toLowerCase() === String(a.vista || '').toLowerCase())); if (!v) continue; Modelo.chave(no, q(a.quadro)).vista = v.id; n++; }
+        else if (a.tipo === 'animacao') { const no = this.acha(todos, a.camada); const def0 = no?.tipo === 'personagem' && P.personagens[no.ref]; if (!def0) continue; const vq = Modelo.estadoPersonagem(no, q(a.quadro)).vista, def = Modelo.naVista(def0, vq);
+          let an = this.acha(def.animacoes || [], a.animacao); if (!an) for (const v of def0.vistas || []) { an = this.acha(Modelo.naVista(def0, v.id).animacoes || [], a.animacao); if (an) { Modelo.chave(no, q(a.quadro)).vista = v.id; break; } } if (!an) continue;
           Animacoes.escreve(no, an, q(a.quadro), clamp(Math.round(+a.quadros_por_passo || Math.max(1, Math.round((+an.vel || 250) / 1000 * P.fps))), 1, 48), clamp(Math.round(+a.repeticoes || 1), 1, 60)); n++; }
       } catch (e) { console.warn('ação da IA', a, e); }
     }
@@ -221,7 +225,8 @@ Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":g
     lista = lista.filter(x => x.id !== def.id).sort((a, b) => (b.modificado || 0) - (a.modificado || 0)).slice(0, 12);
     const defs = (await Promise.all(lista.map(x => Nuvem.abrir(x.id, true).catch(() => null)))).filter(d => d?.partes?.length >= 2);
     defs.sort((a, b) => (b.iaCorrecoes?.length ? 1 : 0) - (a.iaCorrecoes?.length ? 1 : 0) || (b.modificado || 0) - (a.modificado || 0)); // primeiro os que a equipe corrigiu
-    return defs.slice(0, max).map(d => { const r = this.resumo(d), N = id => r.partes[id]?.nome;
+    const tipo = Modelo.vistaDe(def)?.tipo;
+    return defs.slice(0, max).map(d0 => { const vt = tipo && (d0.vistas || []).find(v => v.tipo === tipo), d = vt ? Modelo.naVista(d0, vt.id) : d0, r = this.resumo(d), N = id => r.partes[id]?.nome; // o exemplo na mesma vista (ângulo), se tiver
       return { thumb: d.thumb, txt: JSON.stringify({ personagem: d.nome, raiz: N(r.raiz) || null,
         partes: Object.values(r.partes).map(p => ({ parte: p.nome, pai: N(p.pai) || null, z: p.z, pivo: p.pivo, imagens: Object.values(p.imgs).slice(0, 12) })),
         sessoes: Object.values(r.sessoes).map(s => ({ sessao: s.nome, presets: s.presets.slice(0, 12) })), animacoes: r.animacoes.slice(0, 10),
@@ -232,11 +237,15 @@ Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":g
     const partes = def.partes.map(p => { const it = cx.find(i => i.parte.id === p.id), c = it?.img ? it.m.transformPoint(new DOMPoint((it.img.ajuste?.x || 0) - (it.img.pivo?.x ?? it.img.w / 2) + it.img.w / 2, (it.img.ajuste?.y || 0) - (it.img.pivo?.y ?? it.img.h / 2) + it.img.h / 2)) : null;
       return { parte: p.nome, pai: def.partes.find(x => x.id === p.pai)?.nome || null, raiz: p.id === def.raiz || undefined, z: p.z || 0, centro_no_desenho: c ? [Math.round(c.x), Math.round(c.y)] : null, imagens: p.imgs.map(i => `${i.nome} (${Math.round(i.w)}x${Math.round(i.h)})`) }; });
     const sess = def.sessoes.map(s => ({ sessao: s.nome, presets: s.presets.map(pr => pr.nome) })), anims = (def.animacoes || []).map(a => a.nome);
+    // vistas: esta é uma das vistas (ângulos) do personagem; as outras já têm nomes — usar os mesmos ajuda o editor a trocar de vista sem perder as poses
+    const vAt = Modelo.vistaDe(def), outras = (def.vistas || []).filter(v => v.id !== def.vistaAtual && v.partes?.length);
+    const txtVista = vAt ? `\nVISTA DESTE CONJUNTO: ${vAt.nome} (${Modelo.nomeTipo(vAt.tipo)}) — o personagem visto ${{ frente: 'de frente', 'tres-quartos': 'em três-quartos', lado: 'de lado (perfil)', costas: 'de costas', 'tres-quartos-costas': 'em três-quartos de costas', cima: 'de cima' }[vAt.tipo] || 'deste ângulo'}.` +
+      (outras.length ? `\nOUTRAS VISTAS JÁ PRONTAS (use EXATAMENTE os mesmos nomes de partes, sessões, presets e animações quando for a mesma coisa; o que não aparecer nesta vista, deixe de fora): ${JSON.stringify(outras.map(v => ({ vista: v.nome, partes: v.partes.map(p => p.nome), sessoes: (v.sessoes || []).map(x => ({ sessao: x.nome, presets: x.presets.map(p => p.nome) })), animacoes: (v.animacoes || []).map(a => a.nome) })))}` : '') : '';
     const foco = modo === 'animacoes' ? 'Crie SÓ "animacoes" (de teste) com as peças que existem; não mexa no resto.' : 'Organize TUDO (juntar, nomes, raiz, pais, camadas, sessões, presets e animações de teste).';
     const exs = await this.exemplos(def).catch(() => []), exC = [];
     if (exs.length) { exC.push({ type: 'text', text: `COMO A EQUIPE JÁ MONTOU OUTROS PERSONAGENS (siga o mesmo jeito de organizar e NÃO repita os erros que a equipe corrigiu; cada personagem é diferente, então adapte):` });
       for (const e of exs) { if (/^data:image\/(png|jpeg);base64,/.test(e.thumb || '')) exC.push({ type: 'image', source: { type: 'base64', media_type: e.thumb.slice(5, e.thumb.indexOf(';')), data: e.thumb.split(',')[1] } }); exC.push({ type: 'text', text: e.txt }); } }
-    const content = [...exC, { type: 'text', text: `${exs.length ? 'AGORA O PERSONAGEM NOVO.\n' : ''}PERSONAGEM: ${def.nome}\nPARTES: ${JSON.stringify(partes)}\nSESSÕES QUE JÁ EXISTEM: ${JSON.stringify(sess)}\nANIMAÇÕES QUE JÁ EXISTEM: ${JSON.stringify(anims)}\n\n${foco}${pedido ? '\nPEDIDO DA PESSOA: ' + pedido : ''}\n\nMINIATURAS:` }, ...(await this.miniaturas(def))];
+    const content = [...exC, { type: 'text', text: `${exs.length ? 'AGORA O PERSONAGEM NOVO.\n' : ''}PERSONAGEM: ${def.nome}${txtVista}\nPARTES: ${JSON.stringify(partes)}\nSESSÕES QUE JÁ EXISTEM: ${JSON.stringify(sess)}\nANIMAÇÕES QUE JÁ EXISTEM: ${JSON.stringify(anims)}\n\n${foco}${pedido ? '\nPEDIDO DA PESSOA: ' + pedido : ''}\n\nMINIATURAS:` }, ...(await this.miniaturas(def))];
     return this.json(await this.chama(this.SIS_ORGANIZAR, content, aoEscrever));
   },
 };

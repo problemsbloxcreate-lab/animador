@@ -41,11 +41,11 @@ const Atelie = {
           buttons: [{ label: 'Abrir a da nuvem (descartar o rascunho)', value: 'nuvem' }, { label: 'Continuar o rascunho', kind: 'primary', value: 'rascunho' }] });
         if (usa === 'rascunho') { this.base0Nuvem = JSON.stringify(def); def = r.def; doRascunho = true; } else if (usa === 'nuvem') await this.apagarRascunho(id); else return;
       } }
-    else { novo = await this.assistenteNovo(); if (!novo) return; def = Modelo.novoPersonagem(novo.nome); }
+    else { novo = await this.assistenteNovo(); if (!novo) return; def = Modelo.novoPersonagem(novo.nome); Modelo.garanteVistas(def); Object.assign(def.vistas[0], { tipo: novo.vtipo || 'frente', nome: Modelo.nomeTipo(novo.vtipo || 'frente') }); }
     // NA NUVEM: depois da 1ª vez em "Salvar na nuvem", toda mudança vai sozinha para a nuvem. Antes disso o personagem é LOCAL (só neste computador).
     this.naNuvem = !o.def && !!id && !!def && !(doRascunho && !this._temNuvem && !this._rascNuvem); this._temNuvem = this._rascNuvem = false; this.erroNuvem = null; clearTimeout(this._tn);
     this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.baseNuvem = this._temNuvem && !o.def ? (doRascunho ? this.base0Nuvem || null : this.ultimo) : null; this.base0 = o.def || !id ? this.ultimo : this.base0Nuvem || this.ultimo; this.base0Nuvem = null; this.modoMover = 'preset'; this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; window.Falas?.parar(); Falas.aberto = null; this.teste = this.painelAberto ? { sessoes: {}, partes: {} } : null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
-    await Arq.garantir(def.partes.flatMap(p => p.imgs.map(i => i.k))); await Arq.usarOriginais([...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k]); // edita sempre a partir da original
+    Modelo.garanteVistas(def); await Arq.garantir(Modelo.chavesImgs(def)); await Arq.usarOriginais(Modelo.chavesImgs(def)); // edita sempre a partir da original
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
     if (this.naNuvem && this.sujo) this.agendaNuvem(); // mudanças guardadas aqui que ainda não foram: vão agora
     if (novo?.fs.length) await this.montarNovo(novo); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
@@ -53,7 +53,8 @@ const Atelie = {
   // tela do personagem novo (qualquer personagem): nome, as imagens (camadas do desenho ou peças soltas) e, se quiser, a IA organiza tudo
   async assistenteNovo() {
     let fs = [];
-    const body = h(`<div class="novo-p"><label class="field">Nome do personagem<input type="text" data-n placeholder="Nome do personagem"></label>
+    const body = h(`<div class="novo-p"><div class="campo2" style="gap:10px;align-items:flex-end"><label class="field" style="flex:2">Nome do personagem<input type="text" data-n placeholder="Nome do personagem"></label>
+      <label class="field" style="flex:1" title="De que ângulo são estas imagens. Depois dá para pôr as outras vistas (frente, lado, costas…)">Vista<select data-vt>${Modelo.TIPOS_VISTA.map(([t, n]) => `<option value="${t}" ${t === 'frente' ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <div class="field">Imagens <small>(opcional) — as peças do personagem em PNG com fundo transparente. O melhor: as camadas do desenho exportadas no mesmo tamanho (já encaixam sozinhas).</small></div>
       <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens aqui</b><small>ou clique para escolher</small></div><div class="np-lista" data-l></div>
       <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, camadas, sessões, presets e animações de teste)</label>
@@ -71,8 +72,8 @@ const Atelie = {
     const pega = a => { const n = $('[data-n]', a.body).value.trim(); if (!n) { $('[data-n]', a.body).focus(); UI.toast('Dê um nome ao personagem'); return false; } return n; };
     const r = await UI.modal({ title: 'Personagem novo', icon: 'layers', width: 560, body, buttons: [
       { label: 'Cancelar', value: null, left: true },
-      { label: 'Pular (só o nome)', onClick: a => { const n = pega(a); return n ? { nome: n, fs: [], ia: false } : false; } },
-      { label: 'Criar', kind: 'primary', onClick: a => { const n = pega(a); return n ? { nome: n, fs, ia: ia.checked && !!fs.length, pedido: $('[data-p]', a.body).value.trim() } : false; } }] });
+      { label: 'Pular (só o nome)', onClick: a => { const n = pega(a); return n ? { nome: n, fs: [], ia: false, vtipo: $('[data-vt]', a.body).value } : false; } },
+      { label: 'Criar', kind: 'primary', onClick: a => { const n = pega(a); return n ? { nome: n, fs, ia: ia.checked && !!fs.length, pedido: $('[data-p]', a.body).value.trim(), vtipo: $('[data-vt]', a.body).value } : false; } }] });
     urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 2000)); return r;
   },
   async montarNovo(novo) {
@@ -136,7 +137,7 @@ const Atelie = {
   // depois de ir para a nuvem em webp: as chaves das imagens mudam também aqui (sem virar uma mudança nova)
   aplicaTroca(troca) {
     if (!troca || !Object.keys(troca).length || !this.def) return; const R = t => Nuvem.remapear(t, troca);
-    for (const p of this.def.partes) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k]; if (this.def.vis?.fantasma?.k && troca[this.def.vis.fantasma.k]) this.def.vis.fantasma.k = troca[this.def.vis.fantasma.k];
+    for (const p of Modelo.todasPartes(this.def)) for (const i of p.imgs) if (troca[i.k]) i.k = troca[i.k]; if (this.def.vis?.fantasma?.k && troca[this.def.vis.fantasma.k]) this.def.vis.fantasma.k = troca[this.def.vis.fantasma.k];
     this.ultimo = R(this.ultimo); this.base0 = R(this.base0); this.baseNuvem = R(this.baseNuvem); this.pilha = this.pilha.map(R); this.refazer = this.refazer.map(R); this._corImg?.clear?.();
   },
   // manda o personagem para a animação aberta (nesta aba ou em outra). local = salvo só neste computador: leva a lista do que não está na nuvem
@@ -378,7 +379,7 @@ const Atelie = {
     $('#at-modo').innerHTML = this.teste && Animacoes.parado ? `${Animacoes.poseFixa ? `Pose do quadro ${Animacoes.poseFixa.quadro + 1}` : 'Pausado'} · arrumando <b>${esc(Animacoes.textoAlvo())}</b>` : Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
     $('#at-base').hidden = !pr; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover').hidden = !!this.teste && !Animacoes.parado;
     $('#at-testar').classList.toggle('on', !!this.painelAberto); $('#at-testar').innerHTML = `${ic('play', 13)} Testar`; $('#at-testar').title = 'Abrir/fechar o painel Testar (T)'; this.pintaTeste(); Pintura.pintaBarra();
-    this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
+    this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
   },
   pintaPartes() {
@@ -484,7 +485,9 @@ const Atelie = {
   local() { if (this._ml?.de === this.ultimo && this._ml?.base === this.baseNuvem) return this._ml; const m = this.baseNuvem ? this.marcasContra(this.baseNuvem) : { partes: new Set(this.def.partes.map(p => p.id)), imgs: new Set(), presets: new Set(this.def.sessoes.flatMap(s => s.presets.map(p => p.id))) }; m.todo = !this.baseNuvem; m.de = this.ultimo; m.base = this.baseNuvem; return (this._ml = m); },
   marcasContra(base) {
     const out = { partes: new Set(), imgs: new Set(), presets: new Set(), de: this.ultimo, base };
-    const B = base ? JSON.parse(base) : null; if (!B || !this.def) return out;
+    const B0 = base ? JSON.parse(base) : null; if (!B0 || !this.def) return out;
+    // compara com a MESMA vista na versão de antes (vista nova = tudo novo)
+    const vAt = this.def.vistaAtual, B = !vAt || !B0.vistas || B0.vistaAtual === vAt || !B0.vistaAtual ? B0 : B0.vistas.some(v => v.id === vAt && v.partes) ? Modelo.naVista(B0, vAt) : { partes: [], sessoes: [] };
     const bp = Object.fromEntries(B.partes.map(p => [p.id, p])), bi = {}, bpr = {};
     for (const p of B.partes) for (const i of p.imgs) bi[i.id] = JSON.stringify([i.k, i.pivo, i.ajuste, i.w, i.h, i.z || 0]);
     for (const s of B.sessoes) for (const pr of s.presets) bpr[pr.id] = JSON.stringify(pr.estado || {});
@@ -762,6 +765,77 @@ const Atelie = {
       '-', { label: 'Apagar a sessão', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Apagar "${esc(s.nome)}" e os presets dela?`, ok: 'Apagar', danger: true })) { this.def.sessoes = this.def.sessoes.filter(x => x !== s); if (this.edit?.s === s.id) this.edit = null; this.commit(); } } },
     ]);
   },
+  /* ---------- VISTAS (ângulos): frente, três-quartos, lado, costas… cada uma com as próprias partes, poses e animações ---------- */
+  icVista(t, tam = 16) { // cabecinha virando: o nariz mostra para onde o personagem olha
+    const x = { frente: 12, 'tres-quartos': 15.5, lado: 19, 'tres-quartos-costas': 8.5, costas: null, cima: 12, outra: 12 }[t] ?? 12;
+    return `<svg width="${tam}" height="${tam}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"${t === 'costas' || t === 'tres-quartos-costas' ? ' stroke-dasharray="3 2.5"' : ''}/>${t === 'cima' ? '<circle cx="12" cy="12" r="3"/>' : x == null ? '' : `<path d="M${x} 10v4"/>${t === 'frente' ? '<path d="M8.5 9.5h.01M15.5 9.5h.01"/>' : ''}`}${t === 'outra' ? '<path d="M12 7v.01"/>' : ''}</svg>`;
+  },
+  pintaVistas() {
+    const el = $('#at-vistas'); if (!el || !this.def) return; Modelo.garanteVistas(this.def); const V = this.def.vistas;
+    el.innerHTML = `<div class="av-cab" title="A 1ª vista é a principal: é a que aparece no editor quando o quadro não escolhe outra. Arraste para mudar a ordem.">${ic('eye', 13)}<b>Vistas</b><small>a 1ª é a principal</small><span class="sp"></span><button class="btn sm" data-nova title="Vista nova (frente, lado, costas…)">${ic('plus', 12)} Vista</button></div><div class="av-lista"></div>`;
+    const l = $('.av-lista', el);
+    for (const v of V) { const on = v.id === this.def.vistaAtual, np = on ? this.def.partes.length : (v.partes || []).length;
+      const b = h(`<button class="av ${on ? 'on' : ''}" title="${esc(v.nome)} (${esc(Modelo.nomeTipo(v.tipo))}) · ${np} parte(s)${on ? '' : ' · clique para trocar'} · botão direito: opções">${this.icVista(v.tipo)}<span>${esc(v.nome)}</span><small>${np}</small></button>`);
+      b.onclick = () => this.trocaVista(v.id); b.oncontextmenu = ev => { ev.preventDefault(); this.menuVista(ev, v); };
+      ordenavel(b, 'vista', v.id, (id, antes) => { const i = V.findIndex(x => x.id === id), j = V.indexOf(v); if (i >= 0) { moveNaLista(V, i, j, antes); this.commit(); } }, true);
+      l.appendChild(b); }
+    $('[data-nova]', el).onclick = () => this.novaVista();
+  },
+  async trocaVista(id) {
+    if (!this.def || id === this.def.vistaAtual) return; Animacoes.parar(true); window.Falas?.parar(); Pintura.selecao = null;
+    Modelo.ativaVista(this.def, id); this.edit = null; this.editPasso = null; Animacoes.sel = null; Animacoes.passo = null; Animacoes.poseFixa = null; if (this.teste) this.teste = { sessoes: {}, partes: {} };
+    this.sel = (this.def.raiz && this.def.partes.some(p => p.id === this.def.raiz) ? this.def.raiz : this.def.partes[0]?.id) || null; this.multi.clear(); this.focoImg = null;
+    await Arq.garantir(Modelo.chavesImgs(this.def)); this.commit(); this.enquadrar();
+  },
+  menuVista(e, v) {
+    const V = this.def.vistas, on = v.id === this.def.vistaAtual;
+    UI.ctx(e.clientX, e.clientY, [
+      { head: v.nome },
+      !on && { label: 'Abrir esta vista', icon: 'eye', action: () => this.trocaVista(v.id) },
+      { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da vista', label: 'Ex.: Lado direito, Frente (bravo), Costas', value: v.nome }); if (n) { v.nome = n.slice(0, 30); this.commit(); } } },
+      { label: 'Tipo', icon: 'eye', sub: Modelo.TIPOS_VISTA.map(([t, n]) => ({ label: n, checked: v.tipo === t, action: () => { if (v.nome === Modelo.nomeTipo(v.tipo)) v.nome = n; v.tipo = t; this.commit(); } })) },
+      '-', { label: 'Duplicar (copiar para uma vista nova)', icon: 'dup', action: () => this.criaVista({ nome: v.nome + ' (cópia)', tipo: v.tipo, de: v.id, como: 'copia' }) },
+      { label: 'Espelhar (criar o outro lado)', icon: 'transition', action: () => this.criaVista({ nome: v.tipo === 'lado' ? 'Lado (espelhado)' : v.nome + ' (espelhado)', tipo: v.tipo, de: v.id, como: 'espelho' }) },
+      on && { label: 'Usar os mesmos nomes das outras vistas (alinhar)', icon: 'layers', action: () => { const n = Modelo.alinhaIds(this.def); this.commit(); UI.toast(n ? `${n} item(ns) agora batem com as outras vistas: no editor, trocar de vista mantém as poses escolhidas.` : 'Nada para alinhar (nenhum nome igual ao das outras vistas).', { kind: n ? 'ok' : 'warn', time: 6000 }); } },
+      { label: 'Citar esta vista em mensagens…', icon: 'chat', action: () => Citacao.atelie({ vista: v.id }) },
+      '-', { label: 'Apagar a vista', icon: 'trash', danger: true, disabled: V.length < 2, action: async () => {
+        if (!(await UI.confirm({ title: `Apagar a vista "${esc(v.nome)}"?`, msg: 'As partes, poses e animações de teste desta vista saem do personagem. Ctrl+Z desfaz.', ok: 'Apagar', danger: true }))) return;
+        if (on) { const outra = V.find(x => x !== v); await this.trocaVista(outra.id); } this.def.vistas = this.def.vistas.filter(x => x !== v); this.commit(); } },
+    ].filter(Boolean));
+  },
+  // cria uma vista: vazia (com imagens novas), cópia ou espelho de outra
+  async criaVista(o) {
+    Modelo.garanteVistas(this.def); const id = uid('vi'), v = { id, nome: o.nome || Modelo.nomeTipo(o.tipo), tipo: o.tipo || 'outra' };
+    if (o.como === 'copia' || o.como === 'espelho') { const fonte = o.de === this.def.vistaAtual || !o.de ? Object.fromEntries(Modelo.CAMPOS_VISTA.map(c => [c, this.def[c]])) : this.def.vistas.find(x => x.id === o.de);
+      const c = clone(Object.fromEntries(Modelo.CAMPOS_VISTA.map(k => [k, fonte?.[k]]))); Object.assign(v, o.como === 'espelho' ? Modelo.espelhar(c) : c); } // mesmos ids: no editor, as poses continuam ao virar
+    else Object.assign(v, { partes: [], sessoes: [], animacoes: [] });
+    this.def.vistas.push(v); await this.trocaVista(id);
+    if (o.fs?.length) await this.montarNovo({ nome: `${this.def.nome} · ${v.nome}`, fs: o.fs, ia: !!o.ia, pedido: o.pedido || '', vista: true });
+    UI.toast(`Vista <b>${esc(v.nome)}</b> criada.${o.como === 'espelho' ? ' É o espelho da outra: arrume o que precisar (ex.: a franja do lado certo).' : ''}`, { kind: 'ok', time: 5000 });
+  },
+  async novaVista() {
+    let fs = []; const usados = new Set(this.def.vistas.map(v => v.tipo)), tipo0 = (Modelo.TIPOS_VISTA.find(([t]) => !usados.has(t)) || ['outra'])[0];
+    const body = h(`<div class="novo-p"><div class="campo2" style="gap:10px"><label class="field" style="flex:1">Tipo<select data-t>${Modelo.TIPOS_VISTA.map(([t, n]) => `<option value="${t}" ${t === tipo0 ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label class="field" style="flex:1">Nome<input type="text" data-n value="${esc(Modelo.nomeTipo(tipo0))}"></label></div>
+      <div class="field">Começar com</div><div class="nv-como">
+        <label class="chk"><input type="radio" name="como" value="imagens" checked> As imagens desta vista (desenho novo)</label>
+        <label class="chk"><input type="radio" name="como" value="copia"> Uma cópia da vista atual (<b>${esc(this.vistaDe()?.nome || '')}</b>)</label>
+        <label class="chk"><input type="radio" name="como" value="espelho"> O espelho da vista atual (bom para o outro lado)</label>
+        <label class="chk"><input type="radio" name="como" value="vazia"> Vazia</label></div>
+      <div data-img><div class="np-drop" data-d>${ic('upload', 22)}<b>Arraste as imagens desta vista aqui</b><small>ou clique para escolher · o melhor: as camadas do desenho, todas no mesmo tamanho</small></div><div class="np-lista" data-l></div>
+      <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza esta vista (e usa os mesmos nomes das outras vistas)</label></div></div>`);
+    const nm = $('[data-n]', body), tp = $('[data-t]', body); let mexeuNome = false; nm.oninput = () => mexeuNome = true; tp.onchange = () => { if (!mexeuNome) nm.value = Modelo.nomeTipo(tp.value); };
+    const lista = $('[data-l]', body), drop = $('[data-d]', body), urls = [];
+    const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = ''; fs.forEach((f, i) => { const u = URL.createObjectURL(f); urls.push(u); const c = h(`<div class="np-im"><img src="${u}" alt=""><span>${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); }; lista.appendChild(c); }); $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns) — arraste mais se quiser` : 'Arraste as imagens desta vista aqui'; };
+    const poe = L => { fs = fs.concat([...L].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g)$/i.test(f.name))); pintaL(); };
+    drop.onclick = async () => { const L = await pickFiles('image/png,image/webp,image/gif,image/jpeg', true); if (L) poe(L); };
+    drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
+    drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); poe(e.dataTransfer.files); };
+    $$('input[name=como]', body).forEach(r => r.onchange = () => { $('[data-img]', body).hidden = $('input[name=como]:checked', body).value !== 'imagens'; });
+    const r = await UI.modal({ title: 'Vista nova', icon: 'eye', width: 560, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', collect: () => ({ tipo: tp.value, nome: nm.value.trim() || Modelo.nomeTipo(tp.value), como: $('input[name=como]:checked', body).value, ia: $('[data-ia]', body).checked }) }] });
+    urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 2000)); if (!r) return;
+    await this.criaVista({ ...r, de: this.def.vistaAtual, fs: r.como === 'imagens' ? fs : [], ia: r.ia && r.como === 'imagens' && fs.length > 0 });
+  },
+  vistaDe() { return Modelo.vistaDe(this.def); },
   // a pose padrão (base) passa a ser igual a este preset (nas partes que ele mexe)
   virarPadrao(s, pr) {
     let n = 0; for (const [pid, e] of Object.entries(pr.estado || {})) { const p = this.parte(pid); if (!p) continue; const { d, ...resto } = e; Object.assign(p.base, resto); if (d) p.base.d = { ...(p.base.d || {}), ...d }; n++; }
@@ -881,9 +955,10 @@ const Atelie = {
   async iaOrganizar(modo, pedido) {
     const t = { remove() { } }, fim = Ocupado.inicio({ tipo: modo === 'animacoes' ? 'anims' : 'organizar', titulo: modo === 'animacoes' ? 'A IA está criando as animações de teste' : 'A IA está organizando o personagem', est: 60, subtitulo: 'Olhando as peças…' });
     try {
-      await Arq.garantir(this.def.partes.flatMap(p => p.imgs.map(i => i.k))); Ocupado.passo('Mandando as miniaturas e os exemplos da equipe…');
+      await Arq.garantir(Modelo.chavesImgs(this.def)); Ocupado.passo('Mandando as miniaturas e os exemplos da equipe…');
       const plano = await IA.organizar(this.def, modo, pedido, txt => Ocupado.passo(`Organizando… (${Math.round(txt.length / 100) / 10} mil letras)`));
-      Ocupado.passo('Aplicando o plano…'); fim(); const feito = this.aplicarPlano(plano, modo), avisos = (plano.avisos || []).filter(Boolean).slice(0, 5);
+      Ocupado.passo('Aplicando o plano…'); fim(); const feito = this.aplicarPlano(plano, modo), alinhou = (this.def.vistas || []).length > 1 ? Modelo.alinhaIds(this.def) : 0, avisos = (plano.avisos || []).filter(Boolean).slice(0, 5);
+      if (alinhou) { feito.push(`${alinhou} nome(s) iguais aos das outras vistas`); this.commit(); }
       this.aba = (this.def.animacoes || []).length ? 'animacoes' : 'sessoes'; this.testar(true);
       UI.toast(`<b>Pronto.</b> ${feito.join(' · ') || 'A IA achou que já estava tudo certo.'}<br>Confira no <b>Testar</b> e na aba <b>Animações</b>; ajuste à mão o que precisar (Ctrl+Z desfaz tudo).`, { kind: 'ok', time: 12000 });
       if (avisos.length) UI.modal({ title: 'A IA deixou uns avisos', icon: 'info', width: 460, body: `<div>${avisos.map(a => `<p style="margin:0 0 8px">• ${esc(String(a))}</p>`).join('')}<div style="color:var(--tx3);font-size:12px">Dá para separar peças com <b>Seleção</b>/<b>Laço</b> › <b>Recortar → parte nova</b> na aba Pintar, e depois pedir para a IA organizar de novo.</div></div>`, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] });
@@ -957,7 +1032,7 @@ const Biblioteca = {
       // personagens LOCAIS (só neste computador): dá para usar na animação; a equipe não vê até ele ir para a nuvem
       if (locais.length) { body.appendChild(h(`<div class="sec">${ic('save', 14)} Só neste computador <small style="color:var(--tx3);font-weight:400;margin-left:6px">a equipe não vê</small></div>`)); const g = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))"></div>');
         for (const r of locais) { const c = h(`<div class="pc rasc"><div class="th" style="aspect-ratio:1;${r.thumb ? `background-image:url('${r.thumb}')` : ''}"></div><div class="in"><b>${esc(r.def.nome)}</b></div><span class="tag-local">${ic('save', 11)} só aqui</span></div>`);
-          c.onclick = async () => { c.style.opacity = .5; escolhido = clone(r.def); await Arq.garantir(r.def.partes.flatMap(p => p.imgs.map(i => i.k))).catch(() => { }); $('#modal-root .modal-back [data-x]')?.click(); }; g.appendChild(c); }
+          c.onclick = async () => { c.style.opacity = .5; escolhido = clone(r.def); await Arq.garantir(Modelo.chavesImgs(r.def)).catch(() => { }); $('#modal-root .modal-back [data-x]')?.click(); }; g.appendChild(c); }
         body.appendChild(g); if (lista.length) body.appendChild(h(`<div class="sec">${ic('cloud', 14)} Na nuvem da equipe</div>`)); }
       if (!lista.length && !locais.length) body.innerHTML = '<div class="vazio">Nenhum personagem ainda. Crie o primeiro no Ateliê.</div>';
       else if (lista.length) { const pastas = [...new Set(lista.map(x => x.pasta))];

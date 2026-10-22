@@ -22,12 +22,18 @@ const Lado = {
     if (!lista.length) { el.innerHTML = `<div class="vazio">Nenhum personagem aparece no quadro ${q + 1}.<br><br><button class="btn" data-add>${ic('plus', 14)} Pôr um personagem</button></div>`; $('[data-add]', el).onclick = () => App.addPersonagem(); return; }
     const cards = h('<div class="cards"></div>');
     for (const n of lista) {
-      const def = P.personagens[n.ref], c = h(`<div class="card-p ${f === n ? 'sel' : ''}"><div class="th" style="${def.thumb ? `background-image:url('${def.thumb}')` : ''}"></div><div><b>${esc(n.nome)}${def._local ? ` <span class="so-local" title="${def._local.todo ? 'Este personagem ainda não está na nuvem: só neste computador' : 'Tem mudanças salvas só neste computador (ainda não na nuvem)'}">${ic('cloudOff', 13)}</span>` : ''}</b><small>${esc(def.nome)} · ${def.sessoes.length} sessões${def._local ? ' · não está na nuvem' : ''}</small></div></div>`);
+      const def = P.personagens[n.ref], c = h(`<div class="card-p ${f === n ? 'sel' : ''}"><div class="th" style="${def.thumb ? `background-image:url('${def.thumb}')` : ''}"></div><div><b>${esc(n.nome)}${def._local ? ` <span class="so-local" title="${def._local.todo ? 'Este personagem ainda não está na nuvem: só neste computador' : 'Tem mudanças salvas só neste computador (ainda não na nuvem)'}">${ic('cloudOff', 13)}</span>` : ''}</b><small>${esc(def.nome)} · ${def.vistas?.length > 1 ? def.vistas.length + ' vistas' : Modelo.naVista(def).sessoes.length + ' sessões'}${def._local ? ' · não está na nuvem' : ''}</small></div></div>`);
       c.onclick = () => App.selecionar(n.id); cards.appendChild(c);
     }
     el.appendChild(cards);
     if (!f) { el.appendChild(h('<div class="vazio">Clique num personagem para ver os botões dele.</div>')); return; }
-    const def = P.personagens[f.ref], est = Modelo.estadoPersonagem(f, q), aqui = f.chaves[q] || {};
+    const def0 = P.personagens[f.ref], est = Modelo.estadoPersonagem(f, q), aqui = f.chaves[q] || {}, def = Modelo.naVista(def0, est.vista); // def = a vista deste quadro
+    // VISTA (ângulo) neste quadro: frente, três-quartos, lado, costas… (vale até a próxima chave de vista)
+    if (def0.vistas?.length > 1) { const atualV = est.vista && def0.vistas.some(v => v.id === est.vista) ? est.vista : def0.vistas[0].id, temChave = 'vista' in aqui;
+      const box = h(`<div class="sessao vistas-q"><h4>${ic('eye', 13)} Vista <small>ângulo neste quadro</small></h4><div class="presets"></div></div>`), pr = $('.presets', box);
+      for (const v of def0.vistas) { const b = h(`<button class="${v.id === atualV ? 'on' : ''} ${v.id === atualV && temChave ? 'chave' : ''}" title="${esc(v.nome)} a partir do quadro ${q + 1}">${Atelie.icVista(v.tipo, 13)} ${esc(v.nome)}</button>`);
+        b.onclick = () => { const k = Modelo.chave(f, q); k.vista = v.id; App.commit(`Vista ${v.nome} no quadro ${q + 1}`, { semArvore: true }); }; pr.appendChild(b); }
+      el.appendChild(box); }
     if (!def.sessoes.length) el.appendChild(h(`<div class="vazio">${esc(def.nome)} ainda não tem sessões (olhos, boca, poses…).<br>Crie no <b>Ateliê de personagens</b>.</div>`));
     for (const s of def.sessoes) {
       const atual = est.sessoes[s.id] || null, temChave = aqui.sessoes && s.id in aqui.sessoes;
@@ -38,7 +44,7 @@ const Lado = {
     }
     // animações de teste do personagem (feitas no Ateliê): viram chaves a partir deste quadro
     if (def.animacoes?.length) { const box = h(`<div class="sessao"><h4>Animações <small>pôr a partir do quadro ${q + 1}</small></h4><div class="presets"></div></div>`), pr = $('.presets', box);
-      for (const a of def.animacoes) { const b = h(`<button title="Escreve &quot;${esc(a.nome)}&quot; como chaves a partir deste quadro">${ic('play', 11)} ${esc(a.nome)}</button>`); b.onclick = () => Animacoes.porNoQuadro(f, def, a); pr.appendChild(b); }
+      for (const a of def.animacoes) { a._vista = est.vista || def0.vistaAtual || null; const b = h(`<button title="Escreve &quot;${esc(a.nome)}&quot; como chaves a partir deste quadro">${ic('play', 11)} ${esc(a.nome)}</button>`); b.onclick = () => Animacoes.porNoQuadro(f, def, a); pr.appendChild(b); }
       el.appendChild(box); }
     // ajustar uma parte só neste trecho (quando uma pose precisa de um retoque)
     const partes = def.partes, ps = this.parteSel && partes.find(p => p.id === this.parteSel) ? this.parteSel : partes[0]?.id;

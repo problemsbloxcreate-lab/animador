@@ -515,3 +515,12 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .bloco-sec{border:1px solid var(--bd);border-radius:12px;padding:4px 14px 16px;margin-bottom:18px;background:var(--bg1)}
 .bloco-sec.local{border-color:rgba(227,179,65,.35);background:linear-gradient(180deg,rgba(227,179,65,.06),transparent 120px)}
 .bloco-sec>.sec{margin-top:10px}.sec-sub{color:var(--tx3);font-weight:400;margin-left:8px;text-transform:none;letter-spacing:0;font-size:11.5px}
+/* vistas (ângulos) do personagem */
+.at-vistas{border-bottom:1px solid var(--bd);padding:8px 8px 6px;background:linear-gradient(180deg,rgba(95,168,255,.06),transparent)}
+.av-cab{display:flex;align-items:center;gap:6px;margin-bottom:6px;color:var(--tx2)}.av-cab b{color:var(--tx);font-size:11px;letter-spacing:.08em;text-transform:uppercase}.av-cab small{color:var(--tx3);font-size:10.5px}
+.av-lista{display:flex;flex-wrap:wrap;gap:4px}
+.av{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 9px 0 7px;border-radius:8px;border:1px solid var(--bd2);background:var(--bg2);color:var(--tx2);font:inherit;font-size:12px;cursor:pointer;max-width:100%}
+.av span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}.av small{font-size:10px;color:var(--tx3);background:var(--bg3);border-radius:6px;padding:1px 5px}
+.av:hover{color:var(--tx);border-color:#6f8fc4}.av.on{background:rgba(95,168,255,.18);border-color:#5fa8ff;color:#dbe9ff;font-weight:600}.av.on svg{color:#7fc0ff}
+.nv-como{display:grid;gap:5px;margin:2px 0 10px}
+.vistas-q h4 svg{vertical-align:-2px;color:#7fc0ff}.vistas-q .presets button svg{vertical-align:-2px}

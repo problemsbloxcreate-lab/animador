@@ -35,7 +35,7 @@ const Exportar = {
     const bytes = d => d instanceof Uint8Array ? d : d.buffer ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength).slice() : new Uint8Array(d);
     let erro = null;
     // imagens de todos os personagens prontas antes de começar
-    await Arq.garantir([...Object.values(P.personagens).flatMap(d => d.partes.flatMap(p => p.imgs.map(i => i.k))), ...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq)]);
+    await Arq.garantir([...Object.values(P.personagens).flatMap(d => Modelo.chavesImgs(d)), ...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq)]);
     if (acfg) {
       pr?.(0, 'Misturando o áudio…'); const mix = await Som.mistura(P, acfg.sampleRate), ini = Math.round(de / fps * acfg.sampleRate), fim = Math.min(mix.length, Math.round((ate + 1) / fps * acfg.sampleRate));
       const ae = new AudioEncoder({ output: (ch, meta) => { if (meta?.decoderConfig?.description) mux.setAudioConfig(bytes(meta.decoderConfig.description)); const d = new Uint8Array(ch.byteLength); ch.copyTo(d); mux.addAudio(d, Math.round((ch.duration || 0) * acfg.sampleRate / 1e6) || 1024); }, error: e => erro = e });

@@ -18,7 +18,7 @@ const AtelieArq = {
     try {
       const d = clone(def); await Autores.limpa(d); const eu = await Autores.eu(), enc = new TextEncoder();
       const files = [{ name: 'personagem.json', data: enc.encode(JSON.stringify(d)) }, { name: 'info.json', data: enc.encode(JSON.stringify({ tipo: 'atelieanimador', v: 1, por: eu, em: Date.now() })) }];
-      for (const k of [...new Set([...d.partes.flatMap(p => p.imgs.map(i => i.k)), d.vis?.fantasma?.k, ...(d.audios || []).map(x => x.k)].filter(Boolean))]) { // imagens, fantasma e áudios de teste
+      for (const k of [...new Set([...Modelo.chavesImgs(d), ...(d.audios || []).map(x => x.k)].filter(Boolean))]) { // imagens, fantasma e áudios de teste
         let b = await Arq.blobMelhor(k); if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null);
         if (b) files.push({ name: 'arq/' + encodeURIComponent(k), data: new Uint8Array(await b.arrayBuffer()) });
       }
@@ -138,9 +138,10 @@ const Citacao = {
   },
   personagem(def, o = {}) {
     if (!def || !this.pode()) return;
-    const parte = def.partes?.find(p => p.id === o.sel), anim = (def.animacoes || []).find(a => a.id === o.anim);
-    const sub = anim ? 'Animação de teste: ' + anim.nome : parte ? 'Parte: ' + parte.nome : `Personagem inteiro · ${def.partes?.length || 0} partes`;
-    const base = { prog: 'Animador · Ateliê', titulo: def.nome, sub, mini: def.thumb || o.thumb, parte: { tipo: 'personagem', sel: anim ? null : o.sel || null, anim: anim?.id || null } };
+    const vi = o.vista || (o.sel || o.anim ? def.vistaAtual : null), vNome = vi && def.vistas?.length > 1 ? Modelo.vistaDe(def, vi)?.nome : null, dv = vi ? Modelo.naVista(def, vi) : def;
+    const parte = dv.partes?.find(p => p.id === o.sel), anim = (dv.animacoes || []).find(a => a.id === o.anim);
+    const sub = (anim ? 'Animação de teste: ' + anim.nome : parte ? 'Parte: ' + parte.nome : o.vista ? 'Vista inteira' : `Personagem inteiro · ${def.partes?.length || 0} partes${def.vistas?.length > 1 ? ` · ${def.vistas.length} vistas` : ''}`) + (vNome ? ` · vista ${vNome}` : '');
+    const base = { prog: 'Animador · Ateliê', titulo: def.nome, sub, mini: def.thumb || o.thumb, parte: { tipo: 'personagem', sel: anim ? null : o.sel || null, anim: anim?.id || null, vista: vi || null } };
     if (o.nuvem) return EstudioConta.citar({ ...base, url: '/animador/?atelie=' + encodeURIComponent(def.id) });
     EstudioConta.citar({ ...base, abrir: '/animador/', nomeArquivo: safeName(def.nome) + AtelieArq.EXT,
       arquivo: async () => ({ blob: await AtelieArq.montar(def, { erro: true }), nome: safeName(def.nome) + AtelieArq.EXT }) });
@@ -148,8 +149,9 @@ const Citacao = {
   // no Ateliê: o = { sel } (uma parte), { anim } (uma animação de teste) ou {} (o personagem inteiro); sem nada = a parte escolhida
   atelie(o) { const def = Atelie.def; if (def) this.personagem(def, { nuvem: !!Atelie.naNuvem && !Atelie.sujo, ...(o || { sel: Atelie.sel }) }); },
   // abrir no ponto citado dentro do Ateliê (parte ou animação)
-  irAtelie(parte) {
+  async irAtelie(parte) {
     if (!parte || !Atelie.def) return;
+    if (parte.vista && parte.vista !== Atelie.def.vistaAtual && Atelie.def.vistas?.some(v => v.id === parte.vista)) await Atelie.trocaVista(parte.vista);
     if (parte.anim) { const a = (Atelie.def.animacoes || []).find(x => x.id === parte.anim); if (a) { Atelie.aba = 'animacoes'; Animacoes.sel = a.id; Atelie.pinta(); Animacoes.tocar(a); return; } }
     if (parte.sel && Atelie.def.partes.some(p => p.id === parte.sel)) { Atelie.escolhe(parte.sel); Atelie.pinta(); }
   },

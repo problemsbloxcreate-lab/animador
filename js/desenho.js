@@ -34,7 +34,8 @@ const Render = {
   },
   pecasPersonagem(P, n, q, m) {
     const def = P.personagens[n.ref]; if (!def) return [];
-    return Modelo.montar(def, Modelo.partesNoEstado(def, Modelo.estadoPersonagem(n, q)), m);
+    const est = Modelo.estadoPersonagem(n, q), dv = Modelo.naVista(def, est.vista); // a vista escolhida neste quadro (frente, lado…)
+    return Modelo.montar(dv, Modelo.partesNoEstado(dv, est), m);
   },
   // desenha as camadas no ctx (que já está com a transformação do "mundo" aplicada em base)
   // o.fundo: desenha o fundo do canvas (quadriculado/liso) como a camada mais de baixo da raiz (assim as camadas de efeito valem nele)
@@ -169,7 +170,7 @@ const Render = {
     const out = [];
     this.cadaVisivel(P, q, (n, m) => {
       let b;
-      if (n.tipo === 'personagem') { const def = P.personagens[n.ref]; if (!def) return; b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, Modelo.estadoPersonagem(n, q))); }
+      if (n.tipo === 'personagem') { const def = P.personagens[n.ref]; if (!def) return; const est = Modelo.estadoPersonagem(n, q), dv = Modelo.naVista(def, est.vista); b = Modelo.caixaPersonagem(dv, Modelo.partesNoEstado(dv, est)); }
       else if (n.tipo === 'imagem') { const bm = this.bm(n.arq); const w = bm?.width || 200, h = bm?.height || 200; b = { x: -w / 2, y: -h / 2, w, h }; }
       else if (n.tipo === 'forma') b = { x: -(n.w || 100) / 2, y: -(n.h || 100) / 2, w: n.w || 100, h: n.h || 100 };
       else if (n.tipo === 'texto') { const c = this._med || (this._med = new OffscreenCanvas(4, 4).getContext('2d')); c.font = `${n.negrito ? '800 ' : ''}${n.tam || 72}px ${n.fonte || 'Segoe UI'}`; const ls = String(n.texto || '').split('\n'); const w = Math.max(...ls.map(l => c.measureText(l).width)) + 10, h = ls.length * (n.tam || 72) * 1.15; b = { x: -w / 2, y: -h / 2, w, h }; }

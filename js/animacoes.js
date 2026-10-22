@@ -191,7 +191,8 @@ const Animacoes = {
     const body = h(`<div><label class="field">Quadros por passo<input type="number" min="1" max="48" value="${fppPadrao}" data-f></label><label class="field">Quantas vezes repetir<input type="number" min="1" max="50" value="2" data-r></label>
       <div style="color:var(--tx3);font-size:12px">Começa no quadro ${App.q + 1}. No fim, as partes voltam ao normal.</div></div>`);
     const r = await UI.modal({ title: `Pôr "${a.nome}" na animação`, icon: 'film', body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Pôr', kind: 'primary', collect: x => ({ f: clamp(+$('[data-f]', x.body).value || 1, 1, 48), r: clamp(+$('[data-r]', x.body).value || 1, 1, 50) }) }] });
-    if (!r) return; const fim = this.escreve(n, a, App.q, r.f, r.r); App.commit(`Animação "${a.nome}"`); UI.toast(`"${esc(a.nome)}" posta do quadro ${App.q + 1} ao ${fim}.`, { kind: 'ok' });
+    if (!r) return; const vi = Modelo.vistaDaAnim(def, a.id); if (vi && def.vistas?.length > 1) Modelo.chave(n, App.q).vista = vi; // a animação é de uma vista: o personagem fica nela
+    const fim = this.escreve(n, a, App.q, r.f, r.r); App.commit(`Animação "${a.nome}"`); UI.toast(`"${esc(a.nome)}" posta do quadro ${App.q + 1} ao ${fim}.`, { kind: 'ok' });
   },
   // escreve a animação como chaves no editor: de q0, fpp quadros por passo, reps vezes (devolve o último quadro)
   escreve(n, a, q0, fpp, reps) {
@@ -210,7 +211,7 @@ const Animacoes = {
   async editarNoAtelie(n) {
     const P = App.P, def = P?.personagens?.[n?.ref]; if (!def) return; App.pausa?.(); // pausa a animação no quadro atual
     const est = Modelo.estadoPersonagem(n, App.q), partes = {}; for (const [k, v] of Object.entries(est.partes || {})) if (v) partes[k] = v;
-    await DB.put('arquivos', { def: clone(def), sessoes: est.sessoes || {}, partes, quadro: App.q, anim: P.nome, em: Date.now() }, 'pose-abrir:' + def.id);
+    await DB.put('arquivos', { def: clone(def), sessoes: est.sessoes || {}, partes, vista: est.vista || null, quadro: App.q, anim: P.nome, em: Date.now() }, 'pose-abrir:' + def.id);
     const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', def.id); u.searchParams.set('pose', '1');
     const w = window.open(u.href, '_blank'); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
     else UI.toast(`<b>${esc(def.nome)}</b> abriu no Ateliê na pose do quadro ${App.q + 1}. Quando o personagem for salvo lá, esta animação recebe a mudança sozinha.`, { kind: 'ok', time: 6000 });
@@ -221,6 +222,7 @@ const Animacoes = {
     // animações que só existem na cópia da animação (ex.: criadas pela IA do editor) entram no personagem
     const novas = (r.def?.animacoes || []).filter(x => !(Atelie.def.animacoes || []).some(y => y.id === x.id || y.nome === x.nome));
     if (novas.length) { (Atelie.def.animacoes ||= []).push(...clone(novas)); Atelie.commit(); UI.toast(`${novas.length} animação(ões) da animação aberta entraram no personagem (${esc(novas.map(x => x.nome).join(', '))}).`, { kind: 'ok', time: 6000 }); }
+    if (r.vista && r.vista !== Atelie.def.vistaAtual && Atelie.def.vistas?.some(v => v.id === r.vista)) await Atelie.trocaVista(r.vista); // abre na vista daquele quadro
     this.poseFixa = { sessoes: r.sessoes || {}, partes: r.partes || {}, quadro: r.quadro || 0, anim: r.anim || '' };
     Atelie.teste = { sessoes: { ...this.poseFixa.sessoes }, partes: clone(this.poseFixa.partes) }; Atelie.edit = null; Atelie.editPasso = null; Atelie.pinta(); Atelie.enquadrar();
     UI.toast(`Pose do quadro ${this.poseFixa.quadro + 1} de "${esc(this.poseFixa.anim)}". Clique numa peça para arrumar o preset que ela usa (ou a base).`, { time: 7000 });
