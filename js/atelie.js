@@ -271,7 +271,7 @@ const Atelie = {
     $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); };
     $('#at-add-parte').onclick = () => this.novaParte(); $$('#at-vista-partes [data-v]').forEach(b => b.onclick = () => { this.vistaPartes = b.dataset.v; this.pintaPartes(); }); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
     // soltar imagens no palco do ateliê: entram na parte escolhida (sem parte escolhida, cada uma vira uma parte)
-    const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(l, !this.parte())); } }; // pastas viram partes
+    const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.soltouNoPalco(l)); } }; // pastas viram partes; editando uma imagem, pergunta se vai DENTRO dela (camada)
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
     $$('#at-mover [data-modo]').forEach(b => b.onclick = () => this.setModo(b.dataset.modo));
@@ -437,6 +437,7 @@ const Atelie = {
     if (this.teste && k === 'Escape') { e.preventDefault(); Animacoes.parar(true); this.teste = { sessoes: {}, partes: {} }; return this.pinta(); } // Esc: volta tudo ao padrão (o painel continua aberto)
     if (this.teste && k.toLowerCase() === 't') { e.preventDefault(); return this.painelTeste(false); }
     if (this.teste && Animacoes.rodando) return; // tocando: as teclas de mexer esperam pausar (P)
+    if (e.type === 'keydown' && k === 'T' && e.shiftKey && !ctrl && !e.altKey) return Ajustes.tecla(e); // Shift+T: transformar
     if (k.toLowerCase() === 't' && !e.shiftKey && !e.altKey) { e.preventDefault(); return this.painelTeste(true); }
     if (e.type === 'keydown' && Pintura.tecla(e)) return;
     if ((k === 'Delete' || k === 'Backspace') && Pintura.temSelecao()) { e.preventDefault(); return Pintura.mexeDentro('apagar'); } // área selecionada na imagem
@@ -713,6 +714,16 @@ const Atelie = {
     this.tirarPartes([p]); this.sel = this.def.raiz || this.def.partes[0]?.id || null; this.multi.clear(); this.focoImg = null; this.commit();
   },
   // imagens: viram variações da parte escolhida (ou, soltas na lista de partes, uma parte nova cada)
+  // imagens soltas no palco: na aba Pintar (editando uma imagem) pergunta se elas entram DENTRO da imagem, como camadas
+  async soltouNoPalco(l) {
+    const a = this.aba === 'pintar' && Pintura.alvo(); if (!l?.length) return;
+    if (a && !l.some(f => f._parte)) {
+      const r = await UI.modal({ title: 'Onde pôr a imagem?', icon: 'layers', width: 440, body: `<div>Você está editando <b>${esc(a.img.nome)}</b> (${esc(a.p.nome)}).<br><br><b>Dentro desta imagem</b>: ${l.length > 1 ? 'cada uma vira uma camada' : 'vira uma camada'} dela (a imagem passa a ter camadas, como no Photoshop).<br><b>Como imagem nova</b>: ${l.length > 1 ? 'viram imagens' : 'vira mais uma imagem'} da parte, como antes.</div>`,
+        buttons: [{ label: 'Cancelar', value: null, left: true }, { label: 'Como imagem nova', value: 'nova' }, { label: 'Dentro desta imagem', kind: 'primary', value: 'dentro' }] });
+      if (!r) return; if (r === 'dentro') { if (!Camadas.tem(a.img)) await Camadas.virar(a.img); for (const f of l) await Camadas.deArquivo(a.img, f); return UI.toast(`${l.length} camada(s) nova(s) em <b>${esc(a.img.nome)}</b>. Use <b>Mover camada (K)</b> para pôr no lugar.`, { kind: 'ok' }); }
+    }
+    return this.addImagens(l, !this.parte());
+  },
   // a parte de uma pasta: a que já tem esse nome (soltar a pasta de novo junta nela) ou uma nova
   parteDaPasta(nome) {
     const n = Pastas.nrm(nome); let p = this.def.partes.find(x => Pastas.nrm(x.nome) === n);
@@ -776,6 +787,8 @@ const Atelie = {
       c.oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [
         { label: 'Usar esta imagem', icon: 'check', action: () => { this.mudar(p.id, { img: img.id }); this.commit(); } },
         { label: 'Renomear', icon: 'edit', action: () => this.renomearImg(img) },
+        Camadas.tem(img) ? { label: 'Juntar as camadas (imagem só)', icon: 'layers', action: () => Camadas.achatarTudo(img) } : { label: 'Editar com camadas', icon: 'layers', action: async () => { this.mudar(p.id, { img: img.id }); await Camadas.virar(img); this.aba = 'pintar'; this.pinta(); } },
+        (() => { const vis = p.imgs.find(i => i.id === this.estado()[p.id]?.img); return vis && vis !== img ? { label: `Pôr como camada em "${vis.nome}"`, icon: 'layers', action: async () => { if (!Camadas.tem(vis)) await Camadas.virar(vis); await Camadas.deImagem(vis, img); } } : null; })(),
         p.imgs.length > 1 && { label: 'Todas as outras no mesmo lugar desta', icon: 'move', sub: [{ label: 'Pelo centro', action: () => this.alinharImagens(p, 'centro', img) }, { label: 'Por baixo (pés no mesmo chão)', action: () => this.alinharImagens(p, 'baixo', img) }, { label: 'Por cima', action: () => this.alinharImagens(p, 'cima', img) }] },
         { label: 'Mover para a pasta', icon: 'folder', sub: [{ label: '(sem pasta)', checked: !img.pasta, action: () => { delete img.pasta; this.commit(); } }, ...p.pastas.map(n => ({ label: n, checked: img.pasta === n, action: () => { img.pasta = n; this.commit(); } })), '-', { label: 'Pasta nova…', icon: 'plus', action: async () => { const n = await this.novaPastaImg(p); if (n) { img.pasta = n; this.commit(); } } }] },
         '-', { label: 'Tirar a imagem', icon: 'trash', key: 'Delete', danger: true, action: () => this.tirarImg(p, img) },

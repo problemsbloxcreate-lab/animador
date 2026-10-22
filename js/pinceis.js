@@ -60,7 +60,7 @@ Object.assign(Pintura, {
   // traço do pincel/borracha (chamado pelo Pintura.desce)
   async traco(e, a, pt, mask) {
     const apaga = this.ferr === 'borracha' || this.borrachaDaCaneta(e), cfg = this.cfg[apaga ? 'borracha' : 'pincel'], cor = apaga ? '#000000' : this.cor;
-    const { cv, c } = this.tela(a.bm), orig = a.bm, k0 = a.img.k, base = this.tela(a.bm).cv, lay = new OffscreenCanvas(cv.width, cv.height), lc = lay.getContext('2d');
+    const { cv, c } = this.tela(a.bm), orig = a.orig || a.bm, k0 = a.img.k, vivo = a.vivo || (x => Arq.img.set(k0, x)), base = this.tela(a.bm).cv, lay = new OffscreenCanvas(cv.width, cv.height), lc = lay.getContext('2d');
     // borracha de fundo: só onde a cor parece com a do primeiro toque
     let fundo = null; if (apaga && cfg.modo === 'fundo') fundo = this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, true);
     const junta = () => { let l2 = lay; for (const m of [mask, fundo]) if (m) { const t = new OffscreenCanvas(cv.width, cv.height), x = t.getContext('2d'); x.drawImage(l2, 0, 0); x.globalCompositeOperation = 'destination-in'; x.drawImage(m, 0, 0); l2 = t; }
@@ -77,12 +77,12 @@ Object.assign(Pintura, {
     };
     // Shift+clique: linha reta desde o último ponto desta imagem
     if (e.shiftKey && this._ultimo?.k === a.img.id) { ult = { ...this._ultimo.pt }; pAnt = this.pressao(e); ponto(pt, this.pressao(e)); junta(); this._ultimo = { k: a.img.id, pt }; await this.gravar(a.img, cv); Atelie.commit(); return; }
-    ponto(pt, this.pressao(e)); junta(); Arq.img.set(k0, cv); Atelie.desenha();
+    ponto(pt, this.pressao(e)); junta(); vivo(cv); Atelie.desenha(); // com camadas: mostra a imagem final com o traço na camada ativa
     try { Atelie.cv.setPointerCapture(e.pointerId); } catch { } let pend = false;
     const mov = ev => {
       const lista = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
       for (const ce of (lista.length ? lista : [ev])) { const raw = a.para(Atelie.mundo(ce)), k = 1 - clamp(cfg.suav, 0, .95); liso = { x: liso.x + (raw.x - liso.x) * k, y: liso.y + (raw.y - liso.y) * k }; ponto(liso, this.pressao(ce)); }
-      this.mouse = { x: ev.offsetX, y: ev.offsetY }; if (!pend) { pend = true; requestAnimationFrame(() => { pend = false; junta(); Atelie.desenha(); }); }
+      this.mouse = { x: ev.offsetX, y: ev.offsetY }; if (!pend) { pend = true; requestAnimationFrame(() => { pend = false; junta(); vivo(cv); Atelie.desenha(); }); }
     };
     const up = async ev => { Atelie.cv.removeEventListener('pointermove', mov); Atelie.cv.removeEventListener('pointerup', up);
       const raw = a.para(Atelie.mundo(ev)); ponto(raw, pAnt); junta(); // fecha o traço onde a caneta saiu (a suavização não deixa ele curto)

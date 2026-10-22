@@ -20,6 +20,7 @@ const App = {
   // chame depois de mudar o projeto (o que estava antes vai para o desfazer)
   commit(rotulo, o = {}) {
     const agora = JSON.stringify(this.P); if (agora === this.ultimo) return this.atualiza(o);
+    if (this.P.anterior) delete this.P.anterior; // mudou de verdade: deixa de ser "o anterior" (virou um arquivo comum)
     this.desfazer.push(this.ultimo); if (this.desfazer.length > 120) this.desfazer.shift(); this.refazer = []; this.ultimo = agora;
     this.P.modificado = Date.now(); this.salvarLogo(); this.atualiza(o);
   },

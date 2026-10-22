@@ -5,7 +5,7 @@
 const Pintura = {
   ferr: 'mover', cor: '#222222', tam: 14, tol: 48, opac: 1, escopo: 'imagem', selCores: [], paletaEscopo: 'tudo', mouse: null,
   FERR: [['mover', 'Mover', 'move', 'V'], ['pincel', 'Pincel', 'brush', 'B'], ['borracha', 'Borracha', 'eraser', 'N'], ['balde', 'Balde', 'bucket', 'G'], ['conta', 'Conta-gotas', 'pipette', 'I'],
-    ['ret', 'Seleção', 'marquee', 'M'], ['laco', 'Laço', 'lasso', 'L'], ['varinha', 'Varinha', 'wand', 'W'], ['magica', 'Borr. mágica', 'magicEraser', 'Y']],
+    ['camada', 'Mover camada', 'layers', 'K'], ['ret', 'Seleção', 'marquee', 'M'], ['laco', 'Laço', 'lasso', 'L'], ['varinha', 'Varinha', 'wand', 'W'], ['magica', 'Borr. mágica', 'magicEraser', 'Y']],
   liga() {
     if (this._ligado) return; this._ligado = true; const cv = Atelie.cv;
     cv.addEventListener('pointermove', e => { if (this.ferr === 'mover') { if (this.mouse) { this.mouse = null; Atelie.desenha(); } return; } this.mouse = { x: e.offsetX, y: e.offsetY }; Atelie.desenha(); });
@@ -21,10 +21,10 @@ const Pintura = {
   // a imagem que está aparecendo na parte escolhida e o jeito de ir do mundo para os pixels dela
   alvo() {
     const p = Atelie.parte(); if (!p) return null; const it = Modelo.montar(Atelie.def, Atelie.estado()).find(x => x.parte.id === p.id); if (!it?.img) return null;
-    const bm = Arq.img.get(it.img.k); if (!bm) return null;
+    const cam = Camadas.tem(it.img) ? Camadas.ativa(it.img) : null, orig = Arq.img.get(it.img.k), bm = cam ? Arq.img.get(cam.k) : orig; if (!bm) return null;
     const img = it.img, px = img.pivo?.x ?? img.w / 2, py = img.pivo?.y ?? img.h / 2, inv = it.m.inverse(), kx = bm.width / img.w, ky = bm.height / img.h;
     const ajx = img.ajuste?.x || 0, ajy = img.ajuste?.y || 0;
-    return { p, img, bm, it, de: q => it.m.transformPoint(new DOMPoint(q.x / kx - px + ajx, q.y / ky - py + ajy)), mImg: it.m.translate(-px + ajx, -py + ajy).scale(1 / kx, 1 / ky), para: w => { const l = inv.transformPoint(new DOMPoint(w.x, w.y)); return { x: (l.x + px - (img.ajuste?.x || 0)) * kx, y: (l.y + py - (img.ajuste?.y || 0)) * ky }; }, k: (kx + ky) / 2, escala: Math.hypot(it.m.a, it.m.b) };
+    return { p, img, bm, it, cam, orig, vivo: cam ? cv => Arq.img.set(img.k, Camadas.compoe(img, { [cam.id]: cv })) : null, de: q => it.m.transformPoint(new DOMPoint(q.x / kx - px + ajx, q.y / ky - py + ajy)), mImg: it.m.translate(-px + ajx, -py + ajy).scale(1 / kx, 1 / ky), para: w => { const l = inv.transformPoint(new DOMPoint(w.x, w.y)); return { x: (l.x + px - (img.ajuste?.x || 0)) * kx, y: (l.y + py - (img.ajuste?.y || 0)) * ky }; }, k: (kx + ky) / 2, escala: Math.hypot(it.m.a, it.m.b) };
   },
   // círculo do pincel no palco
   desenhaCursor(ctx) {
@@ -36,6 +36,7 @@ const Pintura = {
   },
   // grava o canvas como imagem nova da parte (chave nova: o desfazer volta a antiga)
   async gravar(img, cv) {
+    if (Camadas.tem(img)) { const c = Camadas.ativa(img); c.k = await Camadas.guarda(cv); return Camadas.achata(img); } // pinta na camada ativa e refaz a imagem final
     const blob = await cv.convertToBlob({ type: 'image/png' }), iid = uid('im').toLowerCase().replace(/[^a-z0-9]/g, ''), k = `personagens/${Atelie.def.id}/img/${iid}.png`;
     await Arq.guardar(blob, k); Arq.img.set(k, await createImageBitmap(blob)); img.k = k; return k;
   },
@@ -48,6 +49,12 @@ const Pintura = {
       this.cor = hex; if (e.shiftKey) this.marca(hex, true); Atelie.pinta(); return;
     }
     if (['ret', 'laco', 'varinha'].includes(this.ferr)) return this.desceSelecao(e, a, pt);
+    if (this.ferr === 'camada') { // MOVER CAMADA: arrasta os pixels da camada ativa
+      if (!a.cam) return UI.toast('Esta imagem não tem camadas: botão direito na imagem › Editar com camadas (ou Pintar e cores › Camadas).', { kind: 'warn' });
+      const cv0 = Atelie.cv; try { cv0.setPointerCapture(e.pointerId); } catch { } let ult = pt, d = { x: 0, y: 0 };
+      const mov = ev => { const q = a.para(Atelie.mundo(ev)); d = { x: q.x - pt.x, y: q.y - pt.y }; if (ev.shiftKey) { if (Math.abs(d.x) > Math.abs(d.y)) d.y = 0; else d.x = 0; } a.vivo(Camadas.deslocado(a.bm, d.x, d.y)); Atelie.desenha(); };
+      const up = async () => { cv0.removeEventListener('pointermove', mov); cv0.removeEventListener('pointerup', up); Arq.img.set(a.img.k, a.orig); if (Math.abs(d.x) + Math.abs(d.y) < .5) return Atelie.desenha(); await this.gravar(a.img, Camadas.deslocado(a.bm, d.x, d.y)); Atelie.commit(); };
+      cv0.addEventListener('pointermove', mov); cv0.addEventListener('pointerup', up); return; }
     const { cv, c } = this.tela(a.bm), orig = a.bm, k0 = a.img.k, mask = this.mascara(a);
     if (this.ferr === 'balde' || this.ferr === 'magica') { // balde pinta a área parecida; borracha mágica apaga a área parecida
       const antes = mask ? this.tela(a.bm) : null;
@@ -91,6 +98,7 @@ const Pintura = {
     trocas = trocas.filter(t => /^#[0-9a-f]{6}$/i.test(t.de) && /^#[0-9a-f]{6}$/i.test(t.para)).map(t => ({ de: rgbDe(t.de), para: rgbDe(t.para) })); if (!trocas.length) return 0;
     let n = 0; const lim = tol * 1.7;
     for (const [, img] of this.imagens(escopo)) {
+      if (Camadas.tem(img)) { let algum = false; for (const cam of img.camadas) { await Arq.garantir([cam.k]); const b = Arq.img.get(cam.k); if (!b) continue; const t = this.tela(b), dd = t.c.getImageData(0, 0, t.cv.width, t.cv.height); if (this.trocaPixels(dd.data, trocas, lim)) { t.c.putImageData(dd, 0, 0); cam.k = await Camadas.guarda(t.cv); algum = true; } } if (algum) { await Camadas.achata(img); n++; } continue; } // com camadas: troca em cada uma
       await Arq.garantir([img.k]); const bm = Arq.img.get(img.k); if (!bm) continue; const { cv, c } = this.tela(bm), d = c.getImageData(0, 0, cv.width, cv.height), D = d.data; let mudou = false;
       for (let i = 0; i < D.length; i += 4) { if (!D[i + 3]) continue; let best = null, bd = lim;
         for (const t of trocas) { const dd = Math.abs(D[i] - t.de[0]) + Math.abs(D[i + 1] - t.de[1]) + Math.abs(D[i + 2] - t.de[2]); if (dd < bd) { bd = dd; best = t; } }
@@ -99,6 +107,11 @@ const Pintura = {
     }
     if (n) Atelie.commit(); return n;
   },
+  trocaPixels(D, trocas, lim) { let mudou = false;
+    for (let i = 0; i < D.length; i += 4) { if (!D[i + 3]) continue; let best = null, bd = lim;
+      for (const t of trocas) { const dd = Math.abs(D[i] - t.de[0]) + Math.abs(D[i + 1] - t.de[1]) + Math.abs(D[i + 2] - t.de[2]); if (dd < bd) { bd = dd; best = t; } }
+      if (!best) continue; const f = 1 - (bd / lim) ** 2; for (let j = 0; j < 3; j++) D[i + j] = clamp(Math.round(D[i + j] + (best.para[j] - best.de[j]) * f), 0, 255); mudou = true; }
+    return mudou; },
   SIS_IA: `Você ajusta as CORES de um personagem 2D feito de imagens. Recebe a paleta (cores que mais aparecem, com a porcentagem), as cores que a pessoa selecionou e o pedido.
 Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"uma frase em português"}.
 "de" tem que ser uma cor da paleta ou das selecionadas. Troque só o que o pedido pede (se pedir para a cor selecionada ficar parecida com as outras selecionadas, troque só ela, no mesmo tom/saturação/brilho das outras). Mantenha contornos escuros e o branco dos olhos, a não ser que peçam. Máximo 18 trocas.`,
@@ -132,6 +145,7 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
   async pintaAba(el) {
     const ferr = h(`<div class="pt-ferr">${this.FERR.map(([f, n, i, k]) => `<button class="${this.ferr === f ? 'on' : ''}" data-f="${f}" title="${n} (${k})">${ic(i, 16)}<small>${n}</small></button>`).join('')}</div>`);
     $$('[data-f]', ferr).forEach(b => b.onclick = () => this.usa(b.dataset.f)); el.appendChild(ferr);
+    Camadas.painel(el); if (window.Ajustes) Ajustes.botoes(el);
     const box = h(`<div class="props"><div class="campo2"><span style="color:var(--tx2)">Cor</span><input type="color" value="${this.cor}" data-cor><code style="color:var(--tx3)">${this.cor}</code></div></div>`);
     $('[data-cor]', box).oninput = ev => { this.cor = ev.target.value; $('code', box).textContent = this.cor; };
     if (['pincel', 'borracha'].includes(this.ferr)) box.appendChild(this.controles(false));

@@ -28,15 +28,17 @@ const Home = {
     const g = $('[data-g]', c), todos = (await DB.all('projetos')).sort((a, b) => b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));
     g.innerHTML = L.length ? '' : `<div class="vazio" style="grid-column:1/-1">${todos.length ? 'Nada com esse nome.' : 'Nenhuma animação ainda: escolha um formato aí em cima.'}</div>`;
     for (const p of L) {
-      const card = h(`<div class="pc"><div class="th" style="${p.thumb ? `background-image:url('${p.thumb}')` : ''}">${p.thumb ? '' : ic('film', 26)}</div><div class="in"><b>${esc(p.nome)}</b><small>${fmtDate(p.modificado)} · ${p.duracao} quadros · ${p.w}×${p.h}</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button></div>`);
+      const card = h(`<div class="pc"><div class="th" style="${p.thumb ? `background-image:url('${p.thumb}')` : ''}">${p.thumb ? '' : ic('film', 26)}</div><div class="in"><b>${esc(p.nome)}</b><small>${fmtDate(p.modificado)} · ${p.duracao} quadros · ${p.w}×${p.h}</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span>${p.anterior ? '<span class="anterior" title="A versão de ANTES do trabalho em conjunto. Vira um arquivo comum quando você mudar algo nela.">anterior</span>' : ''}</div>`);
+      Arquivos.poe($('.tam', card), Arquivos.tamProjeto(p));
       card.onclick = e => { if (!e.target.closest('.mn')) App.abrir(p); };
       $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
         { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da animação', value: p.nome }); if (n) { p.nome = n; await DB.put('projetos', p); this.pinta(); } } },
         { label: 'Duplicar', icon: 'dup', action: async () => { const c2 = clone(p); c2.id = uid('p'); c2.nome += ' (cópia)'; c2.modificado = Date.now(); await DB.put('projetos', c2); this.pinta(); } },
         { label: 'Baixar .animador', icon: 'download', action: () => Toon.baixar(p) },
+        p.anterior && { label: 'Apagar este anterior', icon: 'trash', danger: true, action: () => this.apagar(p) },
         { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.animacao(p, 0) },
         '-', { label: 'Apagar', icon: 'trash', danger: true, action: () => this.apagar(p) },
-      ]); };
+      ].filter(Boolean)); };
       g.appendChild(card);
     }
   },
@@ -123,10 +125,12 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
     $('[data-busca]', c).oninput = ev => { this.qp = ev.target.value; filtra(); };
     // rascunhos: mudanças guardadas só neste computador (ainda não foram para a nuvem)
     Atelie.rascunhos().then(rs => { if (!rs.length) return; const sec = h(`<section class="bloco-sec local"><div class="sec">${ic('save', 14)} Só neste computador <small class="sec-sub">personagens locais e mudanças que ainda não foram para a nuvem (a equipe não vê)</small></div><div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div></section>`), g = $('.grade', sec);
-      for (const r of rs) { const card = h(`<div class="pc rasc" data-prev-rasc="${esc(r.def.id)}"><div class="th" style="aspect-ratio:1;${r.thumb ? `background-image:url('${r.thumb}')` : ''}">${r.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(r.def.nome)}</b><small>guardado ${fmtDate(r.em)}</small></div><span class="tag-local">${ic('save', 11)} ${r.nuvem ? 'falta enviar' : 'só aqui'}</span><button class="ibtn mn">${ic('dots', 15)}</button></div>`);
+      for (const r of rs) { const card = h(`<div class="pc rasc" data-prev-rasc="${esc(r.def.id)}"><div class="th" style="aspect-ratio:1;${r.thumb ? `background-image:url('${r.thumb}')` : ''}">${r.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(r.def.nome)}</b><small>guardado ${fmtDate(r.em)}</small></div><span class="tag-local">${ic('save', 11)} ${r.nuvem ? 'falta enviar' : 'só aqui'}</span><button class="ibtn mn">${ic('dots', 15)}</button><span class="tam" hidden></span></div>`);
+        Arquivos.poe($('.tam', card), Arquivos.tamDef(r.def, r.em));
         card.onclick = e => { if (!e.target.closest('.mn')) Atelie.abrirAba(r.def.id); };
         $('.mn', card).onclick = e => { e.stopPropagation(); const b = e.currentTarget.getBoundingClientRect(); UI.ctx(b.right - 200, b.bottom + 4, [
           { label: 'Continuar no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(r.def.id) }, { label: 'Baixar .atelieanimador', icon: 'download', action: () => AtelieArq.baixar(r.def) },
+          { label: 'Duplicar (cópia só neste computador)', icon: 'dup', action: async () => { await Arquivos.duplicarPersonagem(r.def, r.thumb); this.pinta(); } },
           { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.personagem(r.def, { thumb: r.thumb }) },
           '-', { label: 'Descartar o rascunho', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Descartar o rascunho de "${esc(r.def.nome)}"?`, msg: 'As mudanças que não foram para a nuvem somem deste computador.', ok: 'Descartar', danger: true })) { await Atelie.apagarRascunho(r.def.id); this.pinta(); } } }]); };
         g.appendChild(card); }
@@ -136,12 +140,13 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       l.innerHTML = ''; for (const pa of [...new Set(lista.map(x => x.pasta))]) {
         l.appendChild(this.tituloPasta(pa)); const g = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div>');
         for (const it of lista.filter(x => x.pasta === pa)) {
-          const card = h(`<div class="pc" data-prev-id="${esc(it.id)}"><div class="th" style="aspect-ratio:1;${it.thumb ? `background-image:url('${it.thumb}')` : ''}">${it.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(it.nome)}</b><small>${it.modificado ? fmtDate(it.modificado) : ''}</small></div><button class="ibtn mn">${ic('dots', 15)}</button></div>`);
+          const card = h(`<div class="pc" data-prev-id="${esc(it.id)}"><div class="th" style="aspect-ratio:1;${it.thumb ? `background-image:url('${it.thumb}')` : ''}">${it.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(it.nome)}</b><small>${it.modificado ? fmtDate(it.modificado) : ''}</small></div><button class="ibtn mn">${ic('dots', 15)}</button>${it.tam ? `<span class="tam">${Arquivos.fmt(it.tam)}</span>` : ''}</div>`);
           card.onclick = e => { if (!e.target.closest('.mn')) Atelie.abrirAba(it.id); };
           const selo = Autores.selo(it); if (selo) card.appendChild(selo);
           $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
             { label: 'Abrir no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(it.id) },
             { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.personagem({ id: it.id, nome: it.nome, thumb: it.thumb, partes: [] }, { nuvem: true }) },
+            { label: 'Duplicar (cópia só neste computador)', icon: 'dup', action: async () => { try { await Arquivos.duplicarPersonagem(await Nuvem.abrir(it.id), it.thumb); this.pinta(); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } } },
             { label: 'Baixar .atelieanimador (backup)', icon: 'download', action: async () => { try { AtelieArq.baixar(await Nuvem.abrir(it.id)); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } } },
             '-', !Nuvem.adm ? { label: 'Apagar da nuvem (só ADM)', icon: 'lock', action: () => Nuvem.pedeAdm(it.nome) } : { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome); if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
           ]); };

@@ -97,7 +97,7 @@ Object.assign(Pintura, {
   // corta as bordas transparentes sem tirar a peça do lugar
   async apararLista(lista) {
     let n = 0; await Arq.garantir(lista.map(i => i.k));
-    for (const img of lista) { const bm = Arq.img.get(img.k); if (!bm) continue; const { cv } = this.tela(bm), bb = this.bbox(cv); if (!bb || (bb.w === bm.width && bb.h === bm.height)) continue;
+    for (const img of lista) { if (Camadas.tem(img)) continue; /* com camadas: não apara (as camadas têm o tamanho da imagem) */ const bm = Arq.img.get(img.k); if (!bm) continue; const { cv } = this.tela(bm), bb = this.bbox(cv); if (!bb || (bb.w === bm.width && bb.h === bm.height)) continue;
       const o = new OffscreenCanvas(bb.w, bb.h); o.getContext('2d').drawImage(cv, -bb.x, -bb.y); const kx = bm.width / img.w, ky = bm.height / img.h, pv = img.pivo || { x: img.w / 2, y: img.h / 2 };
       img.k = await this.guardarImg(o); img.pivo = { x: round(pv.x - bb.x / kx, 2), y: round(pv.y - bb.y / ky, 2) }; img.w = round(bb.w / kx, 2); img.h = round(bb.h / ky, 2); n++; }
     return n;
@@ -109,6 +109,7 @@ Object.assign(Pintura, {
   // teclas com Ctrl (chamado pelo Atelie.teclas)
   teclaCtrl(e) {
     const k = e.key.toLowerCase(); if (Atelie.teste && Animacoes.rodando) return false;
+    if (window.Ajustes && Ajustes.tecla(e)) return true; // Ctrl+U, Ctrl+Shift+U, Ctrl+I
     if (k === 'd') { e.preventDefault(); this.desmarcar(); return true; }
     if (k === 'a') { e.preventDefault(); this.tudo(); return true; }
     if (k === 'i' && e.shiftKey) { e.preventDefault(); this.inverter(); return true; }
