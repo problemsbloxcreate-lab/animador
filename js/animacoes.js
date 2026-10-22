@@ -18,7 +18,15 @@ function ordenavel(el, tipo, valor, aoSoltar, horizontal) {
 function moveNaLista(L, i, j, antes) { if (i === j) return; const [x] = L.splice(i, 1); if (i < j) j--; L.splice(antes ? j : j + 1, 0, x); }
 const VELOCIDADES = [[80, '0,08 s'], [120, '0,12 s'], [180, '0,18 s'], [250, '0,25 s'], [400, '0,4 s'], [700, '0,7 s'], [1000, '1 s']];
 const Animacoes = {
-  sel: null, passo: null, tocando: null, _t: null,
+  sel: null, passo: null, tocando: null, _t: null, passoSel: null, // passoSel = { t, i }: o passo escolhido na timeline (js/linha.js)
+  // o passo parado na tela (timeline): { a, ti, pi, p } — aí clicar numa pose muda ESTE passo
+  passoAtual() { if (!this.tocando || !this.pausado || !this.passoSel || this.poseFixa) return null; const a = this.achar(this.tocando), t = a?.trilhas?.[this.passoSel.t]; if (!t?.length) return null; const pi = ((this.passoSel.i % t.length) + t.length) % t.length; return { a, ti: this.passoSel.t, pi, p: t[pi] }; },
+  irPara(a, ti, pi) { this.parar(true); this.poseFixa = null; this.passo = null; this.sel = a.id; this.tocando = a.id; this.pausado = true; this.i = pi; this.passoSel = { t: ti, i: pi }; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, pi); Atelie.pinta(); },
+  // a pose (preset) da sessão s neste passo (null = Padrão). Vai para o passo que já manda nessa sessão agora (ou o da trilha escolhida)
+  usarPose(s, pr) {
+    const st = this.passoAtual(); if (!st) return; const L = this.passosAgora(st.a, this.i); let alvo = L.filter(x => x.p.s && s.id in x.p.s).pop()?.p || st.p;
+    alvo.s = alvo.s || {}; if (pr) alvo.s[s.id] = pr.id; else delete alvo.s[s.id]; Atelie.teste = this.frame(st.a, this.i); Atelie.commit();
+  },
   get def() { return Atelie.def; },
   lista() { const d = this.def; return d ? (d.animacoes ||= []) : []; },
   achar(id = this.sel) { return this.lista().find(a => a.id === id) || null; },
@@ -53,14 +61,14 @@ const Animacoes = {
   frameAtual() { if (this.poseFixa) return this.poseFixa; const a = this.achar(this.tocando); return a ? this.frame(a, this.i) : Atelie.teste || null; },
   tocar(a, de = 0) {
     this.parar(true); window.Falas?.parar(); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem passos. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
-    this.poseFixa = null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, de); this.tocando = a.id; this.sel = a.id; this.passo = null; this.pausado = false; this.i = de;
+    this.poseFixa = null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, de); this.tocando = a.id; this.sel = a.id; this.passo = null; this.passoSel = null; this.pausado = false; this.i = de;
     const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = this.frame(a, this.i); Atelie.desenha(); Atelie.pintaTesteLeve(); this.i++; };
     vai(); this._t = setInterval(vai, +a.vel || 250); Atelie.pinta();
   },
   // pausa no passo que está na tela (clicar numa peça arruma aquele passo/preset); continuar segue dali
   pausar(quieto) { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; this.pausado = true; this.i = Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); if (!quieto) UI.toast('Pausado. Clique numa peça para arrumar <b>este passo</b> (ou o preset que ele usa).', { time: 4000 }); },
   continuar() { const a = this.achar(this.tocando); if (!a) return; Atelie.edit = null; Atelie.editPasso = null; this.tocar(a, this.i + 1); },
-  passoMais(d) { const a = this.achar(this.tocando); if (!a) return; if (!this.pausado) this.pausar(); this.i = this.i + d; Atelie.teste = this.frame(a, this.i); Atelie.edit = null; Atelie.editPasso = null; Atelie.pinta(); },
+  passoMais(d) { const a = this.achar(this.tocando); if (!a) return; if (!this.pausado) this.pausar(true); this.i = this.i + d; this.passoSel = { t: this.passoSel?.t ?? 0, i: this.i }; Atelie.teste = this.frame(a, this.i); Atelie.edit = null; Atelie.editPasso = null; Atelie.pinta(); },
   parar(quieto) { clearInterval(this._t); this._t = null; const tinha = this.tocando; this.tocando = null; this.pausado = false; if (Atelie.editPasso) Atelie.editPasso = null; if (tinha && !quieto) Atelie.pinta(); },
   // com a animação pausada (ou a pose do editor): clicou na peça → o que ela edita (o passo da trilha, o preset da sessão, ou a base)
   alvoPausa(pid) {
@@ -85,7 +93,7 @@ const Animacoes = {
   async nova() {
     const nome = await UI.prompt({ title: 'Animação de teste nova', label: 'Nome (ex.: Andar, Falar, Piscar, Acenar)', ok: 'Criar' }); if (!nome) return;
     const a = { id: uid('an'), nome, vel: 250, trilhas: [[]] }; this.lista().push(a); this.sel = a.id; Atelie.commit();
-    if (!Atelie.teste) Atelie.testar(true); UI.toast('Escolha no painel Testar o que aparece no 1º passo e clique em <b>+ Passo</b>. Repita para os próximos.', { kind: 'ok', time: 7000 });
+    a.trilhas = [[{ s: {}, p: {} }]]; Atelie.commit(); this.irPara(a, 0, 0); UI.toast('Animação criada com 1 passo. Na timeline embaixo: clique num passo e escolha as <b>poses</b> dele (aba Poses); <b>+ Passo</b> cria o próximo.', { kind: 'ok', time: 8000 });
   },
   menu(ev, a) {
     UI.ctx(ev.clientX, ev.clientY, [
@@ -116,45 +124,27 @@ const Animacoes = {
 
   /* ---------- aba ---------- */
   pinta(el) {
+    // aba Animações: só a lista (os passos ficam na TIMELINE embaixo do palco) + o que é extra, fechado em seções
     const L = this.lista(), def = this.def;
-    const topo = h(`<div class="anims-at"><div class="campo2"><button class="btn sm" data-nova>${ic('plus', 13)} Animação</button><button class="btn sm ia" data-ia title="A IA cria animações de teste (andar, falar, piscar…) com as peças que existem">${ic('sparkles', 13)} Criar com a IA</button><span class="sp"></span>${this.tocando ? `<button class="btn sm" data-parar>${ic('pause', 12)} Parar</button>` : ''}</div></div>`);
-    topo.appendChild(RefsAnim.campo({ lista: () => (def.refsAnim ||= []), chave: () => `personagens/${def.id}/img/ref${uid('').toLowerCase().replace(/[^a-z0-9]/g, '')}.jpg`, mudou: () => Atelie.commit({ soDesenho: true }) }));
-    $('[data-nova]', topo).onclick = () => this.nova(); $('[data-ia]', topo).onclick = () => Atelie.ia('animacoes'); if ($('[data-parar]', topo)) $('[data-parar]', topo).onclick = () => this.parar();
-    if (!L.length) topo.appendChild(h('<div class="vazio">Animações de teste mostram o personagem se mexendo (andar, falar, piscar, acenar…) para conferir se as peças encaixam.<br><br>Crie uma, ou peça para a <b>IA organizar tudo</b>.</div>'));
+    const box = h(`<div class="anims-at"><div class="campo2"><button class="btn sm" data-nova>${ic('plus', 13)} Animação</button><button class="btn sm ia" data-ia title="A IA cria animações de teste (andar, falar, piscar…) com as poses que existem">${ic('sparkles', 13)} Criar com a IA</button></div>
+      <div class="ab-dica">Escolha uma animação: os passos aparecem na <b>timeline</b> embaixo do palco. Clique num passo e escolha as <b>poses</b> dele na aba Poses.</div></div>`);
+    $('[data-nova]', box).onclick = () => this.nova(); $('[data-ia]', box).onclick = () => Atelie.ia('animacoes');
+    if (!L.length) box.appendChild(h('<div class="vazio">Nenhuma animação de teste ainda (andar, falar, piscar, acenar…).</div>'));
     for (const a of L) {
-      const aberta = this.sel === a.id, toca = this.tocando === a.id, nP = a.trilhas.reduce((n, t) => Math.max(n, t.length), 0);
-      const c = h(`<div class="anim ${aberta ? 'aberta' : ''} ${toca ? 'toca' : ''}"><div class="cab"><button class="ibtn play" title="${toca ? 'Parar' : 'Tocar'}">${ic(toca ? 'pause' : 'play', 13)}</button><b>${esc(a.nome)}</b><small>${a.trilhas.length > 1 ? a.trilhas.length + ' trilhas · ' : ''}${nP} passo${nP === 1 ? '' : 's'}</small><span class="sp"></span>
-        <select data-vel title="Troca a cada">${VELOCIDADES.map(([v, t]) => `<option value="${v}" ${+a.vel === v ? 'selected' : ''}>${t}</option>`).join('')}</select><button class="ibtn" data-m title="Mais">${ic('dots', 13)}</button></div></div>`);
-      $('.play', c).onclick = () => toca ? this.parar() : this.tocar(a);
-      $('.cab', c).onclick = ev => { if (ev.target.closest('button,select')) return; this.sel = aberta ? null : a.id; Atelie.pinta(); };
-      $('[data-vel]', c).onchange = ev => { a.vel = +ev.target.value; Atelie.commit({ soDesenho: true }); if (toca) this.tocar(a); };
+      const on = this.sel === a.id, toca = this.tocando === a.id && !this.pausado, nP = a.trilhas.reduce((n, t) => Math.max(n, t.length), 0);
+      const c = h(`<div class="ab-item ${on ? 'on' : ''}"><button class="ibtn" data-p title="${toca ? 'Pausar' : 'Tocar'}">${ic(toca ? 'pause' : 'play', 13)}</button><span class="ab-nome">${esc(a.nome)}</span><small>${nP} passo${nP === 1 ? '' : 's'}${a.trilhas.length > 1 ? ` · ${a.trilhas.length} trilhas` : ''}</small><button class="ibtn" data-m title="Mais">${ic('dots', 13)}</button></div>`);
+      c.onclick = ev => { if (ev.target.closest('button')) return; this.parar(true); this.passoSel = null; this.sel = a.id; Atelie.teste = null; Atelie.pinta(); };
+      $('[data-p]', c).onclick = () => { this.sel = a.id; Linha.tocaPausa(); };
       $('[data-m]', c).onclick = ev => this.menu(ev, a); c.oncontextmenu = ev => { ev.preventDefault(); this.menu(ev, a); };
-      ordenavel($('.cab', c), 'anim', a.id, (id, antes) => { const L2 = this.lista(), i = L2.findIndex(x => x.id === id), j = L2.indexOf(a); if (i >= 0) { moveNaLista(L2, i, j, antes); Atelie.commit(); } }); // arrastar a animação muda a ordem
-      if (aberta) {
-        a.trilhas.forEach((t, ti) => {
-          const tr = h(`<div class="trilha"><div class="tr-t">Trilha ${ti + 1}${a.trilhas.length > 1 ? `<button class="ibtn" data-up title="Subir a trilha" ${ti ? '' : 'disabled'}>${ic('up', 11)}</button><button class="ibtn" data-dn title="Descer a trilha" ${ti < a.trilhas.length - 1 ? '' : 'disabled'}>${ic('down', 11)}</button><button class="ibtn" data-xt title="Apagar a trilha">${ic('x', 11)}</button>` : ''}</div><div class="passos"></div></div>`), ps = $('.passos', tr);
-          if ($('[data-up]', tr)) { $('[data-up]', tr).onclick = () => { moveNaLista(a.trilhas, ti, ti - 1, true); this.passo = null; Atelie.commit(); }; $('[data-dn]', tr).onclick = () => { moveNaLista(a.trilhas, ti, ti + 1, false); this.passo = null; Atelie.commit(); }; }
-          ordenavel($('.tr-t', tr), 'trilha-' + a.id, ti, (de, antes) => { moveNaLista(a.trilhas, de, ti, antes); this.passo = null; Atelie.commit(); });
-          t.forEach((p, pi) => { const on = this.passo?.t === ti && this.passo?.i === pi;
-            // div (não <button>): no Firefox botão não arrasta. O passo escolhido ganha setas ‹ › para mudar de posição
-            const b = h(`<div class="passo ${on ? 'on' : ''}" role="button" tabindex="0" title="${esc(this.detalhe(p))}\n\nClique: mostrar · arrastar: muda a posição · botão direito: opções">${on && t.length > 1 ? `<b class="ps-mv" data-mv="-1" title="Uma posição para a esquerda" ${pi ? '' : 'hidden'}>${ic('left', 10)}</b>` : ''}<i>${pi + 1}</i><span>${esc(this.rotulo(p))}</span>${on && t.length > 1 ? `<b class="ps-mv" data-mv="1" title="Uma posição para a direita" ${pi < t.length - 1 ? '' : 'hidden'}>${ic('right', 10)}</b>` : ''}</div>`);
-            b.onclick = ev => { const mv = ev.target.closest('[data-mv]'); if (mv) { ev.stopPropagation(); const j = pi + +mv.dataset.mv; [t[pi], t[j]] = [t[j], t[pi]]; this.passo = { t: ti, i: j }; return Atelie.commit(); } this.mostrarPasso(a, ti, pi); };
-            b.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); this.mostrarPasso(a, ti, pi); } }; b.oncontextmenu = ev => { ev.preventDefault(); this.menuPasso(ev, a, ti, pi); }; ps.appendChild(b);
-            // arrastar o passo: muda a ordem (também de uma trilha para outra da mesma animação)
-            ordenavel(b, 'passo-' + a.id, [ti, pi], ([t0, p0], antes) => { const de = a.trilhas[t0]; if (!de?.[p0]) return; if (t0 === ti) moveNaLista(t, p0, pi, antes); else { const [x] = de.splice(p0, 1); t.splice(antes ? pi : pi + 1, 0, x); } this.passo = null; Atelie.commit(); }, true); });
-          const add = h(`<button class="passo add" title="O que está escolhido no Testar vira um passo">${ic('plus', 12)} Passo</button>`);
-          add.onclick = () => { if (!Atelie.teste) { Atelie.testar(true); return UI.toast('Escolha no Testar o que este passo mostra e clique em + Passo de novo.'); } t.push(this.passoDaTela()); this.passo = { t: ti, i: t.length - 1 }; Atelie.commit(); };
-          ps.appendChild(add);
-          ordenavel(add, 'passo-' + a.id, null, ([t0, p0]) => { const de = a.trilhas[t0]; if (!de?.[p0]) return; const [x] = de.splice(p0, 1); t.push(x); this.passo = null; Atelie.commit(); }, true); add.draggable = false; // soltar no "+ Passo" põe no fim desta trilha
-          if ($('[data-xt]', tr)) $('[data-xt]', tr).onclick = () => { a.trilhas.splice(ti, 1); this.passo = null; Atelie.commit(); };
-          c.appendChild(tr);
-        });
-        const mais = h(`<div class="campo2" style="padding:4px 8px 8px"><button class="btn sm" data-tr>${ic('plus', 12)} Trilha</button><span class="dica-a">Trilhas andam juntas: ex. pernas andando + boca falando + olhos piscando.</span></div>`);
-        $('[data-tr]', mais).onclick = () => { a.trilhas.push([]); Atelie.commit(); }; c.appendChild(mais);
-      }
-      topo.appendChild(c);
+      ordenavel(c, 'anim', a.id, (id, antes) => { const L2 = this.lista(), i = L2.findIndex(x => x.id === id), j = L2.indexOf(a); if (i >= 0) { moveNaLista(L2, i, j, antes); Atelie.commit(); } });
+      box.appendChild(c);
     }
-    el.appendChild(topo); if (window.Falas) Falas.pinta(el); el.appendChild(this.pintaVisual());
+    el.appendChild(box);
+    // extras, fechados (abrem com um clique): vídeos de referência, áudios de teste e o visual do palco
+    const sec = (titulo, icone, conteudo, aberta) => { const d = h(`<details class="ab-sec" ${aberta ? 'open' : ''}><summary>${ic(icone, 13)} ${titulo}</summary></details>`); conteudo(d); el.appendChild(d); };
+    sec('Vídeos de referência (para a IA)', 'film', d => d.appendChild(RefsAnim.campo({ lista: () => (def.refsAnim ||= []), chave: () => `personagens/${def.id}/img/ref${uid('').toLowerCase().replace(/[^a-z0-9]/g, '')}.jpg`, mudou: () => Atelie.commit({ soDesenho: true }) })), false);
+    if (window.Falas) sec('Áudios de teste (fala)', 'mic', d => Falas.pinta(d), (def.audios || []).length > 0);
+    sec('Fundo do palco e fantasma', 'image', d => d.appendChild(this.pintaVisual()), !!def.vis?.fantasma?.on);
   },
 
   /* ---------- visualização: fundo do palco e fantasma (uma imagem de referência por cima, meio transparente) ---------- */
@@ -206,7 +196,7 @@ const Animacoes = {
     for (const t of trilhas) for (const p of t) Object.keys(p.p || {}).forEach(x => mexe.add(x));
     for (let i = 0; i < total; i++) {
       const q = q0 + i * fpp, k = Modelo.chave(n, q); k.partes = { ...(k.partes || {}) }; k.sessoes = { ...(k.sessoes || {}) };
-      for (const t of trilhas) { const p = t[i % t.length]; Object.assign(k.sessoes, p.s || {}); for (const [pid, e] of Object.entries(p.p || {})) k.partes[pid] = { ...(e.img ? { img: e.img } : {}), r: e.r || 0, x: e.x || 0, y: e.y || 0, ...(e.d ? { d: e.d } : {}) }; }
+      for (const t of trilhas) { const p = t[i % t.length]; Object.assign(k.sessoes, p.s || {}); for (const [pid, e] of Object.entries(p.p || {})) k.partes[pid] = { ...(e.img ? { img: e.img } : {}), r: e.r || 0, x: e.x || 0, y: e.y || 0, ...(e.d ? { d: e.d } : {}), ...(e.ap ? { ap: e.ap } : {}), ...(e.z != null ? { z: e.z } : {}) }; }
       if (!Object.keys(k.sessoes).length) delete k.sessoes; if (!Object.keys(k.partes).length) delete k.partes;
     }
     const fim = q0 + total * fpp, kf = Modelo.chave(n, fim); // volta ao normal no fim

@@ -50,7 +50,7 @@
       { head: 'ATELIÊ' },
       { label: 'Desfazer', icon: 'undo', key: 'Ctrl+Z', action: () => Atelie.undo() }, { label: 'Refazer', icon: 'redo', key: 'Ctrl+Shift+Z', action: () => Atelie.redo() }, '-',
       { label: 'Parte nova', icon: 'plus', action: () => Atelie.novaParte() }, { label: 'Pôr imagens…', icon: 'image', action: () => Atelie.addImagens() }, { label: 'Enquadrar', icon: 'crop', action: () => Atelie.enquadrar() }, '-',
-      { label: 'Painel Testar (abrir/fechar)', icon: 'play', key: 'T', action: () => Atelie.painelTeste(!Atelie.painelAberto) }, { label: 'IA do Ateliê…', icon: 'sparkles', ai: true, action: () => Atelie.ia() }, '-',
+      { label: 'Editar a imagem (estilo Photoshop)', icon: 'brush', action: () => Atelie.abrirEditor() }, { label: 'IA do Ateliê…', icon: 'sparkles', ai: true, action: () => Atelie.ia() }, '-',
       { label: 'Citar o personagem inteiro em mensagens…', icon: 'chat', action: () => Citacao.atelie({}) }, { label: 'Baixar backup (.atelieanimador)', icon: 'download', action: () => AtelieArq.baixar(Atelie.def) }, { label: 'Abrir backup (.atelieanimador)…', icon: 'folder', action: () => AtelieArq.escolher() }, { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.atelie() }, '-',
       { label: 'Salvar na nuvem', icon: 'upload', key: 'Ctrl+S', action: () => Atelie.salvar() }, { label: 'Voltar', icon: 'left', action: () => Atelie.sair() },
     ] : [

@@ -11,7 +11,8 @@ const Pintura = {
     cv.addEventListener('pointermove', e => { if (this.ferr === 'mover') { if (this.mouse) { this.mouse = null; Atelie.desenha(); } return; } this.mouse = { x: e.offsetX, y: e.offsetY }; Atelie.desenha(); });
     cv.addEventListener('pointerleave', () => { this.mouse = null; Atelie.desenha(); });
   },
-  usa(f) { this.ferr = f; Atelie.cv.style.cursor = f === 'mover' ? '' : f === 'conta' ? 'copy' : 'crosshair'; Atelie.pinta(); },
+  usa(f) { if (f !== 'mover' && !Atelie.edImg && Atelie.def && !Atelie.abrirEditor()) return; this.ferr = f; // ferramenta de pintar fora do editor: abre o editor da imagem da parte escolhida
+    Atelie.cv.style.cursor = f === 'mover' ? '' : f === 'conta' ? 'copy' : 'crosshair'; Atelie.pinta(); },
   tecla(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false; const k = e.key.toLowerCase(), f = this.FERR.find(x => x[3].toLowerCase() === k);
     if (f) { this.usa(f[0]); return true; }
@@ -20,7 +21,7 @@ const Pintura = {
   },
   // a imagem que está aparecendo na parte escolhida e o jeito de ir do mundo para os pixels dela
   alvo() {
-    const p = Atelie.parte(); if (!p) return null; const it = Modelo.montar(Atelie.def, Atelie.estado()).find(x => x.parte.id === p.id); if (!it?.img) return null;
+    const p = Atelie.edImg ? Atelie.parte(Atelie.edImg.pid) : Atelie.parte(); if (!p) return null; const it = Atelie.edImg ? Atelie.itemEditor() : Modelo.montar(Atelie.def, Atelie.estado()).find(x => x.parte.id === p.id); if (!it?.img) return null; // editor de imagem: a imagem escolhida nele
     const cam = Camadas.tem(it.img) ? Camadas.ativa(it.img) : null, orig = Arq.img.get(it.img.k), bm = cam ? Arq.img.get(cam.k) : orig; if (!bm) return null;
     const img = it.img, px = img.pivo?.x ?? img.w / 2, py = img.pivo?.y ?? img.h / 2, inv = it.m.inverse(), kx = bm.width / img.w, ky = bm.height / img.h;
     const ajx = img.ajuste?.x || 0, ajy = img.ajuste?.y || 0;
@@ -128,8 +129,8 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
 
   /* ---------- barra de ferramentas no canto esquerdo do palco (como no Photoshop) ---------- */
   pintaBarra() {
-    const el = $('#at-ferr'); if (!el) return; el.hidden = false; // sempre à mão (também com o Testar aberto)
-    const grupo = (ids) => this.FERR.filter(f => ids.includes(f[0])).map(([f, n, i, k]) => `<button class="${this.ferr === f ? 'on' : ''}" data-f="${f}" title="${n} (${k})">${ic(i, 17)}</button>`).join('');
+    const el = $('#at-ferr'); if (!el) return; el.hidden = !Atelie.edImg; if (el.hidden) { $('#at-ferr-op')?.remove(); return; } // as ferramentas de pintar ficam só no editor de imagem
+    const grupo = (ids) => this.FERR.filter(f => ids.includes(f[0])).map(([f, n, i, k]) => `<button class="${this.ferr === f ? 'on' : ''}" data-f="${f}" title="${f === 'mover' ? 'Mão: arrastar move a tela' : n} (${k})">${ic(i, 17)}</button>`).join('');
     el.innerHTML = `${grupo(['mover'])}<i></i>${grupo(['ret', 'laco', 'varinha'])}<i></i>${grupo(['pincel', 'borracha', 'magica', 'balde', 'conta'])}<i></i>
       <label class="fb-cor" title="Cor (${this.cor})" style="--c:${this.cor}"><input type="color" value="${this.cor}"></label>`;
     $$('[data-f]', el).forEach(b => b.onclick = () => this.usa(b.dataset.f));
@@ -146,14 +147,11 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
 
   /* ---------- aba "Pintar" do ateliê ---------- */
   async pintaAba(el) {
-    const ferr = h(`<div class="pt-ferr">${this.FERR.map(([f, n, i, k]) => `<button class="${this.ferr === f ? 'on' : ''}" data-f="${f}" title="${n} (${k})">${ic(i, 16)}<small>${n}</small></button>`).join('')}</div>`);
-    $$('[data-f]', ferr).forEach(b => b.onclick = () => this.usa(b.dataset.f)); el.appendChild(ferr);
     Camadas.painel(el); if (window.Ajustes) Ajustes.botoes(el);
     const box = h(`<div class="props"><div class="campo2"><span style="color:var(--tx2)">Cor</span><input type="color" value="${this.cor}" data-cor><code style="color:var(--tx3)">${this.cor}</code></div></div>`);
     $('[data-cor]', box).oninput = ev => { this.cor = ev.target.value; $('code', box).textContent = this.cor; };
-    if (['pincel', 'borracha'].includes(this.ferr)) box.appendChild(this.controles(false));
-    box.appendChild(Lado.campo('Tolerância', this.tol, 0, 160, 1, v => { this.tol = Math.round(v); }));
-    box.appendChild(h(`<div style="color:var(--tx3);font-size:11.5px">Pinta na imagem que está aparecendo na parte escolhida. <b>[ ]</b> muda o tamanho do pincel. Mesa digitalizadora (Wacom etc.): a pressão é reconhecida sozinha e a ponta de trás da caneta apaga. <b>Shift</b>+clique faz linha reta. Tolerância vale para o balde, a varinha, a borracha mágica e para trocar cores. Com uma seleção, o pincel e a borracha só mexem dentro dela. Ctrl+Z desfaz.</div>`));
+    // tamanho, opacidade e tolerância ficam na barra de opções em cima do palco (como no Photoshop), não repetidos aqui
+    box.appendChild(h(`<div style="color:var(--tx3);font-size:11.5px">Ferramentas na barra da esquerda; as opções delas aparecem em cima. <b>[ ]</b> tamanho do pincel · <b>Shift</b>+clique linha reta · mesa digitalizadora: pressão e a ponta de trás da caneta apaga · Ctrl+Z desfaz.</div>`));
     el.appendChild(box); el.appendChild(this.pintaSelecao());
     // cores base
     const pb = h(`<div class="sessao"><h4>Cores base <span class="sp"></span><select data-esc title="De onde tirar as cores"><option value="tudo">personagem todo</option><option value="parte">esta parte</option><option value="imagem">esta imagem</option></select></h4><div class="pt-pal"><span class="spin-dot"></span></div>

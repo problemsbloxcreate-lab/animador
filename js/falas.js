@@ -106,7 +106,7 @@ const Falas = {
     this.parar(); const b = await this.buffer(a.k); if (!b) return UI.toast('O áudio ainda não carregou.', { kind: 'warn' });
     const alvo = this.alvoBoca(a); if (!alvo) UI.toast('Não achei a boca: crie uma sessão "Boca" (ou uma parte "Boca" com as imagens das bocas). Vou tocar só o som.', { kind: 'warn', time: 6000 });
     const m = alvo ? this.mapaBocas(alvo) : null, anim = this.anim ? Animacoes.achar(this.anim) : null, ac = Som.ac(); try { await ac.resume(); } catch { }
-    Animacoes.parar(true); Atelie.edit = null; Atelie.editPasso = null; if (!Atelie.painelAberto) Atelie.painelTeste(true);
+    Animacoes.parar(true); Atelie.edit = null; Atelie.editPasso = null; if (!Atelie.teste) Atelie.teste = { sessoes: {}, partes: {} };
     const base = clone(Atelie.teste || { sessoes: {}, partes: {} }), src = ac.createBufferSource(); src.buffer = b; src.connect(ac.destination); const t0 = ac.currentTime + .05; src.start(t0);
     this._src = src; this.tocando = a.id; this._base = base; let ult = null, desde = -1;
     src.onended = () => { if (this.tocando === a.id) this.parar(); };
