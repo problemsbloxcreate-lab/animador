@@ -684,3 +684,10 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .ed-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.ed-t small{color:var(--tx3);font-size:11px}.ed-t select{width:100%}
 .ed-aviso{flex-basis:100%;font-size:11.5px;color:#cfe5fb;background:#17273a;border:1px solid #2f5b86;border-radius:7px;padding:6px 8px;display:flex;gap:6px;align-items:center}
 .ps-aviso span{white-space:normal;min-width:0}
+/* compacto */
+.peca-c .pc-t{display:flex;align-items:center;gap:8px;padding:2px 0 6px}.peca-c .pc-t b{font-size:14px}.peca-c .pc-t small{color:var(--tx3);font-size:11px;background:var(--bg3);padding:1px 7px;border-radius:10px}
+.peca-c .pc-t .ibtn.on{color:var(--warn)}
+.at-sel{height:28px;font-size:11.5px;background:rgba(27,27,27,.94);border:1px solid var(--bd2);border-radius:8px;color:var(--tx2);padding:0 6px}
+.at-palco .modo-at .at-ib{width:28px;height:28px;border-radius:8px;background:rgba(27,27,27,.94);border:1px solid var(--bd2);color:var(--tx2);display:grid;place-items:center}
+.at-palco .modo-at .at-ib.on{background:#2a3b47;border-color:#19d3f0;color:#bff4ff}
+.tl-c{width:56px;height:34px}.tl-c small{font-size:9.5px}

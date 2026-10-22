@@ -18,8 +18,8 @@ const Linha = {
       <button class="ibtn" data-prox title="Próximo passo ( . )" ${a ? '' : 'disabled'}>${ic('right', 14)}</button>
       <button class="ibtn" data-stop title="Parar e voltar à pose padrão (Esc)" ${toca ? '' : 'disabled'}>${ic('stop', 13)}</button>
       ${a ? `<select data-vel title="Cada passo dura">${VELOCIDADES.map(([v, t]) => `<option value="${v}" ${+a.vel === v ? 'selected' : ''}>${t}</option>`).join('')}</select>` : ''}
-      <span class="tl-info">${st ? `Passo <b>${st.pi + 1}</b>${a.trilhas.length > 1 ? ` da trilha ${st.ti + 1}` : ''} · clique numa <b>pose</b> para usar neste passo` : rodando ? 'Tocando · clique num passo para parar nele' : a ? 'Clique num passo para parar nele e trocar as poses' : 'As animações de teste usam as poses (aba Poses)'}</span><span class="sp"></span>
-      ${a ? `<button class="btn sm" data-passo title="Passo novo depois do escolhido (começa igual a ele)">${ic('plus', 12)} Passo</button><button class="btn sm" data-trilha title="Trilha nova: anda junto com as outras (ex.: boca falando enquanto as pernas andam)">${ic('plus', 12)} Trilha</button>` : ''}</div>`);
+      <span class="tl-info">${st ? `Passo <b>${st.pi + 1}</b>` : ''}</span><span class="sp"></span>
+      ${a ? `<button class="btn sm" data-passo title="Passo novo depois do escolhido (começa igual a ele)">${ic('plus', 12)} Passo</button><button class="ibtn" data-trilha title="Trilha nova: anda junto com as outras (ex.: boca falando enquanto as pernas andam)">${ic('layers', 14)}</button>` : ''}</div>`);
     $('[data-a]', cab).onchange = ev => { A.parar(true); A.passoSel = null; A.sel = ev.target.value || null; Atelie.teste = null; Atelie.pinta(); };
     $('[data-nova]', cab).onclick = () => A.nova();
     if (a) {
@@ -31,7 +31,7 @@ const Linha = {
     }
     el.appendChild(cab);
     const g = h('<div class="tl-grade"></div>'); el.appendChild(g);
-    if (!a) { g.appendChild(h('<div class="tl-vazio">Crie uma animação de teste no <b>+</b> (ou peça à IA) para ver os passos aqui.</div>')); return; }
+    if (!a) { g.appendChild(h('<div class="tl-vazio">Sem animação: crie no <b>+</b></div>')); return; }
     a.trilhas.forEach((t, ti) => {
       const row = h(`<div class="tl-linha"><span class="tl-t" title="Trilha ${ti + 1}: botão direito para opções">${a.trilhas.length > 1 ? 'T' + (ti + 1) : ''}</span><div class="tl-cel"></div></div>`), cel = $('.tl-cel', row);
       $('.tl-t', row).oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [{ head: `Trilha ${ti + 1}` }, { label: 'Subir', icon: 'up', disabled: !ti, action: () => { moveNaLista(a.trilhas, ti, ti - 1, true); A.passoSel = null; Atelie.commit(); } }, { label: 'Descer', icon: 'down', disabled: ti >= a.trilhas.length - 1, action: () => { moveNaLista(a.trilhas, ti, ti + 1, false); A.passoSel = null; Atelie.commit(); } }, '-', { label: 'Apagar a trilha', icon: 'trash', danger: true, disabled: a.trilhas.length < 2, action: () => { a.trilhas.splice(ti, 1); A.passoSel = null; Atelie.commit(); } }]); };

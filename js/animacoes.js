@@ -73,13 +73,15 @@ const Animacoes = {
   // com a animação pausada (ou a pose do editor): clicou na peça → o que ela edita (o passo da trilha, o preset da sessão, ou a base)
   alvoPausa(pid) {
     Atelie.edit = null; Atelie.editPasso = null; const def = this.def, F = this.frameAtual(); if (!F) return;
+    // passo parado na timeline: tudo que mexer na peça (posição, giro, imagem) vale SÓ neste passo (keyframe)
+    const st = this.passoAtual(); if (st) { const L = this.passosAgora(st.a, this.i), x = L.filter(y => y.p.p?.[pid]).pop() || L.find(y => y.ti === st.ti) || L[L.length - 1]; Atelie.editPasso = { a: st.a.id, ti: x.ti, pi: x.pi }; return; }
     const a = this.poseFixa ? null : this.achar(this.tocando);
     if (a) { const L = this.passosAgora(a, this.i).filter(x => x.p.p?.[pid]); if (L.length) { const x = L[L.length - 1]; Atelie.editPasso = { a: a.id, ti: x.ti, pi: x.pi }; return; } }
     let achou = null; for (const s of def.sessoes) { const prId = F.sessoes?.[s.id]; const pr = prId && s.presets.find(p => p.id === prId); if (pr?.estado?.[pid]) achou = { s: s.id, p: pr.id }; }
     if (achou) Atelie.edit = achou;
   },
   passoEditado() { const e = Atelie.editPasso, a = e && this.achar(e.a); return a?.trilhas?.[e.ti]?.[e.pi] || null; },
-  textoAlvo() { // para o selo "editando: …"
+  textoAlvo() { const st = this.passoAtual(); if (st) return `passo ${st.pi + 1}`; // para o selo "editando: …"
     const p = this.passoEditado(); if (p) { const a = this.achar(Atelie.editPasso.a); return `passo ${Atelie.editPasso.pi + 1} de "${a.nome}"`; }
     const s = Atelie.sessao(), pr = Atelie.preset(); return pr ? `${s.nome} › ${pr.nome}` : 'a base';
   },
@@ -126,8 +128,7 @@ const Animacoes = {
   pinta(el) {
     // aba Animações: só a lista (os passos ficam na TIMELINE embaixo do palco) + o que é extra, fechado em seções
     const L = this.lista(), def = this.def;
-    const box = h(`<div class="anims-at"><div class="campo2"><button class="btn sm" data-nova>${ic('plus', 13)} Animação</button><button class="btn sm ia" data-ia title="A IA cria animações de teste (andar, falar, piscar…) com as poses que existem">${ic('sparkles', 13)} Criar com a IA</button></div>
-      <div class="ab-dica">Escolha uma animação: os passos aparecem na <b>timeline</b> embaixo do palco. Clique num passo e escolha as <b>poses</b> dele na aba Poses.</div></div>`);
+    const box = h(`<div class="anims-at"><div class="campo2"><button class="btn sm" data-nova>${ic('plus', 13)} Animação</button><button class="btn sm ia" data-ia title="A IA cria animações de teste (andar, falar, piscar…) com as poses que existem">${ic('sparkles', 13)} Criar com a IA</button></div></div>`);
     $('[data-nova]', box).onclick = () => this.nova(); $('[data-ia]', box).onclick = () => Atelie.ia('animacoes');
     if (!L.length) box.appendChild(h('<div class="vazio">Nenhuma animação de teste ainda (andar, falar, piscar, acenar…).</div>'));
     for (const a of L) {

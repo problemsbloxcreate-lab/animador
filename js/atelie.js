@@ -253,7 +253,7 @@ const Atelie = {
   },
   // muda um campo da parte no modo atual (base ou o preset em edição)
   mudar(pid, vals) {
-    const p = this.parte(pid); if (!p) return;
+    const p = this.parte(pid); if (!p) return; if (!this.editPasso && Animacoes.passoAtual()) Animacoes.alvoPausa(pid); // passo parado: vale só nele
     const ps = this.editPasso && Animacoes.passoEditado(); if (ps) { ps.p = ps.p || {}; ps.p[pid] = { ...(ps.p[pid] || {}), ...vals }; return; } // passo de uma animação de teste (pausada)
     const pr = this.preset();
     if (pr) { const s = this.sessao(); if (s.partes?.length && !s.partes.includes(pid)) { s.partes.push(pid); } pr.estado[pid] = { ...(pr.estado[pid] || {}), ...vals }; }
@@ -280,8 +280,8 @@ const Atelie = {
     const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.soltouNoPalco(l)); } }; // pastas viram partes; editando uma imagem, pergunta se vai DENTRO dela (camada)
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
-    $$('#at-mover [data-modo]').forEach(b => b.onclick = () => this.setModo(b.dataset.modo));
-    $('#at-enq').onclick = () => this.enquadrar(); $('#at-regua').onclick = () => this.trocaRegua(); this.pintaRegua(); this.cv.addEventListener('pointerup', () => { if (this.guias) { this.guias = null; this.desenha(); } }); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 13) + ' Pela referência'; $('#at-ed-ok').onclick = () => this.fecharEditor(); this.cv.addEventListener('dblclick', e => { if (this.edImg || Pintura.ferr !== 'mover') return; const it = this.acha(this.mundo(e)); if (it?.img) this.abrirEditor(it.parte, it.img); }); /* dois cliques numa peça: edita a imagem dela */
+    $('#at-mover').onchange = e => this.setModo(e.target.value);
+    $('#at-enq').onclick = () => this.enquadrar(); $('#at-regua').onclick = () => this.trocaRegua(); this.pintaRegua(); this.cv.addEventListener('pointerup', () => { if (this.guias) { this.guias = null; this.desenha(); } }); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 15); $('#at-enq').innerHTML = ic('frame', 15); $('#at-ed-ok').onclick = () => this.fecharEditor(); this.cv.addEventListener('dblclick', e => { if (this.edImg || Pintura.ferr !== 'mover') return; const it = this.acha(this.mundo(e)); if (it?.img) this.abrirEditor(it.parte, it.img); }); /* dois cliques numa peça: edita a imagem dela */
     $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
     addEventListener('keydown', e => this.teclas(e));
     Pintura.liga();
@@ -485,7 +485,7 @@ const Atelie = {
     // o que está sendo mexido agora, numa frase só
     $('#at-modo').innerHTML = ed ? `${ic('brush', 13)} Editando <b>${esc(ed.img.nome)}</b> <small>${esc(ed.parte.nome)}</small>` : Animacoes.poseFixa ? `Pose do quadro ${Animacoes.poseFixa.quadro + 1} · arrumando <b>${esc(Animacoes.textoAlvo())}</b>`
       : st ? `${ic('film', 13)} Passo <b>${st.pi + 1}</b> de <b>${esc(st.a.nome)}</b>` : Animacoes.tocando && !Animacoes.pausado ? `${ic('play', 12)} Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : pr ? `Editando a pose <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : `Pose <b>padrão</b>`;
-    $('#at-base').hidden = !pr || !!ed; $('#at-ed-ok').hidden = !ed; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover [data-modo="todos"]')?.setAttribute('title', 'Arrastar move a parte inteira (todas as imagens e presets) em TODAS as partes. Só numa parte: botão direito nela › Mover todos só nesta parte');
+    $('#at-base').hidden = !pr || !!ed; $('#at-ed-ok').hidden = !ed; $('#at-mover').value = this.modoMover;
     for (const x of ['#at-mover', '#at-regua', '#at-ref']) { const e = $(x); if (e) e.hidden = !!ed; }
     Pintura.pintaBarra(); Linha.pinta();
     this.pintaIcone(); this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
@@ -527,17 +527,27 @@ const Atelie = {
       r.onclick = ev => { if (ev.target.closest('.ibtn')) { this.mudar(p.id, { vis: est[p.id]?.vis === false }); return this.commit(); } this.clicaParte(ev, p.id); };
       r.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
       r.oncontextmenu = ev => { ev.preventDefault(); if (p.id !== this.sel && !this.multi.has(p.id)) this.escolhe(p.id); this.focoImg = null; this.pinta(); this.menuParte(ev, p); };
-      r.ondragstart = ev => { ev.dataTransfer.setData('text/parte', p.id); this._arrasto = this.multi.has(p.id) ? this.selecionadas().map(x => x.id) : [p.id]; };
-      r.ondragover = ev => { const t = ev.dataTransfer.types; if (t.includes('text/parte') || t.includes('Files')) { ev.preventDefault(); ev.stopPropagation(); r.classList.add('drop-dentro'); } };
-      r.ondragleave = () => r.classList.remove('drop-dentro');
-      r.ondrop = ev => { ev.preventDefault(); ev.stopPropagation(); r.classList.remove('drop-dentro');
+      // ARRASTAR NA LISTA: em cima/embaixo de outra = muda a ORDEM (quem fica na frente) e fica irmã dela; no meio = vira FILHA dela;
+      // solta no vazio da lista (ou longe, fora dela) = fica SEM PAI. Substitui a antiga aba Profundidade.
+      r.ondragstart = ev => { ev.dataTransfer.setData('text/parte', p.id); ev.dataTransfer.effectAllowed = 'move'; this._arrasto = this.multi.has(p.id) ? this.selecionadas().map(x => x.id) : [p.id]; };
+      r.ondragend = ev => { if (ev.dataTransfer.dropEffect !== 'none') return; const b = el.getBoundingClientRect(); if (ev.clientX < b.left - 40 || ev.clientX > b.right + 40 || ev.clientY < b.top - 40 || ev.clientY > b.bottom + 40) this.soltarSemPai(p.id); };
+      const zona = ev => { const b = r.getBoundingClientRect(), y = (ev.clientY - b.top) / b.height; return y < .28 ? 'antes' : y > .72 ? 'depois' : 'dentro'; };
+      r.ondragover = ev => { const t = ev.dataTransfer.types; if (!(t.includes('text/parte') || t.includes('Files'))) return; ev.preventDefault(); ev.stopPropagation(); const z = t.includes('Files') ? 'dentro' : zona(ev); r.classList.toggle('drop-dentro', z === 'dentro'); r.classList.toggle('drop-antes', z === 'antes'); r.classList.toggle('drop-depois', z === 'depois'); };
+      r.ondragleave = () => r.classList.remove('drop-dentro', 'drop-antes', 'drop-depois');
+      r.ondrop = ev => { ev.preventDefault(); ev.stopPropagation(); const z = zona(ev); r.classList.remove('drop-dentro', 'drop-antes', 'drop-depois');
         if (ev.dataTransfer.files?.length) { this.sel = p.id; return Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(Pastas.paraParte(l), false)); } // arquivo em cima da parte: vira imagem dela (pasta solta aqui = pasta de imagens dela)
-        const id = ev.dataTransfer.getData('text/parte'); if (id && id !== p.id) this.porNoPai(id, p.id); };
+        const id = ev.dataTransfer.getData('text/parte'); if (!id || id === p.id) return; if (z === 'dentro') this.porNoPai(id, p.id); else this.moverParte(id, p, z); };
       el.appendChild(r); vai(p.id, nivel + 1); } };
     vai(null, 0);
-    el.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); };
-    el.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(l, true)); } }; // cada imagem uma parte; cada pasta uma parte
+    el.ondragover = ev => { if (ev.dataTransfer.types.includes('Files') || ev.dataTransfer.types.includes('text/parte')) ev.preventDefault(); };
+    el.ondrop = ev => { const id = ev.dataTransfer.getData('text/parte'); if (id) { ev.preventDefault(); return this.soltarSemPai(id); } if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(l, true)); } }; // cada imagem uma parte; cada pasta uma parte
   },
+  // muda a ordem na lista (frente/trás) e fica irmã de "alvo" (mesmo pai)
+  moverParte(id, alvo, onde) {
+    const q = this.parte(id); if (!q || q === alvo) return; if ((q.pai || null) !== (alvo.pai || null)) { let a = alvo.pai; while (a) { if (a === id) return UI.toast('Não dá: ela ficaria dentro dela mesma'); a = this.parte(a)?.pai; } this.porNoPai(id, alvo.pai || null, { semCommit: true }); }
+    const L = this.ordemCamadas().reverse().filter(x => x !== q && !Referencia.ehRef(x)); let i = L.indexOf(alvo); if (i < 0) i = 0; L.splice(onde === 'antes' ? i : i + 1, 0, q); this.reordenar(L, true);
+  },
+  soltarSemPai(id) { const q = this.parte(id); if (!q || !q.pai) return; this.porNoPai(id, null); UI.toast(`<b>${esc(q.nome)}</b> ficou solta (sem pai). Ctrl+Z desfaz.`, { time: 3000 }); },
   // CAMADAS: a ordem real de desenho (de cima = na frente), igual às camadas do Photoshop.
   // Mexer aqui só muda o Z; quem encaixa em quem (a hierarquia) continua igual.
   ordemCamadas() { const est = this.estado(); return this.def.partes.map((p, i) => ({ p, i, z: (p.z || 0) + (est[p.id]?.z || 0) })).sort((a, b) => a.z - b.z || a.i - b.i).map(x => x.p); },
@@ -580,13 +590,11 @@ const Atelie = {
     if (this.todosSo.has(pid)) this.todosSo.delete(pid); else this.todosSo.add(pid); this.pinta();
     UI.toast(this.todosSo.has(pid) ? `<b>Mover todos</b> só em <b>${esc(this.parte(pid)?.nome || '')}</b>: arrastar move a parte inteira (fica roxa). As outras partes continuam como estão.` : `<b>${esc(this.parte(pid)?.nome || '')}</b> voltou a mover só a imagem.`, { time: 4500 });
   },
-  setModo(m) {
-    this.modoMover = m; this.todosSo.clear(); this.pinta();
-    UI.toast({ preset: '<b>Só neste preset:</b> arrastar muda a imagem só no preset que está na tela (ou só na base).', imagem: '<b>Mesma imagem em todos os presets:</b> arrastar move esta imagem em todo lugar que ela aparece (fica verde-água).', todos: '<b>Mover todos:</b> arrastar move a parte inteira — todas as imagens e os presets dela (ficam roxos).' }[m], { time: 4500 });
-  },
+  setModo(m) { this.modoMover = m; this.todosSo.clear(); this.pinta();   },
   setMoverTodos(v) { this.setModo(v ? 'todos' : 'preset'); },
   // posição desta imagem SÓ no preset que está na tela (ou só na base)
   poeD(p, img, v, onde = this.preset()) {
+    if (arguments.length < 4 && !this.editPasso && Animacoes.passoAtual()) { Animacoes.alvoPausa(p.id); if (this.editPasso) onde = null; }
     if (arguments.length < 4 && this.editPasso) { const ps = Animacoes.passoEditado(); if (ps) { const e = ps.p[p.id] = ps.p[p.id] || {}, d = { ...(e.d || {}) }; if (!v || (!v.x && !v.y)) delete d[img.id]; else d[img.id] = { x: v.x, y: v.y }; e.d = d; if (!Object.keys(d).length) delete e.d; return; } }
     const st = onde ? (onde.estado[p.id] || {}) : p.base, d = { ...(st.d || {}) };
     if (!v || (!v.x && !v.y)) delete d[img.id]; else d[img.id] = { x: v.x, y: v.y };
@@ -832,7 +840,7 @@ const Atelie = {
       if (bm) { const cv = document.createElement('canvas'); cv.width = 96; cv.height = 96; const k = Math.min(96 / bm.width, 96 / bm.height); cv.getContext('2d').drawImage(bm, (96 - bm.width * k) / 2, (96 - bm.height * k) / 2, bm.width * k, bm.height * k); c.style.backgroundImage = `url(${cv.toDataURL()})`; }
       c.onclick = ev => { if (ev.target.closest('.x')) return; this.focoImg = { p: p.id, img: img.id };
         // parado num passo da animação: trocar a imagem NÃO muda a animação (ela só guarda poses) — só escolhe a imagem
-        if (Animacoes.passoAtual()) { this.pintaImgs(); if (!this._avisouImg) { this._avisouImg = true; UI.toast('Na animação, os passos usam <b>poses</b>: para este passo mostrar outra imagem, crie uma pose com ela (aba Poses) e clique nela. Clique duas vezes na imagem para editá-la.', { time: 8000 }); } return; }
+        if (Animacoes.passoAtual()) { Animacoes.alvoPausa(p.id); this.mudar(p.id, { img: img.id }); this.commit(); if (!this._avisouImg) { this._avisouImg = true; UI.toast('Imagem trocada <b>só neste passo</b>.', { time: 3500 }); } return; } // passo parado: a imagem muda só nele (keyframe)
         if (this.edImg) { this.edImg = { pid: p.id, iid: img.id }; return this.pinta(); }
         this.mudar(p.id, { img: img.id }); this.commit(); this.pintaImgs(); };
       c.ondblclick = ev => { if (ev.target.closest('.x')) return; this.abrirEditor(p, img); }; // EDITOR DE IMAGEM (estilo Photoshop)
@@ -882,27 +890,23 @@ const Atelie = {
     for (const s of this.def.sessoes) for (const pr of s.presets) if (pr.estado[p.id]?.img === img.id) delete pr.estado[p.id].img; this.commit();
   },
   pintaPeca(el) {
+    // PEÇA, enxuta: o principal à vista (pai, giro, tamanho, espelhar, aparece); os números finos ficam fechados em "Ajuste fino"
     const p = this.parte(); if (!p) { el.appendChild(h('<div class="vazio">Escolha uma parte na lista ou clique numa peça.</div>')); return; }
-    const est = this.estado()[p.id] || {}, img = p.imgs.find(i => i.id === est.img);
-    const box = h(`<div class="props"><div class="titulo-p">${esc(p.nome)} · ${this.edit ? esc(this.preset().nome) : 'base'}</div>
-      <button class="btn sm raiz-bt ${p.id === this.def.raiz ? 'on' : ''}" data-raiz title="A raiz é a parte principal do personagem (normalmente o corpo): fica no topo e destacada na hierarquia">${ic('star', 13)} ${p.id === this.def.raiz ? 'É a raiz (principal)' : 'Marcar como raiz'}</button>
-      <label class="field">Encaixa em<select data-pai><option value="">(nada — solta no topo)</option>${this.def.partes.filter(x => x.id !== p.id).map(x => `<option value="${x.id}" ${x.id === p.pai ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label></div>`);
+    const est = this.estado()[p.id] || {}, img = p.imgs.find(i => i.id === est.img), onde = Animacoes.passoAtual() ? Animacoes.textoAlvo() : this.edit ? this.preset().nome : 'padrão', ehRaiz = p.id === this.def.raiz;
+    const box = h(`<div class="props peca-c"><div class="pc-t"><b>${esc(p.nome)}</b><small>${esc(onde)}</small><span class="sp"></span><button class="ibtn ${ehRaiz ? 'on' : ''}" data-raiz title="${ehRaiz ? 'É a raiz (a parte principal)' : 'Marcar como raiz (a parte principal)'}">${ic('star', 14)}</button></div>
+      <label class="field">Encaixa em<select data-pai><option value="">(nenhuma)</option>${this.def.partes.filter(x => x.id !== p.id).map(x => `<option value="${x.id}" ${x.id === p.pai ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label></div>`);
     $('[data-pai]', box).onchange = ev => this.porNoPai(p.id, ev.target.value || null); $('[data-raiz]', box).onclick = () => this.marcarRaiz(p);
-    const mexe = (c, v) => { this.mudar(p.id, { [c]: v }); this.desenha(); }, sol = () => this.commit();
-    if (this.edit) { box.appendChild(Lado.campo('Mover X', est.x || 0, -500, 500, 1, v => mexe('x', v), sol)); box.appendChild(Lado.campo('Mover Y', est.y || 0, -500, 500, 1, v => mexe('y', v), sol)); }
-    else { box.appendChild(Lado.campo('Encaixe X', p.encaixe.x, -1500, 1500, 1, v => { p.encaixe.x = v; this.desenha(); }, sol)); box.appendChild(Lado.campo('Encaixe Y', p.encaixe.y, -1500, 1500, 1, v => { p.encaixe.y = v; this.desenha(); }, sol)); }
+    const mexe = (c, v) => { this.mudar(p.id, { [c]: v }); this.desenha(); }, sol = () => this.commit(), noPasso = !!Animacoes.passoAtual();
     box.appendChild(Lado.campo('Girar', est.r || 0, -180, 180, .5, v => mexe('r', v), sol)); box.appendChild(Lado.campo('Tamanho', est.s ?? 1, .05, 4, .01, v => mexe('s', v), sol));
-    const o = h(`<div class="campo2"><label class="chk"><input type="checkbox" data-sx ${est.sx < 0 ? 'checked' : ''}> Espelhar (F)</label><label class="chk"><input type="checkbox" data-v ${est.vis !== false ? 'checked' : ''}> Aparece (H)</label>
-      <span class="sp"></span><span style="color:var(--tx2)">Profundidade</span><input type="number" value="${p.z || 0}" data-z style="width:54px" title="Profundidade: maior = mais na frente ( [ e ] )"></div>`);
-    $('[data-sx]', o).onchange = ev => { this.mudar(p.id, { sx: ev.target.checked ? -1 : 1 }); this.commit(); }; $('[data-v]', o).onchange = ev => { this.mudar(p.id, { vis: ev.target.checked }); this.commit(); };
-    $('[data-z]', o).onchange = ev => { p.z = +ev.target.value; this.commit(); }; box.appendChild(o);
-    if (this.edit && this.preset().estado[p.id]) { const lb = h(`<button class="btn sm">${ic('undo', 13)} Esta parte igual à base neste preset</button>`); lb.onclick = () => { delete this.preset().estado[p.id]; this.commit(); }; box.appendChild(lb); }
-    if (img) {
-      box.appendChild(h(`<div class="titulo-p">Imagem "${esc(img.nome)}"</div>`));
-      box.appendChild(Lado.campo('Pivô X', img.pivo.x, 0, img.w, 1, v => { img.pivo.x = v; this.desenha(); }, sol)); box.appendChild(Lado.campo('Pivô Y', img.pivo.y, 0, img.h, 1, v => { img.pivo.y = v; this.desenha(); }, sol));
-      box.appendChild(Lado.campo('Só ela X', img.ajuste.x, -300, 300, 1, v => { img.ajuste.x = v; this.desenha(); }, sol)); box.appendChild(Lado.campo('Só ela Y', img.ajuste.y, -300, 300, 1, v => { img.ajuste.y = v; this.desenha(); }, sol));
-      box.appendChild(h('<div style="color:var(--tx3);font-size:11.5px">Pivô = ponto de giro (Alt + arrastar na peça). Arrastar a peça move <b>só esta imagem</b> ("Só ela"); para mover a parte inteira (todas as imagens e presets), botão direito na peça › <b>Mover todos</b>. Laranja = mudou desde a última vez na nuvem.</div>'));
-    }
+    const o = h(`<div class="campo2"><label class="chk"><input type="checkbox" data-sx ${est.sx < 0 ? 'checked' : ''}> Espelhar</label><label class="chk"><input type="checkbox" data-v ${est.vis !== false ? 'checked' : ''}> Aparece</label></div>`);
+    $('[data-sx]', o).onchange = ev => { this.mudar(p.id, { sx: ev.target.checked ? -1 : 1 }); this.commit(); }; $('[data-v]', o).onchange = ev => { this.mudar(p.id, { vis: ev.target.checked }); this.commit(); }; box.appendChild(o);
+    if (this.edit && !noPasso && this.preset().estado[p.id]) { const lb = h(`<button class="btn sm">${ic('undo', 13)} Igual à padrão nesta pose</button>`); lb.onclick = () => { delete this.preset().estado[p.id]; this.commit(); }; box.appendChild(lb); }
+    const fino = h(`<details class="ab-sec"><summary>Ajuste fino</summary></details>`);
+    if (this.edit || noPasso) { fino.appendChild(Lado.campo('Mover X', est.x || 0, -500, 500, 1, v => mexe('x', v), sol)); fino.appendChild(Lado.campo('Mover Y', est.y || 0, -500, 500, 1, v => mexe('y', v), sol)); }
+    else { fino.appendChild(Lado.campo('Encaixe X', p.encaixe.x, -1500, 1500, 1, v => { p.encaixe.x = v; this.desenha(); }, sol)); fino.appendChild(Lado.campo('Encaixe Y', p.encaixe.y, -1500, 1500, 1, v => { p.encaixe.y = v; this.desenha(); }, sol)); }
+    if (img) { fino.appendChild(Lado.campo('Pivô X', img.pivo.x, 0, img.w, 1, v => { img.pivo.x = v; this.desenha(); }, sol)); fino.appendChild(Lado.campo('Pivô Y', img.pivo.y, 0, img.h, 1, v => { img.pivo.y = v; this.desenha(); }, sol));
+      fino.appendChild(Lado.campo('Só a imagem X', img.ajuste.x, -300, 300, 1, v => { img.ajuste.x = v; this.desenha(); }, sol)); fino.appendChild(Lado.campo('Só a imagem Y', img.ajuste.y, -300, 300, 1, v => { img.ajuste.y = v; this.desenha(); }, sol)); }
+    fino.open = !!this._finoAberto; fino.ontoggle = () => { this._finoAberto = fino.open; }; box.appendChild(fino);
     el.appendChild(box);
   },
   pintaSessoes(el) {
@@ -910,8 +914,7 @@ const Atelie = {
     $('[data-nova]', box).onclick = () => this.novaSessao(); $('[data-prontas]', box).onclick = () => this.sessoesProntas();
     // PASSO DA TIMELINE: clicar numa pose faz este passo usar ela (a animação só guarda poses). Fora disso: clicar numa pose abre ela para arrumar
     const st = Animacoes.passoAtual(), T = this.teste || { sessoes: {} };
-    box.appendChild(st ? h(`<div class="ps-aviso passo">${ic('film', 13)}<span>Passo <b>${st.pi + 1}</b> de <b>${esc(st.a.nome)}</b>: clique na pose que este passo usa. <b>Padrão</b> = sem pose nesta sessão.</span></div>`)
-      : h(`<div class="ps-aviso">${this.edit ? `Arrumando a pose <b>${esc(this.sessao()?.nome || '')} › ${esc(this.preset()?.nome || '')}</b>: arraste as peças no palco. <b>Padrão</b> volta à pose padrão.` : 'Clique numa pose para ver e arrumar (arraste as peças no palco). Na animação, os passos usam estas poses.'}</span></div>`));
+    if (st) box.appendChild(h(`<div class="ps-aviso passo">${ic('film', 13)}<span>Passo <b>${st.pi + 1}</b>: clique nas poses dele</span></div>`));
     if (!def.sessoes.length) box.appendChild(h('<div class="vazio">Sessões são grupos de presets: <b>Olhos</b> (assustado, surpreso, triste, fechado…), <b>Boca</b>, <b>Perna direita</b> (chutando, inclinada…), <b>Pose</b> (corpo todo).<br><br>Na animação, cada sessão vira uma fila de botões: clicou, virou chave naquele quadro.</div>'));
     for (const s of def.sessoes) {
       const aberta = this.edit?.s === s.id, nomesPartes = (s.partes || []).map(id => this.parte(id)?.nome).filter(Boolean);

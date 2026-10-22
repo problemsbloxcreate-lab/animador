@@ -101,7 +101,7 @@
   <div class="at">
     <aside class="painel" style="border-right:1px solid var(--bd)">
       <div class="at-vistas" id="at-vistas"></div>
-      <div class="p-cab"><div class="seg" id="at-vista-partes" title="Hierarquia: quem encaixa em quem · Profundidade: quem fica na frente de quem (Z)"><button data-v="arvore" class="on">Partes</button><button data-v="camadas">Profundidade</button></div><span class="sp"></span><button class="btn sm" id="at-add-parte" title="Parte nova encaixada na escolhida">+ Parte</button></div>
+      <div class="p-cab"><h3 title="Arraste: em cima/embaixo de outra muda quem fica na frente · no meio vira filha · no vazio (ou longe) fica sem pai">Partes</h3><span class="sp"></span><button class="btn sm" id="at-add-parte" title="Parte nova encaixada na escolhida">+ Parte</button></div>
       <div class="p-corpo arvore at-partes" id="at-partes" style="flex:1.2"></div>
       <div class="p-cab" style="border-top:1px solid var(--bd)"><h3 id="at-imgs-t">Imagens</h3><span class="sp"></span><button class="btn sm" id="at-add-pasta" title="Pasta nova nas imagens desta parte (ex.: olhos, bocas)">+ Pasta</button><button class="btn sm" id="at-add-img" title="Pôr imagens (PNG com fundo transparente) nesta parte. Também dá para arrastar os arquivos para cá">+ Imagens</button></div>
       <div class="p-corpo imgs" id="at-imgs" style="flex:1;align-content:start"></div>
@@ -109,9 +109,9 @@
     <main class="at-palco"><canvas id="at-cv"></canvas>
       <div class="ferr-at" id="at-ferr" title="Ferramentas"></div>
       <div class="modo-at"><span class="at-status" id="at-modo"></span><button class="btn sm" id="at-base" title="Sair desta pose e voltar à pose padrão">Voltar à padrão</button><button class="btn sm primary" id="at-ed-ok" hidden title="Voltar ao Ateliê (Esc)">Concluir</button><span class="sp"></span>
-        <span class="seg mover-seg" id="at-mover" title="O que arrastar uma peça muda"><button data-modo="preset" title="Arrastar muda esta imagem só na pose que está na tela (ou só na padrão)">Só nesta pose</button><button data-modo="imagem" title="Arrastar move esta imagem em todas as poses onde ela aparece">Imagem em todas</button><button data-modo="todos" title="Arrastar move a parte inteira: todas as imagens e poses">Parte inteira</button></span>
-        <button class="btn sm" id="at-enq" title="Enquadrar o personagem">Enquadrar</button><button class="btn sm" id="at-regua" title="Régua e ímã: a peça gruda nas bordas e no meio das outras e no centro (R) · Ctrl segura para não grudar"></button><button class="btn sm" id="at-ref" title="Põe cada peça no lugar onde ela está na referência (a parte &quot;Referência&quot; ou o Fantasma)">Pela referência</button>
-        <button class="ibtn" id="at-ajuda" title="Arrastar: posiciona · Alt+arrastar: muda o pivô (giro) · Ctrl+arrastar: gira · setas, Q/E girar, +/− tamanho, F espelhar, [ ] frente/trás, Tab próxima parte, H esconder · espaço/botão do meio: mover a tela · dois cliques numa peça ou imagem: editar a imagem · P toca/pausa a animação, , e . andam um passo">?</button></div>
+        <select id="at-mover" class="at-sel" title="O que arrastar uma peça muda"><option value="preset">Arrastar: só nesta pose</option><option value="imagem">Arrastar: imagem em todas</option><option value="todos">Arrastar: parte inteira</option></select>
+        <button class="ibtn at-ib" id="at-enq" title="Enquadrar o personagem"></button><button class="ibtn at-ib" id="at-regua" title="Régua e ímã: a peça gruda nas bordas e no meio das outras e no centro (R) · Ctrl segura para não grudar"></button><button class="ibtn at-ib" id="at-ref" title="Pôr cada peça no lugar da referência (a parte &quot;Referência&quot; ou o Fantasma)"></button>
+        <button class="ibtn at-ib" id="at-ajuda" title="Arrastar: posiciona · Alt+arrastar: muda o pivô (giro) · Ctrl+arrastar: gira · setas, Q/E girar, +/− tamanho, F espelhar, [ ] frente/trás, Tab próxima parte, H esconder · espaço/botão do meio: mover a tela · dois cliques numa peça ou imagem: editar a imagem · P toca/pausa a animação, , e . andam um passo">?</button></div>
       <div class="at-tl" id="at-tl"></div>
     </main>
     <aside class="painel" style="border-left:1px solid var(--bd)">
