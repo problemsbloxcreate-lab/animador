@@ -627,3 +627,6 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .cam-bar{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 /* janelas de ajustes e transformar */
 .aj{display:grid;gap:8px}.aj-l{display:grid;grid-template-columns:80px 1fr 52px;align-items:center;gap:8px;font-size:12.5px}.aj-l output{text-align:right;color:var(--tx2);font-size:12px}
+/* referência: sempre em cima da hierarquia e das camadas (guia, desenhada atrás de tudo) */
+.at-partes .no.ref{border-left-color:#5aa9e8;background:rgba(90,169,232,.08)}.at-partes .no.ref .nm{color:#a9d3f5}
+.cam.ref{border-left:3px solid #5aa9e8;background:rgba(90,169,232,.08)}.cam.ref .grip{opacity:.25}

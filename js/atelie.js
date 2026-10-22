@@ -64,8 +64,11 @@ const Atelie = {
       // agrupado por pasta: "Pasta X" (a parte que vai virar) e embaixo as imagens dela; depois um separador e a próxima.
       // Antes de criar (e antes da IA): botão direito marca a RAIZ e muda imagens de pasta (ou arraste a imagem para outra pasta)
       const grupos = new Map(); fs.forEach((f, i) => { const g = f._parte || ''; if (!grupos.has(g)) grupos.set(g, []); grupos.get(g).push([f, i]); });
-      const ehGR = g => grupos.get(g)?.some(([f]) => f._ref), ordem = [...grupos.keys()].sort((a, b) => ehGR(b) - ehGR(a) || (a === '') - (b === '') || a.localeCompare(b, 'pt', { numeric: true }));
       if (raiz && !(raiz.parte ? grupos.has(raiz.parte) : fs.includes(raiz.arquivo))) raiz = null;
+      // em cima: a REFERÊNCIA, depois a RAIZ (a pasta dela, ou as soltas com a imagem raiz na frente); depois o resto
+      const ehGR = g => grupos.get(g)?.some(([f]) => f._ref), ehGZ = g => !!raiz && (raiz.parte ? raiz.parte === g : g === (raiz.arquivo._parte || '')),
+        ordem = [...grupos.keys()].sort((a, b) => ehGR(b) - ehGR(a) || ehGZ(b) - ehGZ(a) || (a === '') - (b === '') || a.localeCompare(b, 'pt', { numeric: true }));
+      for (const L of grupos.values()) L.sort((x, y) => (y[0]._ref ? 1 : 0) - (x[0]._ref ? 1 : 0) || (raiz?.arquivo === y[0]) - (raiz?.arquivo === x[0]) || x[1] - y[1]);
       const ehRaiz = (g, f) => !!raiz && (f ? raiz.arquivo === f : raiz.parte === g);
       const paraPasta = (lista, g) => { for (const f of lista) { if (f._ref) Pastas.virarRef(f, false); if (g) f._parte = g; else delete f._parte; delete f._pasta; } const L = new Set(lista); fs = [...fs.filter(f => !L.has(f)), ...lista]; pintaL(); }; // vai para o fim da pasta (não vira a imagem padrão dela)
       const destinos = (lista, deG) => [...ordem.filter(g => g !== deG && !ehGR(g)).map(g => ({ label: g || 'Imagens soltas (cada uma vira uma parte)', icon: g ? 'folder' : 'image', action: () => paraPasta(lista, g) })),
@@ -476,10 +479,10 @@ const Atelie = {
     $$('#at-vista-partes [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === (this.vistaPartes || 'arvore')));
     if (this.vistaPartes === 'camadas' && ps.length) return this.pintaCamadas(el);
     if (!ps.length) { el.innerHTML = '<div class="vazio">Comece criando as partes: corpo, cabeça, cabelo, olhos, braços, pernas…<br>(ou solte as imagens aqui: cada imagem vira uma parte)</div>'; }
-    const raiz = this.def.raiz, filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => (b.id === raiz) - (a.id === raiz) || (b.z || 0) - (a.z || 0)), est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas();
+    const raiz = this.def.raiz, filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => Referencia.ehRef(b) - Referencia.ehRef(a) || (b.id === raiz) - (a.id === raiz) || (b.z || 0) - (a.z || 0)) // a referência sempre em cima, depois a raiz, est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas();
     const vai = (pai, nivel) => { for (const p of filhos(pai)) { ordem.push(p.id);
       const ehRaiz = p.id === raiz, marc = p.id !== this.sel && this.multi.has(p.id), mk = this.marcas().partes.has(p.id);
-      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''} ${roxas.has(p.id) ? 'todos' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Ctrl+clique ou Shift+clique marcam várias · arraste para &quot;Imagens de…&quot; para virar imagem"><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${mk ? '<i class="ponto-mod" title="Mudou e ainda não foi salvo"></i>' : this.local().partes.has(p.id) ? `<span class="so-local" title="Salvo só neste computador: ainda não está na nuvem">${ic('cloudOff', 12)}</span>` : ''}${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
+      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''} ${Referencia.ehRef(p) ? 'ref' : ''} ${roxas.has(p.id) ? 'todos' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Ctrl+clique ou Shift+clique marcam várias · arraste para &quot;Imagens de…&quot; para virar imagem"><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${mk ? '<i class="ponto-mod" title="Mudou e ainda não foi salvo"></i>' : this.local().partes.has(p.id) ? `<span class="so-local" title="Salvo só neste computador: ainda não está na nuvem">${ic('cloudOff', 12)}</span>` : ''}${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
         <button class="ibtn ${est[p.id]?.vis === false ? 'off' : ''}" title="Mostrar/esconder (H)">${ic(est[p.id]?.vis === false ? 'eyeOff' : 'eye', 13)}</button></div>`);
       r.onclick = ev => { if (ev.target.closest('.ibtn')) { this.mudar(p.id, { vis: est[p.id]?.vis === false }); return this.commit(); } this.clicaParte(ev, p.id); };
       r.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
@@ -498,32 +501,36 @@ const Atelie = {
   // CAMADAS: a ordem real de desenho (de cima = na frente), igual às camadas do Photoshop.
   // Mexer aqui só muda o Z; quem encaixa em quem (a hierarquia) continua igual.
   ordemCamadas() { const est = this.estado(); return this.def.partes.map((p, i) => ({ p, i, z: (p.z || 0) + (est[p.id]?.z || 0) })).sort((a, b) => a.z - b.z || a.i - b.i).map(x => x.p); },
-  passoCamada(p, d) { const L = this.ordemCamadas().reverse(), i = L.indexOf(p), j = i - d; if (j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; this.reordenar(L); },
+  passoCamada(p, d) { if (Referencia.ehRef(p)) return; const L = this.ordemCamadas().reverse().filter(x => !Referencia.ehRef(x)), i = L.indexOf(p), j = i - d; if (j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; this.reordenar(L); },
   reordenar(frenteParaTras) { // reescreve os Z da base: 0 = mais atrás
     const n = frenteParaTras.length, pr = this.preset(), est = pr ? pr.estado : null;
     frenteParaTras.forEach((p, i) => { p.z = (n - 1 - i) - (est?.[p.id]?.z || 0); });
+    // a referência fica sempre atrás de tudo (ela é o guia, não uma peça)
+    for (const r of this.def.partes) if (Referencia.ehRef(r) && !frenteParaTras.includes(r)) r.z = -1 - (est?.[r.id]?.z || 0);
     this.commit();
   },
   pintaCamadas(el) {
-    const est = this.estado(), lista = this.ordemCamadas().reverse(), nomeDe = id => this.parte(id)?.nome;
+    // a referência aparece sempre em cima da lista (fixa, sem arrastar), mas é desenhada atrás de tudo
+    const est = this.estado(), refs = this.def.partes.filter(p => Referencia.ehRef(p)), lista = [...refs, ...this.ordemCamadas().reverse().filter(p => !Referencia.ehRef(p))], nomeDe = id => this.parte(id)?.nome;
     el.appendChild(h(`<div class="cam-dica">De cima para baixo: quem fica <b>na frente</b>. Arraste para mudar a ordem (o encaixe não muda).${this.preset() ? ' Vale para a base e para todos os presets.' : ''}</div>`));
-    lista.forEach((p, i) => {
+    const nR = refs.length, outras = lista.slice(nR);
+    lista.forEach((p, i) => { const eR = i < nR;
       const e = est[p.id] || {}, img = p.imgs.find(x => x.id === e.img), bm = img ? Arq.bitmap(img.k, () => this.pintaPartes()) : null;
-      const r = h(`<div class="cam ${p.id === this.sel ? 'sel' : ''} ${p.id === this.def.raiz ? 'raiz' : ''}" draggable="true"><span class="grip">${ic('dots', 12)}</span><canvas width="52" height="52"></canvas>
-        <span class="nm"><b>${esc(p.nome)}</b><small>${p.id === this.def.raiz ? 'RAIZ (principal)' : p.pai ? 'encaixa em ' + esc(nomeDe(p.pai) || '?') : 'solta (sem pai)'}</small></span><span class="zz" title="Z (maior = mais na frente)">${(p.z || 0) + (e.z || 0)}</span>
-        <button class="ibtn" data-up title="Para a frente ( ] )" ${i ? '' : 'disabled'}>${ic('up', 12)}</button><button class="ibtn" data-dn title="Para trás ( [ )" ${i < lista.length - 1 ? '' : 'disabled'}>${ic('down', 12)}</button>
+      const r = h(`<div class="cam ${p.id === this.sel ? 'sel' : ''} ${p.id === this.def.raiz ? 'raiz' : ''} ${eR ? 'ref' : ''}" draggable="${eR ? 'false' : 'true'}"><span class="grip">${ic('dots', 12)}</span><canvas width="52" height="52"></canvas>
+        <span class="nm"><b>${esc(p.nome)}</b><small>${eR ? 'REFERÊNCIA · o guia, desenhado atrás de tudo' : p.id === this.def.raiz ? 'RAIZ (principal)' : p.pai ? 'encaixa em ' + esc(nomeDe(p.pai) || '?') : 'solta (sem pai)'}</small></span><span class="zz" title="Z (maior = mais na frente)">${(p.z || 0) + (e.z || 0)}</span>
+        <button class="ibtn" data-up title="Para a frente ( ] )" ${!eR && i > nR ? '' : 'disabled'}>${ic('up', 12)}</button><button class="ibtn" data-dn title="Para trás ( [ )" ${!eR && i < lista.length - 1 ? '' : 'disabled'}>${ic('down', 12)}</button>
         <button class="ibtn ${e.vis === false ? 'off' : ''}" data-vis title="Mostrar/esconder (H)">${ic(e.vis === false ? 'eyeOff' : 'eye', 12)}</button></div>`);
       if (bm) { const c = $('canvas', r), x = c.getContext('2d'), k = Math.min(52 / bm.width, 52 / bm.height); x.drawImage(bm, (52 - bm.width * k) / 2, (52 - bm.height * k) / 2, bm.width * k, bm.height * k); }
-      const move = d => { const L = lista.slice(), j = i + d; [L[i], L[j]] = [L[j], L[i]]; this.reordenar(L); };
+      const move = d => { if (eR) return; const L = outras.slice(), k = i - nR, j = k + d; if (j < 0 || j >= L.length) return; [L[k], L[j]] = [L[j], L[k]]; this.reordenar(L); };
       r.onclick = ev => { if (ev.target.closest('button')) return; this.escolhe(p.id); this.pinta(); };
       r.oncontextmenu = ev => { ev.preventDefault(); this.escolhe(p.id); this.pinta(); this.menuParte(ev, p); };
       $('[data-up]', r).onclick = () => move(-1); $('[data-dn]', r).onclick = () => move(1);
       $('[data-vis]', r).onclick = () => { this.mudar(p.id, { vis: e.vis === false }); this.commit(); };
-      r.ondragstart = ev => ev.dataTransfer.setData('text/camada', p.id);
+      r.ondragstart = ev => { if (eR) return ev.preventDefault(); ev.dataTransfer.setData('text/camada', p.id); };
       r.ondragover = ev => { if (!ev.dataTransfer.types.includes('text/camada')) return; ev.preventDefault(); const b = r.getBoundingClientRect(), cima = ev.clientY < b.top + b.height / 2; r.classList.toggle('drop-antes', cima); r.classList.toggle('drop-depois', !cima); };
       r.ondragleave = () => r.classList.remove('drop-antes', 'drop-depois');
       r.ondrop = ev => { ev.preventDefault(); const cima = r.classList.contains('drop-antes'); r.classList.remove('drop-antes', 'drop-depois');
-        const q = this.parte(ev.dataTransfer.getData('text/camada')); if (!q || q === p) return; const L = lista.filter(x => x !== q); L.splice(L.indexOf(p) + (cima ? 0 : 1), 0, q); this.reordenar(L); };
+        const q = this.parte(ev.dataTransfer.getData('text/camada')); if (!q || q === p || Referencia.ehRef(q)) return; const L = outras.filter(x => x !== q); L.splice(eR ? 0 : L.indexOf(p) + (cima ? 0 : 1), 0, q); this.reordenar(L); };
       el.appendChild(r);
     });
   },
