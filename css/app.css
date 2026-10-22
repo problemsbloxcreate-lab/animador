@@ -708,3 +708,4 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .at-vistas .av.arrastando{opacity:.4}.at-vistas .av.ord-antes{box-shadow:-3px 0 0 #5aa9e8}.at-vistas .av.ord-depois{box-shadow:3px 0 0 #5aa9e8}
 .at-vistas .av-pri{position:absolute;top:-6px;left:-6px;z-index:1;width:15px;height:15px;border-radius:50%;background:#e8c25a;color:#1b1b1b;display:grid;place-items:center}
 .at-vistas .av-lista{padding:5px 0 0 5px}
+.at-partes .no .no-pai{margin-left:6px;font-size:10px;color:var(--tx3);background:var(--bg3);padding:0 5px;border-radius:6px}

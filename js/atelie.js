@@ -519,10 +519,13 @@ const Atelie = {
     $$('#at-vista-partes [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === (this.vistaPartes || 'arvore')));
     if (this.vistaPartes === 'camadas' && ps.length) return this.pintaCamadas(el);
     if (!ps.length) { el.innerHTML = '<div class="vazio">Comece criando as partes: corpo, cabeça, cabelo, olhos, braços, pernas…<br>(ou solte as imagens aqui: cada imagem vira uma parte)</div>'; }
-    const raiz = this.def.raiz, filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => Referencia.ehRef(b) - Referencia.ehRef(a) || (b.id === raiz) - (a.id === raiz) || (b.z || 0) - (a.z || 0)), est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas();
-    const vai = (pai, nivel) => { for (const p of filhos(pai)) { ordem.push(p.id);
+    // a ORDEM da lista É a profundidade (z): em cima = na frente (a referência fica fixa no topo). Quem encaixa em quem aparece em cinza ("em Corpo").
+    // Com um passo parado na timeline, a ordem mostrada (e mudada) é a daquele passo.
+    const raiz = this.def.raiz, est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas(), lista = [...ps.filter(p => Referencia.ehRef(p)), ...this.ordemCamadas().reverse().filter(p => !Referencia.ehRef(p))];
+    const vai = () => { for (const p of lista) { ordem.push(p.id); const nivel = 0, nomePai = p.pai && this.parte(p.pai)?.nome;
+    
       const ehRaiz = p.id === raiz, marc = p.id !== this.sel && this.multi.has(p.id), mk = this.marcas().partes.has(p.id);
-      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''} ${Referencia.ehRef(p) ? 'ref' : ''} ${roxas.has(p.id) ? 'todos' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Segure e arraste para mudar de lugar: em cima/embaixo de outra muda a ordem · no meio vira filha · no vazio fica sem pai · para &quot;Imagens de…&quot; vira imagem · Ctrl/Shift+clique marcam várias"><span class="pega" aria-hidden="true">${ic('grip', 12)}</span><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${mk ? '<i class="ponto-mod" title="Mudou e ainda não foi salvo"></i>' : this.local().partes.has(p.id) ? `<span class="so-local" title="Salvo só neste computador: ainda não está na nuvem">${ic('cloudOff', 12)}</span>` : ''}${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
+      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''} ${Referencia.ehRef(p) ? 'ref' : ''} ${roxas.has(p.id) ? 'todos' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Segure e arraste: em cima/embaixo de outra muda a profundidade (em cima = na frente) · no meio vira filha · no vazio fica sem pai · para &quot;Imagens de…&quot; vira imagem · Ctrl/Shift+clique marcam várias"><span class="pega" aria-hidden="true">${ic('grip', 12)}</span><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small>${nomePai ? `<small class="no-pai" title="Encaixa em ${esc(nomePai)}">em ${esc(nomePai)}</small>` : ''}</span>${mk ? '<i class="ponto-mod" title="Mudou e ainda não foi salvo"></i>' : this.local().partes.has(p.id) ? `<span class="so-local" title="Salvo só neste computador: ainda não está na nuvem">${ic('cloudOff', 12)}</span>` : ''}${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
         <button class="ibtn ${est[p.id]?.vis === false ? 'off' : ''}" title="Mostrar/esconder (H)">${ic(est[p.id]?.vis === false ? 'eyeOff' : 'eye', 13)}</button></div>`);
       r.onclick = ev => { if (ev.target.closest('.ibtn')) { this.mudar(p.id, { vis: est[p.id]?.vis === false }); return this.commit(); } this.clicaParte(ev, p.id); };
       r.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
@@ -537,15 +540,16 @@ const Atelie = {
       r.ondrop = ev => { ev.preventDefault(); ev.stopPropagation(); const z = zona(ev); r.classList.remove('drop-dentro', 'drop-antes', 'drop-depois');
         if (ev.dataTransfer.files?.length) { this.sel = p.id; return Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(Pastas.paraParte(l), false)); } // arquivo em cima da parte: vira imagem dela (pasta solta aqui = pasta de imagens dela)
         const id = ev.dataTransfer.getData('text/parte'); if (!id || id === p.id) return; if (z === 'dentro') this.porNoPai(id, p.id); else this.moverParte(id, p, z); };
-      el.appendChild(r); vai(p.id, nivel + 1); } };
-    vai(null, 0);
+      el.appendChild(r); } };
+    vai();
     el.ondragover = ev => { if (ev.dataTransfer.types.includes('Files') || ev.dataTransfer.types.includes('text/parte')) ev.preventDefault(); };
     el.ondrop = ev => { const id = ev.dataTransfer.getData('text/parte'); if (id) { ev.preventDefault(); return this.soltarSemPai(id); } if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(l, true)); } }; // cada imagem uma parte; cada pasta uma parte
   },
-  // muda a ordem na lista (frente/trás) e fica irmã de "alvo" (mesmo pai)
+  // muda a PROFUNDIDADE: põe a parte logo na frente (antes) ou atrás (depois) de "alvo" — quem encaixa em quem não muda.
+  // Com um passo parado na timeline, vale só naquele passo (keyframe)
   moverParte(id, alvo, onde) {
-    const q = this.parte(id); if (!q || q === alvo) return; if ((q.pai || null) !== (alvo.pai || null)) { let a = alvo.pai; while (a) { if (a === id) return UI.toast('Não dá: ela ficaria dentro dela mesma'); a = this.parte(a)?.pai; } this.porNoPai(id, alvo.pai || null, { semCommit: true }); }
-    const L = this.ordemCamadas().reverse().filter(x => x !== q && !Referencia.ehRef(x)); let i = L.indexOf(alvo); if (i < 0) i = 0; L.splice(onde === 'antes' ? i : i + 1, 0, q); this.reordenar(L, true);
+    const q = this.parte(id); if (!q || q === alvo || Referencia.ehRef(alvo)) return;
+    const L = this.ordemCamadas().reverse().filter(x => x !== q && !Referencia.ehRef(x)); let i = L.indexOf(alvo); if (i < 0) i = 0; L.splice(onde === 'antes' ? i : i + 1, 0, q); this.reordenar(L);
   },
   soltarSemPai(id) { const q = this.parte(id); if (!q || !q.pai) return; this.porNoPai(id, null); UI.toast(`<b>${esc(q.nome)}</b> ficou solta (sem pai). Ctrl+Z desfaz.`, { time: 3000 }); },
   // CAMADAS: a ordem real de desenho (de cima = na frente), igual às camadas do Photoshop.
@@ -554,7 +558,8 @@ const Atelie = {
   passoCamada(p, d) { if (Referencia.ehRef(p)) return; const L = this.ordemCamadas().reverse().filter(x => !Referencia.ehRef(x)), i = L.indexOf(p), j = i - d; if (j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; this.reordenar(L); },
   reordenar(frenteParaTras, todos = false) { // reescreve os Z da base: 0 = mais atrás
     // num keyframe (passo pausado ou pose do editor): pergunta se a profundidade muda só nele ou em todos (js/quadro.js)
-    const kq = !todos && Quadro.ctx(); if (kq) { frenteParaTras = frenteParaTras.filter(p => !Referencia.ehRef(p)); Quadro.escolheZ(kq).then(v => { if (v === 'quadro') Quadro.reordenar(kq, frenteParaTras); else if (v === 'todos') this.reordenar(frenteParaTras, true); }); return; }
+    const kq = !todos && Quadro.ctx(); if (kq?.tipo === 'passo') return Quadro.reordenar(kq, frenteParaTras.filter(p => !Referencia.ehRef(p))); // passo da timeline: a profundidade é deste keyframe
+    if (kq) { frenteParaTras = frenteParaTras.filter(p => !Referencia.ehRef(p)); Quadro.escolheZ(kq).then(v => { if (v === 'quadro') Quadro.reordenar(kq, frenteParaTras); else if (v === 'todos') this.reordenar(frenteParaTras, true); }); return; }
     const n = frenteParaTras.length, pr = this.preset(), est = pr ? pr.estado : null;
     frenteParaTras.forEach((p, i) => { p.z = (n - 1 - i) - (est?.[p.id]?.z || 0); });
     // a referência fica sempre atrás de tudo (ela é o guia, não uma peça)
