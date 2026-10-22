@@ -967,7 +967,14 @@ const Atelie = {
     if (b) { const m = Math.max(b.w, b.h) * .45 + 20, cx = b.x + b.w / 2, cy = b.y + b.h / 2, l = Math.max(b.w, b.h) + m * 2; b = { x: cx - l / 2, y: cy - l / 2, w: l, h: l }; } else b = tudo;
     const L = 190, k = Math.min(L / b.w, L / b.h), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(b.w * k)); cv.height = Math.max(1, Math.round(b.h * k));
     const x = cv.getContext('2d'), base = new DOMMatrix().scale(k).translate(-b.x, -b.y); x.imageSmoothingQuality = 'high';
-    for (const it of itens) { x.setTransform(base.multiply(it.m)); x.drawImage(Arq.img.get(it.img.k), -(it.img.pivo?.x ?? it.img.w / 2) + (it.img.ajuste?.x || 0), -(it.img.pivo?.y ?? it.img.h / 2) + (it.img.ajuste?.y || 0), it.img.w, it.img.h); }
+    const poe = (ctx, it) => { ctx.setTransform(base.multiply(it.m)); ctx.drawImage(Arq.img.get(it.img.k), -(it.img.pivo?.x ?? it.img.w / 2) + (it.img.ajuste?.x || 0), -(it.img.pivo?.y ?? it.img.h / 2) + (it.img.ajuste?.y || 0), it.img.w, it.img.h); };
+    for (const it of itens) poe(x, it);
+    // DESTAQUE: o resto do personagem fica escuro e as partes da sessão aparecem claras (só o que está à vista delas: o que fica na frente continua tapando)
+    if (s.partes?.length) {
+      const ids = new Set([...s.partes, ...def.partes.filter(p => s.partes.includes(p.pai)).map(p => p.id)]), hl = document.createElement('canvas'); hl.width = cv.width; hl.height = cv.height; const y = hl.getContext('2d'); y.imageSmoothingQuality = 'high';
+      for (const it of itens) { y.globalCompositeOperation = ids.has(it.parte.id) ? 'source-over' : 'destination-out'; poe(y, it); }
+      x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(0,0,0,.62)'; x.fillRect(0, 0, cv.width, cv.height); x.globalCompositeOperation = 'source-over'; x.drawImage(hl, 0, 0);
+    }
     if (this._prevCache.size > 60) this._prevCache.clear(); this._prevCache.set(chave, cv);
     const c2 = document.createElement('canvas'); c2.width = cv.width; c2.height = cv.height; c2.getContext('2d').drawImage(cv, 0, 0); return c2;
   },
