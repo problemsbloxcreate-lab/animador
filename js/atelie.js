@@ -474,12 +474,12 @@ const Atelie = {
     this.pintaIcone(); this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
   },
-  pintaPartes() {
+  pintaPartes() { // na árvore: a referência sempre em cima, depois a raiz
     const el = $('#at-partes'), ps = this.def.partes; el.innerHTML = '';
     $$('#at-vista-partes [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === (this.vistaPartes || 'arvore')));
     if (this.vistaPartes === 'camadas' && ps.length) return this.pintaCamadas(el);
     if (!ps.length) { el.innerHTML = '<div class="vazio">Comece criando as partes: corpo, cabeça, cabelo, olhos, braços, pernas…<br>(ou solte as imagens aqui: cada imagem vira uma parte)</div>'; }
-    const raiz = this.def.raiz, filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => Referencia.ehRef(b) - Referencia.ehRef(a) || (b.id === raiz) - (a.id === raiz) || (b.z || 0) - (a.z || 0)) // a referência sempre em cima, depois a raiz, est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas();
+    const raiz = this.def.raiz, filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => Referencia.ehRef(b) - Referencia.ehRef(a) || (b.id === raiz) - (a.id === raiz) || (b.z || 0) - (a.z || 0)), est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas();
     const vai = (pai, nivel) => { for (const p of filhos(pai)) { ordem.push(p.id);
       const ehRaiz = p.id === raiz, marc = p.id !== this.sel && this.multi.has(p.id), mk = this.marcas().partes.has(p.id);
       const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''} ${Referencia.ehRef(p) ? 'ref' : ''} ${roxas.has(p.id) ? 'todos' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Ctrl+clique ou Shift+clique marcam várias · arraste para &quot;Imagens de…&quot; para virar imagem"><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${mk ? '<i class="ponto-mod" title="Mudou e ainda não foi salvo"></i>' : this.local().partes.has(p.id) ? `<span class="so-local" title="Salvo só neste computador: ainda não está na nuvem">${ic('cloudOff', 12)}</span>` : ''}${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
