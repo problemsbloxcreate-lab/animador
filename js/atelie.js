@@ -127,7 +127,7 @@ const Atelie = {
       if (novo.ia) await this.iaOrganizar('organizar', novo.pedido || '');
       // com referência: põe as peças no lugar dela (a IA já fez isso ao organizar) e deixa a referência invisível
       const rfP = refs.length && this.def.partes.find(p => Referencia.ehRef(p));
-      if (rfP) { if (!novo.ia) { try { await Referencia.aplicar(this, { quieto: true }); } catch { } } const rf = this.def.partes.find(p => Referencia.ehRef(p)); if (rf) { rf.base.vis = false; this.commit(); } }
+      if (rfP) { if (!novo.ia) { try { await Referencia.aplicar(this, { quieto: true, ia: false }); } catch { } } const rf = this.def.partes.find(p => Referencia.ehRef(p)); if (rf) { rf.base.vis = false; this.commit(); } }
       if (rzP && this.def.partes.includes(rzP) && this.def.raiz !== rzP.id) { if (rzP.pai) this.porNoPai(rzP.id, null, { semCommit: true }); this.def.raiz = rzP.id; this.sel = rzP.id; this.commit(); } // a escolha da pessoa vale mais que a da IA
     } finally { fim(); }
   },

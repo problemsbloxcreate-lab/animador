@@ -33,8 +33,15 @@ const Referencia = {
     const idx = []; for (let i = 0; i < W * H; i++) if (P.a[i] > 150) idx.push(i); if (idx.length < 6) return null;
     const passo = Math.max(1, idx.length / N), am = [];
     for (let f = 0; f < idx.length; f += passo) { const i = idx[Math.floor(f)]; am.push(i % W, Math.floor(i / W), P.rgb[i * 3], P.rgb[i * 3 + 1], P.rgb[i * 3 + 2]); }
+    // FAIXA EM VOLTA (2 px fora da peça): ali NÃO pode ter a mesma tinta da borda da peça. Sem isso, uma boca (um risco escuro)
+    // "combina" com qualquer área escura (pupila, contorno do olho); com isso, só onde em volta é diferente (pele)
+    const viz = new Int32Array(W * H).fill(-1); for (const i of idx) viz[i] = i; let borda = idx;
+    for (let passo2 = 0; passo2 < 2; passo2++) { const nova = []; for (const i of borda) { const x = i % W, y = (i / W) | 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const j = yy * W + xx; if (viz[j] === -1 && P.a[j] < 40) { viz[j] = viz[i]; nova.push(j); } } } borda = nova; }
+    const hal = []; for (let i = 0; i < W * H; i++) if (viz[i] !== -1 && P.a[i] < 40) hal.push(i);
+    const ph = Math.max(1, hal.length / (N * .5)), ha = [];
+    for (let f = 0; f < hal.length; f += ph) { const i = hal[Math.floor(f)], o = viz[i]; ha.push(i % W, Math.floor(i / W), P.rgb[o * 3], P.rgb[o * 3 + 1], P.rgb[o * 3 + 2]); }
     const c = L.transformPoint(new DOMPoint(x0 + im.w / 2, y0 + im.h / 2));
-    return { W, H, am: Int16Array.from(am), cx: c.x - mx, cy: c.y - my, n: am.length / 5 };
+    return { W, H, am: Int16Array.from(am), cx: c.x - mx, cy: c.y - my, n: am.length / 5, ha: Int16Array.from(ha), nh: ha.length / 5 };
   },
   // custo (média da diferença de cor) do molde com o canto em (ox, oy)
   custo(R, T, ox, oy) {
@@ -42,16 +49,18 @@ const Referencia = {
     for (let k = 0; k < am.length; k += 5) { const x = ox + am[k], y = oy + am[k + 1];
       if (x < 0 || y < 0 || x >= W || y >= H) { s += Math.min(240, 765 - am[k + 2] - am[k + 3] - am[k + 4]); continue; }
       const j = (y * W + x) * 3, d = Math.abs(rgb[j] - am[k + 2]) + Math.abs(rgb[j + 1] - am[k + 3]) + Math.abs(rgb[j + 2] - am[k + 4]); s += d < 240 ? d : 240; } // teto: o que está escondido atrás de outra peça não pesa demais
-    return s / T.n;
+    const ha = T.ha; let sh = 0; // em volta parecido com a tinta da borda = provavelmente lugar errado
+    if (ha) for (let k = 0; k < ha.length; k += 5) { const x = ox + ha[k], y = oy + ha[k + 1]; if (x < 0 || y < 0 || x >= W || y >= H) continue; const j = (y * W + x) * 3, d = Math.abs(rgb[j] - ha[k + 2]) + Math.abs(rgb[j + 1] - ha[k + 3]) + Math.abs(rgb[j + 2] - ha[k + 4]); if (d < 150) sh += 150 - d; }
+    return (s + sh * 1.5) / T.n;
   },
   // os K melhores lugares (separados) dentro da área
-  melhores(R, T, area, K = 4) {
+  melhores(R, T, area, K = 4, perto = null) { // perto: {x, y, peso}: prefere lugares perto desse ponto (o meio da região que a IA indicou)
     // area = onde o CENTRO da peça pode cair (perto da mãe); a peça pode sair da área
     const x0 = Math.floor(Math.max(-T.W * .3, (area?.x0 ?? -1e9) - T.cx)), x1 = Math.ceil(Math.min(R.W - T.W * .7, (area?.x1 ?? 1e9) - T.cx)), y0 = Math.floor(Math.max(-T.H * .3, (area?.y0 ?? -1e9) - T.cy)), y1 = Math.ceil(Math.min(R.H - T.H * .7, (area?.y1 ?? 1e9) - T.cy));
-    const L = []; for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) L.push([this.custo(R, T, x, y), x, y]);
+    const L = [], tam = Math.max(4, Math.min(T.W, T.H)); for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) L.push([this.custo(R, T, x, y) + (perto ? perto.peso * Math.hypot(x + T.cx - perto.x, y + T.cy - perto.y) / tam : 0), x, y]);
     if (!L.length) return [];
-    L.sort((a, b) => a[0] - b[0]); const out = [], perto = Math.max(2, Math.min(T.W, T.H) * .5);
-    for (const c of L) { if (out.every(o => Math.hypot(o[1] - c[1], o[2] - c[2]) > perto)) out.push(c); if (out.length >= K) break; }
+    L.sort((a, b) => a[0] - b[0]); const out = [], sep = Math.max(2, Math.min(T.W, T.H) * .5);
+    for (const c of L) { if (out.every(o => Math.hypot(o[1] - c[1], o[2] - c[2]) > sep)) out.push(c); if (out.length >= K) break; }
     return out;
   },
   // "Braço esquerdo" e "Braço direito" = mesmo grupo (não podem ficar no mesmo lugar). De trás/da frente PODEM se sobrepor, então não contam
@@ -61,7 +70,7 @@ const Referencia = {
   pausa: () => new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); }),
 
   // calcula onde cada parte fica (sem mudar nada). Devolve { sigma, achados: [{ parte, u, v, custo }], ruins: [nomes] }
-  async calcula(def, ref, aoPasso = () => { }) {
+  async calcula(def, ref, aoPasso = () => { }, dicas = null) {
     const bmR = Arq.img.get(ref.k); if (!bmR) throw new Error('a imagem da referência ainda não carregou');
     const est = Modelo.partesNoEstado(def, {}), its = Modelo.montar(def, est).filter(it => it.img && it.parte !== ref.parte && !this.ehRef(it.parte) && Arq.img.get(it.img.k));
     if (!its.length) throw new Error('não tem peças para encaixar');
@@ -88,8 +97,10 @@ const Referencia = {
     for (const [i, p] of ordem.entries()) { const it = porId[p.id], bm = Arq.img.get(it.img.k); aoPasso(`Procurando "${p.nome}" na referência… (${i + 1}/${ordem.length})`); await this.pausa();
       // peça pequena (boca, sobrancelha…): procura direto na referência maior
       let T = this.molde(it, bm, sigma * c1, 320), fino = false; if (!T || Math.min(T.W, T.H) < 8) { T = this.molde(it, bm, sigma * c2, 500); fino = true; } if (!T) continue;
-      const kk = fino ? k12 : 1, mae = p.pai && achou[p.pai]; let area = null; if (mae) { const mw = mae.w, mh = mae.h; const fx = mw * .35 + T.W / kk * .6, fy = mh * .35 + T.H / kk * .6; area = { x0: (mae.x - fx) * kk, y0: (mae.y - fy) * kk, x1: (mae.x + mw + fx) * kk, y1: (mae.y + mh + fy) * kk }; }
-      const RR = fino ? R2 : R1; let L = this.melhores(RR, T, area, 5); if (!L.length && area) L = this.melhores(RR, T, null, 5); if (!L.length) continue;
+      const kk = fino ? k12 : 1, mae = p.pai && achou[p.pai], dc = dicas?.[p.id]?.caixa; let area = null;
+      if (dc) { const cc = fino ? c2 : c1, bw = (dc.x1 - dc.x0) * bmR.width, bh = (dc.y1 - dc.y0) * bmR.height, fx = bw * .35 + bmR.width * .03 + 6 / cc, fy = bh * .35 + bmR.height * .03 + 6 / cc; /* a região da IA é aproximada: dá folga */ area = { x0: (dc.x0 * bmR.width - fx) * cc, y0: (dc.y0 * bmR.height - fy) * cc, x1: (dc.x1 * bmR.width + fx) * cc, y1: (dc.y1 * bmR.height + fy) * cc }; } // a IA disse onde fica (olhos no rosto…): procura só ali
+      else if (mae) { const mw = mae.w, mh = mae.h; const fx = mw * .35 + T.W / kk * .6, fy = mh * .35 + T.H / kk * .6; area = { x0: (mae.x - fx) * kk, y0: (mae.y - fy) * kk, x1: (mae.x + mw + fx) * kk, y1: (mae.y + mh + fy) * kk }; }
+      const RR = fino ? R2 : R1, pt = dc ? { x: (dc.x0 + dc.x1) / 2 * bmR.width * (fino ? c2 : c1), y: (dc.y0 + dc.y1) / 2 * bmR.height * (fino ? c2 : c1), peso: 3 } : null; let L = this.melhores(RR, T, area, 5, pt); if (!L.length && area) L = this.melhores(RR, T, null, 5); if (!L.length) continue;
       cand[p.id] = L.map(c => ({ c: c[0], x: c[1] / kk, y: c[2] / kk, T: { ...T, W: T.W / kk, H: T.H / kk, cx: T.cx / kk, cy: T.cy / kk } }));
       if (L[1] && L[1][0] - L[0][0] < L[0][0] * .06 + 2 && Math.hypot(L[1][1] - L[0][1], L[1][2] - L[0][2]) > Math.max(T.W, T.H)) duvidas.push(p.nome); // dois lugares parecidos demais
       achou[p.id] = { x: L[0][1] / kk, y: L[0][2] / kk, w: T.W / kk, h: T.H / kk }; }
@@ -108,17 +119,31 @@ const Referencia = {
     let sF = sigma, mF = Infinity; aoPasso('Acertando o tamanho…'); await this.pausa();
     for (let g = .94; g <= 1.0601; g += .01) { let t = 0, n = 0; for (const p of grandes2) { const L = local(p, sigma * g, 500, r + 2); if (L) { t += L.c; n++; } } if (n && t / n < mF) { mF = t / n; sF = sigma * g; } }
     sigma = sF; const achados = [];
-    for (const p of ordem) { const L = local(p, sigma, 900, r + 2); if (!L) continue;
-      if (L.c > 170) { ruins.push(p.nome); continue; } // nada parecido (a peça não está na referência)
-      achados.push({ parte: p, u: L.u, v: L.v, custo: L.c }); }
+    for (const p of ordem) { const dc = dicas?.[p.id], pEnc = dc?.encaixe ? { u: dc.encaixe.x * bmR.width, v: dc.encaixe.y * bmR.height } : null;
+      // pose que não existe na referência (braço acenando, perna dando passo): encaixa pelo ponto de giro no lugar que a IA indicou (ombro, quadril…)
+      if (dc?.poseDif && pEnc) { achados.push({ parte: p, pivo: pEnc, custo: 0, pelaIA: true }); continue; }
+      let L = local(p, sigma, 900, r + 2);
+      // peça pequena (boca, sobrancelha, fio de cabelo) com a região da IA: pela cor ela combina com muitos lugares (a borda de baixo do olho
+      // é um arco preto igual a um sorriso). Vale o lugar achado só se cair DENTRO da região da IA; fora dela, vai para o meio da região
+      const T2s = dc?.caixa && this.molde(porId[p.id], Arq.img.get(porId[p.id].img.k), sigma * c2, 200);
+      if (T2s && Math.min(T2s.W, T2s.H) < 22) { const b = dc.caixa, bw = (b.x1 - b.x0) * bmR.width, bh = (b.y1 - b.y0) * bmR.height, mx = (b.x0 + b.x1) / 2 * bmR.width, my = (b.y0 + b.y1) / 2 * bmR.height;
+        const dentro = L && Math.abs(L.u - mx) <= bw * .62 + 4 && Math.abs(L.v - my) <= bh * .62 + 4;
+        if (!dentro) L = { c: L?.c ?? 999, u: mx, v: my, pelaIA: true }; }
+      if (!L || L.c > (dc ? 120 : 170)) { // nada parecido: com a dica da IA, vai pelo encaixe (ou o meio da região); sem ela, fica onde está
+        if (pEnc) achados.push({ parte: p, pivo: pEnc, custo: L?.c ?? 999, pelaIA: true });
+        else if (dc?.caixa) achados.push({ parte: p, u: (dc.caixa.x0 + dc.caixa.x1) / 2 * bmR.width, v: (dc.caixa.y0 + dc.caixa.y1) / 2 * bmR.height, custo: L?.c ?? 999, pelaIA: true });
+        else ruins.push(p.nome); continue; }
+      achados.push({ parte: p, u: L.u, v: L.v, custo: L.c, pelaIA: !!L.pelaIA }); }
     // 4) JÁ ESTÁ NO LUGAR? (camadas do mesmo desenho, ou arrumado à mão): onde cada peça está hoje, medido na referência como ela está agora.
     //    Se o conjunto já bate, a escala de agora vale e só sai do lugar a peça que achou um lugar MUITO melhor.
     const agora = this.agoraNaRef(def, ref, bmR);
     if (agora) { const custoEm = (p, s, u, v) => { const it = porId[p.id], T = this.molde(it, Arq.img.get(it.img.k), s * c2, 900); if (!T) return Infinity; let b = Infinity; const bx = Math.round(u * c2 - T.cx), by = Math.round(v * c2 - T.cy); for (let y = by - 1; y <= by + 1; y++) for (let x = bx - 1; x <= bx + 1; x++) b = Math.min(b, this.custo(R2, T, x, y)); return b; };
-      for (const a of achados) { const c = agora.ref(a.parte); a.agora = c ? { u: c.u, v: c.v, custo: custoEm(a.parte, agora.sigma, c.u, c.v) } : null; }
-      const med = L => { L = L.filter(isFinite).sort((x, y) => x - y); return L.length ? L[Math.floor(L.length / 2)] : Infinity; };
+      for (const a of achados) { const c = agora.ref(a.parte), dc = dicas?.[a.parte.id]?.caixa, dentro = !dc || !c || (c.u >= (dc.x0 - .05) * bmR.width && c.u <= (dc.x1 + .05) * bmR.width && c.v >= (dc.y0 - .05) * bmR.height && c.v <= (dc.y1 + .05) * bmR.height);
+        a.agora = c && dentro && !a.pivo ? { u: c.u, v: c.v, custo: custoEm(a.parte, agora.sigma, c.u, c.v) } : null; }
+      const med = L => { L = L.filter(x => x != null && isFinite(x)).sort((x, y) => x - y); return L.length ? L[Math.floor(L.length / 2)] : Infinity; };
       const jaBate = Math.abs(agora.sigma / sigma - 1) < .05 && med(achados.map(a => a.agora?.custo)) <= med(achados.map(a => a.custo)) * 1.15 + 4;
       if (jaBate) { sigma = agora.sigma; for (const a of achados) if (a.agora && !(a.custo < a.agora.custo * .7 - 6)) { a.u = a.agora.u; a.v = a.agora.v; a.ficou = true; } } }
+    // peças pela dica da IA vão primeiro as mães e depois as filhas (a ordem de "ordem")
     return { sigma, achados, ruins, duvidas: duvidas.filter(n => !ruins.includes(n)), ficaram: achados.filter(a => a.ficou).length };
   },
 
@@ -140,7 +165,8 @@ const Referencia = {
       await Arq.garantir(Modelo.chavesImgs(def));
       // a referência fica solta (se estivesse presa numa parte, iria junto quando a parte mudasse de lugar)
       if (ref.tipo === 'parte' && ref.parte.pai) A.porNoPai(ref.parte.id, null, { semCommit: true });
-      const r = await this.calcula(def, ref, t => Ocupado.passo?.(t)), bm = Arq.img.get(ref.k);
+      let dicas = null; if (o.ia !== false && typeof IA !== 'undefined' && IA.srv) { try { Ocupado.passo?.('A IA está olhando a referência (onde fica cada peça)…'); dicas = await IA.ondeNaRef(def, ref); } catch (e) { console.warn('dica da IA', e); } }
+      const r = await this.calcula(def, ref, t => Ocupado.passo?.(t), dicas), bm = Arq.img.get(ref.k);
       // a referência com o tamanho certo (σ px dela por unidade do desenho), no mesmo centro
       let paraMundo;
       if (ref.tipo === 'parte') { const it = Modelo.montar(def, Modelo.partesNoEstado(def, {})).find(x => x.parte === ref.parte), im = ref.img, kr = Math.sqrt(Math.abs(it.m.a * it.m.d - it.m.b * it.m.c)) || 1;
@@ -151,7 +177,7 @@ const Referencia = {
         paraMundo = (u, v) => new DOMPoint(f.x + u * s, f.y + v * s); }
       // move cada parte (mães antes das filhas), em coordenadas da mãe
       for (const a of r.achados) { const est = Modelo.partesNoEstado(def, {}), L = Modelo.montar(def, est), it = L.find(x => x.parte === a.parte); if (!it?.img) continue;
-        const im = it.img, c = it.m.transformPoint(new DOMPoint(im.w / 2 - (im.pivo?.x ?? im.w / 2) + (im.ajuste?.x || 0), im.h / 2 - (im.pivo?.y ?? im.h / 2) + (im.ajuste?.y || 0))), alvo = paraMundo(a.u, a.v);
+        const im = it.img, c = a.pivo ? it.mp.transformPoint(new DOMPoint(0, 0)) : it.m.transformPoint(new DOMPoint(im.w / 2 - (im.pivo?.x ?? im.w / 2) + (im.ajuste?.x || 0), im.h / 2 - (im.pivo?.y ?? im.h / 2) + (im.ajuste?.y || 0))), alvo = a.pivo ? paraMundo(a.pivo.u, a.pivo.v) : paraMundo(a.u, a.v); // pivô = o ponto de giro/encaixe da parte
         const mae = a.parte.pai ? L.find(x => x.parte.id === a.parte.pai)?.mp : null, inv = mae ? new DOMMatrix([mae.a, mae.b, mae.c, mae.d, 0, 0]).inverse() : new DOMMatrix(), d = inv.transformPoint(new DOMPoint(alvo.x - c.x, alvo.y - c.y));
         const e = a.parte.encaixe || { x: 0, y: 0 }; a.parte.encaixe = { x: round(e.x + d.x, 1), y: round(e.y + d.y, 1) }; }
       fim(); if (!o.semCommit) { A.commit(); A.enquadrar?.(); }

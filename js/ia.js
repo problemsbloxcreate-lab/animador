@@ -7,7 +7,7 @@ const IA = {
   get srv() { return Nuvem.srv; },
   // todo pedido à IA mostra a tela "A IA está trabalhando" (bloqueia a tela, tempo passado/aproximado e %)
   async chama(sistema, pedido, aoEscrever) {
-    const qual = sistema === this.SIS_ORGANIZAR ? ['organizar', 'Organizando o personagem', 60] : sistema === this.SIS_PRESET ? ['preset', 'Criando o preset', 20] : sistema === this.SIS_CENA ? ['cena', 'Animando a cena', 40]
+    const qual = sistema === this.SIS_ORGANIZAR ? ['organizar', 'Organizando o personagem', 60] : sistema === this.SIS_REF ? ['referencia', 'A IA está olhando a referência', 30] : sistema === this.SIS_PRESET ? ['preset', 'Criando o preset', 20] : sistema === this.SIS_CENA ? ['cena', 'Animando a cena', 40]
       : /CORES/.test(sistema) ? ['cores', 'Ajustando as cores', 20] : /cen[aá]rio/i.test(sistema) ? ['cenario', 'Desenhando o cenário', 60] : ['ia', 'A IA está trabalhando', 30];
     const fim = Ocupado.inicio({ tipo: qual[0], titulo: qual[1], est: qual[2], subtitulo: 'A IA está pensando…' });
     try { return await this._chama(sistema, pedido, txt => { Ocupado.texto(txt.length); Ocupado.passo(`A IA está escrevendo… (${txt.length} letras)`); aoEscrever?.(txt); }); } finally { fim(); }
@@ -232,6 +232,34 @@ Em "trilhas", cada passo é {"Parte":"imagem"} ou {"Parte":{"img":"imagem","r":g
         partes: Object.values(r.partes).map(p => ({ parte: p.nome, pai: N(p.pai) || null, z: p.z, pivo: p.pivo, imagens: Object.values(p.imgs).slice(0, 12) })),
         sessoes: Object.values(r.sessoes).map(s => ({ sessao: s.nome, presets: s.presets.slice(0, 12) })), animacoes: r.animacoes.slice(0, 10),
         correcoes_da_equipe_depois_da_IA: (d.iaCorrecoes || []).slice(0, 15) }).slice(0, 4000) }; });
+  },
+  /* ---------- ONDE CADA PEÇA FICA NA REFERÊNCIA (para o js/referencia.js acertar o lugar) ----------
+     A IA olha a arte inteira e as peças e diz a região de cada uma (olhos e boca no rosto, a mão na ponta do braço…)
+     e o ponto onde ela encaixa no corpo (ombro, quadril, pescoço). Depois a comparação de cores acha o lugar exato DENTRO dessa região. */
+  SIS_REF: `Você ajuda a montar um personagem 2D de animação por partes. Recebe a REFERÊNCIA (o personagem inteiro, já montado) e as PEÇAS separadas (cada uma com o nome da parte).
+Para CADA peça, diga onde ela fica NA REFERÊNCIA, em pixels da imagem da referência (o tamanho dela vem no texto; x para a direita, y para baixo):
+- "caixa": [x0, y0, x1, y1] — a região onde essa peça aparece na referência (justa, sem folga grande).
+- "encaixe": [x, y] — o ponto onde ela PRENDE no corpo: ombro no braço, punho na mão, quadril na perna, pescoço na cabeça, meio do rosto nos olhos/boca, topo da cabeça no chapéu/cabelo.
+- "pose_diferente": true se a imagem da peça está numa pose que NÃO aparece na referência (ex.: braço acenando, mas na referência o braço está abaixado; perna dando passo, mas na referência está parada). Aí a "caixa" é onde aquela parte do corpo fica na referência, e o "encaixe" é o mais importante.
+Olhe com cuidado: olhos, boca, sobrancelhas, nariz e bochechas ficam no ROSTO; mãos na ponta dos braços; sapatos/pés embaixo das pernas. Lados: "esquerdo/direito" é do personagem (o direito dele costuma ficar à ESQUERDA de quem olha, se ele está de frente); "de trás/da frente" é profundidade.
+Se uma peça não existe na referência (acessório que não aparece), mande "caixa": null e diga onde ela ficaria em "encaixe", se der.
+Responda SÓ um JSON: {"pecas":{"Nome exato da parte":{"caixa":[x0,y0,x1,y1],"encaixe":[x,y],"pose_diferente":false}, ...}}`,
+  async ondeNaRef(def, ref) {
+    const bm = Arq.img.get(ref.k); if (!bm) return null;
+    const k = Math.min(1, 1000 / Math.max(bm.width, bm.height)), W = Math.round(bm.width * k), H = Math.round(bm.height * k), c = new OffscreenCanvas(W, H), x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.drawImage(bm, 0, 0, W, H);
+    const b64 = async cv => { const b = await cv.convertToBlob({ type: 'image/jpeg', quality: .85 }), u8 = new Uint8Array(await b.arrayBuffer()); let bin = ''; for (let j = 0; j < u8.length; j += 8192) bin += String.fromCharCode(...u8.subarray(j, j + 8192)); return btoa(bin); };
+    const content = [{ type: 'text', text: `REFERÊNCIA (${W} x ${H} pixels):` }, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: await b64(c) } }, { type: 'text', text: 'PEÇAS (cada uma é uma parte; mostro a imagem que ela usa agora):' }];
+    const est = Modelo.partesNoEstado(def, {}), nomes = [];
+    for (const p of def.partes) { if (p === ref.parte || Referencia.ehRef(p)) continue; const im = p.imgs.find(i => i.id === est[p.id]?.img) || p.imgs[0], b = im && Arq.img.get(im.k); if (!b) continue;
+      const S = 140, q = Math.min(S / b.width, S / b.height, 1), m = new OffscreenCanvas(Math.max(1, Math.round(b.width * q)), Math.max(1, Math.round(b.height * q))), y = m.getContext('2d'); y.fillStyle = '#fff'; y.fillRect(0, 0, m.width, m.height); y.drawImage(b, 0, 0, m.width, m.height);
+      content.push({ type: 'text', text: `Parte "${p.nome}" (imagem "${im.nome}")` }, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: await b64(m) } }); nomes.push(p.nome); }
+    if (!nomes.length) return null;
+    content.push({ type: 'text', text: `Responda para estas partes: ${JSON.stringify(nomes)}` });
+    const j = this.json(await this.chama(this.SIS_REF, content)), out = {};
+    for (const [nome, v] of Object.entries(j?.pecas || {})) { const p = this.acha(def.partes, nome); if (!p || !v) continue; const cx = v.caixa, en = v.encaixe;
+      out[p.id] = { caixa: Array.isArray(cx) && cx.length === 4 && cx.every(n => isFinite(+n)) ? { x0: Math.min(cx[0], cx[2]) / W, y0: Math.min(cx[1], cx[3]) / H, x1: Math.max(cx[0], cx[2]) / W, y1: Math.max(cx[1], cx[3]) / H } : null,
+        encaixe: Array.isArray(en) && en.length === 2 && en.every(n => isFinite(+n)) ? { x: en[0] / W, y: en[1] / H } : null, poseDif: !!v.pose_diferente }; }
+    return out;
   },
   async organizar(def, modo, pedido, aoEscrever) {
     const est = Modelo.partesNoEstado(def, {}), cx = Modelo.montar(def, est); // onde cada parte está no desenho (para a IA entender quem fica perto de quem)
