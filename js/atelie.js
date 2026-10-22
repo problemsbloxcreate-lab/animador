@@ -304,7 +304,7 @@ const Atelie = {
     if (!fundo) for (let x = Math.floor(a.x / g) * g; x < b2.x; x += g) for (let y = Math.floor(a.y / g) * g; y < b2.y; y += g) if (((x + y) / g) % 2 === 0) ctx.fillRect(x, y, g, g);
     ctx.strokeStyle = fundo ? 'rgba(0,0,0,.1)' : '#2c2c2c'; ctx.lineWidth = 1 / this.vista.z; ctx.beginPath(); ctx.moveTo(-5000, 0); ctx.lineTo(5000, 0); ctx.moveTo(0, -5000); ctx.lineTo(0, 5000); ctx.stroke(); ctx.restore();
     const est = this.estado(), itens = Modelo.montar(this.def, est), roxo = this.partesTodas();
-    for (const it of itens) { if (!it.img) continue; const bm = Arq.comAp(Arq.bitmap(it.img.k, () => this.desenha()), it, () => this.desenha()); if (!bm) continue; // comAp: o que foi apagado só neste keyframe const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
+    for (const it of itens) { if (!it.img) continue; const bm = Arq.comAp(Arq.bitmap(it.img.k, () => this.desenha()), it, () => this.desenha()); if (!bm) continue; /* comAp: o que foi apagado só neste keyframe */ const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
       ctx.save(); ctx.setTransform(V.multiply(it.m)); ctx.globalAlpha = this.sel && it.parte.id !== this.sel && this.destacar ? .45 : 1; ctx.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h);
       if (roxo.has(it.parte.id)) ctx.drawImage(this.tingido(bm, it.img.k + (it.ap?.k || '')), -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); // MOVER TODOS: roxo meio transparente em tudo que vai junto
       ctx.restore(); }
