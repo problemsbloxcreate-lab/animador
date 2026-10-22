@@ -284,7 +284,7 @@ const Atelie = {
     $('#at-enq').onclick = () => this.enquadrar(); $('#at-regua').onclick = () => this.trocaRegua(); this.pintaRegua(); this.cv.addEventListener('pointerup', () => { if (this.guias) { this.guias = null; this.desenha(); } }); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 15); $('#at-enq').innerHTML = ic('frame', 15); $('#at-ed-ok').onclick = () => this.fecharEditor(); this.cv.addEventListener('dblclick', e => { if (this.edImg || Pintura.ferr !== 'mover') return; const it = this.acha(this.mundo(e)); if (it?.img) this.abrirEditor(it.parte, it.img); }); /* dois cliques numa peça: edita a imagem dela */
     $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
     addEventListener('keydown', e => this.teclas(e));
-    Pintura.liga();
+    Pintura.liga(); Divisores.liga(); // bordas dos painéis e da timeline: arrastar muda o tamanho
   },
   tamanho() { const r = this.cv.getBoundingClientRect(), d = devicePixelRatio || 1; this.cv.width = Math.max(2, r.width * d); this.cv.height = Math.max(2, r.height * d); this.desenha(); },
   enquadrar() {
@@ -990,7 +990,7 @@ const Atelie = {
     el.innerHTML = `<div class="av-cab" title="A 1ª vista é a principal: é a que aparece no editor quando o quadro não escolhe outra. Arraste para mudar a ordem.">${ic('eye', 13)}<b>Vistas</b><small>a 1ª é a principal</small><span class="sp"></span><button class="btn sm" data-nova title="Vista nova (frente, lado, costas…)">${ic('plus', 12)} Vista</button></div><div class="av-lista"></div>`;
     const l = $('.av-lista', el);
     for (const v of V) { const on = v.id === this.def.vistaAtual, np = on ? this.def.partes.length : (v.partes || []).length;
-      const pri = v === V[0], b = h(`<button class="av ${on ? 'on' : ''} ${pri ? 'pri' : ''}" title="${esc(v.nome)} (${esc(Modelo.nomeTipo(v.tipo))}) · ${np} parte(s)${pri ? ' · PRINCIPAL' : ''}${on ? '' : ' · clique para trocar'} · arraste para mudar a ordem · botão direito: opções">${pri ? `<i class="av-pri" title="Principal">${ic('star', 10)}</i>` : ''}${this.icVista(v.tipo)}<span>${esc(v.nome)}</span><small>${np}</small></button>`);
+      const pri = v === V[0] && V.length > 1, b = h(`<button class="av ${on ? 'on' : ''} ${pri ? 'pri' : ''}" title="${esc(v.nome)} (${esc(Modelo.nomeTipo(v.tipo))}) · ${np} parte(s)${pri ? ' · PRINCIPAL' : ''}${on ? '' : ' · clique para trocar'} · arraste para mudar a ordem · botão direito: opções">${pri ? `<i class="av-pri" title="Principal">${ic('star', 10)}</i>` : ''}${this.icVista(v.tipo)}<span>${esc(v.nome)}</span><small>${np}</small></button>`);
       b.onclick = () => this.trocaVista(v.id); b.oncontextmenu = ev => { ev.preventDefault(); this.menuVista(ev, v); };
       ordenavel(b, 'vista', v.id, (id, antes) => { const i = V.findIndex(x => x.id === id), j = V.indexOf(v); if (i >= 0) { moveNaLista(V, i, j, antes); this.commit(); } }, true);
       l.appendChild(b); }

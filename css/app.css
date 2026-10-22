@@ -709,3 +709,14 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .at-vistas .av-pri{position:absolute;top:-6px;left:-6px;z-index:1;width:15px;height:15px;border-radius:50%;background:#e8c25a;color:#1b1b1b;display:grid;place-items:center}
 .at-vistas .av-lista{padding:5px 0 0 5px}
 .at-partes .no .no-pai{margin-left:6px;font-size:10px;color:var(--tx3);background:var(--bg3);padding:0 5px;border-radius:6px}
+/* bordas de mudar o tamanho (js/divisores.js) */
+#atelie .at{grid-template-columns:var(--at-esq,270px) 1fr var(--at-dir,320px)}
+#atelie.ed-img .at{grid-template-columns:1fr var(--at-dir,320px)}
+#atelie .at>aside{position:relative}
+.at-div{position:absolute;z-index:6;background:transparent;transition:background .12s}
+.at-div.v{top:0;bottom:0;width:7px;cursor:col-resize}.at-div.v.dir{right:-4px}.at-div.v.esq{left:-4px}
+.at-div.h{left:0;right:0;top:-4px;height:7px;cursor:row-resize}
+.at-div:hover,.at-div.on{background:rgba(90,169,232,.45)}
+body.arrastando-div{user-select:none;cursor:col-resize}
+.at-tl{max-height:none}.at-tl[style*="height"] .tl-grade{flex:1}
+.at-tl:not([style*="height"]){max-height:190px}

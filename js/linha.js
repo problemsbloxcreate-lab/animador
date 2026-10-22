@@ -9,7 +9,7 @@ const Linha = {
     const el = $('#at-tl'); if (!el || !Atelie.def) return; const A = Animacoes; el.hidden = !!Atelie.edImg; if (el.hidden) return this.altura();
     const L = A.lista(); if (A.sel && !A.achar(A.sel)) A.sel = null; if (!A.sel && L.length) A.sel = L[0].id;
     const a = A.achar(A.sel), toca = !!a && A.tocando === a.id, rodando = toca && !A.pausado, st = A.passoAtual();
-    el.innerHTML = '';
+    const div = $('.at-div', el); el.innerHTML = ''; if (div) el.appendChild(div); // a borda de mudar o tamanho fica
     const cab = h(`<div class="tl-cab">${ic('film', 14)}
       <select data-a title="Animação de teste">${L.length ? L.map(x => `<option value="${x.id}" ${a && x.id === a.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('') : '<option value="">Nenhuma animação</option>'}</select>
       <button class="ibtn" data-nova title="Animação nova">${ic('plus', 14)}</button><i class="tl-sep"></i>
