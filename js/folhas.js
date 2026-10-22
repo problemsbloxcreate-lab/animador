@@ -178,7 +178,7 @@ const Folhas = {
     try {
       const porI = new Map(itens.map(it => [it.i, it]));
       for (let i = 0; i < fs.length; i++) {
-        const it = porI.get(i); if (!it) { out.push(fs[i]); continue; }
+        const n0 = out.length, it = porI.get(i); if (!it) { out.push(fs[i]); continue; }
         const a = it.a, s = it.ajustar ? it.s : 1;
         if (it.folha && it.separar) {
           const gs = this.agrupa(a, a.gap), dig = String(gs.length).length;
@@ -187,6 +187,7 @@ const Folhas = {
           separou.push({ nome: a.nome, n: gs.length, modo: it.modo });
         } else if (it.fundo || (it.ajustar && s !== 1)) out.push(await this.arquivo(this.escala(this.inteira(a, it.fundo), s), a.nome));
         else out.push(fs[i]);
+        for (let q = n0; q < out.length; q++) Pastas.herda(out[q], fs[i]); // veio de uma pasta: as peças ficam na parte dela
       }
     } finally { t2.remove(); }
     return { fs: out, separou, montado };

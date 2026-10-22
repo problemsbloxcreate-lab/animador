@@ -569,3 +569,5 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .passo:not(.add){cursor:grab}.passo:not(.add):active{cursor:grabbing}.passo .ps-mv{display:grid;place-items:center;width:16px;height:18px;margin:0 -3px;border-radius:4px;cursor:pointer;color:#555}.passo .ps-mv:hover{background:#cfcfcf;color:#000}.passo .ps-mv[hidden]{display:none}
 
 .no.todos{background:rgba(192,139,255,.16)!important;box-shadow:inset 3px 0 0 #c08bff}.no.todos .nm,.no.todos>span{color:#e4d1ff}
+
+.np-pasta{display:flex;justify-content:center;margin:-4px 0 6px}.np-im span b{color:#c08bff;font-weight:600}

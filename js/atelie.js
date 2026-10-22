@@ -56,18 +56,19 @@ const Atelie = {
     const body = h(`<div class="novo-p"><div class="campo2" style="gap:10px;align-items:flex-end"><label class="field" style="flex:2">Nome do personagem<input type="text" data-n placeholder="Nome do personagem"></label>
       <label class="field" style="flex:1" title="De que ângulo são estas imagens. Depois dá para pôr as outras vistas (frente, lado, costas…)">Vista<select data-vt>${Modelo.TIPOS_VISTA.map(([t, n]) => `<option value="${t}" ${t === 'frente' ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <div class="field">Imagens <small>(opcional) — as peças do personagem em PNG com fundo transparente. O melhor: as camadas do desenho exportadas no mesmo tamanho (já encaixam sozinhas).</small></div>
-      <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens aqui</b><small>ou clique para escolher</small></div><div class="np-lista" data-l></div>
+      <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens ou PASTAS aqui</b><small>ou clique para escolher · cada pasta vira uma parte (ex.: "perna_frente" → Perna frente)</small></div><div class="np-pasta"><button class="btn sm" data-pasta>${ic('folder', 12)} Escolher uma pasta</button></div><div class="np-lista" data-l></div>
       <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, camadas, sessões, presets e animações de teste)</label>
       <textarea rows="2" data-p placeholder="Opcional: dicas para a IA. Ex.: &quot;as bocas são para falar&quot;, &quot;o corpo é a raiz&quot;"></textarea></div>`);
     const lista = $('[data-l]', body), drop = $('[data-d]', body), ia = $('[data-ia]', body), urls = [];
     const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = '';
-      fs.forEach((f, i) => { const u = URL.createObjectURL(f); urls.push(u); const c = h(`<div class="np-im" title="${esc(f.name)}"><img src="${u}" alt=""><span>${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn" title="Tirar">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); }; lista.appendChild(c); });
-      drop.classList.toggle('tem', !!fs.length); $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns) — arraste mais se quiser` : 'Arraste as imagens aqui';
+      fs.forEach((f, i) => { const u = URL.createObjectURL(f); urls.push(u); const c = h(`<div class="np-im" title="${esc((f._parte ? f._parte + ' › ' + (f._pasta ? f._pasta + ' › ' : '') : '') + f.name)}"><img src="${u}" alt=""><span>${f._parte ? `<b>${esc(f._parte)}</b> ` : ''}${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn" title="Tirar">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); }; lista.appendChild(c); });
+      drop.classList.toggle('tem', !!fs.length); const nP = new Set(fs.map(f => f._parte).filter(Boolean)).size; $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns)${nP ? ` em ${nP} parte(s) pelas pastas` : ''} — arraste mais se quiser` : 'Arraste as imagens ou PASTAS aqui';
       $('.np-ia', body).hidden = $('[data-p]', body).hidden = !fs.length; };
     const poe = l => { fs = fs.concat([...l].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name))); pintaL(); };
     drop.onclick = async () => { const l = await pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true); if (l) poe(l); };
     drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
-    drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); poe(e.dataTransfer.files); };
+    drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); Pastas.deDrop(e.dataTransfer).then(poe); };
+    $('[data-pasta]', body).onclick = async () => { const l = await Pastas.escolher(); if (l) poe(await semVetor(l)); };
     pintaL(); setTimeout(() => $('[data-n]', body).focus(), 60);
     const pega = a => { const n = $('[data-n]', a.body).value.trim(); if (!n) { $('[data-n]', a.body).focus(); UI.toast('Dê um nome ao personagem'); return false; } return n; };
     const r = await UI.modal({ title: 'Personagem novo', icon: 'layers', width: 560, body, buttons: [
@@ -83,6 +84,7 @@ const Atelie = {
       // folhas de peças / fundo / tamanho: pergunta ANTES (e antes da IA começar)
       const pr = await this.prepararFolhas(novo.fs, false); if (!pr) return;
       if (pr.separou.length) novo.pedido = [novo.pedido, 'Algumas imagens vieram de folhas separadas automaticamente: ' + pr.separou.map(f => `"${f.nome} 1..${f.n}" (${f.modo === 'versoes' ? 'versões da mesma peça, cada uma aparada e no centro: junte as do mesmo tipo numa parte só; numa folha de duas fileiras, a de baixo costuma ser o lado de trás' : 'corpo desmontado: cada peça está no lugar em que estava na folha'})`).join('; ')].filter(Boolean).join('\n');
+      const nomesP = [...new Set(pr.fs.map(f => f._parte).filter(Boolean))]; if (nomesP.length) novo.pedido = [novo.pedido, `As imagens vieram em PASTAS e cada pasta já é UMA parte (${nomesP.map(n => `"${n}"`).join(', ')}). Mantenha essas partes com esses nomes (pode só arrumar acento/maiúscula), NÃO junte partes diferentes e NÃO separe as imagens de uma pasta.`].filter(Boolean).join('\n');
       if (novo.ia) fim = Ocupado.inicio({ tipo: 'novo', titulo: `A IA está montando "${novo.nome}"`, est: 75, subtitulo: 'Pondo as imagens…' });
       await this.addImagens(pr.fs, true, null, { semFolhas: true, montado: pr.montado }); // cada imagem vira uma parte (camadas do mesmo tamanho já ficam no lugar)
       const t = novo.ia ? { remove() { } } : UI.toast('<span class="spin-dot"></span> Aparando as sobras transparentes…', { time: 120000 }); if (novo.ia) Ocupado.passo('Aparando as sobras transparentes…');
@@ -230,7 +232,7 @@ const Atelie = {
     $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); };
     $('#at-add-parte').onclick = () => this.novaParte(); $$('#at-vista-partes [data-v]').forEach(b => b.onclick = () => { this.vistaPartes = b.dataset.v; this.pintaPartes(); }); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
     // soltar imagens no palco do ateliê: entram na parte escolhida (sem parte escolhida, cada uma vira uma parte)
-    const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); this.addImagens([...ev.dataTransfer.files], !this.parte()); } };
+    const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(l, !this.parte())); } }; // pastas viram partes
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
     $$('#at-mover [data-modo]').forEach(b => b.onclick = () => this.setModo(b.dataset.modo));
@@ -430,12 +432,12 @@ const Atelie = {
       r.ondragover = ev => { const t = ev.dataTransfer.types; if (t.includes('text/parte') || t.includes('Files')) { ev.preventDefault(); ev.stopPropagation(); r.classList.add('drop-dentro'); } };
       r.ondragleave = () => r.classList.remove('drop-dentro');
       r.ondrop = ev => { ev.preventDefault(); ev.stopPropagation(); r.classList.remove('drop-dentro');
-        if (ev.dataTransfer.files?.length) { this.sel = p.id; return this.addImagens([...ev.dataTransfer.files], false); } // arquivo em cima da parte: vira imagem dela
+        if (ev.dataTransfer.files?.length) { this.sel = p.id; return Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(Pastas.paraParte(l), false)); } // arquivo em cima da parte: vira imagem dela (pasta solta aqui = pasta de imagens dela)
         const id = ev.dataTransfer.getData('text/parte'); if (id && id !== p.id) this.porNoPai(id, p.id); };
       el.appendChild(r); vai(p.id, nivel + 1); } };
     vai(null, 0);
     el.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); };
-    el.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); this.addImagens([...ev.dataTransfer.files], true); } };
+    el.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(l, true)); } }; // cada imagem uma parte; cada pasta uma parte
   },
   // CAMADAS: a ordem real de desenho (de cima = na frente), igual às camadas do Photoshop.
   // Mexer aqui só muda o Z; quem encaixa em quem (a hierarquia) continua igual.
@@ -639,6 +641,11 @@ const Atelie = {
     this.tirarPartes([p]); this.sel = this.def.raiz || this.def.partes[0]?.id || null; this.multi.clear(); this.focoImg = null; this.commit();
   },
   // imagens: viram variações da parte escolhida (ou, soltas na lista de partes, uma parte nova cada)
+  // a parte de uma pasta: a que já tem esse nome (soltar a pasta de novo junta nela) ou uma nova
+  parteDaPasta(nome) {
+    const n = Pastas.nrm(nome); let p = this.def.partes.find(x => Pastas.nrm(x.nome) === n);
+    if (!p) { p = Modelo.novaParte(String(nome).slice(0, 40), null); p.z = this.def.partes.length; this.def.partes.push(p); } return p;
+  },
   async addImagens(fs, cadaUmaParte, pasta = null, o = {}) {
     fs = fs ? await semVetor(fs) : await pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true); fs = (fs || []).filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name)); if (!fs.length) return;
     let montado = o.montado || new Set(); const novasMontado = [];
@@ -650,10 +657,12 @@ const Atelie = {
       const ext = blob.type === 'image/jpeg' ? 'jpg' : blob.type === 'image/webp' ? 'webp' : blob.type === 'image/gif' ? 'gif' : 'png', iid = uid('im').toLowerCase().replace(/[^a-z0-9]/g, '');
       const k = `personagens/${this.def.id}/img/${iid}.${ext}`; await Arq.guardar(blob, k); Arq.img.set(k, await createImageBitmap(blob));
       const nome = f.name.replace(/\.[^.]+$/, '').slice(0, 40);
-      if (cadaUmaParte || !p) { p = Modelo.novaParte(nome, null); p.z = this.def.partes.length; this.def.partes.push(p); }
+      let alvo; if (f._parte) alvo = this.parteDaPasta(f._parte); // veio de uma pasta: a parte é a pasta
+      else { if (cadaUmaParte || !p) { p = Modelo.novaParte(nome, null); p.z = this.def.partes.length; this.def.partes.push(p); } alvo = p; }
       const img = { id: uid('i'), nome, k, w: bm.width > 2048 || bm.height > 2048 ? Math.round(bm.width * Math.min(1, 2048 / Math.max(bm.width, bm.height))) : bm.width, h: bm.width > 2048 || bm.height > 2048 ? Math.round(bm.height * Math.min(1, 2048 / Math.max(bm.width, bm.height))) : bm.height };
-      img.pivo = { x: img.w / 2, y: img.h / 2 }; img.ajuste = { x: 0, y: 0 }; if (pasta && !cadaUmaParte) img.pasta = pasta; p.imgs.push(img); if (montado.has(f)) novasMontado.push(img);
-      if (!p.base.img) p.base.img = img.id; else if (!cadaUmaParte) this.mudar(p.id, { img: img.id });
+      img.pivo = { x: img.w / 2, y: img.h / 2 }; img.ajuste = { x: 0, y: 0 }; const pz = f._pasta || (pasta && !cadaUmaParte ? pasta : null); if (pz) { img.pasta = pz; alvo.pastas = [...new Set([...(alvo.pastas || []), pz])]; }
+      alvo.imgs.push(img); if (montado.has(f)) novasMontado.push(img);
+      if (!alvo.base.img) alvo.base.img = img.id; else if (!cadaUmaParte && !f._parte) this.mudar(alvo.id, { img: img.id });
       if (cadaUmaParte) p = null;
     }
     if (novasMontado.length) try { await Pintura.apararLista(novasMontado); } catch { } // peças do "corpo desmontado": apara sem tirar do lugar
@@ -682,7 +691,7 @@ const Atelie = {
       alvo.ondragover = ev => { const t = ev.dataTransfer.types; if (t.includes('Files') || t.includes('text/img') || t.includes('text/parte')) { ev.preventDefault(); ev.stopPropagation(); alvo.classList.add('drop-dentro'); } };
       alvo.ondragleave = ev => { if (!alvo.contains(ev.relatedTarget)) alvo.classList.remove('drop-dentro'); };
       alvo.ondrop = ev => { ev.preventDefault(); ev.stopPropagation(); alvo.classList.remove('drop-dentro');
-        if (ev.dataTransfer.files?.length) return this.addImagens([...ev.dataTransfer.files], false, pasta);
+        if (ev.dataTransfer.files?.length) return Pastas.deDrop(ev.dataTransfer).then(l => this.addImagens(Pastas.paraParte(l), false, pasta));
         const pid = ev.dataTransfer.getData('text/parte'); if (pid) { const ids = this._arrasto?.includes(pid) ? this._arrasto : [pid]; this._arrasto = null; return this.virarImagens(ids.map(i => this.parte(i)), p, pasta); } // parte arrastada da lista: vira imagem desta parte
         const img = p.imgs.find(i => i.id === ev.dataTransfer.getData('text/img')); if (img && (img.pasta || null) !== pasta) { if (pasta) img.pasta = pasta; else delete img.pasta; this.commit(); } };
     };
@@ -879,7 +888,7 @@ const Atelie = {
     const poe = L => { fs = fs.concat([...L].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name))); pintaL(); };
     drop.onclick = async () => { const L = await pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true); if (L) poe(L); };
     drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
-    drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); poe(e.dataTransfer.files); };
+    drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); Pastas.deDrop(e.dataTransfer).then(poe); };
     $$('input[name=como]', body).forEach(r => r.onchange = () => { $('[data-img]', body).hidden = $('input[name=como]:checked', body).value !== 'imagens'; });
     const r = await UI.modal({ title: 'Vista nova', icon: 'eye', width: 560, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', collect: () => ({ tipo: tp.value, nome: nm.value.trim() || Modelo.nomeTipo(tp.value), como: $('input[name=como]:checked', body).value, ia: $('[data-ia]', body).checked }) }] });
     urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 2000)); if (!r) return;
