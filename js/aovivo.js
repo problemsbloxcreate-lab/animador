@@ -99,10 +99,16 @@ const AoVivo = {
     this.t = t; this.ad = ad; this.sala = ad.sala; this.gente = {}; this.pend = []; this.log = []; this.minhas = []; this.refazerL = []; this.subidas = new Set(); this._fila = Promise.resolve();
     const eu = await this.quem();
     try { return await this._entra(t, ad, eu, o); } catch (e) {
+      if (!o._de2 && /permission.denied/i.test(String(e?.code || '') + String(e?.message || ''))) { for (const f of (t.offs || []).splice(0)) try { f(); } catch { } const m = await this.liberar(); if (m === 'ok') return this.entrar(ad, { ...o, _de2: true }); e = new Error(m); }
       for (const f of (t.offs || []).splice(0)) try { f(); } catch { }
       this.ativo = false; this.erro = this.motivo(e); console.warn('ao vivo', e);
       if (o.avisa) UI.toast('Trabalhar junto: ' + esc(this.erro), { kind: 'warn', time: 9000 }); return false;
     }
+  },
+  // pede ao servidor para liberar esta conta no tempo real agora; devolve 'ok' ou o motivo
+  async liberar() {
+    try { const r = await fetch(TURMA_CONFIG.iaServidor + '/quem?aovivo=1', { headers: { authorization: 'Bearer ' + await TurmaAuth.token(true) }, cache: 'no-store' }); const j = await r.json().catch(() => ({}));
+      if (!('aovivo' in j)) return 'o servidor turma-ia ainda está com a versão antiga (falta publicar o worker.js novo)'; return j.aovivo; } catch { return 'não consegui falar com o servidor'; }
   },
   // erro do Firebase em palavras
   motivo(e) { const m = String(e?.code || '') + ' ' + String(e?.message || e || ''); if (/permission.denied/i.test(m)) return 'sua conta ainda não foi liberada no tempo real (o servidor libera quem passou no login; recarregue a página daqui a pouco)'; return e?.message || 'o tempo real não respondeu'; },
@@ -237,6 +243,7 @@ const AoVivo = {
   async entrarAtelie(n = 0) {
     if (!this.ligado() || !Atelie.def || !Atelie.naNuvem || (this.ativo && this.ad?.ctx === 'animador')) return; if (this.ativo && this.sala === 'at-' + Atelie.def.id) return;
     const id = Atelie.def.id; if (await this.entrar(this.adAtelie(), { meta: { tipo: 'atelie', nome: Atelie.def.nome } })) return;
+    if (/liberada/.test(this.erro || '')) { const m = await this.liberar(); if (m === 'ok') { if (Atelie.def?.id === id && await this.entrar(this.adAtelie(), { meta: { tipo: 'atelie', nome: Atelie.def.nome } })) return; } else { this.erro = m; n = 4; } }
     if (n < 4) { clearTimeout(this._tenta); this._tenta = setTimeout(() => { if (Atelie.def?.id === id) this.entrarAtelie(n + 1).catch(() => { }); }, 5000); return; }
     UI.toast('Trabalhar junto ao vivo: ' + esc(this.erro || 'não consegui entrar'), { kind: 'warn', time: 10000 });
   },
