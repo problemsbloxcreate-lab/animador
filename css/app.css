@@ -783,3 +783,8 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .avp-av{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;overflow:hidden;background:var(--c);color:#111;font-weight:700;box-shadow:0 0 0 2px var(--c)}.avp-av img{width:100%;height:100%;object-fit:cover}
 .avp-l{list-style:none;margin:0 0 4px 38px;padding:0}.avp-l li{display:flex;justify-content:space-between;gap:10px;padding:1px 0;color:var(--tx);font-size:11.5px}.avp-l li small{color:var(--tx3);white-space:nowrap}
 .avp-nada{margin:0 0 4px 38px;color:var(--tx3);font-size:11px}
+/* lista de partes: recuo + linha = dentro de quem a parte está (a ordem continua sendo a profundidade) */
+.at-partes .no:not([data-niv="0"])::before{content:'';position:absolute;top:0;bottom:0;left:13px;width:1px;background:#4b5563}
+.at-partes .no[data-niv="2"]::before{left:27px}.at-partes .no[data-niv="3"]::before{left:41px}.at-partes .no[data-niv="4"]::before{left:55px}
+/* ao vivo: quem está ausente fica meio transparente */
+.av-p.afk,.avp-av.afk{opacity:.4;filter:grayscale(.6)}

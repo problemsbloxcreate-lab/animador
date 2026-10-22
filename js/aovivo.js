@@ -125,7 +125,7 @@ const AoVivo = {
     t.ouvirOps(this.sala, this.log.length ? this.log[this.log.length - 1].k : this.ate, op => this.recebe(op));
     t.ouvirGente(this.sala, g => { this.gente = g; this.pintaBarra(); this.ad?.redesenha(); });
     t.ouvirMeta?.(this.sala, m => this.meta(m));
-    await t.presenca(this.sala, eu.id, { nome: eu.nome, foto: eu.foto, cor: eu.cor, onde: ad.ctx, fazendo: '' }, true);
+    await t.presenca(this.sala, eu.id, { nome: eu.nome, foto: eu.foto, cor: eu.cor, onde: ad.ctx, fazendo: '', afk: false }, true); this._afk = false; this._mexeu = Date.now();
     if (o.meta) await t.setMeta(this.sala, o.meta);
     this.liga(); this.pintaBarra(); clearInterval(this._iv); this._iv = setInterval(() => this.talvezSnap(), 20000);
     return true;
@@ -201,7 +201,7 @@ const AoVivo = {
     const cv = ctx?.canvas; if (!this.ativo) { lay.innerHTML = ''; return; }
     if (cv && this.ad && cv !== (this.ad.ctx === 'atelie' ? Atelie.cv : App.palco?.cv)) return; // o palco do outro programa (escondido) não mexe nos cursores
     const r = cv?.getBoundingClientRect?.(), k = r && cv.width ? r.width / cv.width : 0; if (!k || !(r.width > 0)) return;
-    for (const g of this.outros()) { if (g.x == null) continue; vivos.add(g.id);
+    for (const g of this.outros()) { if (g.x == null || g.afk) continue; vivos.add(g.id); // ausente (1 min parado ou aba escondida): o cursor some
       const q = V.transformPoint(new DOMPoint(g.x, g.y)), x = clamp(r.left + q.x * k, 0, innerWidth - 14), y = clamp(r.top + q.y * k, 0, innerHeight - 22), c = g.cor || '#19d3f0';
       let el = lay.querySelector(`[data-id="${CSS.escape(g.id)}"]`);
       if (!el) { el = h(`<div class="av-cur" data-id="${esc(g.id)}"><svg width="16" height="22" viewBox="0 0 16 22"><path d="M1 1 L1 18 L5.5 14 L9 21 L11.5 20 L8.2 13.3 L14 13 Z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg><span></span></div>`); lay.appendChild(el); }
@@ -211,6 +211,7 @@ const AoVivo = {
   },
   claro(hex) { const v = parseInt(hex.slice(1), 16); return ((v >> 16 & 255) * .3 + (v >> 8 & 255) * .59 + (v & 255) * .11) > 150; },
   atividade(nome, r) { const k = nome + r, t = Date.now(); if (this._ult?.k === k && t - this._ult.t < 4000) return; this._ult = { k, t }; UI.toast(`<b>${esc((nome || 'Alguém').split(' ')[0])}</b> ${esc(r)}`, { time: 2200 }); },
+  ausente(v) { this._afk = v; if (this.ativo) try { this.t.presenca(this.sala, this.eu.id, { afk: v }); } catch { } },
   // o que cada um fez nesta sessão (para a lista ao passar o mouse no "ao vivo")
   anota(id, nome, r) {
     if (!id || !r) return; const f = (this.feitos ||= {})[id] ||= { nome, L: [] }; f.nome = nome || f.nome;
@@ -222,7 +223,7 @@ const AoVivo = {
     const pop = this._pop; if (!pop) return; const eu = this.eu, pessoas = [{ id: eu?.id, nome: eu?.nome, foto: eu?.foto, cor: eu?.cor, eu: true, fazendo: '' }, ...this.outros()];
     for (const [id, f] of Object.entries(this.feitos || {})) if (!pessoas.some(p => p.id === id)) pessoas.push({ id, nome: f.nome, saiu: true });
     pop.innerHTML = `<div class="aut-t" style="border:0;margin:0">Trabalhando junto agora</div>` + pessoas.map(p => { const f = this.feitos?.[p.id]?.L || [];
-      return `<div class="avp-p"><div class="aut-l"><span class="avp-av" style="--c:${p.cor || '#888'}">${p.foto ? `<img src="${esc(p.foto)}" alt="" referrerpolicy="no-referrer">` : esc((p.nome || '?')[0])}</span><div><b>${esc(p.nome || 'Alguém')}${p.eu ? ' <small>(você)</small>' : ''}</b><small>${p.saiu ? 'saiu' : p.fazendo ? 'agora: ' + esc(p.fazendo) : 'na sala'}</small></div></div>`
+      return `<div class="avp-p"><div class="aut-l"><span class="avp-av${p.afk || p.saiu ? ' afk' : ''}" style="--c:${p.cor || '#888'}">${p.foto ? `<img src="${esc(p.foto)}" alt="" referrerpolicy="no-referrer">` : esc((p.nome || '?')[0])}</span><div><b>${esc(p.nome || 'Alguém')}${p.eu ? ' <small>(você)</small>' : ''}</b><small>${p.saiu ? 'saiu' : p.afk ? 'ausente' : p.fazendo ? 'agora: ' + esc(p.fazendo) : 'na sala'}</small></div></div>`
         + (f.length ? `<ul class="avp-l">${f.map(x => `<li><span>${esc(x.r)}${x.n > 1 ? ` <small>×${x.n}</small>` : ''}</span><small>${this.quando(x.t)}</small></li>`).join('')}</ul>` : '<div class="avp-nada">nenhuma mudança ainda</div>') + '</div>'; }).join('');
   },
   ligaPop(el) {
@@ -236,13 +237,18 @@ const AoVivo = {
     for (const el of $$('[data-aovivo]')) { const outros = this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx ? this.outros() : [];
       el.hidden = !(this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx); if (el.dataset.aovivo === 'atelie') { const au = document.getElementById('at-autores'); if (au) au.hidden = !el.hidden; } // ao vivo: some o "editado por…" (mais espaço)
       if (el.hidden) { el.innerHTML = ''; continue; }
-      el.innerHTML = `<span class="av-ao" title="Trabalhando junto ao vivo">${ic('users', 13)} ${outros.length ? 'ao vivo' : 'só você'}</span>` + outros.map(g => `<span class="av-p" style="--c:${g.cor}" title="${esc(g.nome)}${g.fazendo ? ' · ' + esc(g.fazendo) : ''}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(document.createTextNode('${esc((g.nome || '?')[0]).replace(/'/g, '')}'))">` : esc((g.nome || '?')[0])}</span>`).join('')
+      el.innerHTML = `<span class="av-ao" title="Trabalhando junto ao vivo">${ic('users', 13)} ${outros.length ? 'ao vivo' : 'só você'}</span>` + outros.map(g => `<span class="av-p${g.afk ? ' afk' : ''}" style="--c:${g.cor}" title="${esc(g.nome)}${g.fazendo ? ' · ' + esc(g.fazendo) : ''}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(document.createTextNode('${esc((g.nome || '?')[0]).replace(/'/g, '')}'))">` : esc((g.nome || '?')[0])}</span>`).join('')
         + (this.ad.ctx === 'animador' ? `<button class="btn sm" data-sair>Sair</button>${this.ad.dono ? '<button class="btn sm" data-fim>Encerrar</button>' : ''}` : '');
       this.ligaPop(el); if ($('[data-sair]', el)) $('[data-sair]', el).onclick = () => App.sairJunto(false); if ($('[data-fim]', el)) $('[data-fim]', el).onclick = () => App.sairJunto(true); }
   },
   // ---------- ganchos (uma vez): commit, desfazer, cursor e desenho ----------
   liga() {
     if (this._ligado) return; this._ligado = true;
+    // AUSENTE: 1 minuto sem mexer (ou a aba escondida) = os outros deixam de ver o meu cursor e a minha foto fica meio transparente
+    const ativou = () => { this._mexeu = Date.now(); if (this._afk) this.ausente(false); };
+    for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) addEventListener(ev, ativou, { passive: true, capture: true });
+    document.addEventListener('visibilitychange', () => document.hidden ? this.ausente(true) : ativou());
+    setInterval(() => { if (this.ativo && !this._afk && Date.now() - (this._mexeu || this.desde || 0) > 60000) this.ausente(true); }, 10000);
     const envolve = (obj, nome, depois) => { const f = obj[nome]; obj[nome] = function (...a) { const r = f.apply(this, a); depois.call(this, a); return r; }; };
     envolve(Atelie, 'commit', () => { if (AoVivo.ad?.ctx === 'atelie') AoVivo.mudouLocal(); });
     envolve(App, 'commit', a => { if (AoVivo.ad?.ctx === 'animador') AoVivo.mudouLocal(typeof a[0] === 'string' ? a[0].toLowerCase() : ''); });
