@@ -788,3 +788,10 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .at-partes .no[data-niv="2"]::before{left:27px}.at-partes .no[data-niv="3"]::before{left:41px}.at-partes .no[data-niv="4"]::before{left:55px}
 /* ao vivo: quem está ausente fica meio transparente */
 .av-p.afk,.avp-av.afk{opacity:.4;filter:grayscale(.6)}
+/* aviso do passo na aba Poses: não deixar o texto sair da caixa */
+.ps-aviso{flex:none;height:auto;min-height:0;line-height:1.35}.ps-aviso span{flex:1}
+/* passar o mouse num preset: o desenho daquela pose */
+.prev-pr{position:fixed;z-index:9999;pointer-events:none;padding:6px;border-radius:10px;background:#1f1f1f;border:1px solid var(--bd2);box-shadow:0 12px 34px rgba(0,0,0,.55);display:flex;flex-direction:column;align-items:center;gap:4px;animation:autPop .12s ease-out}
+.prev-pr-im{border-radius:7px;background:repeating-conic-gradient(#2a2a2a 0 25%,#222 0 50%) 0 0/14px 14px;display:grid;place-items:center;min-width:120px;min-height:80px}
+.prev-pr-im canvas{display:block;max-width:190px;max-height:190px}
+.prev-pr small{color:var(--tx3);font-size:11px}.prev-pr small b{color:var(--tx)}

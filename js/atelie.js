@@ -937,13 +937,39 @@ const Atelie = {
         if (st) b.classList.toggle('on', noPasso === pr.id);
         b.onclick = () => { if (st) return Animacoes.usarPose(s, pr); this.edit = aberta && this.edit.p === pr.id ? null : { s: s.id, p: pr.id }; this.pinta(); }; // no passo: usa a pose nele · fora: abre para arrumar (de novo desmarca)
         b.ondblclick = () => { if (st) { Linha.parar(); this.edit = { s: s.id, p: pr.id }; this.pinta(); } }; // no passo, dois cliques: arrumar a pose
-        b.oncontextmenu = ev => { ev.preventDefault(); this.menuPreset(ev, s, pr); }; l.appendChild(b); }
+        b.oncontextmenu = ev => { ev.preventDefault(); this.menuPreset(ev, s, pr); }; this.previaPreset(b, s, pr); l.appendChild(b); }
       const add = h(`<button title="Preset novo com o que está na tela">+ preset</button>`); add.onclick = () => this.novoPreset(s); l.appendChild(add);
       $('[data-ia]', c).onclick = () => this.presetIA(s); $('[data-m]', c).onclick = ev => this.menuSessao(ev, s);
       ordenavel($('.cab', c), 'sessao', s.id, (id, antes) => { const L = this.def.sessoes, i2 = L.findIndex(x => x.id === id), j2 = L.indexOf(s); if (i2 >= 0) { moveNaLista(L, i2, j2, antes); this.commit(); } }); // arrastar a sessão muda a ordem
       box.appendChild(c);
     }
     el.appendChild(box);
+  },
+  // passar o mouse num preset: janelinha em cima do mouse com o desenho daquela pose (zoom nas partes da sessão)
+  previaPreset(b, s, pr) {
+    let to = null; const fecha = () => { clearTimeout(to); this._prevPr?.remove(); this._prevPr = null; };
+    b.addEventListener('mouseenter', ev => { fecha(); let mx = ev.clientX, my = ev.clientY; b.onmousemove = e => { mx = e.clientX; my = e.clientY; if (this._prevPr) this.posPrevia(this._prevPr, mx, my); };
+      to = setTimeout(async () => { const cv = await this.desenhoPreset(s, pr).catch(() => null); if (!cv || !b.isConnected || !b.matches(':hover')) return;
+        const pop = this._prevPr = h(`<div class="prev-pr"><div class="prev-pr-im"></div><small>${esc(s.nome)} › <b>${esc(pr.nome)}</b></small></div>`); $('.prev-pr-im', pop).appendChild(cv); document.body.appendChild(pop); this.posPrevia(pop, mx, my); }, 220); });
+    b.addEventListener('mouseleave', fecha); b.addEventListener('mousedown', fecha);
+  },
+  posPrevia(pop, x, y) { const r = pop.getBoundingClientRect(); pop.style.left = clamp(x - r.width / 2, 6, innerWidth - r.width - 6) + 'px'; pop.style.top = (y - r.height - 14 < 50 ? y + 18 : y - r.height - 14) + 'px'; },
+  async desenhoPreset(s, pr) {
+    const def = this.def, chave = JSON.stringify([def.vistaAtual, s.partes, pr.estado, this.ultimo?.length]); this._prevCache ||= new Map(); if (this._prevCache.has(chave)) return this._prevCache.get(chave).cloneNode ? (() => { const o = this._prevCache.get(chave), c = document.createElement('canvas'); c.width = o.width; c.height = o.height; c.getContext('2d').drawImage(o, 0, 0); return c; })() : null;
+    await Arq.garantir(Modelo.chavesImgs(def)).catch(() => { });
+    const est = Modelo.partesNoEstado(def, { sessoes: { [s.id]: pr.id } }), itens = Modelo.montar(def, est).filter(it => it.img && Arq.img.get(it.img.k));
+    const caixa = ids => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const it of itens) { if (ids && !ids.has(it.parte.id)) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
+      for (const [a, c] of [[0, 0], [it.img.w, 0], [0, it.img.h], [it.img.w, it.img.h]]) { const q = it.m.transformPoint(new DOMPoint(a - px + (it.img.ajuste?.x || 0), c - py + (it.img.ajuste?.y || 0))); x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); } }
+      return x1 > x0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null; };
+    const tudo = caixa(null); if (!tudo) return null;
+    // sessão de algumas partes: zoom nelas (com folga); sessão do corpo todo: o personagem inteiro
+    let b = s.partes?.length ? caixa(new Set([...s.partes, ...def.partes.filter(p => s.partes.includes(p.pai)).map(p => p.id)])) : null;
+    if (b) { const m = Math.max(b.w, b.h) * .45 + 20, cx = b.x + b.w / 2, cy = b.y + b.h / 2, l = Math.max(b.w, b.h) + m * 2; b = { x: cx - l / 2, y: cy - l / 2, w: l, h: l }; } else b = tudo;
+    const L = 190, k = Math.min(L / b.w, L / b.h), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(b.w * k)); cv.height = Math.max(1, Math.round(b.h * k));
+    const x = cv.getContext('2d'), base = new DOMMatrix().scale(k).translate(-b.x, -b.y); x.imageSmoothingQuality = 'high';
+    for (const it of itens) { x.setTransform(base.multiply(it.m)); x.drawImage(Arq.img.get(it.img.k), -(it.img.pivo?.x ?? it.img.w / 2) + (it.img.ajuste?.x || 0), -(it.img.pivo?.y ?? it.img.h / 2) + (it.img.ajuste?.y || 0), it.img.w, it.img.h); }
+    if (this._prevCache.size > 60) this._prevCache.clear(); this._prevCache.set(chave, cv);
+    const c2 = document.createElement('canvas'); c2.width = cv.width; c2.height = cv.height; c2.getContext('2d').drawImage(cv, 0, 0); return c2;
   },
   async novaSessao(nome) {
     const def = this.def, body = h(`<div><label class="field">Nome da sessão<input type="text" value="${esc(nome || '')}" placeholder="Ex.: Olhos, Boca, Perna direita, Pose"></label>
