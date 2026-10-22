@@ -985,7 +985,7 @@ const Atelie = {
     el.innerHTML = `<div class="av-cab" title="A 1ª vista é a principal: é a que aparece no editor quando o quadro não escolhe outra. Arraste para mudar a ordem.">${ic('eye', 13)}<b>Vistas</b><small>a 1ª é a principal</small><span class="sp"></span><button class="btn sm" data-nova title="Vista nova (frente, lado, costas…)">${ic('plus', 12)} Vista</button></div><div class="av-lista"></div>`;
     const l = $('.av-lista', el);
     for (const v of V) { const on = v.id === this.def.vistaAtual, np = on ? this.def.partes.length : (v.partes || []).length;
-      const b = h(`<button class="av ${on ? 'on' : ''}" title="${esc(v.nome)} (${esc(Modelo.nomeTipo(v.tipo))}) · ${np} parte(s)${on ? '' : ' · clique para trocar'} · botão direito: opções">${this.icVista(v.tipo)}<span>${esc(v.nome)}</span><small>${np}</small></button>`);
+      const pri = v === V[0], b = h(`<button class="av ${on ? 'on' : ''} ${pri ? 'pri' : ''}" title="${esc(v.nome)} (${esc(Modelo.nomeTipo(v.tipo))}) · ${np} parte(s)${pri ? ' · PRINCIPAL' : ''}${on ? '' : ' · clique para trocar'} · arraste para mudar a ordem · botão direito: opções">${pri ? `<i class="av-pri" title="Principal">${ic('star', 10)}</i>` : ''}${this.icVista(v.tipo)}<span>${esc(v.nome)}</span><small>${np}</small></button>`);
       b.onclick = () => this.trocaVista(v.id); b.oncontextmenu = ev => { ev.preventDefault(); this.menuVista(ev, v); };
       ordenavel(b, 'vista', v.id, (id, antes) => { const i = V.findIndex(x => x.id === id), j = V.indexOf(v); if (i >= 0) { moveNaLista(V, i, j, antes); this.commit(); } }, true);
       l.appendChild(b); }
@@ -1001,6 +1001,8 @@ const Atelie = {
     const V = this.def.vistas, on = v.id === this.def.vistaAtual;
     UI.ctx(e.clientX, e.clientY, [
       { head: v.nome },
+      V[0] !== v && { label: 'Tornar a principal (1ª)', icon: 'star', action: () => { this.def.vistas = [v, ...V.filter(x => x !== v)]; this.commit(); UI.toast(`<b>${esc(v.nome)}</b> agora é a vista principal.`, { time: 3000 }); } },
+      V.length > 1 && { label: 'Mudar a ordem', icon: 'move', sub: [{ label: 'Para a esquerda', icon: 'left', disabled: V[0] === v, action: () => { const i = V.indexOf(v); moveNaLista(V, i, i - 1, true); this.commit(); } }, { label: 'Para a direita', icon: 'right', disabled: V[V.length - 1] === v, action: () => { const i = V.indexOf(v); moveNaLista(V, i, i + 1, false); this.commit(); } }] },
       !on && { label: 'Abrir esta vista', icon: 'eye', action: () => this.trocaVista(v.id) },
       { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da vista', label: 'Ex.: Lado direito, Frente (bravo), Costas', value: v.nome }); if (n) { v.nome = n.slice(0, 30); this.commit(); } } },
       { label: 'Tipo', icon: 'eye', sub: Modelo.TIPOS_VISTA.map(([t, n]) => t === 'outra' ? { label: 'Adicionar…', checked: v.tipo === t, action: async () => { const nn = await this.nomeVista(v.tipo === 'outra' ? v.nome : ''); if (!nn) return; v.nome = nn; v.tipo = 'outra'; this.commit(); } } : { label: n, checked: v.tipo === t, action: () => { if (v.nome === Modelo.nomeTipo(v.tipo)) v.nome = n; v.tipo = t; this.commit(); } }) },

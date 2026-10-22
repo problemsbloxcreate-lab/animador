@@ -703,3 +703,8 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .at-partes.arrastando-parte .no.drop-dentro{outline:none;background:rgba(90,169,232,.18);box-shadow:inset 0 0 0 1px #5aa9e8}
 .at-partes.arrastando-parte .no.drop-dentro::after{content:'vira filha';position:absolute;right:30px;font-size:10px;color:#a9d3f5;background:#17273a;padding:1px 6px;border-radius:8px}
 .at-partes.arrastando-parte::after{content:'solte aqui: fica sem pai';display:block;margin:6px 8px;padding:8px;border:1px dashed #3d5f80;border-radius:8px;text-align:center;font-size:11px;color:#8fb6da}
+/* VISTAS: arrastar muda a ordem; a 1ª (principal) ganha uma estrelinha */
+.at-vistas .av{cursor:grab;position:relative}.at-vistas .av:active{cursor:grabbing}
+.at-vistas .av.arrastando{opacity:.4}.at-vistas .av.ord-antes{box-shadow:-3px 0 0 #5aa9e8}.at-vistas .av.ord-depois{box-shadow:3px 0 0 #5aa9e8}
+.at-vistas .av-pri{position:absolute;top:-6px;left:-6px;z-index:1;width:15px;height:15px;border-radius:50%;background:#e8c25a;color:#1b1b1b;display:grid;place-items:center}
+.at-vistas .av-lista{padding:5px 0 0 5px}
