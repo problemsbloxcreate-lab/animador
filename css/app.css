@@ -510,3 +510,8 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .tt-falas{margin-top:4px;padding-top:6px;border-top:1px dashed rgba(123,216,143,.35)}.tt-sub{display:flex;align-items:center;gap:5px;font-size:10.5px;color:#9fe3ae;margin:0 4px 3px;text-transform:uppercase;letter-spacing:.06em}
 .at-palco:has(.at-teste) .modo-at{right:332px;flex-wrap:wrap}
 .at-palco:has(.at-teste) .ferr-op{max-width:calc(100% - 420px)}
+
+/* início › personagens: "só neste computador" e "na nuvem da equipe" em blocos separados */
+.bloco-sec{border:1px solid var(--bd);border-radius:12px;padding:4px 14px 16px;margin-bottom:18px;background:var(--bg1)}
+.bloco-sec.local{border-color:rgba(227,179,65,.35);background:linear-gradient(180deg,rgba(227,179,65,.06),transparent 120px)}
+.bloco-sec>.sec{margin-top:10px}.sec-sub{color:var(--tx3);font-weight:400;margin-left:8px;text-transform:none;letter-spacing:0;font-size:11.5px}
