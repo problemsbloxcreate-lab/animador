@@ -52,9 +52,11 @@ const Pintura = {
     if (this.ferr === 'camada') { // MOVER CAMADA: arrasta os pixels da camada ativa
       if (!a.cam) return UI.toast('Esta imagem não tem camadas: botão direito na imagem › Editar com camadas (ou Pintar e cores › Camadas).', { kind: 'warn' });
       const cv0 = Atelie.cv; try { cv0.setPointerCapture(e.pointerId); } catch { } let ult = pt, d = { x: 0, y: 0 };
-      const mov = ev => { const q = a.para(Atelie.mundo(ev)); d = { x: q.x - pt.x, y: q.y - pt.y }; if (ev.shiftKey) { if (Math.abs(d.x) > Math.abs(d.y)) d.y = 0; else d.x = 0; } a.vivo(Camadas.deslocado(a.bm, d.x, d.y)); Atelie.desenha(); };
-      const up = async () => { cv0.removeEventListener('pointermove', mov); cv0.removeEventListener('pointerup', up); Arq.img.set(a.img.k, a.orig); if (Math.abs(d.x) + Math.abs(d.y) < .5) return Atelie.desenha(); await this.gravar(a.img, Camadas.deslocado(a.bm, d.x, d.y)); Atelie.commit(); };
-      cv0.addEventListener('pointermove', mov); cv0.addEventListener('pointerup', up); return; }
+      const mov = ev => { if (acabou) return; const q = a.para(Atelie.mundo(ev)); d = { x: q.x - pt.x, y: q.y - pt.y }; if (ev.shiftKey) { if (Math.abs(d.x) > Math.abs(d.y)) d.y = 0; else d.x = 0; } a.vivo(Camadas.deslocado(a.bm, d.x, d.y)); Atelie.desenha(); };
+      let acabou = false; const k0 = a.img.k; // igual ao pincel: a imagem de antes volta a ser a original (senão o Ctrl+Z mostra a camada movida)
+      const up = async () => { if (acabou) return; acabou = true; for (const [t, f] of [['pointermove', mov], ['pointerup', up], ['pointercancel', up], ['lostpointercapture', up]]) cv0.removeEventListener(t, f);
+        Arq.img.set(k0, a.orig); if (Math.abs(d.x) + Math.abs(d.y) < .5) return Atelie.desenha(); try { await this.gravar(a.img, Camadas.deslocado(a.bm, d.x, d.y)); } finally { Arq.img.set(k0, a.orig); } Atelie.commit(); };
+      cv0.addEventListener('pointermove', mov); cv0.addEventListener('pointerup', up); cv0.addEventListener('pointercancel', up); cv0.addEventListener('lostpointercapture', up); return; }
     const { cv, c } = this.tela(a.bm), orig = a.bm, k0 = a.img.k, mask = this.mascara(a);
     if (this.ferr === 'balde' || this.ferr === 'magica') { // balde pinta a área parecida; borracha mágica apaga a área parecida
       const antes = mask ? this.tela(a.bm) : null;

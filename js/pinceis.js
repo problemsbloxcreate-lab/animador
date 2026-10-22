@@ -78,16 +78,20 @@ Object.assign(Pintura, {
     // Shift+clique: linha reta desde o último ponto desta imagem
     if (e.shiftKey && this._ultimo?.k === a.img.id) { ult = { ...this._ultimo.pt }; pAnt = this.pressao(e); ponto(pt, this.pressao(e)); junta(); this._ultimo = { k: a.img.id, pt }; await this.gravar(a.img, cv); Atelie.commit(); return; }
     ponto(pt, this.pressao(e)); junta(); vivo(cv); Atelie.desenha(); // com camadas: mostra a imagem final com o traço na camada ativa
-    try { Atelie.cv.setPointerCapture(e.pointerId); } catch { } let pend = false;
+    try { Atelie.cv.setPointerCapture(e.pointerId); } catch { } let pend = false, acabou = false;
     const mov = ev => {
       const lista = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
       for (const ce of (lista.length ? lista : [ev])) { const raw = a.para(Atelie.mundo(ce)), k = 1 - clamp(cfg.suav, 0, .95); liso = { x: liso.x + (raw.x - liso.x) * k, y: liso.y + (raw.y - liso.y) * k }; ponto(liso, this.pressao(ce)); }
-      this.mouse = { x: ev.offsetX, y: ev.offsetY }; if (!pend) { pend = true; requestAnimationFrame(() => { pend = false; junta(); vivo(cv); Atelie.desenha(); }); }
+      this.mouse = { x: ev.offsetX, y: ev.offsetY }; if (!pend) { pend = true; requestAnimationFrame(() => { pend = false; if (acabou) return; junta(); vivo(cv); Atelie.desenha(); }); } // depois de soltar, a prévia atrasada não pode voltar a pintar por cima da imagem de antes
     };
-    const up = async ev => { Atelie.cv.removeEventListener('pointermove', mov); Atelie.cv.removeEventListener('pointerup', up);
-      const raw = a.para(Atelie.mundo(ev)); ponto(raw, pAnt); junta(); // fecha o traço onde a caneta saiu (a suavização não deixa ele curto)
-      this._ultimo = { k: a.img.id, pt: raw }; Arq.img.set(k0, orig); await this.gravar(a.img, cv); Atelie.commit(); };
-    Atelie.cv.addEventListener('pointermove', mov); Atelie.cv.addEventListener('pointerup', up);
+    // CTRL+Z: durante o traço a prévia aparece no lugar da imagem de antes (chave k0). Ao terminar, a imagem de antes TEM que voltar
+    // a ser a original, senão o Ctrl+Z volta para k0 e mostra o traço/apagado. Por isso: só termina uma vez, a prévia atrasada não
+    // repinta depois de soltar, e caneta que "some" (pointercancel, perder a captura, soltar fora) também termina o traço.
+    const up = async ev => { if (acabou) return; acabou = true;
+      for (const [t, f] of [['pointermove', mov], ['pointerup', up], ['pointercancel', up], ['lostpointercapture', up]]) Atelie.cv.removeEventListener(t, f);
+      const raw = ev && ev.type === 'pointerup' ? a.para(Atelie.mundo(ev)) : null; if (raw) ponto(raw, pAnt); junta(); // fecha o traço onde a caneta saiu (a suavização não deixa ele curto)
+      this._ultimo = { k: a.img.id, pt: raw || liso }; Arq.img.set(k0, orig); try { await this.gravar(a.img, cv); } finally { Arq.img.set(k0, orig); } Atelie.commit(); };
+    Atelie.cv.addEventListener('pointermove', mov); Atelie.cv.addEventListener('pointerup', up); Atelie.cv.addEventListener('pointercancel', up); Atelie.cv.addEventListener('lostpointercapture', up);
   },
 
   /* ---------- controles do pincel/borracha (barra em cima do palco e aba Pintar) ---------- */

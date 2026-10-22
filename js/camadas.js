@@ -82,8 +82,9 @@ const Camadas = {
       lista.appendChild(r); });
     const c = this.ativa(img), op = h(`<div class="cam-op"><select data-m title="Modo de mistura">${this.MODOS.map(([v, n]) => `<option value="${v}" ${(c.modo || 'source-over') === v ? 'selected' : ''}>${n}</option>`).join('')}</select><input type="range" min="0" max="100" value="${Math.round((c.op ?? 1) * 100)}" data-o title="Opacidade"><output>${Math.round((c.op ?? 1) * 100)}%</output></div>`);
     $('[data-m]', op).onchange = ev => { c.modo = ev.target.value; this.mudou(img); };
-    $('[data-o]', op).oninput = ev => { c.op = +ev.target.value / 100; $('output', op).textContent = ev.target.value + '%'; Arq.img.set(img.k, this.compoe(img)); Atelie.desenha(); };
-    $('[data-o]', op).onchange = () => this.mudou(img);
+    // prévia da opacidade por cima da imagem final; ao soltar, a de antes volta a ser a original (senão o Ctrl+Z mostraria a prévia)
+    $('[data-o]', op).oninput = ev => { op._orig ??= [img.k, Arq.img.get(img.k)]; c.op = +ev.target.value / 100; $('output', op).textContent = ev.target.value + '%'; Arq.img.set(img.k, this.compoe(img)); Atelie.desenha(); };
+    $('[data-o]', op).onchange = () => { if (op._orig?.[1]) Arq.img.set(op._orig[0], op._orig[1]); op._orig = null; this.mudou(img); };
     box.appendChild(op);
     const outras = Atelie.def.partes.flatMap(p => p.imgs.filter(i => i !== img).map(i => ({ p, i })));
     const bar = h(`<div class="cam-bar"><button class="btn sm" data-n title="Camada vazia">${ic('plus', 12)} Camada</button><button class="btn sm" data-f title="Uma imagem do computador vira camada">${ic('upload', 12)} Imagem…</button><button class="btn sm" data-o2 title="Outra imagem do personagem vira camada" ${outras.length ? '' : 'disabled'}>${ic('image', 12)} Do personagem</button><button class="btn sm" data-a title="Junta tudo: volta a ser uma imagem só">Juntar tudo</button></div>`);
