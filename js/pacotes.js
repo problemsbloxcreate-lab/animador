@@ -148,6 +148,16 @@ const Citacao = {
     EstudioConta.citar({ ...base, abrir: '/animador/', nomeArquivo: safeName(def.nome) + AtelieArq.EXT,
       arquivo: async () => ({ blob: await AtelieArq.montar(def, { erro: true }), nome: safeName(def.nome) + AtelieArq.EXT }) });
   },
+  // uma peça (ou uma área) do editor de cenário: vai o arquivo .cenario e quem recebe abre o editor já nela
+  async cenario(est, peca, area) {
+    if (!est || !this.pode()) return;
+    const cv = Cenarios.compoe(est, 480), g = cv.getContext('2d'), k = cv.width / Cenarios.W, b = peca || area;
+    if (b) { g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.rect(0, 0, cv.width, cv.height); g.rect(b.x * k, b.y * k, b.w * k, b.h * k); g.fill('evenodd'); g.strokeStyle = '#19d3f0'; g.lineWidth = 3; g.strokeRect(b.x * k, b.y * k, b.w * k, b.h * k); }
+    const nome = safeName(est.nome || 'Cenário') + '.cenario';
+    EstudioConta.citar({ prog: 'Animador · Cenário', titulo: est.nome || 'Cenário', sub: peca ? 'Peça: ' + peca.nome : area ? `Área ${Math.round(area.w)}×${Math.round(area.h)}` : `Cenário inteiro · ${est.pecas.length} peças`, mini: cv.toDataURL('image/jpeg', .8), abrir: '/animador/',
+      parte: { tipo: 'cenario', peca: peca?.id || null, area: !peca && area ? { x: Math.round(area.x), y: Math.round(area.y), w: Math.round(area.w), h: Math.round(area.h) } : null }, nomeArquivo: nome,
+      arquivo: async () => ({ blob: await Cenarios.arquivo(est), nome }) });
+  },
   // no Ateliê: o = { sel } (uma parte), { anim } (uma animação de teste) ou {} (o personagem inteiro); sem nada = a parte escolhida
   atelie(o) { const def = Atelie.def; if (def) this.personagem(def, { nuvem: !!Atelie.naNuvem && !Atelie.sujo, ...(o || { sel: Atelie.sel }) }); },
   // abrir no ponto citado dentro do Ateliê (parte ou animação)
@@ -166,6 +176,7 @@ const Citacao = {
       const ja = await DB.get('arquivos', 'cita:' + rc.anexo).catch(() => null), P0 = ja?.projeto ? await DB.get('projetos', ja.projeto).catch(() => null) : null;
       if (P0) { t.remove(); await App.abrir(P0); this.irPara(rc.parte); UI.toast('Esta animação já tinha vindo desta mensagem: abri a que está neste computador.', { kind: 'ok' }); return rc; }
       const f = await rc.baixar(); t.remove();
+      if (rc.parte?.tipo === 'cenario' || /\.cenario$/i.test(f.name)) { await Cenarios.abrirArquivo(f, rc.parte); return rc; }
       if ((await AtelieArq.tipo(f)) === 'atelie') { await AtelieArq.abrir(f); this.irAtelie(rc.parte); return rc; }
       const { P, info } = await Toon.ler(f); await DB.put('projetos', P); await DB.put('arquivos', { tipo: 'cita', projeto: P.id, em: Date.now() }, 'cita:' + rc.anexo).catch(() => { });
       await App.abrir(P); this.irPara(rc.parte); fichaAnimacao(P, info);

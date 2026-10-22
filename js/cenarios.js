@@ -153,7 +153,7 @@ const Cenarios = {
       const x = clamp(Math.floor(bb.x0), 0, this.W), y = clamp(Math.floor(bb.y0), 0, this.H), w = clamp(Math.ceil(bb.x1), 0, this.W) - x, h = clamp(Math.ceil(bb.y1), 0, this.H) - y;
       if (w <= 0 || h <= 0) continue;
       const cv = await this.compor(p.camadas, p.idx, { x, y, w, h }, false, f => aoProgresso?.((k + f) / ps.length));
-      out.push({ nome: p.nome, cv, x, y, w, h, primeira: p.primeira });
+      out.push({ nome: p.nome, cv, x, y, w, h, primeira: p.primeira, camadas: p.camadas, idx: p.idx });
     }
     aoProgresso?.(1);
     return out;
@@ -311,55 +311,53 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
   guardaUltimo(cena) { this.ultimo = cena; try { localStorage.setItem('animador-cenario-ultimo-v2', JSON.stringify(cena)); } catch { } },
   pegaUltimo() { if (this.ultimo) return this.ultimo; try { const j = JSON.parse(localStorage.getItem('animador-cenario-ultimo-v2') || 'null'); return j?.camadas ? (this.ultimo = { ...this.limpar(j).cena, ia: true }) : null; } catch { return null; } },
 
-  /* ---------- janela "Cenário" ---------- */
-  async abrir() {
+  /* ---------- janela "Cenário": prontos, IA e o EDITOR de peças (js/cenaedit.js) ----------
+     o = { estado, sel, area, no } — estado/sel/area vêm de "Editar cenário" (no = o que já está na cena) ou de uma citação */
+  async abrir(o = {}) {
     if (!App?.P) return UI.toast('Abra uma animação primeiro.', { kind: 'err' });
+    const editando = o.no || null;
     const body = h(`<div class="cen">
-      <div class="cen-sub">Prontos</div><div class="cen-grade"></div>
-      <div class="cen-sub">Pedir à IA <span>(mesmo estilo dos prontos)</span></div>
+      ${editando ? `<button class="btn sm" data-prontos>${ic('paisagem', 13)} Trocar por um pronto…</button>` : ''}<div class="cen-sub" ${editando ? 'hidden' : ''}>Prontos</div><div class="cen-grade" ${editando ? 'hidden' : ''}></div>
+      <div class="cen-sub">Pedir à IA <span>(mesmo estilo dos prontos; com uma peça ou área escolhida, muda só ela)</span></div>
       <textarea rows="2" maxlength="600" placeholder="Ex.: um quarto de criança com cama, estante e janela à noite"></textarea>
-      <div class="cen-prev" hidden><canvas width="960" height="540"></canvas><div class="cen-barra" hidden><i></i></div><div class="cen-st"></div>
-        <div class="cen-pecas" hidden><div class="cen-sub">Peças <span>(cada objeto separado: mande para a Mídia ou baixe)</span></div><div class="cen-lista"></div>
-          <div class="cen-op"><label class="ck"><input type="checkbox" data-sep checked> Pôr na cena em camadas separadas (uma por peça)</label><button class="btn sm" data-todas>${ic('download', 13)} Todas as peças para a Mídia</button></div></div></div></div>`);
-    const prev = $('.cen-prev', body), st = $('.cen-st', body), pc = $('canvas', prev), ta = $('textarea', body), barra = $('.cen-barra', body), lista = $('.cen-lista', body), boxPecas = $('.cen-pecas', body);
-    let atual = null, cvAtual = null, pecas = null, ocupado = false, btPor, btAjuste, btCriar, rab = null, vez = 0;
-    const trava = sim => { ocupado = sim; [btPor, btAjuste, btCriar].forEach(b => b && (b.disabled = sim || (b === btPor && !cvAtual))); $$('.cen-item', body).forEach(b => b.disabled = sim); ta.disabled = sim; $('[data-todas]', body).disabled = sim; };
-    const progresso = f => { barra.hidden = f == null; if (f != null) $('i', barra).style.width = Math.round(clamp(f, 0, 1) * 100) + '%'; };
-    const pintaPrevia = (cv, alfa = 1) => { const g = pc.getContext('2d'); g.save(); g.globalAlpha = alfa; g.imageSmoothingQuality = 'high'; g.drawImage(cv, 0, 0, pc.width, pc.height); g.restore(); };
-    const mostraPecas = () => {
-      lista.innerHTML = ''; boxPecas.hidden = !pecas?.length;
-      for (const p of pecas || []) {
-        const it = h(`<div class="cen-peca" title="${esc(p.nome)} — ${p.w}×${p.h}"><canvas></canvas><span>${esc(p.nome)}</span><button class="ibtn" data-m title="Mandar para a Mídia">${ic('upload', 13)}</button><button class="ibtn" data-b title="Baixar PNG">${ic('download', 13)}</button></div>`);
-        const c = $('canvas', it), r = Math.min(64 / p.w, 40 / p.h); c.width = Math.max(1, p.w * r); c.height = Math.max(1, p.h * r); c.getContext('2d').drawImage(p.cv, 0, 0, c.width, c.height);
-        $('[data-m]', it).onclick = () => usa(async () => { await Midia.guardar(await this.blob(p.cv), `${atual?.nome || 'Cenário'} · ${p.nome}`, { x: p.x, y: p.y }); UI.toast(`<b>${esc(p.nome)}</b> foi para a Mídia.`, { kind: 'ok' }); });
-        $('[data-b]', it).onclick = () => usa(async () => downloadBlob(await this.blob(p.cv), `${slug(atual?.nome)}-${slug(p.nome)}.png`));
-        lista.appendChild(it);
-      }
-    };
+      <div class="cen-prev" hidden><div class="ce-barra"></div><canvas width="960" height="540"></canvas><div class="cen-barra" hidden><i></i></div><div class="cen-st"></div>
+        <div class="cen-pecas" hidden><div class="cen-sub">Peças <span>(a da frente em cima · clique para escolher · botão direito: mais)</span></div><div class="cen-lista"></div>
+          <div class="cen-op">${editando ? '' : '<label class="ck"><input type="checkbox" data-sep checked> Pôr na cena em camadas separadas (uma por peça)</label>'}<button class="btn sm" data-todas>${ic('download', 13)} Todas as peças para a Mídia</button></div></div></div></div>`);
+    const prev = $('.cen-prev', body), st = $('.cen-st', body), pc = $('canvas', prev), ta = $('textarea', body), barra = $('.cen-barra', body), boxPecas = $('.cen-pecas', body);
+    let ocupado = false, btPor, btAjuste, btCriar, rab = null, vez = 0;
     const slug = t => String(t || 'cenario').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'cenario';
-    // desenha o acabamento final (o cenário inteiro e cada peça); se veio dos rabiscos, troca suave
-    const mostra = async (cena, rot, suave) => {
-      prev.hidden = false; boxPecas.hidden = true; const minha = ++vez;
-      st.textContent = 'Dando o acabamento…'; progresso(0);
-      const cv = await this.desenhar(cena, f => progresso(f * .5));
-      const ps = await this.desenharPecas(cena, f => progresso(.5 + f * .5));
-      if (minha !== vez) return;
-      atual = cena; cvAtual = cv; pecas = ps;
-      if (suave) for (let i = 1; i <= 12; i++) { pintaPrevia(cv, i / 12); await sleep(30); } else pintaPrevia(cv);
-      progresso(null); st.textContent = rot || cena.nome || 'Cenário'; btAjuste.style.display = ''; mostraPecas();
-    };
     const usa = async fn => { if (ocupado) return; trava(true); try { await fn(); } catch (e) { prev.hidden = false; progresso(null); st.textContent = 'Não deu: ' + (e?.message || e); console.warn('cenário', e); } trava(false); };
+    const ed = CenaEd.criar({ pc, raiz: body, barra: $('.ce-barra', body), lista: $('.cen-lista', body), ocupado: () => ocupado,
+      aoMudar: () => { st.textContent = (ed.est?.nome || 'Cenário') + ' — mexido à mão. Ctrl+Z desfaz.'; },
+      aoEscolher: () => rotAjuste(),
+      ia: (p, area) => { if (!ta.value.trim()) { ta.placeholder = p ? `Diga o que mudar em "${p.nome}" (ex.: deixa vermelha, maior, com flores)` : 'Diga o que mudar nesta área'; ta.focus(); st.textContent = 'Escreva no campo de cima o que mudar e clique em "' + btAjuste.textContent.trim() + '".'; return; } ajustar(p, area); },
+      citar: (p, area) => Citacao.cenario(ed.est, p, area),
+      midia: p => usa(async () => { await Midia.guardar(await this.blob(p.cv), `${ed.est?.nome || 'Cenário'} · ${p.nome}`, { x: p.x, y: p.y }); UI.toast(`<b>${esc(p.nome)}</b> foi para a Mídia.`, { kind: 'ok' }); }),
+      baixar: p => usa(async () => downloadBlob(await this.blob(p.cv), `${slug(ed.est?.nome)}-${slug(p.nome)}.png`)) });
+    this._ed = ed; // (a janela aberta agora; ajuda a conferir)
+    const trava = sim => { ocupado = sim; [btPor, btAjuste, btCriar].forEach(b => b && (b.disabled = sim || (b === btPor && !ed.est))); $$('.cen-item', body).forEach(b => b.disabled = sim); ta.disabled = sim; $('[data-todas]', body).disabled = sim; body.classList.toggle('ce-ocupado', sim); };
+    const progresso = f => { barra.hidden = f == null; if (f != null) $('i', barra).style.width = Math.round(clamp(f, 0, 1) * 100) + '%'; };
+    const rotAjuste = () => { if (!btAjuste) return; const p = ed.est?.pecas.find(x => x.id === ed.sel); btAjuste.style.display = ed.est ? '' : 'none';
+      btAjuste.textContent = p ? `Ajustar só: ${p.nome}` : ed.area ? 'Ajustar só a área' : 'Ajustar tudo'; };
+    // mostra o estado no editor (com uma troca suave quando vem dos rabiscos)
+    const mostra = async (est, rot, suave) => {
+      prev.hidden = false; const minha = ++vez;
+      if (suave) { const cv = this.compoe(est, pc.width), g = pc.getContext('2d'); for (let i = 1; i <= 12 && minha === vez; i++) { g.globalAlpha = i / 12; g.drawImage(cv, 0, 0); await sleep(30); } g.globalAlpha = 1; }
+      if (minha !== vez) return;
+      ed.usa(est, o.sel, o.area); o.sel = o.area = null; pc.scrollIntoView({ block: 'nearest' }); pc.focus({ preventScroll: true }); progresso(null); boxPecas.hidden = false; st.textContent = rot || est.nome || 'Cenário'; rotAjuste(); trava(ocupado);
+    };
+    const doCena = async (cena, rot, suave) => { st.textContent = 'Separando as peças…'; prev.hidden = false; progresso(0); await mostra(await this.estadoDe(cena, f => progresso(f)), rot, suave); };
     const grade = $('.cen-grade', body), ult = this.pegaUltimo();
     const item = (nome, mini, fn) => { const b = h(`<button class="cen-item" title="Usar: ${esc(nome)}">${mini ? `<img src="${mini}" alt="">` : '<i></i>'}<span>${esc(nome)}</span></button>`);
       const im = $('img', b); if (im) im.onerror = () => im.replaceWith(h('<i></i>')); b.onclick = () => usa(fn); grade.appendChild(b); };
-    for (const p of this.PRONTOS) item(p.nome, `cenarios/miniaturas/${p.id}.jpg`, async () => { rab?.parar(); await mostra(await this.pronto(p.id)); });
-    if (ult) item('Último da IA: ' + (ult.nome || 'cenário'), null, async () => { rab?.parar(); await mostra(ult, (ult.nome || 'Cenário') + ' — o último que a IA fez.'); });
+    for (const p of this.PRONTOS) item(p.nome, `cenarios/miniaturas/${p.id}.jpg`, async () => { rab?.parar(); await doCena(await this.pronto(p.id)); });
+    if (ult) item('Último da IA: ' + (ult.nome || 'cenário'), null, async () => { rab?.parar(); await doCena(ult, (ult.nome || 'Cenário') + ' — o último que a IA fez.'); });
 
-    // IA: os rabiscos aparecem conforme as camadas chegam, com o tempo que falta
-    const ia = ajuste => usa(async () => {
+    // IA do cenário inteiro (criar, ajustar tudo ou só uma área): os rabiscos aparecem conforme as camadas chegam
+    const ia = (ajuste, area) => usa(async () => {
       const txt = ta.value.trim(); if (!txt) { st.textContent = 'Escreva o que quer no campo acima.'; prev.hidden = false; return; }
-      if (ajuste && !atual) return;
-      prev.hidden = false; boxPecas.hidden = true; rab?.parar(); rab = this.rabiscador(pc); ++vez;
+      if (ajuste && !ed.est) return;
+      prev.hidden = false; rab?.parar(); rab = this.rabiscador(pc); ++vez;
       const t0 = performance.now(); let vistas = 0, t1 = 0, total = 0, ultimaLeitura = 0, eta = null;
       const relogio = setInterval(() => {
         const seg = Math.round((performance.now() - t0) / 1000);
@@ -376,47 +374,94 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
       };
       const recomeca = () => { rab.parar(); rab = this.rabiscador(pc); vistas = 0; total = 0; eta = null; };
       try {
-        const r = await this.pedirIA(txt, ajuste ? atual : null, aoEscrever, recomeca);
-        // o que ainda não tinha aparecido (ou tudo, se o servidor não manda aos pouquinhos) entra nos rabiscos agora
+        let r, est;
+        if (ajuste) { r = await this.pedirTudo(ed.est, txt, area, aoEscrever, recomeca); est = r.estado; }
+        else r = await this.pedirIA(txt, null, aoEscrever, recomeca);
         if (r.cena.camadas.length > vistas) rab.add(r.cena.camadas.slice(vistas)); vistas = total = r.cena.camadas.length;
         clearInterval(relogio); st.textContent = 'Terminando os rabiscos…'; progresso(.92);
         await Promise.race([rab.terminar(), sleep(6000)]); rab.parar();
         r.cena.ia = true; this.guardaUltimo(r.cena);
+        if (!est) { st.textContent = 'Separando as peças…'; est = await this.estadoDe(r.cena); }
+        est.ia = true;
         const obs = [r.cortado && 'a resposta veio incompleta e aproveitei o que chegou', r.tirou && `ignorei ${r.tirou} peça(s) com erro`].filter(Boolean).join('; ');
-        await mostra(r.cena, (r.cena.nome || 'Cenário') + ` — feito pela IA em ${Math.round((performance.now() - t0) / 1000)} s` + (obs ? ` (${obs})` : '') + '. Gostou? "Pôr na cena", ou escreva um ajuste e clique em "Ajustar".', true);
-      } finally { clearInterval(relogio); }
+        await mostra(est, (est.nome || 'Cenário') + ` — feito pela IA em ${Math.round((performance.now() - t0) / 1000)} s` + (obs ? ` (${obs})` : '') + '. Mexa nas peças à vontade; "Pôr na cena" quando gostar.', true);
+      } finally { clearInterval(relogio); rab?.parar(); }
     });
-    $('[data-todas]', body).onclick = () => usa(async () => { for (const p of pecas || []) await Midia.guardar(await this.blob(p.cv), `${atual?.nome || 'Cenário'} · ${p.nome}`, { x: p.x, y: p.y }); UI.toast(`${pecas.length} peça(s) foram para a Mídia.`, { kind: 'ok' }); });
-    await UI.modal({ title: 'Cenário', icon: 'paisagem', width: 760, body, sticky: true, onOpen: a => {
-      [btAjuste, btCriar, btPor] = a.foot.querySelectorAll('.btn'); btPor.disabled = true; btAjuste.style.display = 'none';
+    // IA só numa peça (a peça é redesenhada no lugar; o resto não muda)
+    const ajustar = (p, area) => {
+      if (!p) return ia(true, area || ed.area);
+      usa(async () => {
+        const txt = ta.value.trim(); st.textContent = `A IA está redesenhando "${p.nome}"…`; progresso(.3);
+        const nova = await this.pedirPeca(ed.est, p, txt);
+        ed.guarda(); const i = ed.est.pecas.findIndex(x => x.id === p.id); if (i >= 0) ed.est.pecas[i] = nova; ed.est.ia = true;
+        progresso(null); ed.pinta(); st.textContent = `"${p.nome}" foi refeita pela IA. Ctrl+Z volta como era.`;
+      });
+    };
+    if ($('[data-prontos]', body)) $('[data-prontos]', body).onclick = e => { e.currentTarget.remove(); $$('.cen-sub[hidden], .cen-grade[hidden]', body).forEach(x => x.hidden = false); };
+    $('[data-todas]', body).onclick = () => usa(async () => { for (const p of ed.est?.pecas || []) await Midia.guardar(await this.blob(p.cv), `${ed.est?.nome || 'Cenário'} · ${p.nome}`, { x: p.x, y: p.y }); UI.toast(`${ed.est.pecas.length} peça(s) foram para a Mídia.`, { kind: 'ok' }); });
+    if (o.estado) setTimeout(() => mostra(o.estado, editando ? `${o.estado.nome || 'Cenário'} — editando o que está na cena.` : o.estado.nome), 0);
+    await UI.modal({ title: editando ? 'Editar cenário' : 'Cenário', icon: 'paisagem', width: 820, body, sticky: true, onOpen: a => {
+      [btAjuste, btCriar, btPor] = a.foot.querySelectorAll('.btn'); btPor.disabled = !o.estado; btAjuste.style.display = 'none'; rotAjuste(); if (o.estado) setTimeout(() => pc.focus({ preventScroll: true }), 120); // editando: as setas já mexem na peça
     }, buttons: [
-      { label: 'Ajustar', kind: 'ia', left: true, onClick: () => { ia(true); return false; } },
+      { label: 'Ajustar tudo', kind: 'ia', left: true, onClick: () => { const p = ed.est?.pecas.find(x => x.id === ed.sel); p ? ajustar(p) : ia(true, ed.area); return false; } },
       { label: 'Criar com a IA', icon: 'sparkles', kind: 'ia', onClick: () => { ia(false); return false; } },
-      { label: 'Pôr na cena', kind: 'primary', onClick: async () => { if (!cvAtual || ocupado) return false; let ok = false; const sep = $('[data-sep]', body).checked;
-        await usa(async () => { await (sep && pecas?.length > 1 ? this.porEmCamadas(pecas, atual) : this.porNaCena(cvAtual, atual)); ok = true; }); return ok; } },
+      { label: editando ? 'Atualizar na cena' : 'Pôr na cena', kind: 'primary', onClick: async () => { if (!ed.est?.pecas.length || ocupado) return false; let ok = false; const sep = $('[data-sep]', body)?.checked;
+        await usa(async () => { if (editando) await this.atualizar(editando, ed.est); else if (sep && ed.est.pecas.length > 1) await this.porEmCamadas(ed.est); else await this.porNaCena(this.compoe(ed.est), this.cenaDe(ed.est), ed.est); ok = true; }); return ok; } },
     ] });
     rab?.parar();
   },
-  async porNaCena(cv, cena) {
+  async porNaCena(cv, cena, est) {
     if (!App.P) throw new Error('Nenhuma animação aberta.');
-    const n = await App.addCenario(await this.blob(cv), 'Cenário: ' + String(cena?.nome || 'novo').slice(0, 30), { cena, ...(cena?.ia ? { ia: true } : {}) });
-    UI.toast(`<b>${esc(cena?.nome || 'Cenário')}</b> entrou no fundo da cena (só nesta animação). Para a equipe usar: botão direito nele › <b>Salvar na nuvem</b>.`, { kind: 'ok', time: 6000 });
+    const n = await App.addCenario(await this.blob(cv), 'Cenário: ' + String(cena?.nome || 'novo').slice(0, 30), { cena, ...(est ? { cenaEd: await this.serial(est) } : {}), ...(cena?.ia ? { ia: true } : {}) });
+    UI.toast(`<b>${esc(cena?.nome || 'Cenário')}</b> entrou no fundo da cena (só nesta animação). Para mudar: botão direito › <b>Editar cenário</b>. Para a equipe usar: <b>Salvar na nuvem</b>.`, { kind: 'ok', time: 6000 });
     return n;
   },
+  // as peças viram camadas de imagem (a da frente primeiro na pasta); cada uma lembra de que peça veio (pecaCen)
+  async nosDasPecas(est, q, velhos = []) {
+    const out = [], porPeca = new Map(velhos.map(n => [n.pecaCen, n]));
+    for (const p of [...est.pecas].reverse()) {
+      if (p.oculta) continue;
+      const blob = await this.blob(p.cv), id = p.tipo === 'img' && p.k ? p.k : await Arq.guardar(blob); if (!Arq.img.get(id)) Arq.img.set(id, await createImageBitmap(blob));
+      const s = round(p.w / p.cv.width, 4), cx = p.x + p.w / 2, cy = p.y + p.h / 2, v = porPeca.get(p.id);
+      if (v) { // a camada que já existia (com as chaves de animação): troca a imagem e leva as chaves junto com a peça
+        const k0 = Modelo.quadrosChave(v)[0], b = v.chaves[k0] || {}, dx = cx - (b.x ?? cx), dy = cy - (b.y ?? cy), ks = s / (b.s || s);
+        for (const c of Object.values(v.chaves)) { if (c.x != null) c.x += dx; if (c.y != null) c.y += dy; if (c.s != null) c.s = round(c.s * ks, 4); }
+        v.arq = id; v.nome = p.nome; out.push(v); continue; }
+      const n = Modelo.novoNo('imagem', { arq: id, nome: p.nome }); n.de = q; n.pecaCen = p.id; n.chaves = { [q]: { x: cx, y: cy, r: 0, s, sx: 1, op: 1 } }; out.push(n);
+    }
+    return out;
+  },
   // uma pasta com uma camada de imagem por peça, cada uma no lugar dela (a pasta cobre a câmera, como o cenário inteiro)
-  async porEmCamadas(pecas, cena) {
+  async porEmCamadas(est) {
     const P = App.P, q = App.q; if (!P) throw new Error('Nenhuma animação aberta.');
     const c = Modelo.camera(P, q), z = c.zoom || 1, s = round(Math.max(P.w / z / this.W, P.h / z / this.H) * 1.02, 3);
-    const pasta = Modelo.novoNo('pasta', { nome: 'Cenário: ' + String(cena?.nome || 'novo').slice(0, 30) });
-    pasta.de = q; pasta.aberto = false; pasta.cenario = true; pasta.cena = cena;
+    const pasta = Modelo.novoNo('pasta', { nome: 'Cenário: ' + String(est.nome || 'novo').slice(0, 30) });
+    pasta.de = q; pasta.aberto = false; pasta.cenario = true; pasta.cena = this.cenaDe(est); pasta.cenaEd = await this.serial(est); if (est.ia) pasta.ia = true;
     pasta.chaves = { [q]: { x: Math.round(c.x - this.W / 2 * s), y: Math.round(c.y - this.H / 2 * s), r: 0, s, sx: 1, op: 1 } };
-    for (const p of [...pecas].sort((a, b) => b.primeira - a.primeira)) { // a peça desenhada por último fica na frente
-      const blob = await this.blob(p.cv), id = await Arq.guardar(blob); Arq.img.set(id, await createImageBitmap(blob));
-      const n = Modelo.novoNo('imagem', { arq: id, nome: p.nome }); n.de = q; n.chaves = { [q]: { x: p.x + p.w / 2, y: p.y + p.h / 2, r: 0, s: 1, sx: 1, op: 1 } };
-      pasta.filhos.push(n);
-    }
+    pasta.filhos.push(...await this.nosDasPecas(est, q));
     const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); // na frente dos cenários (e do Fundo padrão) e atrás do resto
     if (i >= 0) P.raiz.splice(i, 0, pasta); else P.raiz.push(pasta); App.sel = pasta.id; App.commit('Cenário em camadas');
-    UI.toast(`<b>${esc(cena?.nome || 'Cenário')}</b> entrou no fundo da cena com ${pecas.length} peças separadas na pasta. Cada peça dá para salvar na nuvem pelo botão direito.`, { kind: 'ok', time: 6000 });
+    UI.toast(`<b>${esc(est.nome || 'Cenário')}</b> entrou no fundo da cena com ${pasta.filhos.length} peças separadas. Para mudar: botão direito › <b>Editar cenário</b>.`, { kind: 'ok', time: 6000 });
+  },
+  // "Editar cenário": o que já está na cena (pasta de peças, imagem do cenário inteiro ou uma peça dentro da pasta)
+  async editarNo(n) {
+    const P = App.P; let no = n, sel = null;
+    const r = Modelo.achar(P, n.id); if ((n.pecaCen || !(n.cena || n.cenaEd)) && (r?.pai?.cenaEd || r?.pai?.cena)) { no = r.pai; sel = n.pecaCen || n.nome; } // uma peça dentro da pasta do cenário
+    let est;
+    if (no.cenaEd) est = await this.deSerial(no.cenaEd);
+    else if (no.cena?.camadas) est = await this.estadoDe(no.cena);
+    else if (no.tipo === 'imagem') { const b = await Arq.pegaBlob(no.arq).catch(() => null); if (!b) return UI.toast('Não achei a imagem deste cenário neste computador.', { kind: 'err' });
+      const cv = await CenaEd.canvasDe(b), k = Math.min(this.W / cv.width, this.H / cv.height), w = cv.width * k, hh = cv.height * k;
+      est = { nome: String(no.nome || 'Cenário').replace(/^Cenário: /, ''), pecas: [{ id: uid('pc'), nome: 'Cenário', tipo: 'img', cv, x: (this.W - w) / 2, y: (this.H - hh) / 2, w, h: hh, trava: true }] }; }
+    else return UI.toast('Este cenário não tem as peças guardadas para editar.', { kind: 'warn' });
+    return this.abrir({ estado: est, sel, no });
+  },
+  // "Atualizar na cena": troca as peças do que já estava (mesmo lugar no tempo e na hierarquia; chaves das peças vão junto)
+  async atualizar(no, est) {
+    const P = App.P; if (!Modelo.achar(P, no.id)) throw new Error('Esse cenário não está mais na animação.');
+    no.cena = this.cenaDe(est); no.cenaEd = await this.serial(est); if (est.ia) no.ia = true; delete no.nuvem;
+    if (no.tipo === 'pasta') no.filhos = await this.nosDasPecas(est, no.de || 0, no.filhos.filter(f => f.pecaCen));
+    else { const blob = await this.blob(this.compoe(est)), id = await Arq.guardar(blob); Arq.img.set(id, await createImageBitmap(blob)); no.arq = id; }
+    App.sel = no.id; App.commit('Editar cenário'); UI.toast(`<b>${esc(est.nome || 'Cenário')}</b> foi atualizado na cena.`, { kind: 'ok' });
   },
 };
