@@ -1,100 +1,162 @@
 /* ===================== paineis.js — Ateliê: PAINÉIS QUE MUDAM DE LUGAR =====================
-   Vistas, Partes, Imagens e o painel da direita (Peça/Poses/Animações) têm a alça de pontinhos: arraste para a outra coluna,
-   para outra posição na mesma coluna, ou solte no meio da tela para virar uma janela solta (dá para mover e mudar o tamanho).
-   Dois cliques na alça volta o painel para o lugar de sempre. Fica guardado neste computador (localStorage
-   `animador-atelie-layout`); o botão "Design padrão" no topo aparece só quando algo mudou (painéis ou tamanhos das bordas). */
+   Vistas, Partes, Imagens, o painel da direita (Peça/Poses/Animações) e a timeline têm a alça de pontinhos. Arrastando:
+   - para dentro de qualquer lugar que já tem painéis (coluna, janela solta ou a faixa de baixo do palco) → entra ali, na posição da linha azul;
+   - na BEIRA de uma coluna (lado esquerdo/direito dela) → cria uma COLUNA NOVA ao lado;
+   - na beira da tela → coluna nova naquele lado; no meio do palco → JANELA SOLTA (move pela barra de cima, tamanho pelo canto).
+   Dois cliques na alça = volta para o lugar de sempre. Colunas mudam de largura pela borda. Guardado neste computador
+   (localStorage `animador-atelie-layout`); "Design padrão" no topo aparece só quando algo mudou e volta tudo. */
 'use strict';
 const Paineis = {
   CHAVE: 'animador-atelie-layout',
-  PADRAO: { esq: ['vistas', 'partes', 'imagens'], dir: ['lado'], solto: {} },
-  NOMES: { vistas: 'Vistas', partes: 'Partes', imagens: 'Imagens', lado: 'Peça · Poses · Animações' },
+  NOMES: { vistas: 'Vistas', partes: 'Partes', imagens: 'Imagens', lado: 'Peça · Poses · Animações', linha: 'Timeline' },
+  BEIRA: 22,
   st: null, sec: {},
+  padraoSt() { return { cols: [{ id: 'e1', lado: 'esq', w: 270, p: ['vistas', 'partes', 'imagens'] }, { id: 'd1', lado: 'dir', w: 320, p: ['lado'] }], baixo: ['linha'], jan: [] }; },
   le() {
     if (this.st) return this.st; let s = null; try { s = JSON.parse(localStorage.getItem(this.CHAVE) || 'null'); } catch { }
-    return (this.st = this.valida(s || this.PADRAO));
+    if (s && !s.cols && (s.esq || s.dir)) { // formato antigo (uma coluna de cada lado)
+      const t = window.Divisores ? Divisores.le() : { esq: 270, dir: 320 };
+      s = { cols: [{ id: 'e1', lado: 'esq', w: t.esq, p: s.esq || [] }, { id: 'd1', lado: 'dir', w: t.dir, p: s.dir || [] }], baixo: [], jan: Object.entries(s.solto || {}).map(([i, v], n) => ({ id: 'j' + n, ...v, p: [i] })) };
+    }
+    return (this.st = this.valida(s || this.padraoSt()));
   },
   valida(s) {
     const ids = Object.keys(this.NOMES), vistos = new Set(), f = l => (Array.isArray(l) ? l : []).filter(i => ids.includes(i) && !vistos.has(i) && vistos.add(i));
-    const o = { esq: f(s.esq), dir: f(s.dir), solto: {} };
-    for (const [i, v] of Object.entries(s.solto || {})) if (ids.includes(i) && !vistos.has(i) && v) { vistos.add(i); o.solto[i] = { x: +v.x || 80, y: +v.y || 80, w: +v.w || 300, h: +v.h || 360 }; }
-    for (const i of ids) if (!vistos.has(i)) (this.PADRAO.esq.includes(i) ? o.esq : o.dir).push(i);
+    const o = { cols: [], baixo: [], jan: [] };
+    for (const c of s.cols || []) { const p = f(c.p); if (p.length) o.cols.push({ id: String(c.id || uid('c')), lado: c.lado === 'dir' ? 'dir' : 'esq', w: clamp(+c.w || 280, 190, 620), p }); }
+    o.baixo = f(s.baixo);
+    for (const j of s.jan || []) { const p = f(j.p); if (p.length) o.jan.push({ id: String(j.id || uid('j')), x: +j.x || 80, y: +j.y || 80, w: +j.w || 300, h: +j.h || 360, p }); }
+    // quem sumiu (painel novo numa versão nova) volta para o lugar de sempre
+    const pad = this.padraoSt();
+    for (const i of ids) if (!vistos.has(i)) { if (pad.baixo.includes(i)) { o.baixo.push(i); continue; } const pc = pad.cols.find(c => c.p.includes(i)); let c = o.cols.find(x => x.lado === pc.lado); if (!c) { c = { ...pc, p: [] }; pc.lado === 'esq' ? o.cols.unshift(c) : o.cols.push(c); } c.p.push(i); }
     return o;
   },
   grava() { try { localStorage.setItem(this.CHAVE, JSON.stringify(this.st)); } catch { } this.pintaBotao(); },
   mudou() {
     const t = window.Divisores ? Divisores.le() : null;
-    return JSON.stringify(this.st) !== JSON.stringify(this.PADRAO) || (t && JSON.stringify({ ...Divisores.PADRAO, ...t }) !== JSON.stringify(Divisores.PADRAO));
+    return JSON.stringify(this.st) !== JSON.stringify(this.padraoSt()) || (t && t.tl);
   },
   pintaBotao() { const b = $('#at-layout-padrao'); if (b) b.hidden = !this.mudou(); },
   padrao() {
-    this.st = this.valida(this.PADRAO); this.grava();
+    this.st = this.padraoSt(); this.grava();
     if (window.Divisores) { Divisores.t = { ...Divisores.PADRAO }; Divisores.grava(); Divisores.aplica(); }
     this.aplica(); UI.toast('Voltou ao design padrão do Ateliê.', { kind: 'ok' });
   },
-  // ---------- montar (uma vez): cada painel vira uma <section> com a alça ----------
+  // ---------- montar (uma vez) ----------
   liga() {
-    if (this._ok) return; const at = $('#atelie'), esq = $('#atelie .at > aside:first-child'), dir = $('#atelie .at > aside:last-child'); if (!at || !esq || !dir) return; this._ok = true;
-    this.col = { esq, dir }; this.le();
+    if (this._ok) return; const at = $('#atelie'), esq = $('#atelie .at > aside:first-child'), dir = $('#atelie .at > aside:last-child'), pal = $('#atelie .at-palco'); if (!at || !esq || !dir || !pal) return; this._ok = true;
+    this.area = { esq, dir }; esq.classList.add('dock-area'); dir.classList.add('dock-area'); $('#atelie .at').classList.add('com-docks');
+    this.baixoEl = h('<div class="dock-baixo"></div>'); pal.appendChild(this.baixoEl);
+    this.soltos = h('<div class="dock-soltos"></div>'); at.appendChild(this.soltos);
     const cabDe = id => $('#' + id)?.previousElementSibling;
-    const grupos = { vistas: [$('#at-vistas')], partes: [cabDe('at-partes'), $('#at-partes')], imagens: [cabDe('at-imgs'), $('#at-imgs')], lado: [$('#at-abas'), $('#at-lado')] };
+    const grupos = { vistas: [$('#at-vistas')], partes: [cabDe('at-partes'), $('#at-partes')], imagens: [cabDe('at-imgs'), $('#at-imgs')], lado: [$('#at-abas'), $('#at-lado')], linha: [$('#at-tl')] };
     for (const [id, els] of Object.entries(grupos)) {
-      if (els.some(e => !e)) continue; const s = h(`<section class="dock" data-dock="${id}"><span class="dock-pega" title="Arraste para mudar o painel de lugar (outra coluna, outra posição ou solto na tela) · dois cliques: volta para o lugar de sempre">${ic('grip', 13)}</span></section>`);
+      if (els.some(e => !e)) continue; const s = h(`<section class="dock" data-dock="${id}"><span class="dock-pega" title="Arraste para mudar este painel de lugar: dentro de outro lugar, na beira de uma coluna (coluna nova) ou solto na tela · dois cliques: volta para o lugar de sempre">${ic('grip', 13)}</span></section>`);
       els[0].before(s); for (const e of els) s.appendChild(e); this.sec[id] = s; this.alca(id, $('.dock-pega', s));
     }
-    this.soltos = h('<div class="dock-soltos"></div>'); at.appendChild(this.soltos);
     const b = h(`<button class="btn sm" id="at-layout-padrao" hidden title="Os painéis ou os tamanhos foram mudados: volta tudo ao jeito de sempre">${ic('undo', 13)} Design padrão</button>`); b.onclick = () => this.padrao();
-    $('#at-autores')?.before(b);
+    ($('#at-autores') || $('#at-ia'))?.before(b);
     if (window.Divisores && !Divisores._avisaPaineis) { Divisores._avisaPaineis = true; const g = Divisores.grava.bind(Divisores); Divisores.grava = () => { g(); this.pintaBotao(); }; }
-    this.ro = new ResizeObserver(ents => { let mud = false; for (const e of ents) { const id = e.target.dataset.dock, v = this.st.solto[id]; if (!v || !e.target.isConnected) continue; const r = e.target.getBoundingClientRect(); if (Math.abs(r.width - v.w) > 2 || Math.abs(r.height - v.h) > 2) { v.w = Math.round(r.width); v.h = Math.round(r.height); mud = true; } } if (mud) { clearTimeout(this._tg); this._tg = setTimeout(() => this.grava(), 300); } });
+    // a timeline pode sair de baixo do palco: o palco desconta só o que está na faixa de baixo
+    if (window.Linha && !Linha._dock) { Linha._dock = true; Linha.altura = () => { const p = $('.at-palco'); if (!p) return; const hgt = this.baixoEl.offsetHeight; if (p._tl === hgt) return; const primeira = p._tl0 === undefined; p._tl = p._tl0 = hgt; p.style.setProperty('--tl', hgt + 'px'); Atelie.tamanho?.(); if (primeira) Atelie.enquadrar?.(); }; }
+    new ResizeObserver(() => Linha?.altura?.()).observe(this.baixoEl);
+    this.ro = new ResizeObserver(ents => { let mud = false; for (const e of ents) { const j = this.st.jan.find(x => x.id === e.target.dataset.jan); if (!j || !e.target.isConnected) continue; const r = e.target.getBoundingClientRect(); if (Math.abs(r.width - j.w) > 2 || Math.abs(r.height - j.h) > 2) { j.w = Math.round(r.width); j.h = Math.round(r.height); mud = true; } } if (mud) { clearTimeout(this._tg); this._tg = setTimeout(() => this.grava(), 300); } });
     addEventListener('resize', () => this.cabe());
-    this.aplica();
+    this.le(); this.aplica();
   },
-  // põe cada painel no lugar guardado
+  // ---------- desenhar o layout guardado ----------
   aplica() {
-    if (!this._ok) return; const st = this.le();
-    for (const c of ['esq', 'dir']) { const col = this.col[c], div = $(':scope > .at-div', col); for (const id of st[c]) { const s = this.sec[id]; if (!s) continue; s.classList.remove('dock-solto'); s.removeAttribute('style'); this.ro.unobserve(s); div ? col.insertBefore(s, div) : col.appendChild(s); } }
-    for (const [id, v] of Object.entries(st.solto)) { const s = this.sec[id]; if (!s) continue; s.classList.add('dock-solto'); this.soltos.appendChild(s); Object.assign(s.style, { left: v.x + 'px', top: v.y + 'px', width: v.w + 'px', height: v.h + 'px' }); this.ro.observe(s); }
-    const at = $('#atelie'); at.classList.toggle('sem-esq', !st.esq.some(i => this.sec[i])); at.classList.toggle('sem-dir', !st.dir.some(i => this.sec[i]));
-    this.cabe(); this.pintaBotao(); requestAnimationFrame(() => { Atelie.tamanho?.(); });
+    if (!this._ok) return; const st = this.le(), ed = (c) => c.p.includes('lado') ? '' : ' sem-lado';
+    for (const lado of ['esq', 'dir']) {
+      const area = this.area[lado]; $$(':scope > .dock-col', area).forEach(c => c.remove());
+      const div = $(':scope > .at-div', area);
+      for (const c of st.cols.filter(x => x.lado === lado)) {
+        const col = h(`<div class="dock-col${ed(c)}" data-col="${c.id}" style="width:${c.w}px"><div class="dock-col-borda ${lado}" title="Arraste para mudar a largura da coluna"></div></div>`);
+        for (const id of c.p) if (this.sec[id]) col.appendChild(this.sec[id]);
+        this.bordaCol(c, $('.dock-col-borda', col), lado); div ? area.insertBefore(col, div) : area.appendChild(col);
+      }
+      area.classList.toggle('vazia', !st.cols.some(x => x.lado === lado));
+    }
+    for (const id of st.baixo) if (this.sec[id]) this.baixoEl.appendChild(this.sec[id]);
+    this.baixoEl.classList.toggle('sem-lado', !st.baixo.includes('lado'));
+    $$('.dock-janela', this.soltos).forEach(j => { this.ro.unobserve(j); j.remove(); });
+    for (const j of st.jan) {
+      const w = h(`<div class="dock-janela${ed(j)}" data-jan="${j.id}" style="left:${j.x}px;top:${j.y}px;width:${j.w}px;height:${j.h}px"><div class="dock-jbar" title="Arraste para mover a janela · o canto de baixo muda o tamanho">${ic('grip', 12)}<span>${j.p.map(i => esc(this.NOMES[i])).join(' · ')}</span></div></div>`);
+      for (const id of j.p) if (this.sec[id]) w.appendChild(this.sec[id]);
+      this.moveJanela(j, $('.dock-jbar', w), w); this.soltos.appendChild(w); this.ro.observe(w);
+    }
+    this.cabe(); this.pintaBotao(); Linha?.altura?.(); requestAnimationFrame(() => { Atelie.tamanho?.(); Linha?.altura?.(); });
   },
-  // janelas soltas sempre dentro da tela
-  cabe() { for (const [id, v] of Object.entries(this.st?.solto || {})) { const s = this.sec[id]; if (!s) continue; const x = clamp(v.x, 0, Math.max(0, innerWidth - 120)), y = clamp(v.y, 46, Math.max(46, innerHeight - 60)); if (x !== v.x || y !== v.y) { v.x = x; v.y = y; s.style.left = x + 'px'; s.style.top = y + 'px'; } } },
-  tira(id) { const st = this.st; st.esq = st.esq.filter(i => i !== id); st.dir = st.dir.filter(i => i !== id); delete st.solto[id]; },
+  cabe() { for (const j of this.st?.jan || []) { const x = clamp(j.x, 0, Math.max(0, innerWidth - 120)), y = clamp(j.y, 46, Math.max(46, innerHeight - 60)); if (x !== j.x || y !== j.y) { j.x = x; j.y = y; const w = $(`.dock-janela[data-jan="${j.id}"]`, this.soltos); if (w) { w.style.left = x + 'px'; w.style.top = y + 'px'; } } } },
+  bordaCol(c, b, lado) {
+    b.addEventListener('pointerdown', e => { if (e.button !== 0) return; e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('on'); document.body.classList.add('arrastando-div'); const x0 = e.clientX, w0 = c.w, col = b.parentElement;
+      const mov = ev => { c.w = clamp(Math.round(w0 + (lado === 'esq' ? 1 : -1) * (ev.clientX - x0)), 190, 620); col.style.width = c.w + 'px'; Atelie.tamanho?.(); };
+      const up = () => { b.removeEventListener('pointermove', mov); b.removeEventListener('pointerup', up); b.classList.remove('on'); document.body.classList.remove('arrastando-div'); this.grava(); Atelie.enquadrar?.(); };
+      b.addEventListener('pointermove', mov); b.addEventListener('pointerup', up); });
+    b.addEventListener('dblclick', () => { c.w = c.lado === 'dir' ? 320 : 270; this.grava(); this.aplica(); });
+  },
+  moveJanela(j, bar, w) {
+    bar.addEventListener('pointerdown', e => { if (e.button !== 0) return; e.preventDefault(); bar.setPointerCapture(e.pointerId); const dx = e.clientX - j.x, dy = e.clientY - j.y;
+      const mov = ev => { j.x = Math.round(ev.clientX - dx); j.y = Math.round(Math.max(46, ev.clientY - dy)); w.style.left = j.x + 'px'; w.style.top = j.y + 'px'; };
+      const up = () => { bar.removeEventListener('pointermove', mov); bar.removeEventListener('pointerup', up); this.cabe(); this.grava(); };
+      bar.addEventListener('pointermove', mov); bar.addEventListener('pointerup', up); });
+  },
+  // tira o painel de onde está (e some com coluna/janela que ficou vazia)
+  tira(id) {
+    const st = this.st; let antes = null;
+    for (const c of st.cols) if (c.p.includes(id)) { antes = { col: c, sozinho: c.p.length === 1 }; c.p = c.p.filter(i => i !== id); }
+    for (const j of st.jan) if (j.p.includes(id)) { antes = { jan: { ...j }, sozinho: j.p.length === 1 }; j.p = j.p.filter(i => i !== id); }
+    st.baixo = st.baixo.filter(i => i !== id); return antes;
+  },
+  limpa() { this.st.cols = this.st.cols.filter(c => c.p.length); this.st.jan = this.st.jan.filter(j => j.p.length); },
+  // ---------- onde o painel vai cair ----------
+  acha(x, y, id, dx, dy) {
+    const B = this.BEIRA, ignora = L => L.filter(i => i !== id && this.sec[i]), lugarNa = (L, el) => { // índice pela altura + a linha azul
+      const r = el.getBoundingClientRect(), V = ignora(L); let i = V.length;
+      for (let k = 0; k < V.length; k++) { const b = this.sec[V[k]].getBoundingClientRect(); if (y < b.top + b.height / 2) { i = k; break; } }
+      const ly = !V.length ? r.top + 2 : i < V.length ? this.sec[V[i]].getBoundingClientRect().top : this.sec[V[V.length - 1]].getBoundingClientRect().bottom;
+      return { i, linha: { x: r.left, y: ly - 2, w: r.width, h: 4 } };
+    };
+    for (const j of this.st.jan) { const el = $(`.dock-janela[data-jan="${j.id}"]`, this.soltos); if (!el) continue; const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) { const l = lugarNa(j.p, el); return { jan: j.id, i: l.i, linha: l.linha, nome: 'nesta janela' }; } }
+    for (const c of this.st.cols) { const el = $(`.dock-col[data-col="${c.id}"]`); if (!el || !el.offsetWidth) continue; const r = el.getBoundingClientRect();
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+      if (x - r.left < B || r.right - x < B) { const depois = r.right - x < B, k = this.st.cols.indexOf(c); return { novaCol: { lado: c.lado, k: depois ? k + 1 : k }, linha: { x: depois ? r.right - 3 : r.left - 3, y: r.top, w: 6, h: r.height }, nome: 'coluna nova' }; }
+      const l = lugarNa(c.p, el); return { col: c.id, i: l.i, linha: l.linha, nome: c.lado === 'esq' ? 'nesta coluna (esquerda)' : 'nesta coluna (direita)' }; }
+    const pal = $('#atelie .at-palco').getBoundingClientRect(), rb = this.baixoEl.getBoundingClientRect();
+    if (x >= pal.left && x <= pal.right && y >= Math.min(rb.top, pal.bottom - 46) && y <= pal.bottom) { const l = lugarNa(this.st.baixo, this.baixoEl); if (!this.st.baixo.length) l.linha = { x: pal.left, y: pal.bottom - 5, w: pal.width, h: 5 }; return { baixo: true, i: l.i, linha: l.linha, nome: 'embaixo do palco' }; }
+    const top = $('#atelie .at').getBoundingClientRect().top;
+    if (x < pal.left + B) { const k = this.st.cols.filter(c => c.lado === 'esq').length; return { novaCol: { lado: 'esq', k: this.idxLado('esq', k) }, linha: { x: pal.left, y: top, w: 6, h: innerHeight - top }, nome: 'coluna nova' }; }
+    if (x > pal.right - B) { return { novaCol: { lado: 'dir', k: this.idxLado('dir', 0) }, linha: { x: pal.right - 6, y: top, w: 6, h: innerHeight - top }, nome: 'coluna nova' }; }
+    return { solto: true, x: Math.round(x - dx), y: Math.round(y - dy), nome: 'janela solta' };
+  },
+  // posição na lista geral de colunas para a k-ésima coluna daquele lado
+  idxLado(lado, k) { const L = this.st.cols; if (lado === 'esq') { let n = 0; for (let i = 0; i < L.length; i++) { if (L[i].lado !== 'esq') continue; if (n === k) return i; n++; } const u = L.map(c => c.lado).lastIndexOf('esq'); return u + 1; } const p = L.findIndex(c => c.lado === 'dir'); return p < 0 ? L.length : p + k; },
   // ---------- arrastar pela alça ----------
   alca(id, pega) {
-    pega.addEventListener('dblclick', () => { this.tira(id); const c = this.PADRAO.esq.includes(id) ? 'esq' : 'dir', L = this.st[c], pos = this.PADRAO[c].indexOf(id); L.splice(Math.min(pos, L.length), 0, id); this.grava(); this.aplica(); });
+    pega.addEventListener('dblclick', () => { this.tira(id); const pad = this.padraoSt(); if (pad.baixo.includes(id)) this.st.baixo.push(id); else { const pc = pad.cols.find(c => c.p.includes(id)); let c = this.st.cols.find(x => x.lado === pc.lado && (pc.lado === 'esq' ? x === this.st.cols.find(y => y.lado === 'esq') : true)); if (pc.lado === 'dir') c = [...this.st.cols].reverse().find(x => x.lado === 'dir'); if (!c) { c = { id: uid('c'), lado: pc.lado, w: pc.w, p: [] }; pc.lado === 'esq' ? this.st.cols.unshift(c) : this.st.cols.push(c); } c.p.splice(Math.min(pc.p.indexOf(id), c.p.length), 0, id); }
+      this.limpa(); this.grava(); this.aplica(); });
     pega.addEventListener('pointerdown', e => {
       if (e.button !== 0) return; e.preventDefault(); pega.setPointerCapture(e.pointerId);
-      const s = this.sec[id], r0 = s.getBoundingClientRect(), dx = e.clientX - r0.left, dy = e.clientY - r0.top, solto = !!this.st.solto[id];
-      const fant = h(`<div class="dock-fant">${ic('grip', 12)} ${esc(this.NOMES[id])}</div>`), linha = h('<div class="dock-linha"></div>'); document.body.append(fant, linha); document.body.classList.add('arrastando-dock');
+      const s = this.sec[id], r0 = s.getBoundingClientRect(), dx = Math.min(e.clientX - r0.left, 40), dy = Math.min(e.clientY - r0.top, 20);
+      const fant = h('<div class="dock-fant"></div>'), linha = h('<div class="dock-linha"></div>'); document.body.append(fant, linha); document.body.classList.add('arrastando-dock'); s.classList.add('dock-indo');
       let alvo = null, mexeu = false;
-      const acha = ev => {
-        const x = ev.clientX, y = ev.clientY, perto = 36;
-        for (const c of ['esq', 'dir']) {
-          const col = this.col[c], rc = col.getBoundingClientRect(), vazia = rc.width < 20;
-          const dentro = !vazia && x >= rc.left && x <= rc.right && y >= rc.top && y <= rc.bottom, borda = c === 'esq' ? x < perto : x > innerWidth - perto;
-          if (!dentro && !borda) continue;
-          const L = this.st[c].filter(i => i !== id && this.sec[i]); let i = L.length;
-          for (let k = 0; k < L.length; k++) { const b = this.sec[L[k]].getBoundingClientRect(); if (y < b.top + b.height / 2) { i = k; break; } }
-          const lx = vazia ? (c === 'esq' ? 0 : innerWidth - 6) : rc.left, lw = vazia ? 6 : rc.width; let ly;
-          if (vazia || !L.length) ly = rc.top || 46; else if (i < L.length) ly = this.sec[L[i]].getBoundingClientRect().top; else ly = this.sec[L[L.length - 1]].getBoundingClientRect().bottom;
-          return { c, i, linha: vazia ? { x: lx, y: 46, w: lw, h: innerHeight - 46 } : { x: lx, y: ly - 2, w: lw, h: 4 } };
-        }
-        return { solto: true, x: Math.round(x - dx), y: Math.round(y - dy) };
-      };
       const mov = ev => {
         if (!mexeu && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 4) return; mexeu = true;
-        alvo = acha(ev); fant.style.left = ev.clientX + 12 + 'px'; fant.style.top = ev.clientY + 10 + 'px';
-        if (alvo.solto) { linha.style.display = 'none'; if (solto) { s.style.left = alvo.x + 'px'; s.style.top = Math.max(46, alvo.y) + 'px'; } fant.classList.add('solto'); fant.innerHTML = `${ic('grip', 12)} ${esc(this.NOMES[id])} <small>${solto ? 'mover' : 'janela solta'}</small>`; }
-        else { fant.classList.remove('solto'); fant.innerHTML = `${ic('grip', 12)} ${esc(this.NOMES[id])} <small>${alvo.c === 'esq' ? 'coluna da esquerda' : 'coluna da direita'}</small>`; Object.assign(linha.style, { display: 'block', left: alvo.linha.x + 'px', top: alvo.linha.y + 'px', width: alvo.linha.w + 'px', height: alvo.linha.h + 'px' }); }
+        alvo = this.acha(ev.clientX, ev.clientY, id, dx, dy); fant.style.left = ev.clientX + 12 + 'px'; fant.style.top = ev.clientY + 10 + 'px';
+        fant.innerHTML = `${ic('grip', 12)} ${esc(this.NOMES[id])} <small>${alvo.nome}</small>`; fant.classList.toggle('solto', !!alvo.solto);
+        if (alvo.linha) Object.assign(linha.style, { display: 'block', left: alvo.linha.x + 'px', top: alvo.linha.y + 'px', width: alvo.linha.w + 'px', height: alvo.linha.h + 'px' }); else linha.style.display = 'none';
       };
       const fim = () => {
         pega.removeEventListener('pointermove', mov); pega.removeEventListener('pointerup', fim); pega.removeEventListener('pointercancel', fim);
-        fant.remove(); linha.remove(); document.body.classList.remove('arrastando-dock'); if (!mexeu || !alvo) return;
-        const ant = this.st.solto[id]; this.tira(id);
-        if (alvo.solto) this.st.solto[id] = { x: alvo.x, y: Math.max(46, alvo.y), w: Math.round(ant?.w || Math.max(260, Math.min(r0.width, 420))), h: Math.round(ant?.h || Math.max(220, Math.min(r0.height, 560))) };
-        else this.st[alvo.c].splice(alvo.i, 0, id);
-        this.grava(); this.aplica(); Atelie.enquadrar?.();
+        fant.remove(); linha.remove(); document.body.classList.remove('arrastando-dock'); s.classList.remove('dock-indo'); if (!mexeu || !alvo) return;
+        const ant = this.tira(id), st = this.st;
+        if (alvo.solto) { const jw = ant?.jan && ant.sozinho ? ant.jan : null; st.jan.push({ id: uid('j'), x: alvo.x, y: Math.max(46, alvo.y), w: Math.round(jw?.w || clamp(r0.width, 260, 460)), h: Math.round(jw?.h || clamp(r0.height, 200, 560)), p: [id] }); }
+        else if (alvo.novaCol) { const w = clamp(Math.round(ant?.col?.w || (id === 'linha' ? 360 : r0.width) || 280), 220, 460); st.cols.splice(alvo.novaCol.k, 0, { id: uid('c'), lado: alvo.novaCol.lado, w, p: [id] }); }
+        else if (alvo.col) st.cols.find(c => c.id === alvo.col)?.p.splice(alvo.i, 0, id);
+        else if (alvo.jan) st.jan.find(j => j.id === alvo.jan)?.p.splice(alvo.i, 0, id);
+        else if (alvo.baixo) st.baixo.splice(alvo.i, 0, id);
+        this.limpa(); this.grava(); this.aplica(); Atelie.enquadrar?.();
       };
       pega.addEventListener('pointermove', mov); pega.addEventListener('pointerup', fim); pega.addEventListener('pointercancel', fim);
     });

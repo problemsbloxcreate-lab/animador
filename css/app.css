@@ -720,40 +720,18 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 body.arrastando-div{user-select:none;cursor:col-resize}
 .at-tl{max-height:none}.at-tl[style*="height"] .tl-grade{flex:1}
 .at-tl:not([style*="height"]){max-height:190px}
-/* PAINÉIS QUE MUDAM DE LUGAR (js/paineis.js) */
-#atelie .dock{position:relative;display:flex;flex-direction:column;min-height:0;flex:1 1 0}
-#atelie .dock[data-dock=vistas]{flex:0 0 auto}
-#atelie .dock>.p-corpo{flex:1 1 0!important;min-height:60px}
-#atelie .dock+.dock{border-top:1px solid var(--bd)}
-#atelie .dock>:nth-child(2){padding-left:22px}
-.dock-pega{position:absolute;left:3px;top:9px;z-index:4;width:16px;height:20px;display:grid;place-items:center;color:var(--tx3);opacity:.55;cursor:grab;border-radius:4px;touch-action:none}
-.dock-pega:hover{opacity:1;background:var(--bg3);color:var(--tx)}.dock-pega:active{cursor:grabbing}
-.dock-soltos{position:fixed;inset:0;pointer-events:none;z-index:40}
-#atelie .dock.dock-solto{position:fixed;pointer-events:auto;background:var(--bg1);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.55);resize:both;overflow:hidden;min-width:220px;min-height:140px;max-width:calc(100vw - 20px);max-height:calc(100vh - 60px)}
-#atelie .dock.dock-solto+.dock{border-top:0}
-.dock-fant{position:fixed;z-index:9999;pointer-events:none;padding:5px 10px;border-radius:8px;background:#17273a;border:1px solid #5aa9e8;color:#e8f3ff;font-size:12px;font-weight:600;display:flex;gap:6px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.5)}
-.dock-fant small{font-weight:400;color:#9cc7ee}
-.dock-linha{position:fixed;z-index:9998;pointer-events:none;background:#5aa9e8;border-radius:3px;display:none;box-shadow:0 0 0 1px rgba(90,169,232,.35)}
-body.arrastando-dock{user-select:none;cursor:grabbing}
-#atelie.sem-esq .at{grid-template-columns:0 1fr var(--at-dir,320px)}#atelie.sem-esq .at>aside:first-child{overflow:hidden;border:0}
-#atelie.sem-dir .at{grid-template-columns:var(--at-esq,270px) 1fr 0}#atelie.sem-dir .at>aside:last-child{overflow:hidden;border:0}
-#atelie.sem-esq.sem-dir .at{grid-template-columns:0 1fr 0}
-#atelie.ed-img.sem-dir .at{grid-template-columns:1fr 0}
-#atelie.ed-img .dock:not([data-dock=lado]){display:none}
 /* alça de pontinhos sempre à vista em todas as partes (indica que dá para arrastar) */
 .at-partes .no .pega{opacity:.4}
 /* EDITOR DE IMAGEM como janela: moldura, barra do título e opções da ferramenta grudadas em cima, ferramentas grudadas na esquerda */
 #atelie.ed-img .at{padding:10px 12px 12px;background:#07080a;gap:0}
 #atelie.ed-img .at-palco{border:1px solid #3a6f9e;border-right:0;border-radius:12px 0 0 12px;overflow:hidden;box-shadow:0 0 0 4px rgba(90,169,232,.12)}
 #atelie.ed-img .at>aside:last-child{border:1px solid #3a6f9e;border-radius:0 12px 12px 0}
-#atelie.ed-img.sem-dir .at-palco{border-right:1px solid #3a6f9e;border-radius:12px}
 #atelie.ed-img .at-palco .modo-at{left:0!important;right:0!important;top:0!important;padding:6px 10px;background:#17273a;border-bottom:1px solid #3a6f9e;flex-wrap:nowrap}
 #atelie.ed-img .at-palco .modo-at .at-status{background:none;border:0}
 #atelie.ed-img .ferr-op{left:0!important;right:0;top:41px!important;max-width:none!important;border-radius:0;border:0;border-bottom:1px solid var(--bd);padding:4px 10px;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;background:var(--bg1)}
 #atelie.ed-img .ferr-op>b{width:auto!important;flex:0 0 auto}
 #atelie.ed-img .ferr-op>*{flex:0 0 auto}
 #atelie.ed-img .ferr-at{left:0!important;top:84px;transform:none;border-radius:0 10px 10px 0;border-left:0}
-#atelie.ed-img .dock-pega{display:none}
 
 /* cursores de quem está junto ao vivo: por cima de tudo (painéis e janelas), sem pegar o mouse */
 .av-cursores{position:fixed;inset:0;pointer-events:none;z-index:2147483000;overflow:hidden}
@@ -761,3 +739,47 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .av-cur svg{display:block}.av-cur.esq span{left:auto;right:4px}.av-cur span{position:absolute;left:13px;top:19px;background:var(--c);font:600 11.5px 'Segoe UI',sans-serif;padding:2px 7px;border-radius:9px;white-space:nowrap}
 #at-salvar.salvo-nuvem{color:#7bd88f;border-color:rgba(123,216,143,.35)}
 .at-estado[hidden],.at-autores[hidden]{display:none}
+/* PAINÉIS QUE MUDAM DE LUGAR (js/paineis.js): colunas dos dois lados, faixa de baixo do palco e janelas soltas */
+#atelie .at.com-docks{grid-template-columns:auto 1fr auto!important}
+#atelie .at.com-docks>aside.dock-area{display:flex!important;flex-direction:row;width:auto;min-width:0;padding:0;overflow:visible}
+#atelie .at.com-docks>aside.dock-area.vazia{border:0!important}
+#atelie .at>aside.dock-area>.at-div.v{display:none}
+.dock-col{position:relative;display:flex;flex-direction:column;min-height:0;height:100%;flex:none;background:var(--bg1)}
+aside.dock-area>.dock-col+.dock-col{border-left:1px solid var(--bd)}
+.dock-col-borda{position:absolute;top:0;bottom:0;width:7px;z-index:6;cursor:col-resize}.dock-col-borda.esq{right:-4px}.dock-col-borda.dir{left:-4px}
+.dock-col-borda:hover,.dock-col-borda.on{background:rgba(90,169,232,.45)}
+#atelie .dock{position:relative;display:flex;flex-direction:column;min-height:0;flex:1 1 0}
+#atelie .dock[data-dock=vistas]{flex:0 0 auto}
+#atelie .dock>.p-corpo{flex:1 1 0!important;min-height:60px}
+#atelie .dock+.dock{border-top:1px solid var(--bd)}
+#atelie .dock>:nth-child(2){padding-left:22px}
+#atelie .dock.dock-indo{opacity:.45}
+.dock-pega{position:absolute;left:3px;top:9px;z-index:4;width:16px;height:20px;display:grid;place-items:center;color:var(--tx3);opacity:.55;cursor:grab;border-radius:4px;touch-action:none}
+.dock-pega:hover{opacity:1;background:var(--bg3);color:var(--tx)}.dock-pega:active{cursor:grabbing}
+/* faixa de baixo do palco (a timeline fica aqui por padrão) */
+.dock-baixo{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;flex-direction:column;max-height:70%}
+#atelie .dock-baixo>.dock{flex:0 0 auto;background:#191919;border-top:1px solid var(--bd)}
+#atelie .dock[data-dock=linha] .at-tl{position:relative;left:auto;right:auto;bottom:auto;border-top:0}
+#atelie .dock-col>.dock[data-dock=linha],#atelie .dock-janela>.dock[data-dock=linha]{flex:0 0 auto}
+/* janelas soltas */
+.dock-soltos{position:fixed;inset:0;pointer-events:none;z-index:40}
+.dock-janela{position:fixed;pointer-events:auto;display:flex;flex-direction:column;background:var(--bg1);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.55);resize:both;overflow:hidden;min-width:220px;min-height:120px;max-width:calc(100vw - 20px);max-height:calc(100vh - 56px)}
+.dock-jbar{display:flex;align-items:center;gap:6px;padding:3px 8px;height:22px;flex:none;background:var(--bg2);border-bottom:1px solid var(--bd);color:var(--tx3);font-size:11px;cursor:grab;user-select:none;touch-action:none}
+.dock-jbar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dock-jbar:active{cursor:grabbing}
+.dock-janela>.dock+.dock{border-top:1px solid var(--bd)}
+.dock-fant{position:fixed;z-index:9999;pointer-events:none;padding:5px 10px;border-radius:8px;background:#17273a;border:1px solid #5aa9e8;color:#e8f3ff;font-size:12px;font-weight:600;display:flex;gap:6px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.dock-fant small{font-weight:400;color:#9cc7ee}
+.dock-linha{position:fixed;z-index:9998;pointer-events:none;background:#5aa9e8;border-radius:3px;display:none;box-shadow:0 0 0 1px rgba(90,169,232,.35)}
+body.arrastando-dock{user-select:none;cursor:grabbing}
+/* no editor de imagem só aparece o painel da direita (onde ele estiver) */
+#atelie.ed-img .dock:not([data-dock=lado]),#atelie.ed-img .dock-col.sem-lado,#atelie.ed-img .dock-janela.sem-lado{display:none!important}
+#atelie.ed-img .dock-pega,#atelie.ed-img .dock-jbar{display:none}
+#atelie.ed-img .at>aside.dock-area{border:1px solid #3a6f9e}
+#atelie.ed-img .at>aside.dock-area:not(:has(.dock-col:not(.sem-lado))){border:0!important;width:0;overflow:hidden}
+#atelie.ed-img .at-palco{border-right:1px solid #3a6f9e}
+/* ao vivo: passar o mouse mostra quem está junto e o que cada um mudou */
+.avp-pop{min-width:250px;max-width:320px}
+.avp-p+.avp-p{border-top:1px solid var(--bd);margin-top:4px;padding-top:2px}
+.avp-av{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;overflow:hidden;background:var(--c);color:#111;font-weight:700;box-shadow:0 0 0 2px var(--c)}.avp-av img{width:100%;height:100%;object-fit:cover}
+.avp-l{list-style:none;margin:0 0 4px 38px;padding:0}.avp-l li{display:flex;justify-content:space-between;gap:10px;padding:1px 0;color:var(--tx);font-size:11.5px}.avp-l li small{color:var(--tx3);white-space:nowrap}
+.avp-nada{margin:0 0 4px 38px;color:var(--tx3);font-size:11px}

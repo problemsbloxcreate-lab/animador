@@ -96,7 +96,7 @@ const AoVivo = {
   async entrar(ad, o = {}) {
     if (this.ativo) await this.sair(); if (!this.ligado()) return false;
     let t; try { t = await this.transporte(); } catch (e) { if (o.avisa) UI.toast('Trabalhar junto: ' + esc(e.message), { kind: 'warn', time: 7000 }); return false; }
-    this.t = t; this.ad = ad; this.sala = ad.sala; this.gente = {}; this.pend = []; this.log = []; this.minhas = []; this.refazerL = []; this.subidas = new Set(); this._fila = Promise.resolve();
+    this.t = t; this.ad = ad; this.sala = ad.sala; this.gente = {}; this.feitos = {}; this.pend = []; this.log = []; this.minhas = []; this.refazerL = []; this.subidas = new Set(); this._fila = Promise.resolve();
     const eu = await this.quem();
     try { return await this._entra(t, ad, eu, o); } catch (e) {
       if (!o._de2 && /permission.denied/i.test(String(e?.code || '') + String(e?.message || ''))) { for (const f of (t.offs || []).splice(0)) try { f(); } catch { } const m = await this.liberar(); if (m === 'ok') return this.entrar(ad, { ...o, _de2: true }); e = new Error(m); }
@@ -144,7 +144,7 @@ const AoVivo = {
     if (!this._desfazendo) { this.minhas.push({ ops, inv: Difs.ops(depois, antes) }); if (this.minhas.length > 100) this.minhas.shift(); this.refazerL = []; }
     const chaves = ad.chaves(depois), fazendo = rotulo || this.rotuloDe(ops);
     this._fila = this._fila.then(async () => { await this.subirArqs(chaves); const k = this.t.enviar(this.sala, { por: this.eu.id, nome: this.eu.nome, r: fazendo || '', j: JSON.stringify(ops) }); this.pend.push({ k, ops }); }).catch(e => console.warn('ao vivo', e));
-    this.diz(fazendo);
+    this.anota(this.eu?.id, this.eu?.nome, fazendo); this.diz(fazendo);
   },
   rotuloDe(ops) {
     const d = this.ad?.get(), op = ops[0]; if (!op) return ''; const nome = id => { const x = JSON.stringify(d || {}).match(new RegExp('"id":"' + id.replace(/[^a-z0-9-]/gi, '') + '"[^{}]*?"nome":"([^"]{1,40})"')); return x ? x[1] : ''; };
@@ -164,7 +164,7 @@ const AoVivo = {
     // de outra pessoa: o que está confirmado + as minhas que ainda não voltaram
     const novo = Difs.aplica(JSON.parse(this.confirmado), this.pend.flatMap(x => x.ops));
     this._fila = this._fila.then(async () => { await this.garanteArqs(this.ad.chaves(novo)); await this.livre(); if (!this.ativo) return; this._aplicando = true; try { this.ad.set(novo); this.local = JSON.stringify(this.ad.get()); } finally { this._aplicando = false; } });
-    if (op.por !== this.eu.id && op.r) this.atividade(op.nome, op.r);
+    if (op.por !== this.eu.id && op.r) { this.atividade(op.nome, op.r); this.anota(op.por, op.nome, op.r); }
     this._contaSnap();
   },
   // no meio de um arrasto/traço (ou com a IA trabalhando) a mudança de fora espera: senão o traço iria para um objeto que já foi trocado
@@ -211,13 +211,34 @@ const AoVivo = {
   },
   claro(hex) { const v = parseInt(hex.slice(1), 16); return ((v >> 16 & 255) * .3 + (v >> 8 & 255) * .59 + (v & 255) * .11) > 150; },
   atividade(nome, r) { const k = nome + r, t = Date.now(); if (this._ult?.k === k && t - this._ult.t < 4000) return; this._ult = { k, t }; UI.toast(`<b>${esc((nome || 'Alguém').split(' ')[0])}</b> ${esc(r)}`, { time: 2200 }); },
+  // o que cada um fez nesta sessão (para a lista ao passar o mouse no "ao vivo")
+  anota(id, nome, r) {
+    if (!id || !r) return; const f = (this.feitos ||= {})[id] ||= { nome, L: [] }; f.nome = nome || f.nome;
+    const u = f.L[0]; if (u && u.r === r && Date.now() - u.t < 20000) { u.t = Date.now(); u.n = (u.n || 1) + 1; } else f.L.unshift({ r, t: Date.now() }); f.L.length = Math.min(f.L.length, 6);
+    if (this._pop?.isConnected) this.pintaPop();
+  },
+  quando(t) { const s = Math.round((Date.now() - t) / 1000); return s < 10 ? 'agora' : s < 60 ? `há ${s} s` : s < 3600 ? `há ${Math.round(s / 60)} min` : `há ${Math.round(s / 3600)} h`; },
+  pintaPop() {
+    const pop = this._pop; if (!pop) return; const eu = this.eu, pessoas = [{ id: eu?.id, nome: eu?.nome, foto: eu?.foto, cor: eu?.cor, eu: true, fazendo: '' }, ...this.outros()];
+    for (const [id, f] of Object.entries(this.feitos || {})) if (!pessoas.some(p => p.id === id)) pessoas.push({ id, nome: f.nome, saiu: true });
+    pop.innerHTML = `<div class="aut-t" style="border:0;margin:0">Trabalhando junto agora</div>` + pessoas.map(p => { const f = this.feitos?.[p.id]?.L || [];
+      return `<div class="avp-p"><div class="aut-l"><span class="avp-av" style="--c:${p.cor || '#888'}">${p.foto ? `<img src="${esc(p.foto)}" alt="" referrerpolicy="no-referrer">` : esc((p.nome || '?')[0])}</span><div><b>${esc(p.nome || 'Alguém')}${p.eu ? ' <small>(você)</small>' : ''}</b><small>${p.saiu ? 'saiu' : p.fazendo ? 'agora: ' + esc(p.fazendo) : 'na sala'}</small></div></div>`
+        + (f.length ? `<ul class="avp-l">${f.map(x => `<li><span>${esc(x.r)}${x.n > 1 ? ` <small>×${x.n}</small>` : ''}</span><small>${this.quando(x.t)}</small></li>`).join('')}</ul>` : '<div class="avp-nada">nenhuma mudança ainda</div>') + '</div>'; }).join('');
+  },
+  ligaPop(el) {
+    if (el._pop) return; el._pop = true;
+    el.addEventListener('mouseenter', () => { this._pop?.remove(); const pop = this._pop = h('<div class="aut-pop avp-pop"></div>'); document.body.appendChild(pop); this.pintaPop();
+      const r = el.getBoundingClientRect(), pr = pop.getBoundingClientRect(); pop.style.left = Math.max(6, Math.min(r.left, innerWidth - pr.width - 6)) + 'px'; pop.style.top = r.bottom + 6 + 'px';
+      clearInterval(this._popIv); this._popIv = setInterval(() => this._pop?.isConnected ? this.pintaPop() : clearInterval(this._popIv), 5000); });
+    el.addEventListener('mouseleave', () => { this._pop?.remove(); this._pop = null; clearInterval(this._popIv); });
+  },
   pintaBarra() {
     for (const el of $$('[data-aovivo]')) { const outros = this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx ? this.outros() : [];
       el.hidden = !(this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx); if (el.dataset.aovivo === 'atelie') { const au = document.getElementById('at-autores'); if (au) au.hidden = !el.hidden; } // ao vivo: some o "editado por…" (mais espaço)
       if (el.hidden) { el.innerHTML = ''; continue; }
       el.innerHTML = `<span class="av-ao" title="Trabalhando junto ao vivo">${ic('users', 13)} ${outros.length ? 'ao vivo' : 'só você'}</span>` + outros.map(g => `<span class="av-p" style="--c:${g.cor}" title="${esc(g.nome)}${g.fazendo ? ' · ' + esc(g.fazendo) : ''}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(document.createTextNode('${esc((g.nome || '?')[0]).replace(/'/g, '')}'))">` : esc((g.nome || '?')[0])}</span>`).join('')
         + (this.ad.ctx === 'animador' ? `<button class="btn sm" data-sair>Sair</button>${this.ad.dono ? '<button class="btn sm" data-fim>Encerrar</button>' : ''}` : '');
-      if ($('[data-sair]', el)) $('[data-sair]', el).onclick = () => App.sairJunto(false); if ($('[data-fim]', el)) $('[data-fim]', el).onclick = () => App.sairJunto(true); }
+      this.ligaPop(el); if ($('[data-sair]', el)) $('[data-sair]', el).onclick = () => App.sairJunto(false); if ($('[data-fim]', el)) $('[data-fim]', el).onclick = () => App.sairJunto(true); }
   },
   // ---------- ganchos (uma vez): commit, desfazer, cursor e desenho ----------
   liga() {
