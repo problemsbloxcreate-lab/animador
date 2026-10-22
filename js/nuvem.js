@@ -17,15 +17,17 @@ const Nuvem = {
     this._listaEm = Date.now(); return (this._lista = this._listaJa().catch(e => { this._lista = null; throw e; }));
   },
   async _listaJa() {
-    const j = await (await this.pede('/personagens')).json(), ids = new Set();
-    for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) ids.add(m[1]); }
+    const j = await (await this.pede('/personagens')).json(), ids = new Set(), mods = {};
+    for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) { ids.add(m[1]); mods[m[1]] = it.mod || null; } }
     const out = [];
-    await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes }); } catch { } }));
+    await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true, mods[id]); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes }); } catch { } }));
     return out.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
   },
   // definição do personagem (da nuvem; se estiver sem internet, a cópia do navegador)
-  async abrir(id, rapido) {
-    try { const d = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/personagem.json`))).json(); await DB.put('personagens', d); return d; }
+  // mod = marca da última gravação na nuvem: se a cópia deste computador é a mesma, não baixa de novo
+  async abrir(id, rapido, mod) {
+    if (mod) { const local = await DB.get('personagens', id).catch(() => null); if (local && local._mod === mod) return local; }
+    try { const d = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/personagem.json`))).json(); if (mod) d._mod = mod; await DB.put('personagens', d); return d; }
     catch (e) { const local = await DB.get('personagens', id); if (local) return local; throw e; }
   },
   async baixar(k) {
