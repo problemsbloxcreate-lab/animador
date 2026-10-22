@@ -253,9 +253,11 @@ const Atelie = {
     ctx.save(); ctx.setTransform(V); const g = 50; ctx.fillStyle = '#1b1b1b'; const a = this.mundoTela(0, 0), b2 = this.mundoTela(W / d, H / d);
     if (!fundo) for (let x = Math.floor(a.x / g) * g; x < b2.x; x += g) for (let y = Math.floor(a.y / g) * g; y < b2.y; y += g) if (((x + y) / g) % 2 === 0) ctx.fillRect(x, y, g, g);
     ctx.strokeStyle = fundo ? 'rgba(0,0,0,.1)' : '#2c2c2c'; ctx.lineWidth = 1 / this.vista.z; ctx.beginPath(); ctx.moveTo(-5000, 0); ctx.lineTo(5000, 0); ctx.moveTo(0, -5000); ctx.lineTo(0, 5000); ctx.stroke(); ctx.restore();
-    const est = this.estado(), itens = Modelo.montar(this.def, est);
+    const est = this.estado(), itens = Modelo.montar(this.def, est), roxo = this.partesTodas();
     for (const it of itens) { if (!it.img) continue; const bm = Arq.bitmap(it.img.k, () => this.desenha()); if (!bm) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
-      ctx.save(); ctx.setTransform(V.multiply(it.m)); ctx.globalAlpha = this.sel && it.parte.id !== this.sel && this.destacar ? .45 : 1; ctx.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); ctx.restore(); }
+      ctx.save(); ctx.setTransform(V.multiply(it.m)); ctx.globalAlpha = this.sel && it.parte.id !== this.sel && this.destacar ? .45 : 1; ctx.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h);
+      if (roxo.has(it.parte.id)) ctx.drawImage(this.tingido(bm, it.img.k), -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); // MOVER TODOS: roxo meio transparente em tudo que vai junto
+      ctx.restore(); }
     ctx.save(); ctx.setTransform(V); Animacoes.desenhaFantasma(ctx); ctx.restore();
     // parte escolhida: só a caixa tracejada (numa cor que contrasta com a peça) e uma cruzinha discreta no centro.
     // O pivô (ponto de giro) só aparece segurando Alt (Alt+arrastar muda o pivô); a alça com seta circular (ou Ctrl+arrastar) gira a peça.
@@ -278,6 +280,19 @@ const Atelie = {
       ctx.restore();
     }
     Pintura.desenhaCursor(ctx);
+  },
+  // "Mover todos": a parte escolhida (e as outras marcadas) e as que estão presas nelas, porque vão junto
+  partesTodas() {
+    const out = new Set(); if (!this.moverTodos || !this.def || (this.teste && !Animacoes.parado && !this.edit)) return out;
+    const fila = [...new Set([this.sel, ...this.multi].filter(Boolean))];
+    while (fila.length) { const id = fila.shift(); if (out.has(id)) continue; out.add(id); for (const f of this.def.partes) if (f.pai === id) fila.push(f.id); }
+    return out;
+  },
+  _tinta: new Map(),
+  tingido(bm, k) { // a mesma imagem toda roxa, meio transparente (só onde a peça tem tinta)
+    let c = this._tinta.get(k); if (c && c._bm === bm) return c; const S = Math.min(1, 1024 / Math.max(bm.width, bm.height));
+    c = document.createElement('canvas'); c.width = Math.max(1, Math.round(bm.width * S)); c.height = Math.max(1, Math.round(bm.height * S)); const x = c.getContext('2d');
+    x.drawImage(bm, 0, 0, c.width, c.height); x.globalCompositeOperation = 'source-in'; x.fillStyle = 'rgba(192,139,255,.42)'; x.fillRect(0, 0, c.width, c.height); c._bm = bm; this._tinta.set(k, c); return c;
   },
   _corImg: new Map(),
   corContraste(img) {
