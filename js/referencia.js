@@ -63,6 +63,13 @@ const Referencia = {
     for (const c of L) { if (out.every(o => Math.hypot(o[1] - c[1], o[2] - c[2]) > sep)) out.push(c); if (out.length >= K) break; }
     return out;
   },
+  // ROSTO: boca e sobrancelhas são riscos pequenos que combinam com a borda dos olhos (um arco preto é igual a um sorriso).
+  // Achados os olhos, a boca só pode ficar ABAIXO deles (entre os dois, no máximo um olho e pouco para baixo) e a sobrancelha ACIMA.
+  tipoRosto(nome) { const n = this.nrm(nome); return /\b(boca|bocas|mouth|labios?)\b/.test(n) ? 'boca' : /\b(sobrancelhas?|brows?|eyebrows?)\b/.test(n) ? 'sobr' : /\b(olhos?|eyes?)\b/.test(n) && !/\b(oculos|glasses|cilios?)\b/.test(n) ? 'olho' : null; },
+  areaRosto(p, achou, ordem) { const t = this.tipoRosto(p.nome); if (t !== 'boca' && t !== 'sobr') return null;
+    const os = ordem.filter(q => q !== p && this.tipoRosto(q.nome) === 'olho' && achou[q.id]).map(q => achou[q.id]); if (!os.length) return null;
+    const x0 = Math.min(...os.map(o => o.x)), y0 = Math.min(...os.map(o => o.y)), x1 = Math.max(...os.map(o => o.x + o.w)), y1 = Math.max(...os.map(o => o.y + o.h)), w = x1 - x0, h = y1 - y0;
+    return t === 'boca' ? { x0: x0 - w * .15, x1: x1 + w * .15, y0: y1 + h * .04, y1: y1 + h * .7, px: (x0 + x1) / 2, py: y1 + h * .15 } : { x0: x0 - w * .1, x1: x1 + w * .1, y0: y0 - h * .9, y1: y0 + h * .35, px: (x0 + x1) / 2, py: y0 - h * .2 }; },
   // "Braço esquerdo" e "Braço direito" = mesmo grupo (não podem ficar no mesmo lugar). De trás/da frente PODEM se sobrepor, então não contam
   grupoLado(nome) { const n = this.nrm(nome), t = n.replace(/\b(esquerd[oa]s?|direit[oa]s?|left|right|[12])\b/g, '').replace(/\s+/g, ' ').trim(); return t !== n ? t : null; },
   espessura(bm, W, H) { try { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bm, 0, 0, W, H); return Folhas.espessura(x.getImageData(0, 0, W, H).data, W, H) || 0; } catch { return 0; } },
@@ -91,8 +98,9 @@ const Referencia = {
     // 2) cada parte, das de cima para as filhas (as filhas procuram perto da mãe)
     const ordem = [], vis = new Set(), poe = p => { if (vis.has(p.id)) return; vis.add(p.id); if (p.pai && porId[p.pai]) poe(porId[p.pai].parte); ordem.push(p); };
     for (const it of its) poe(it.parte);
+    { const temFilha = new Set(its.map(it => it.parte.pai)), dep = q => !temFilha.has(q.id) && (this.tipoRosto(q.nome) === 'boca' || this.tipoRosto(q.nome) === 'sobr'); const L = ordem.filter(dep); ordem.splice(0, ordem.length, ...ordem.filter(q => !dep(q)), ...L); } // boca e sobrancelha depois dos olhos
     const c2 = Math.min(1, 600 / caixaR), R2 = this.pix(x => x.drawImage(bmR, 0, 0, Math.round(bmR.width * c2), Math.round(bmR.height * c2)), Math.round(bmR.width * c2), Math.round(bmR.height * c2));
-    const achou = {}, cand = {}, ruins = [], duvidas = [];
+    const achou = {}, cand = {}, ruins = [], duvidas = [], rosto = {};
     const k12 = c2 / c1;
     for (const [i, p] of ordem.entries()) { const it = porId[p.id], bm = Arq.img.get(it.img.k); aoPasso(`Procurando "${p.nome}" na referência… (${i + 1}/${ordem.length})`); await this.pausa();
       // peça pequena (boca, sobrancelha…): procura direto na referência maior
@@ -100,7 +108,10 @@ const Referencia = {
       const kk = fino ? k12 : 1, mae = p.pai && achou[p.pai], dc = dicas?.[p.id]?.caixa; let area = null;
       if (dc) { const cc = fino ? c2 : c1, bw = (dc.x1 - dc.x0) * bmR.width, bh = (dc.y1 - dc.y0) * bmR.height, fx = bw * .35 + bmR.width * .03 + 6 / cc, fy = bh * .35 + bmR.height * .03 + 6 / cc; /* a região da IA é aproximada: dá folga */ area = { x0: (dc.x0 * bmR.width - fx) * cc, y0: (dc.y0 * bmR.height - fy) * cc, x1: (dc.x1 * bmR.width + fx) * cc, y1: (dc.y1 * bmR.height + fy) * cc }; } // a IA disse onde fica (olhos no rosto…): procura só ali
       else if (mae) { const mw = mae.w, mh = mae.h; const fx = mw * .35 + T.W / kk * .6, fy = mh * .35 + T.H / kk * .6; area = { x0: (mae.x - fx) * kk, y0: (mae.y - fy) * kk, x1: (mae.x + mw + fx) * kk, y1: (mae.y + mh + fy) * kk }; }
-      const RR = fino ? R2 : R1, pt = dc ? { x: (dc.x0 + dc.x1) / 2 * bmR.width * (fino ? c2 : c1), y: (dc.y0 + dc.y1) / 2 * bmR.height * (fino ? c2 : c1), peso: 3 } : null; let L = this.melhores(RR, T, area, 5, pt); if (!L.length && area) L = this.melhores(RR, T, null, 5); if (!L.length) continue;
+      // rosto: boca/sobrancelha só na região certa em volta dos olhos (sem a IA, prefere logo abaixo/acima do meio deles)
+      const ro = this.areaRosto(p, achou, ordem); if (ro) { const a2 = { x0: ro.x0 * kk, y0: ro.y0 * kk, x1: ro.x1 * kk, y1: ro.y1 * kk }, ok = area && Math.min(area.x1, a2.x1) > Math.max(area.x0, a2.x0) && Math.min(area.y1, a2.y1) > Math.max(area.y0, a2.y0);
+        area = ok ? { x0: Math.max(area.x0, a2.x0), y0: Math.max(area.y0, a2.y0), x1: Math.min(area.x1, a2.x1), y1: Math.min(area.y1, a2.y1) } : a2; rosto[p.id] = ro; }
+      const RR = fino ? R2 : R1, pt = dc ? { x: (dc.x0 + dc.x1) / 2 * bmR.width * (fino ? c2 : c1), y: (dc.y0 + dc.y1) / 2 * bmR.height * (fino ? c2 : c1), peso: 3 } : ro ? { x: ro.px * kk, y: ro.py * kk, peso: 1.5 } : null; let L = this.melhores(RR, T, area, 5, pt); if (!L.length && area) L = this.melhores(RR, T, null, 5); if (!L.length) continue;
       cand[p.id] = L.map(c => ({ c: c[0], x: c[1] / kk, y: c[2] / kk, T: { ...T, W: T.W / kk, H: T.H / kk, cx: T.cx / kk, cy: T.cy / kk } }));
       if (L[1] && L[1][0] - L[0][0] < L[0][0] * .06 + 2 && Math.hypot(L[1][1] - L[0][1], L[1][2] - L[0][2]) > Math.max(T.W, T.H)) duvidas.push(p.nome); // dois lugares parecidos demais
       achou[p.id] = { x: L[0][1] / kk, y: L[0][2] / kk, w: T.W / kk, h: T.H / kk }; }
@@ -127,7 +138,8 @@ const Referencia = {
       // é um arco preto igual a um sorriso). Vale o lugar achado só se cair DENTRO da região da IA; fora dela, vai para o meio da região
       const T2s = dc?.caixa && this.molde(porId[p.id], Arq.img.get(porId[p.id].img.k), sigma * c2, 200);
       if (T2s && Math.min(T2s.W, T2s.H) < 22) { const b = dc.caixa, bw = (b.x1 - b.x0) * bmR.width, bh = (b.y1 - b.y0) * bmR.height, mx = (b.x0 + b.x1) / 2 * bmR.width, my = (b.y0 + b.y1) / 2 * bmR.height;
-        const dentro = L && Math.abs(L.u - mx) <= bw * .62 + 4 && Math.abs(L.v - my) <= bh * .62 + 4;
+        const ro = rosto[p.id], noRosto = L && ro && L.u >= ro.x0 / c1 && L.u <= ro.x1 / c1 && L.v >= ro.y0 / c1 && L.v <= ro.y1 / c1; // achado no lugar certo do rosto (abaixo/acima dos olhos) vale mesmo fora da caixa da IA
+        const dentro = L && (noRosto || Math.abs(L.u - mx) <= bw * .62 + 4 && Math.abs(L.v - my) <= bh * .62 + 4);
         if (!dentro) L = { c: L?.c ?? 999, u: mx, v: my, pelaIA: true }; }
       if (!L || L.c > (dc ? 120 : 170)) { // nada parecido: com a dica da IA, vai pelo encaixe (ou o meio da região); sem ela, fica onde está
         if (pEnc) achados.push({ parte: p, pivo: pEnc, custo: L?.c ?? 999, pelaIA: true });
