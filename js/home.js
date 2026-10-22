@@ -198,7 +198,12 @@ addEventListener('DOMContentLoaded', async () => {
   else { Home.pinta(); await Citacao.receber(); } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
   // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
   try { new BroadcastChannel('animador').onmessage = async ev => {
-    const d = ev.data; if (d?.tipo !== 'personagem' || !d.def) return;
+    const d = ev.data;
+    if (d?.tipo === 'pose-pronta' && d.def && App.P?.id === d.projeto && App.P.personagens?.[d.def.id]) { // "Abrir no Ateliê como pose nova": o quadro passa a usar
+      App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); const r = Modelo.achar(App.P, d.no), n = r?.no;
+      if (n) { const k = Modelo.chave(n, d.quadro); if (d.vista) k.vista = d.vista; if (d.preset) k.sessoes = { ...(k.sessoes || {}), [d.sessao]: d.preset }; if (d.tiraEspelho) Modelo.poeTransf(n, d.quadro, { sx: Math.abs(Modelo.transf(n, d.quadro).sx || 1) }); if (d.tiraAjustes?.length) { k.partes = { ...(k.partes || {}) }; for (const pid of d.tiraAjustes) k.partes[pid] = null; } }
+      App.commit('Pose nova do Ateliê'); UI.toast(`O quadro ${d.quadro + 1} agora usa a ${d.vista ? 'vista' : 'pose'} nova de <b>${esc(d.def.nome)}</b>.`, { kind: 'ok' }); return; }
+    if (d?.tipo !== 'personagem' || !d.def) return;
     if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem atualizado'); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
     else if (!App.P && Home.atual === 'personagens' && !Atelie.emAba) Home.pinta();
   }; } catch { }

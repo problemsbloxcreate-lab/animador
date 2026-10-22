@@ -216,6 +216,53 @@ const Animacoes = {
     const w = window.open(u.href, '_blank'); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
     else UI.toast(`<b>${esc(def.nome)}</b> abriu no Ateliê na pose do quadro ${App.q + 1}. Quando o personagem for salvo lá, esta animação recebe a mudança sozinha.`, { kind: 'ok', time: 6000 });
   },
+  /* ---------- editor → "Abrir no Ateliê como pose nova": o jeito que o personagem está neste quadro (vista, poses, ajustes e o espelho)
+     vira um PRESET novo ou uma VISTA nova, para arrumar só aquele ângulo. O quadro passa a usar a pose nova na hora. ---------- */
+  espelhar(n) { const q = App.q, t = Modelo.transf(n, q); Modelo.poeTransf(n, q, { sx: (t.sx || 1) < 0 ? 1 : -1 }); App.commit('Espelhar o personagem'); },
+  async poseNova(n) {
+    const P = App.P, def0 = P?.personagens?.[n?.ref]; if (!def0) return; App.pausa?.(); const q = App.q;
+    const est = Modelo.estadoPersonagem(n, q), dv = Modelo.naVista(def0, est.vista), vNome = def0.vistas?.length ? Modelo.vistaDe(def0, dv._vista || def0.vistas[0]?.id)?.nome || '' : '', espelhado = (Modelo.transf(n, q).sx || 1) < 0;
+    const sess = dv.sessoes || [], sPose = sess.find(s => !(s.partes || []).length) || sess.find(s => /pose/i.test(s.nome));
+    const body = h(`<div><label class="field">Nome<input type="text" data-n value="${esc(`Pose do quadro ${q + 1}`)}"></label>
+      <div class="field">Criar como</div><div class="nv-como">
+        <label class="chk"><input type="radio" name="como" value="preset" checked> Um <b>preset novo</b> da vista ${esc(vNome || 'atual')}, na sessão <select data-s>${sess.map(s => `<option value="${s.id}" ${s === sPose ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}<option value="__nova" ${sPose ? '' : 'selected'}>+ Poses especiais (nova)</option></select></label>
+        <label class="chk"><input type="radio" name="como" value="vista"> Uma <b>vista nova</b> (cópia ${espelhado ? 'espelhada ' : ''}da vista ${esc(vNome || 'atual')}), para arrumar esse ângulo inteiro</label></div>
+      ${espelhado ? `<label class="chk np-ia" style="margin-top:8px"><input type="checkbox" data-esp checked> O personagem está <b>espelhado</b> aqui: levar o espelho para dentro da pose (assim dá para arrumar o lado certo, ex.: a franja) e tirar o espelho deste quadro</label>` : ''}
+      <div style="color:var(--tx3);font-size:12px;margin-top:10px">Abre o Ateliê numa aba nova já nessa pose. O quadro ${q + 1} passa a usar a pose nova; o que você arrumar lá volta para cá ao salvar (Ctrl+S ou nuvem).</div></div>`);
+    const r = await UI.modal({ title: 'Abrir no Ateliê como pose nova', icon: 'edit', width: 520, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Abrir no Ateliê', kind: 'primary', collect: () => ({ nome: $('[data-n]', body).value.trim() || `Pose do quadro ${q + 1}`, como: $('input[name=como]:checked', body).value, sessao: $('[data-s]', body)?.value, espelho: !!$('[data-esp]', body)?.checked }) }] });
+    if (!r) return;
+    const partes = {}; for (const [k, v] of Object.entries(est.partes || {})) if (v) partes[k] = v;
+    await DB.put('arquivos', { def: clone(def0), sessoes: est.sessoes || {}, partes, vista: dv._vista || def0.vistas?.[0]?.id || null, quadro: q, anim: P.nome, em: Date.now(),
+      acao: { ...r, projeto: P.id, no: n.id, quadro: q } }, 'pose-abrir:' + def0.id);
+    const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', def0.id); u.searchParams.set('pose', '1');
+    const w = window.open(u.href, '_blank'); if (!w) return UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
+    UI.toast(`Abrindo no Ateliê como ${r.como === 'vista' ? 'vista nova' : 'preset novo'}…`, { time: 4000 });
+  },
+  // no Ateliê: cria o preset/vista pedido pelo editor a partir da pose do quadro e avisa o editor (o quadro passa a usar)
+  async criaPoseNova(r, a) {
+    const def = Atelie.def, F = { sessoes: { ...(r.sessoes || {}) }, partes: clone(r.partes || {}) }, raizes = () => def.partes.filter(p => def.raiz ? p.id === def.raiz : !p.pai);
+    const msg = { tipo: 'pose-pronta', projeto: a.projeto, no: a.no, quadro: a.quadro, tiraEspelho: !!a.espelho };
+    if (a.como === 'vista') {
+      const de = def.vistaAtual, tipo = Modelo.vistaDe(def)?.tipo || 'outra'; await Atelie.criaVista({ nome: a.nome, tipo, de, como: a.espelho ? 'espelho' : 'copia' });
+      msg.vista = def.vistaAtual; this.poseFixa = { ...F, quadro: a.quadro, anim: r.anim || '' }; Atelie.teste = clone(F);
+      UI.toast(`Vista <b>${esc(a.nome)}</b> criada${a.espelho ? ' (espelhada)' : ''} com a pose do quadro ${a.quadro + 1}. Arrume o que precisar: vale só para esta vista.`, { kind: 'ok', time: 7000 });
+    } else {
+      let s = def.sessoes.find(x => x.id === a.sessao); if (!s) { s = def.sessoes.find(x => x.nome === 'Poses especiais') || { id: uid('s'), nome: 'Poses especiais', partes: [], presets: [] }; if (!def.sessoes.includes(s)) def.sessoes.push(s); }
+      // o preset guarda como as partes estão no quadro (menos as que outras sessões escolhidas controlam: elas continuam mandando)
+      const outras = def.sessoes.filter(x => x !== s && F.sessoes[x.id] && (x.partes || []).length).flatMap(x => x.partes), estQ = Modelo.partesNoEstado(def, F), estado = {};
+      for (const p of def.partes) { if (outras.includes(p.id)) continue; const e = estQ[p.id] || {}, b = p.base, d = {};
+        for (const c of ['img', 'x', 'y', 'r', 's', 'sx', 'vis']) if (e[c] !== undefined && e[c] !== b[c]) d[c] = e[c]; if (e.d && JSON.stringify(e.d) !== JSON.stringify(b.d || {})) d.d = clone(e.d);
+        if (Object.keys(d).length) estado[p.id] = d; }
+      if (a.espelho) for (const p of raizes()) estado[p.id] = { ...(estado[p.id] || {}), sx: -((estQ[p.id]?.sx ?? p.base.sx) || 1) };
+      const pr = { id: uid('pr'), nome: a.nome, estado }; s.presets.push(pr); msg.sessao = s.id; msg.preset = pr.id; msg.tiraAjustes = Object.keys(estado).filter(pid => F.partes[pid]); // os ajustes do quadro foram para dentro do preset
+      // mostra o quadro inteiro (com as outras sessões); clicar numa peça arruma o preset que manda nela (quase sempre o novo)
+      const semAj = Object.fromEntries(Object.entries(F.partes).filter(([pid]) => !estado[pid]));
+      this.poseFixa = { sessoes: { ...F.sessoes, [s.id]: pr.id }, partes: semAj, quadro: a.quadro, anim: r.anim || '' }; Atelie.teste = clone({ sessoes: this.poseFixa.sessoes, partes: semAj }); Atelie.editPasso = null; Atelie.edit = { s: s.id, p: pr.id }; Atelie.aba = 'sessoes'; Atelie.commit();
+      UI.toast(`Preset <b>${esc(s.nome)} › ${esc(a.nome)}</b> criado${a.espelho ? ' (espelhado)' : ''} com a pose do quadro ${a.quadro + 1}. Arraste as peças para arrumar: vale só para este preset.`, { kind: 'ok', time: 7000 });
+    }
+    Atelie.pinta(); Atelie.enquadrar(); await Atelie.guardarLocalJa?.(); // guarda o rascunho aqui (a animação recebe pela mensagem abaixo)
+    try { new BroadcastChannel('animador').postMessage({ ...msg, def: JSON.parse(JSON.stringify(def)) }); } catch { }
+  },
   // no Ateliê (aba aberta pelo editor): entra na pose guardada
   async entrarNaPose(id) {
     const r = await DB.get('arquivos', 'pose-abrir:' + id).catch(() => null); if (!r) return false; DB.del('arquivos', 'pose-abrir:' + id).catch(() => { });
@@ -223,6 +270,7 @@ const Animacoes = {
     const novas = (r.def?.animacoes || []).filter(x => !(Atelie.def.animacoes || []).some(y => y.id === x.id || y.nome === x.nome));
     if (novas.length) { (Atelie.def.animacoes ||= []).push(...clone(novas)); Atelie.commit(); UI.toast(`${novas.length} animação(ões) da animação aberta entraram no personagem (${esc(novas.map(x => x.nome).join(', '))}).`, { kind: 'ok', time: 6000 }); }
     if (r.vista && r.vista !== Atelie.def.vistaAtual && Atelie.def.vistas?.some(v => v.id === r.vista)) await Atelie.trocaVista(r.vista); // abre na vista daquele quadro
+    if (r.acao) { await this.criaPoseNova(r, r.acao); return true; } // "Abrir no Ateliê como pose nova"
     this.poseFixa = { sessoes: r.sessoes || {}, partes: r.partes || {}, quadro: r.quadro || 0, anim: r.anim || '' };
     Atelie.teste = { sessoes: { ...this.poseFixa.sessoes }, partes: clone(this.poseFixa.partes) }; Atelie.edit = null; Atelie.editPasso = null; Atelie.pinta(); Atelie.enquadrar();
     UI.toast(`Pose do quadro ${this.poseFixa.quadro + 1} de "${esc(this.poseFixa.anim)}". Clique numa peça para arrumar o preset que ela usa (ou a base).`, { time: 7000 });

@@ -531,3 +531,4 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .seg-pers button small{min-width:20px;padding:1px 6px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:11px;text-align:center}
 .seg-pers button.on{background:var(--bg3);color:var(--tx)}.seg-pers button.on small{background:var(--bg5,#555);color:var(--tx)}
 .seg-pers button[data-s=local].on{box-shadow:inset 0 -2px 0 #e3b341}.seg-pers button[data-s=nuvem].on{box-shadow:inset 0 -2px 0 #9fc3ff}
+.at-palco .modo-at{flex-wrap:wrap;right:12px}.mover-seg button{white-space:nowrap}
