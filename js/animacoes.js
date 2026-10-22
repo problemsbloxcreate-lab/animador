@@ -118,6 +118,7 @@ const Animacoes = {
   pinta(el) {
     const L = this.lista(), def = this.def;
     const topo = h(`<div class="anims-at"><div class="campo2"><button class="btn sm" data-nova>${ic('plus', 13)} Animação</button><button class="btn sm ia" data-ia title="A IA cria animações de teste (andar, falar, piscar…) com as peças que existem">${ic('sparkles', 13)} Criar com a IA</button><span class="sp"></span>${this.tocando ? `<button class="btn sm" data-parar>${ic('pause', 12)} Parar</button>` : ''}</div></div>`);
+    topo.appendChild(RefsAnim.campo({ lista: () => (def.refsAnim ||= []), chave: () => `personagens/${def.id}/img/ref${uid('').toLowerCase().replace(/[^a-z0-9]/g, '')}.jpg`, mudou: () => Atelie.commit({ soDesenho: true }) }));
     $('[data-nova]', topo).onclick = () => this.nova(); $('[data-ia]', topo).onclick = () => Atelie.ia('animacoes'); if ($('[data-parar]', topo)) $('[data-parar]', topo).onclick = () => this.parar();
     if (!L.length) topo.appendChild(h('<div class="vazio">Animações de teste mostram o personagem se mexendo (andar, falar, piscar, acenar…) para conferir se as peças encaixam.<br><br>Crie uma, ou peça para a <b>IA organizar tudo</b>.</div>'));
     for (const a of L) {

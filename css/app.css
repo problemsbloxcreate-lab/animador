@@ -603,3 +603,11 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .modal-head .ia-uso{margin-left:auto;margin-right:8px;padding:3px 9px 3px 5px;border:1px solid rgba(25,211,240,.3);border-radius:999px;background:rgba(25,211,240,.06)}
 .ia-uso.so-anel{margin-left:4px;gap:0}.ia-uso.alto b{color:#ff8f8f}
 .ia-uso.oc{margin-top:12px;justify-content:center;width:100%}.ia-uso.oc b{font-size:13px}
+
+/* vídeos de referência para a IA */
+.refs-anim{margin:10px 0 4px;padding:10px;border:1px solid rgba(25,211,240,.3);border-radius:8px;background:linear-gradient(100deg,rgba(25,211,240,.05),rgba(61,107,255,.04))}
+.refs-cab{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-bottom:8px}.refs-cab svg{color:#7ff0ff;align-self:center}.refs-cab small{color:var(--tx3);font-size:11.5px}
+.refs-l{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.refs-vazio{color:var(--tx3);font-size:12px}
+.ref-chip{display:flex;align-items:center;gap:6px;max-width:100%;padding:3px 4px 3px 3px;border:1px solid var(--bd2);border-radius:8px;background:var(--bg2)}
+.ref-chip .th{width:44px;height:30px;border-radius:5px;background:#111 center/cover;flex:none}.ref-chip .nm{font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ref-chip .ibtn{width:20px;height:20px}
+.refs-in{display:flex;gap:6px}.refs-in input{flex:1;min-width:0}.refs-st{font-size:12px;color:var(--tx2);margin-top:6px}.refs-st:empty{display:none}

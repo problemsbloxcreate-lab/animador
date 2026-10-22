@@ -115,7 +115,7 @@ const Modelo = {
   },
   // todas as partes de todas as vistas (para baixar, mandar para a nuvem, backup…)
   todasPartes(def) { return [...(def?.partes || []), ...(def?.vistas || []).filter(v => v.id !== def.vistaAtual).flatMap(v => v.partes || [])]; },
-  chavesImgs(def) { return [...new Set([...Modelo.todasPartes(def).flatMap(p => p.imgs.map(i => i.k)), def?.vis?.fantasma?.k, ...(def?.vistas || []).map(v => v.vis?.fantasma?.k)].filter(Boolean))]; },
+  chavesImgs(def) { return [...new Set([...Modelo.todasPartes(def).flatMap(p => p.imgs.map(i => i.k)), def?.vis?.fantasma?.k, ...(def?.vistas || []).map(v => v.vis?.fantasma?.k), ...(def?.refsAnim || []).map(r => r.k)].filter(Boolean))]; },
   // a vista onde está uma animação de teste
   vistaDaAnim(def, animId) { if ((def.animacoes || []).some(a => a.id === animId)) return def.vistaAtual || null; return (def.vistas || []).find(v => (v.animacoes || []).some(a => a.id === animId))?.id || null; },
   // usa os mesmos ids das outras vistas para o que tem o mesmo nome (sessões, presets, partes, imagens, animações)

@@ -75,7 +75,11 @@ Se não existir a animação que precisa, crie com "criar_animacao" seguindo: ci
 Regras: use só nomes de sessões, presets, partes, imagens e animações que existem (ou que você criou nesta resposta). Para atuação pela fala, mude expressões nas palavras fortes (piscar de vez em quando: olhos fechados por 2-3 quadros), sem trocar a cada quadro. Respeite o pedido.`,
   // faz o pedido na animação aberta (o mesmo do botão IA) e devolve o texto do que fez
   async executar(txt, foco, mostra) {
-    const P = App.P, out = await this.chama(this.SIS_CENA, `PROJETO:\n${JSON.stringify(this.contexto(P))}\n\nPEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`, t => mostra?.(t.slice(-600)));
+    const P = App.P, texto = `PROJETO:\n${JSON.stringify(this.contexto(P))}\n\nPEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`;
+    // pedido de animação (ou projeto com vídeos de referência): os vídeos vão junto como folhas de quadros
+    const anima = (P.refsAnim || []).length || /anim|and(a|ar)|corr|pul|ciclo|mex|dan[çc]|acen|fal(a|ar)|pisc|test/i.test(txt);
+    const refC = anima ? await RefsAnim.conteudo(P.refsAnim).catch(() => []) : [];
+    const out = await this.chama(this.SIS_CENA, refC.length ? [...refC, { type: 'text', text: texto }] : texto, t => mostra?.(t.slice(-600)));
     const j = this.json(out); let n = this.aplicar(j.acoes || []);
     for (const c of this.cenariosPedidos) { mostra?.('Montando o cenário: ' + c.descricao + '…'); const r = await Cenarios.pedirIA(c.descricao, null, t => mostra?.('Montando o cenário… (' + t.length + ' letras)')); Cenarios.guardaUltimo(r.cena); await Cenarios.porNaCena(await Cenarios.desenhar(r.cena), r.cena); const nn = App.noSel(); if (nn) nn.ia = true; n++; }
     const cr = this.criadas || 0; this.criadas = 0;
@@ -87,6 +91,7 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
       <label class="field">O que fazer?<textarea rows="4" placeholder="Ex.: anima o ${esc(foco?.nome || 'Problems')} pela fala: olhos assustados quando ele grita, pisca de vez em quando, e um tremor de tela no fim"></textarea></label>
       <div class="ia-res" hidden></div></div>`);
     const res = $('.ia-res', body);
+    $('.ia-res', body).before(RefsAnim.campo({ lista: () => (P.refsAnim ||= []), chave: () => uid('a'), mudou: () => App.commit('Vídeos de referência', { semArvore: true }) }));
     await UI.modal({ title: 'Animar com a IA', icon: 'sparkles', kind: 'ia', width: 620, body, buttons: [{ label: 'Fechar', value: null }, { label: 'Pedir', icon: 'sparkles', kind: 'primary ia', onClick: async api => {
       const txt = $('textarea', body).value.trim(); if (!txt) return false;
       const bt = api.foot.querySelector('.btn.primary'); bt.disabled = true; res.hidden = false; res.textContent = 'Pensando…';
@@ -274,7 +279,8 @@ Responda SÓ um JSON: {"pecas":{"Nome exato da parte":{"caixa":[x0,y0,x1,y1],"en
     const exs = await this.exemplos(def).catch(() => []), exC = [];
     if (exs.length) { exC.push({ type: 'text', text: `COMO A EQUIPE JÁ MONTOU OUTROS PERSONAGENS (siga o mesmo jeito de organizar e NÃO repita os erros que a equipe corrigiu; cada personagem é diferente, então adapte):` });
       for (const e of exs) { if (/^data:image\/(png|jpeg);base64,/.test(e.thumb || '')) exC.push({ type: 'image', source: { type: 'base64', media_type: e.thumb.slice(5, e.thumb.indexOf(';')), data: e.thumb.split(',')[1] } }); exC.push({ type: 'text', text: e.txt }); } }
-    const content = [...exC, { type: 'text', text: `${exs.length ? 'AGORA O PERSONAGEM NOVO.\n' : ''}PERSONAGEM: ${def.nome}${txtVista}\nPARTES: ${JSON.stringify(partes)}\nSESSÕES QUE JÁ EXISTEM: ${JSON.stringify(sess)}\nANIMAÇÕES QUE JÁ EXISTEM: ${JSON.stringify(anims)}\n\n${foco}${pedido ? '\nPEDIDO DA PESSOA: ' + pedido : ''}\n\nMINIATURAS:` }, ...(await this.miniaturas(def))];
+    const refC = await RefsAnim.conteudo(def.refsAnim).catch(() => []); // vídeos de referência (test drive da equipe + os deste personagem)
+    const content = [...exC, ...refC, { type: 'text', text: `${exs.length ? 'AGORA O PERSONAGEM NOVO.\n' : ''}PERSONAGEM: ${def.nome}${txtVista}\nPARTES: ${JSON.stringify(partes)}\nSESSÕES QUE JÁ EXISTEM: ${JSON.stringify(sess)}\nANIMAÇÕES QUE JÁ EXISTEM: ${JSON.stringify(anims)}\n\n${foco}${pedido ? '\nPEDIDO DA PESSOA: ' + pedido : ''}\n\nMINIATURAS:` }, ...(await this.miniaturas(def))];
     return this.json(await this.chama(this.SIS_ORGANIZAR, content, aoEscrever));
   },
 };

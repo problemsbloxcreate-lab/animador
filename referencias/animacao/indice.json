@@ -1,0 +1,12 @@
+[
+  {
+    "id": "lumi-test-drive-3-vistas",
+    "nome": "Lumi — test drive em 3 vistas (base da equipe)",
+    "arquivo": "lumi-test-drive-3-vistas.jpg",
+    "segundos": 14,
+    "fps": 24,
+    "quadros_na_folha": "28 quadros, 2 por segundo, lidos da esquerda para a direita e de cima para baixo (7 por linha)",
+    "descricao": "Test drive de personagem 2D recortado (peças com contorno preto grosso, cores chapadas), mostrando as 3 vistas. 1) Três-quartos: entra andando da esquerda, passo largo com o pé de trás levantado e o corpo sobe e desce a cada passo; para, acena com a mão perto do rosto (olhos fechados sorrindo, depois olhar de lado). 2) Frente: fica parada de pé, mão no peito e a outra na cintura, a câmera dá zoom no rosto enquanto fala (boca abre e fecha, olhos grandes piscando), volta e comemora: pulinho com o punho para cima, um joelho dobrado e olhos fechados rindo. 3) Lado (perfil): anda de lado pela tela, conversa com as mãos juntas perto do queixo e depois mostrando a palma, e termina comemorando com o braço esticado para cima, o joelho levantado e o rosto rindo de olhos fechados. Ritmo: poses seguram uns 3 a 6 quadros (12 fps por cima de 24), trocas de expressão rápidas, cada passo leva uns 6 quadros, nada fica parado mais que ~1 s (pisca, mexe a cabeça, respira).",
+    "como_usar": "Use como modelo de TIMING e de ESCOLHA DE POSES ao criar animações de teste: ciclos de andar com sobe-e-desce, aceno com troca de expressão, fala com boca e piscadas, comemoração com pulo/braço para cima; uma animação por vista quando o personagem tiver vistas. Não copie o desenho, só o jeito de mexer."
+  }
+]

@@ -156,7 +156,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
 
 /* ---------- arquivo .animador (antes se chamava .toon; os dois abrem): a animação com tudo dentro (personagens, imagens e áudios) ---------- */
 const Toon = {
-  ids(P) { return [...new Set([...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq), ...(P.audios || []).map(a => a.arq), ...Object.values(P.personagens || {}).flatMap(d => Modelo.chavesImgs(d))].filter(Boolean))]; },
+  ids(P) { return [...new Set([...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq), ...(P.audios || []).map(a => a.arq), ...(P.refsAnim || []).map(r => r.k), ...Object.values(P.personagens || {}).flatMap(d => Modelo.chavesImgs(d))].filter(Boolean))]; },
   // o .animador inteiro como Blob (para baixar ou mandar por mensagem)
   async montar(P) {
     // quem criou / editou vai junto (foto e nome, nunca o e-mail)
