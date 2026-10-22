@@ -212,7 +212,10 @@ const Atelie = {
     if (pr) { const s = this.sessao(); if (s.partes?.length && !s.partes.includes(pid)) { s.partes.push(pid); } pr.estado[pid] = { ...(pr.estado[pid] || {}), ...vals }; }
     else Object.assign(p.base, vals);
   },
-  get moverTodos() { return this.modoMover === 'todos'; },
+  // "Mover todos": o botão de cima liga para TODAS as partes (modoMover = 'todos'); o botão direito numa parte liga só para ela (todosSo)
+  todosSo: new Set(),
+  modoDe(pid) { return pid && this.todosSo.has(pid) ? 'todos' : this.modoMover; },
+  get moverTodos() { return this.modoDe(this.sel) === 'todos'; },
   matParte(pid, est = this.estado()) { const it = Modelo.montar(this.def, est).find(x => x.parte.id === pid); return it ? it.mp || it.m : new DOMMatrix(); },
   matPai(pid, est = this.estado()) { const p = this.parte(pid); return p?.pai ? this.matParte(p.pai, est) : new DOMMatrix(); },
 
@@ -220,7 +223,7 @@ const Atelie = {
   liga() {
     if (this._ligado) return; this._ligado = true;
     this.cv = $('#at-cv'); this.ctx = this.cv.getContext('2d'); new ResizeObserver(() => this.tamanho()).observe(this.cv.parentElement); this.tamanho();
-    this.cv.addEventListener('pointerdown', e => this.desce(e)); this.cv.addEventListener('contextmenu', e => { e.preventDefault(); if (!this._panMexeu && !this.teste) this.menuPalco(e); this._panMexeu = false; }); // botão direito sem arrastar: menu da peça
+    this.cv.addEventListener('pointerdown', e => this.desce(e)); this.cv.addEventListener('contextmenu', e => { e.preventDefault(); if (!this._panMexeu) { if (this.teste && Animacoes.rodando && this.acha(this.mundo(e))) Animacoes.pausar(true); this.menuPalco(e); } this._panMexeu = false; }); // botão direito sem arrastar (também com o Testar aberto; tocando, pausa naquele passo): menu da peça
     this.cv.addEventListener('wheel', e => this.roda(e), { passive: false }); // rodinha do mouse: zoom no ponto do mouse
     $('#at-voltar').onclick = () => this.sair(); $('#at-salvar').onclick = () => this.naNuvem ? this.sincronizar(true) : this.salvar(); $('#at-undo').onclick = () => this.undo(); $('#at-redo').onclick = () => this.redo();
     $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); };
@@ -281,11 +284,11 @@ const Atelie = {
     }
     Pintura.desenhaCursor(ctx);
   },
-  // "Mover todos": a parte escolhida (e as outras marcadas) e as que estão presas nelas, porque vão junto
+  // partes roxas: as que estão em "Mover todos" (a escolhida, se for para todas; ou as que ligaram só para elas)
   partesTodas() {
-    const out = new Set(); if (!this.moverTodos || !this.def) return out;
-    const fila = [...new Set([this.sel, ...this.multi].filter(Boolean))];
-    while (fila.length) { const id = fila.shift(); if (out.has(id)) continue; out.add(id); for (const f of this.def.partes) if (f.pai === id) fila.push(f.id); }
+    const out = new Set(); if (!this.def) return out; // só a própria parte fica roxa (as presas nela vão junto, mas sem roxo)
+    for (const id of this.todosSo) if (this.parte(id)) out.add(id);
+    if (this.modoMover === 'todos') for (const id of [this.sel, ...this.multi]) if (id) out.add(id);
     return out;
   },
   _tinta: new Map(),
@@ -349,12 +352,12 @@ const Atelie = {
         p.encaixe = { x: round(enc0.x + dp.x, 1), y: round(enc0.y + dp.y, 1) }; for (const [f, e0] of filhos) f.encaixe = { x: round(e0.x - dx, 1), y: round(e0.y - dy, 1) };
         this.desenha(); }, () => this.commit());
     }
-    if (this.modoMover === 'preset' && it.img) { // PADRÃO: esta imagem SÓ neste preset (ou só na base)
+    if (this.modoDe(p.id) === 'preset' && it.img) { // PADRÃO: esta imagem SÓ neste preset (ou só na base)
       const img = it.img, inv = (it.mp || it.m).inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), d0 = { ...(est[p.id]?.d?.[img.id] || { x: 0, y: 0 }) };
       return fim(ev => { const w2 = this.mundo(ev), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
         this.poeD(p, img, { x: round(d0.x + dx, 1), y: round(d0.y + dy, 1) }); this.desenha(); }, () => this.commit());
     }
-    if (this.modoMover === 'imagem' && it.img) { // a mesma imagem em TODOS os presets (e na base)
+    if (this.modoDe(p.id) === 'imagem' && it.img) { // a mesma imagem em TODOS os presets (e na base)
       const img = it.img, inv = it.m.inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), aj0 = { ...(img.ajuste || { x: 0, y: 0 }) };
       return fim(ev => { const w2 = this.mundo(ev), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
         img.ajuste = { x: round(aj0.x + dx, 1), y: round(aj0.y + dy, 1) }; this.desenha(); }, () => this.commit());
@@ -388,8 +391,8 @@ const Atelie = {
     const leva = () => { clearTimeout(this._t); this.desenha(); this._t = setTimeout(() => this.commit(), 300); };
     if (k.startsWith('Arrow')) { e.preventDefault(); const dd = { ArrowLeft: [-passo, 0], ArrowRight: [passo, 0], ArrowUp: [0, -passo], ArrowDown: [0, passo] }[k];
       const im = p.imgs.find(i => i.id === est.img);
-      if (this.modoMover === 'preset' && im) { const d0 = est.d?.[im.id] || { x: 0, y: 0 }; this.poeD(p, im, { x: round(d0.x + dd[0], 1), y: round(d0.y + dd[1], 1) }); } // só neste preset
-      else if (this.modoMover === 'imagem' && im) im.ajuste = { x: round((im.ajuste?.x || 0) + dd[0], 1), y: round((im.ajuste?.y || 0) + dd[1], 1) }; // a mesma imagem em todos
+      if (this.modoDe(p.id) === 'preset' && im) { const d0 = est.d?.[im.id] || { x: 0, y: 0 }; this.poeD(p, im, { x: round(d0.x + dd[0], 1), y: round(d0.y + dd[1], 1) }); } // só neste preset
+      else if (this.modoDe(p.id) === 'imagem' && im) im.ajuste = { x: round((im.ajuste?.x || 0) + dd[0], 1), y: round((im.ajuste?.y || 0) + dd[1], 1) }; // a mesma imagem em todos
       else if (this.edit || this.editPasso) this.mudar(p.id, { x: (est.x || 0) + dd[0], y: (est.y || 0) + dd[1] }); else p.encaixe = { x: p.encaixe.x + dd[0], y: p.encaixe.y + dd[1] }; return leva(); }
     if (kk === 'q' || kk === 'e') { this.mudar(p.id, { r: round((est.r || 0) + (kk === 'q' ? -1 : 1) * (e.shiftKey ? 15 : 2), 1) }); return leva(); }
     if (k === '+' || k === '=' || k === '-') { this.mudar(p.id, { s: round(clamp((est.s ?? 1) * (k === '-' ? .96 : 1.04), .05, 10), 3) }); return leva(); }
@@ -405,7 +408,7 @@ const Atelie = {
     const au = $('#at-autores'); if (au && au._de !== this.def.autor?.em + '/' + (this.def.edicoes || []).length) { au._de = this.def.autor?.em + '/' + (this.def.edicoes || []).length; au.innerHTML = ''; const sl = Autores.selo(this.def); if (sl) au.appendChild(sl); }
     const pr = this.preset(), s = this.sessao();
     $('#at-modo').innerHTML = this.teste && Animacoes.parado ? `${Animacoes.poseFixa ? `Pose do quadro ${Animacoes.poseFixa.quadro + 1}` : 'Pausado'} · arrumando <b>${esc(Animacoes.textoAlvo())}</b>` : Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? `Testando · arrumando <b>${esc(Animacoes.textoAlvo())}</b>` : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
-    $('#at-base').hidden = !pr; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover').hidden = false;
+    $('#at-base').hidden = !pr; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover [data-modo="todos"]')?.setAttribute('title', 'Arrastar move a parte inteira (todas as imagens e presets) em TODAS as partes. Só numa parte: botão direito nela › Mover todos só nesta parte'); $('#at-mover').hidden = false;
     $('#at-testar').classList.toggle('on', !!this.painelAberto); $('#at-testar').innerHTML = `${ic('play', 13)} Testar`; $('#at-testar').title = 'Abrir/fechar o painel Testar (T)'; this.pintaTeste(); Pintura.pintaBarra();
     this.pintaIcone(); this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
@@ -415,10 +418,10 @@ const Atelie = {
     $$('#at-vista-partes [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === (this.vistaPartes || 'arvore')));
     if (this.vistaPartes === 'camadas' && ps.length) return this.pintaCamadas(el);
     if (!ps.length) { el.innerHTML = '<div class="vazio">Comece criando as partes: corpo, cabeça, cabelo, olhos, braços, pernas…<br>(ou solte as imagens aqui: cada imagem vira uma parte)</div>'; }
-    const raiz = this.def.raiz, filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => (b.id === raiz) - (a.id === raiz) || (b.z || 0) - (a.z || 0)), est = this.estado(), ordem = this._ordem = [];
+    const raiz = this.def.raiz, filhos = id => ps.filter(p => (p.pai || null) === id).sort((a, b) => (b.id === raiz) - (a.id === raiz) || (b.z || 0) - (a.z || 0)), est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas();
     const vai = (pai, nivel) => { for (const p of filhos(pai)) { ordem.push(p.id);
       const ehRaiz = p.id === raiz, marc = p.id !== this.sel && this.multi.has(p.id), mk = this.marcas().partes.has(p.id);
-      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Ctrl+clique ou Shift+clique marcam várias · arraste para &quot;Imagens de…&quot; para virar imagem"><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${mk ? '<i class="ponto-mod" title="Mudou e ainda não foi salvo"></i>' : this.local().partes.has(p.id) ? `<span class="so-local" title="Salvo só neste computador: ainda não está na nuvem">${ic('cloudOff', 12)}</span>` : ''}${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
+      const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''} ${roxas.has(p.id) ? 'todos' : ''}" data-pid="${p.id}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Ctrl+clique ou Shift+clique marcam várias · arraste para &quot;Imagens de…&quot; para virar imagem"><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small></span>${mk ? '<i class="ponto-mod" title="Mudou e ainda não foi salvo"></i>' : this.local().partes.has(p.id) ? `<span class="so-local" title="Salvo só neste computador: ainda não está na nuvem">${ic('cloudOff', 12)}</span>` : ''}${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
         <button class="ibtn ${est[p.id]?.vis === false ? 'off' : ''}" title="Mostrar/esconder (H)">${ic(est[p.id]?.vis === false ? 'eyeOff' : 'eye', 13)}</button></div>`);
       r.onclick = ev => { if (ev.target.closest('.ibtn')) { this.mudar(p.id, { vis: est[p.id]?.vis === false }); return this.commit(); } this.clicaParte(ev, p.id); };
       r.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
@@ -466,8 +469,12 @@ const Atelie = {
       el.appendChild(r);
     });
   },
+  todosSoParte(pid) { // liga/desliga "Mover todos" só nesta parte (o botão de cima continua valendo para as outras)
+    if (this.todosSo.has(pid)) this.todosSo.delete(pid); else this.todosSo.add(pid); this.pinta();
+    UI.toast(this.todosSo.has(pid) ? `<b>Mover todos</b> só em <b>${esc(this.parte(pid)?.nome || '')}</b>: arrastar move a parte inteira (fica roxa). As outras partes continuam como estão.` : `<b>${esc(this.parte(pid)?.nome || '')}</b> voltou a mover só a imagem.`, { time: 4500 });
+  },
   setModo(m) {
-    this.modoMover = m; this.pinta();
+    this.modoMover = m; this.todosSo.clear(); this.pinta();
     UI.toast({ preset: '<b>Só neste preset:</b> arrastar muda a imagem só no preset que está na tela (ou só na base).', imagem: '<b>Mesma imagem em todos os presets:</b> arrastar move esta imagem em todo lugar que ela aparece (fica verde-água).', todos: '<b>Mover todos:</b> arrastar move a parte inteira — todas as imagens e os presets dela (ficam roxos).' }[m], { time: 4500 });
   },
   setMoverTodos(v) { this.setModo(v ? 'todos' : 'preset'); },
@@ -496,15 +503,14 @@ const Atelie = {
     const p = it.parte, n = p.imgs.length;
     UI.ctx(e.clientX, e.clientY, [
       { head: `${p.nome}${it.img ? ' › ' + it.img.nome : ''}` },
-      { label: 'Citar esta parte em mensagens…', icon: 'chat', action: () => Citacao.atelie({ sel: p.id }) }, { label: 'Citar o personagem inteiro…', icon: 'chat', action: () => Citacao.atelie({}) }, '-',
+      { label: 'Citar o personagem inteiro…', icon: 'chat', action: () => Citacao.atelie({}) }, '-',
       { label: `Mover só ${this.edit ? 'neste preset' : 'na base'}`, checked: this.modoMover === 'preset', action: () => this.setModo('preset') },
       { label: 'Mover a mesma imagem em todos os presets', checked: this.modoMover === 'imagem', action: () => this.setModo('imagem') },
-      { label: `Mover todos (a parte inteira${n > 1 ? `: ${n} imagens` : ''} e os presets)`, icon: 'layers', checked: this.moverTodos, action: () => this.setModo('todos') },
       it.img && '-', it.img && { label: 'Aplicar esta posição aos presets com a mesma imagem', icon: 'copy', action: () => this.aplicarPosicaoEmTodos(p, it.img) },
       it.img && this.estado()[p.id]?.d?.[it.img.id] && { label: `Voltar ao lugar (${this.edit ? 'neste preset' : 'na base'})`, icon: 'undo', action: () => { this.poeD(p, it.img, null); this.commit(); } },
       it.img && (it.img.ajuste?.x || it.img.ajuste?.y) && { label: 'Tirar o ajuste da imagem em todos os presets', icon: 'undo', action: () => { it.img.ajuste = { x: 0, y: 0 }; this.commit(); } },
-      '-', { label: 'Opções da parte…', icon: 'dots', action: () => this.menuParte(e, p) },
-    ].filter(Boolean));
+      '-', { head: `Parte "${p.nome}"` }, ...this.menuParte(e, p, { so: true }), // as mesmas opções do botão direito na hierarquia
+    ].filter(Boolean).filter((x, i, L) => x !== '-' || (i && L[i - 1] !== '-' && i < L.length - 1)));
   },
   /* ---------- o que mudou desde a última vez na nuvem (fica colorido até "Salvar na nuvem") ---------- */
   // laranja: mudou e ainda não foi salvo (nem no computador nem na nuvem)
@@ -533,15 +539,15 @@ const Atelie = {
   imgMudouFora(pid, iid, B) { const p = this.parte(pid), i = p?.imgs.find(x => x.id === iid), b = B.partes.find(x => x.id === pid)?.imgs.find(x => x.id === iid); return !b || JSON.stringify([i?.k, i?.pivo, i?.ajuste, i?.w, i?.h, i?.z || 0]) !== JSON.stringify([b.k, b.pivo, b.ajuste, b.w, b.h, b.z || 0]); },
   // presets que mexem na parte (para pintar de roxo no "mover todos")
   presetsDaParte(pid) { const L = new Set(); for (const s of this.def.sessoes) for (const pr of s.presets) if (pr.estado?.[pid] || (s.partes || []).includes(pid)) L.add(pr.id); return L; },
-  menuParte(e, p) {
+  menuParte(e, p, o = {}) { // o.so: só devolve os itens (o menu do palco junta com os dele)
     const sel = this.selecionadas(), varias = sel.length > 1 && sel.includes(p), lista = varias ? sel : [p], ids = lista.map(x => x.id);
     const destinos = this.def.partes.filter(x => !ids.includes(x.id));
     const ehRaiz = p.id === this.def.raiz;
-    UI.ctx(e.clientX, e.clientY, [
+    const itens = [
       varias && { head: `${lista.length} PARTES MARCADAS` },
       !varias && { label: ehRaiz ? 'Deixar de ser a raiz' : 'Marcar como raiz (principal)', icon: 'star', action: () => this.marcarRaiz(p) },
       !varias && { label: 'Citar esta parte em mensagens…', icon: 'chat', action: () => Citacao.atelie({ sel: p.id }) },
-      !varias && { label: this.moverTodos ? 'Mover só neste preset (voltar)' : 'Mover todos (a parte inteira e os presets)', icon: 'layers', checked: this.moverTodos, action: () => { this.escolhe(p.id); this.setModo(this.moverTodos ? 'preset' : 'todos'); } },
+      !varias && { label: 'Mover todos só nesta parte (a parte inteira e os presets)', icon: 'layers', checked: this.todosSo.has(p.id), action: () => { this.escolhe(p.id); this.todosSoParte(p.id); } }, !varias && { label: 'Mover todos em todas as partes', icon: 'layers', checked: this.modoMover === 'todos', action: () => this.setModo(this.modoMover === 'todos' ? 'preset' : 'todos') },
       { label: varias ? `Mover as ${lista.length} para imagens de` : 'Mover para imagens de', icon: 'image', disabled: !destinos.length, sub: destinos.map(d => ({ label: d.nome, icon: d.id === this.def.raiz ? 'star' : null, action: () => this.virarImagens(lista, d) })) },
       '-',
       !varias && { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } } },
@@ -550,7 +556,7 @@ const Atelie = {
       !varias && p.pai && { label: 'Soltar do pai', icon: 'layers', action: () => this.porNoPai(p.id, null) },
       !varias && '-', !varias && { label: 'Para a frente', icon: 'up', key: ']', action: () => this.passoCamada(p, 1) }, !varias && { label: 'Para trás', icon: 'down', key: '[', action: () => this.passoCamada(p, -1) }, !varias && { label: 'Ver as camadas', icon: 'layers', action: () => { this.vistaPartes = 'camadas'; this.pintaPartes(); } },
       '-', { label: varias ? `Apagar as ${lista.length} partes` : 'Apagar a parte', icon: 'trash', key: 'Delete', danger: true, action: () => this.apagarPartes(lista) },
-    ].filter(Boolean));
+    ].filter(Boolean); if (o.so) return itens; UI.ctx(e.clientX, e.clientY, itens);
   },
   // pôr a parte dentro de outra mantendo o lugar na tela
   porNoPai(id, paiId, o = {}) {
