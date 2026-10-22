@@ -18,7 +18,7 @@ const AtelieArq = {
     try {
       const d = clone(def); await Autores.limpa(d); const eu = await Autores.eu(), enc = new TextEncoder();
       const files = [{ name: 'personagem.json', data: enc.encode(JSON.stringify(d)) }, { name: 'info.json', data: enc.encode(JSON.stringify({ tipo: 'atelieanimador', v: 1, por: eu, em: Date.now() })) }];
-      for (const k of [...new Set(d.partes.flatMap(p => p.imgs.map(i => i.k)).filter(Boolean))]) {
+      for (const k of [...new Set([...d.partes.flatMap(p => p.imgs.map(i => i.k)), d.vis?.fantasma?.k, ...(d.audios || []).map(x => x.k)].filter(Boolean))]) { // imagens, fantasma e áudios de teste
         let b = await Arq.blobMelhor(k); if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null);
         if (b) files.push({ name: 'arq/' + encodeURIComponent(k), data: new Uint8Array(await b.arrayBuffer()) });
       }
@@ -138,13 +138,21 @@ const Citacao = {
   },
   personagem(def, o = {}) {
     if (!def || !this.pode()) return;
-    const parte = def.partes?.find(p => p.id === o.sel), sub = parte ? 'Parte: ' + parte.nome : `${def.partes?.length || 0} partes`;
-    const base = { prog: 'Animador · Ateliê', titulo: def.nome, sub, mini: def.thumb || o.thumb, parte: { tipo: 'personagem', sel: o.sel || null } };
+    const parte = def.partes?.find(p => p.id === o.sel), anim = (def.animacoes || []).find(a => a.id === o.anim);
+    const sub = anim ? 'Animação de teste: ' + anim.nome : parte ? 'Parte: ' + parte.nome : `Personagem inteiro · ${def.partes?.length || 0} partes`;
+    const base = { prog: 'Animador · Ateliê', titulo: def.nome, sub, mini: def.thumb || o.thumb, parte: { tipo: 'personagem', sel: anim ? null : o.sel || null, anim: anim?.id || null } };
     if (o.nuvem) return EstudioConta.citar({ ...base, url: '/animador/?atelie=' + encodeURIComponent(def.id) });
     EstudioConta.citar({ ...base, abrir: '/animador/', nomeArquivo: safeName(def.nome) + AtelieArq.EXT,
       arquivo: async () => ({ blob: await AtelieArq.montar(def, { erro: true }), nome: safeName(def.nome) + AtelieArq.EXT }) });
   },
-  atelie() { const def = Atelie.def; if (def) this.personagem(def, { nuvem: !!Atelie.naNuvem && !Atelie.sujo, sel: Atelie.sel }); },
+  // no Ateliê: o = { sel } (uma parte), { anim } (uma animação de teste) ou {} (o personagem inteiro); sem nada = a parte escolhida
+  atelie(o) { const def = Atelie.def; if (def) this.personagem(def, { nuvem: !!Atelie.naNuvem && !Atelie.sujo, ...(o || { sel: Atelie.sel }) }); },
+  // abrir no ponto citado dentro do Ateliê (parte ou animação)
+  irAtelie(parte) {
+    if (!parte || !Atelie.def) return;
+    if (parte.anim) { const a = (Atelie.def.animacoes || []).find(x => x.id === parte.anim); if (a) { Atelie.aba = 'animacoes'; Animacoes.sel = a.id; Atelie.pinta(); Animacoes.tocar(a); return; } }
+    if (parte.sel && Atelie.def.partes.some(p => p.id === parte.sel)) { Atelie.escolhe(parte.sel); Atelie.pinta(); }
+  },
   // aberto por uma citação (?anexo=… e/ou ?parte=…): devolve true se abriu alguma coisa
   async receber() {
     const rc = window.EstudioConta?.citacaoRecebida?.(); if (!rc) return null;
@@ -154,7 +162,7 @@ const Citacao = {
       const ja = await DB.get('arquivos', 'cita:' + rc.anexo).catch(() => null), P0 = ja?.projeto ? await DB.get('projetos', ja.projeto).catch(() => null) : null;
       if (P0) { t.remove(); await App.abrir(P0); this.irPara(rc.parte); UI.toast('Esta animação já tinha vindo desta mensagem: abri a que está neste computador.', { kind: 'ok' }); return rc; }
       const f = await rc.baixar(); t.remove();
-      if ((await AtelieArq.tipo(f)) === 'atelie') { await AtelieArq.abrir(f); if (rc.parte?.sel && Atelie.def?.partes.some(p => p.id === rc.parte.sel)) { Atelie.escolhe(rc.parte.sel); Atelie.pinta(); } return rc; }
+      if ((await AtelieArq.tipo(f)) === 'atelie') { await AtelieArq.abrir(f); this.irAtelie(rc.parte); return rc; }
       const { P, info } = await Toon.ler(f); await DB.put('projetos', P); await DB.put('arquivos', { tipo: 'cita', projeto: P.id, em: Date.now() }, 'cita:' + rc.anexo).catch(() => { });
       await App.abrir(P); this.irPara(rc.parte); fichaAnimacao(P, info);
     } catch (e) { t.remove(); UI.toast('Não abriu o arquivo da mensagem: ' + esc(e.message), { kind: 'err' }); }

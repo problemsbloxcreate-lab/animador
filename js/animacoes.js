@@ -49,7 +49,7 @@ const Animacoes = {
   get parado() { return !!(this.poseFixa || (this.tocando && this.pausado)); },
   frameAtual() { if (this.poseFixa) return this.poseFixa; const a = this.achar(this.tocando); return a ? this.frame(a, this.i) : null; },
   tocar(a, de = 0) {
-    this.parar(true); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem passos. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
+    this.parar(true); window.Falas?.parar(); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem passos. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
     this.poseFixa = null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, de); this.tocando = a.id; this.sel = a.id; this.passo = null; this.pausado = false; this.i = de;
     const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = this.frame(a, this.i); Atelie.desenha(); Atelie.pintaTeste(); this.i++; };
     vai(); this._t = setInterval(vai, +a.vel || 250); Atelie.pinta();
@@ -89,6 +89,7 @@ const Animacoes = {
       { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da animação', value: a.nome }); if (n) { a.nome = n; Atelie.commit(); } } },
       { label: 'Duplicar', icon: 'dup', action: () => { const c = clone(a); c.id = uid('an'); c.nome += ' 2'; const L = this.lista(); L.splice(L.indexOf(a) + 1, 0, c); this.sel = c.id; Atelie.commit(); } },
       { label: 'Trilha nova', icon: 'plus', action: () => { a.trilhas.push([]); this.sel = a.id; Atelie.commit(); } },
+      { label: 'Citar esta animação em mensagens…', icon: 'chat', action: () => Citacao.atelie({ anim: a.id }) },
       '-', { label: 'Apagar a animação', icon: 'trash', danger: true, action: async () => { if (!(await UI.confirm({ title: `Apagar "${esc(a.nome)}"?`, ok: 'Apagar', danger: true }))) return; this.parar(true); this.def.animacoes = this.lista().filter(x => x !== a); if (this.sel === a.id) this.sel = null; Atelie.commit(); } },
     ]);
   },
@@ -103,9 +104,11 @@ const Animacoes = {
       { label: 'Duplicar', icon: 'dup', action: () => { t.splice(pi + 1, 0, clone(p)); Atelie.commit(); } },
       { label: 'Para a esquerda', icon: 'left', disabled: !pi, action: () => { [t[pi - 1], t[pi]] = [t[pi], t[pi - 1]]; Atelie.commit(); } },
       { label: 'Para a direita', icon: 'right', disabled: pi >= t.length - 1, action: () => { [t[pi + 1], t[pi]] = [t[pi], t[pi + 1]]; Atelie.commit(); } },
+      { label: 'Mover para a posição', icon: 'move', disabled: t.length < 2, sub: t.map((_, j) => ({ label: `${j + 1}º${j === pi ? ' (aqui)' : ''}`, checked: j === pi, disabled: j === pi, action: () => { const [x] = t.splice(pi, 1); t.splice(j, 0, x); this.passo = { t: ti, i: j }; Atelie.commit(); } })) },
+      a.trilhas.length > 1 && { label: 'Mover para a trilha', icon: 'layers', sub: a.trilhas.map((tt, j) => ({ label: `Trilha ${j + 1}${j === ti ? ' (esta)' : ''}`, disabled: j === ti, action: () => { const [x] = t.splice(pi, 1); tt.push(x); this.passo = { t: j, i: tt.length - 1 }; Atelie.commit(); } })) },
       ...(itens.length ? ['-', ...itens] : []),
       '-', { label: 'Apagar o passo', icon: 'trash', danger: true, action: () => { t.splice(pi, 1); this.passo = null; Atelie.commit(); } },
-    ]);
+    ].filter(Boolean));
   },
 
   /* ---------- aba ---------- */
@@ -145,7 +148,7 @@ const Animacoes = {
       }
       topo.appendChild(c);
     }
-    el.appendChild(topo); el.appendChild(this.pintaVisual());
+    el.appendChild(topo); if (window.Falas) Falas.pinta(el); el.appendChild(this.pintaVisual());
   },
 
   /* ---------- visualização: fundo do palco e fantasma (uma imagem de referência por cima, meio transparente) ---------- */

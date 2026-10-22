@@ -33,7 +33,7 @@ const Lado = {
       const atual = est.sessoes[s.id] || null, temChave = aqui.sessoes && s.id in aqui.sessoes;
       const box = h(`<div class="sessao"><h4>${esc(s.nome)} <small>${s.presets.length}</small></h4><div class="presets"></div></div>`), pr = $('.presets', box);
       const loc = id => def._local && id && (def._local.todo || def._local.presets?.includes(id));
-      const bt = (id, nome) => { const b = h(`<button class="${atual === id ? 'on' : ''} ${atual === id && temChave ? 'chave' : ''} ${loc(id) ? 'loc' : ''}" title="${esc(nome)} no quadro ${q + 1}${loc(id) ? ' · salvo só neste computador (não está na nuvem)' : ''}">${esc(nome)}${loc(id) ? ` <span class="so-local">${ic('cloudOff', 11)}</span>` : ''}</button>`); b.onclick = () => this.escolhe(f, s.id, id); pr.appendChild(b); };
+      const bt = (id, nome) => { const b = h(`<button class="${atual === id ? 'on' : ''} ${atual === id && temChave ? 'chave' : ''} ${loc(id) ? 'loc' : ''}" title="${esc(nome)} no quadro ${q + 1}${loc(id) ? ' · salvo só neste computador (não está na nuvem)' : ''}">${esc(nome)}${loc(id) ? ` <span class="so-local">${ic('cloudOff', 11)}</span>` : ''}</button>`); b.onclick = () => this.escolhe(f, s.id, atual === id && id ? null : id); pr.appendChild(b); };
       bt(null, 'Padrão'); s.presets.forEach(p => bt(p.id, p.nome)); el.appendChild(box);
     }
     // animações de teste do personagem (feitas no Ateliê): viram chaves a partir deste quadro

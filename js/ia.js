@@ -5,7 +5,14 @@
 'use strict';
 const IA = {
   get srv() { return Nuvem.srv; },
+  // todo pedido à IA mostra a tela "A IA está trabalhando" (bloqueia a tela, tempo passado/aproximado e %)
   async chama(sistema, pedido, aoEscrever) {
+    const qual = sistema === this.SIS_ORGANIZAR ? ['organizar', 'Organizando o personagem', 60] : sistema === this.SIS_PRESET ? ['preset', 'Criando o preset', 20] : sistema === this.SIS_CENA ? ['cena', 'Animando a cena', 40]
+      : /CORES/.test(sistema) ? ['cores', 'Ajustando as cores', 20] : /cen[aá]rio/i.test(sistema) ? ['cenario', 'Desenhando o cenário', 60] : ['ia', 'A IA está trabalhando', 30];
+    const fim = Ocupado.inicio({ tipo: qual[0], titulo: qual[1], est: qual[2], subtitulo: 'A IA está pensando…' });
+    try { return await this._chama(sistema, pedido, txt => { Ocupado.texto(txt.length); Ocupado.passo(`A IA está escrevendo… (${txt.length} letras)`); aoEscrever?.(txt); }); } finally { fim(); }
+  },
+  async _chama(sistema, pedido, aoEscrever) {
     if (!this.srv) throw new Error('O servidor da IA não está configurado.');
     const corpo = { system: [{ type: 'text', text: sistema }], messages: [{ role: 'user', content: pedido }] };
     for (let tent = 0; tent < 3; tent++) {

@@ -183,7 +183,7 @@ addEventListener('DOMContentLoaded', async () => {
   const at = new URLSearchParams(location.search).get('atelie');
   const naPose = new URLSearchParams(location.search).get('pose') === '1';
   if (at) { Atelie.emAba = true; await Atelie.abrir(at === 'novo' ? null : at, naPose ? { reserva: await Animacoes.reservaDaPose(at) } : {}); if (naPose && Atelie.def) await Animacoes.entrarNaPose(at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
-    if (at && Atelie.def) { const rc = await Citacao.receber(); if (rc?.parte?.sel && Atelie.def.partes.some(p => p.id === rc.parte.sel)) { Atelie.escolhe(rc.parte.sel); Atelie.pinta(); } }
+    if (at && Atelie.def) { const rc = await Citacao.receber(); if (rc?.parte) Citacao.irAtelie(rc.parte); }
   else { Home.pinta(); await Citacao.receber(); } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
   // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
   try { new BroadcastChannel('animador').onmessage = async ev => {

@@ -48,20 +48,23 @@ const Nuvem = {
     if (!existentes) { existentes = new Set(); try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); } catch { } this._ks.set(def.id, existentes); }
     // PERSONAGENS VÃO EM PNG (sem perda nenhuma; decisão do dono). Imagens que chegaram a ir em webp voltam para a PNG original, se ela estiver neste computador.
     const troca = await this.voltaPng(def, aoAndar); this.ultimaTroca = troca;
-    const imgs = [...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k].filter(Boolean), falta = imgs.filter(k => !existentes.has(k));
+    const auds = (def.audios || []).map(a => a.k).filter(Boolean); // áudios de teste do Ateliê
+    const imgs = [...def.partes.flatMap(p => p.imgs.map(i => i.k)), def.vis?.fantasma?.k, ...auds].filter(Boolean), falta = imgs.filter(k => !existentes.has(k)), semAudio = [];
     let n = 0;
     for (const k of falta) {
       const b = await Arq.pegaBlob(k); if (!b) continue;
-      aoAndar?.(`Enviando imagens… ${++n}/${falta.length}`);
+      aoAndar?.(`Enviando ${/\/aud\//.test(k) ? 'áudios' : 'imagens'}… ${++n}/${falta.length}`);
+      if (/\/aud\//.test(k)) { try { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'POST', body: b }); existentes.add(k); } catch { semAudio.push(k); } continue; } // áudio que a nuvem não aceitar fica só neste computador (e no .atelieanimador)
       await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'POST', body: b }); existentes.add(k);
     }
+    this.semAudio = semAudio; if (semAudio.length) setTimeout(() => UI.toast(`${semAudio.length} áudio(s) de teste não foram aceitos pela nuvem: continuam neste computador e vão no .atelieanimador.`, { kind: 'warn', time: 7000 }), 50);
     def.modificado = Date.now(); await Autores.marca(def); // quem subiu (fica para sempre) e quem editou
     aoAndar?.('Salvando o personagem…');
     await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${def.id}/personagem.json`) + '&nome=' + encodeURIComponent(def.nome || ''), { method: 'POST', body: JSON.stringify(def), headers: { 'content-type': 'application/json' } });
     await DB.put('personagens', JSON.parse(JSON.stringify(def)));
     // imagens que saíram do personagem não ficam ocupando espaço na nuvem
     const usadas = new Set(imgs);
-    for (const k of [...existentes]) if (k.startsWith(`personagens/${def.id}/img/`) && !usadas.has(k)) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }).catch(() => { }); existentes.delete(k); }
+    for (const k of [...existentes]) if ((k.startsWith(`personagens/${def.id}/img/`) || k.startsWith(`personagens/${def.id}/aud/`)) && !usadas.has(k)) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }).catch(() => { }); existentes.delete(k); }
     existentes.add(`personagens/${def.id}/personagem.json`); this.avisaEspaco();
   },
   // converte as imagens PNG/JPG do personagem para WEBP (só se ficar menor) e troca as chaves no def; devolve { chaveVelha: chaveNova }
