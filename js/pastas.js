@@ -14,6 +14,8 @@ const Pastas = {
   ordem: (a, b) => (a.segs[0] || '').localeCompare(b.segs[0] || '', 'pt', { numeric: true, sensitivity: 'base' }) || a.segs.length - b.segs.length || a.caminho.localeCompare(b.caminho, 'pt', { numeric: true, sensitivity: 'base' }),
   // marca os arquivos: L = [{ file, segs (pastas abaixo da pasta solta), raiz (nome da pasta solta) }]
   marca(L) {
+    // pastas que só embrulham (Personagens › Lumi › perna_frente…): enquanto tudo estiver dentro da MESMA pasta e ainda tiver pastas abaixo, desce um nível
+    while (L.length && L.every(x => x.segs.length >= 1 && x.segs[0] === L[0].segs[0]) && L.some(x => x.segs.length >= 2)) for (const x of L) { x.raiz = x.segs[0]; x.segs = x.segs.slice(1); }
     const temSub = L.some(x => x.segs.length), out = [];
     for (const x of L.sort(this.ordem)) { if (!this.ehImg(x.file)) continue;
       const segs = temSub ? x.segs : x.raiz ? [x.raiz] : []; // pasta só com imagens = uma parte; com subpastas = só o pacote
@@ -40,6 +42,12 @@ const Pastas = {
         if (e.isDirectory) await this.lerPasta(e, [...segs, e.name], L);
         else { const f = await this.arquivo(e); if (f) L.push({ file: f, segs, caminho: [...segs, e.name].join('/') }); } }
     } while (lote.length);
+  },
+  // clicar na caixa: o seletor do sistema não escolhe imagens e pastas juntos, então pergunta qual
+  escolherDe(ev, imagens) {
+    return new Promise(ok => UI.ctx(ev.clientX, ev.clientY, [{ head: 'Escolher' },
+      { label: 'Imagens…', icon: 'image', action: async () => ok(await imagens()) },
+      { label: 'Uma pasta… (cada pasta de dentro vira uma parte)', icon: 'folder', action: async () => { const l = await this.escolher(); ok(l ? await semVetor(l) : null); } }]));
   },
   // escolher uma pasta pelo seletor do sistema
   escolher() {

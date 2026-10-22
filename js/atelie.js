@@ -56,7 +56,7 @@ const Atelie = {
     const body = h(`<div class="novo-p"><div class="campo2" style="gap:10px;align-items:flex-end"><label class="field" style="flex:2">Nome do personagem<input type="text" data-n placeholder="Nome do personagem"></label>
       <label class="field" style="flex:1" title="De que ângulo são estas imagens. Depois dá para pôr as outras vistas (frente, lado, costas…)">Vista<select data-vt>${Modelo.TIPOS_VISTA.map(([t, n]) => `<option value="${t}" ${t === 'frente' ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <div class="field">Imagens <small>(opcional) — as peças do personagem em PNG com fundo transparente. O melhor: as camadas do desenho exportadas no mesmo tamanho (já encaixam sozinhas).</small></div>
-      <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens ou PASTAS aqui</b><small>ou clique para escolher imagens · arrastando pastas, cada pasta vira uma parte (ex.: "perna_frente" → Perna frente)</small></div><div class="np-lista" data-l></div>
+      <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens ou PASTAS aqui</b><small>ou clique para escolher imagens ou uma pasta · arrastando pastas, cada pasta vira uma parte (ex.: "perna_frente" → Perna frente)</small></div><div class="np-lista" data-l></div>
       <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, camadas, sessões, presets e animações de teste)</label>
       <textarea rows="2" data-p placeholder="Opcional: dicas para a IA. Ex.: &quot;as bocas são para falar&quot;, &quot;o corpo é a raiz&quot;"></textarea></div>`);
     const lista = $('[data-l]', body), drop = $('[data-d]', body), ia = $('[data-ia]', body), urls = [];
@@ -92,7 +92,7 @@ const Atelie = {
       drop.classList.toggle('tem', !!fs.length); const nP = new Set(fs.map(f => f._parte).filter(Boolean)).size; $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns)${nP ? ` em ${nP} parte(s) pelas pastas` : ''} — arraste mais se quiser` : 'Arraste as imagens ou PASTAS aqui';
       $('.np-ia', body).hidden = $('[data-p]', body).hidden = !fs.length; };
     const poe = l => { fs = fs.concat([...l].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name))); pintaL(); };
-    drop.onclick = async () => { const l = await pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true); if (l) poe(l); };
+    drop.onclick = async ev => { const l = await Pastas.escolherDe(ev, () => pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true)); if (l) poe(l); };
     drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
     drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); Pastas.deDrop(e.dataTransfer).then(poe); };
     pintaL(); setTimeout(() => $('[data-n]', body).focus(), 60);
@@ -920,7 +920,7 @@ const Atelie = {
     const lista = $('[data-l]', body), drop = $('[data-d]', body), urls = [];
     const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = ''; fs.forEach((f, i) => { const u = URL.createObjectURL(f); urls.push(u); const c = h(`<div class="np-im"><img src="${u}" alt=""><span>${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); }; lista.appendChild(c); }); $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns) — arraste mais se quiser` : 'Arraste as imagens desta vista aqui'; };
     const poe = L => { fs = fs.concat([...L].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name))); pintaL(); };
-    drop.onclick = async () => { const L = await pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true); if (L) poe(L); };
+    drop.onclick = async ev => { const L = await Pastas.escolherDe(ev, () => pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true)); if (L) poe(L); };
     drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
     drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); Pastas.deDrop(e.dataTransfer).then(poe); };
     $$('input[name=como]', body).forEach(r => r.onchange = () => { $('[data-img]', body).hidden = $('input[name=como]:checked', body).value !== 'imagens'; });

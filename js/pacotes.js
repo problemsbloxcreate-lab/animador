@@ -91,7 +91,9 @@ const Soltar = {
     const dt = e.dataTransfer; if (!dt || !dt.types?.includes('Files') || !TurmaAuth.passed) return;
     const itens = [...(dt.items || [])].filter(i => i.kind === 'file'), imgs = itens.filter(i => /^image\//.test(i.type)), outros = itens.length - imgs.length;
     const noAtelie = !$('#atelie').classList.contains('hidden');
+    if ($('#modal-root')?.children.length) { clearTimeout(this._t); return this.some(true); } // uma janela aberta (ex.: personagem novo) cuida do que for solto nela
     clearTimeout(this._t); this._t = setTimeout(() => this.some(), 400); // o arrasto parou de passar por aqui
+    if (outros && noAtelie) return this.mostra('imagens', 'Pastas viram partes (com o nome da pasta)', 'imagens entram como sempre · .atelieanimador abre o personagem aqui'); // pasta não tem tipo: pode ser pasta ou arquivo do Animador
     if (outros) return this.mostra('arquivo', noAtelie ? 'Solte para abrir o personagem' : 'Solte para abrir', noAtelie ? '.atelieanimador abre aqui no Ateliê · .animador abre a animação' : '.animador abre a animação · .atelieanimador abre o personagem no Ateliê');
     if (!imgs.length && itens.length) return this.mostra('arquivo', 'Solte para abrir', 'Arquivos do Animador: .animador e .atelieanimador');
     if (!noAtelie) return this.some();
