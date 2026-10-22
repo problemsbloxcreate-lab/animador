@@ -958,24 +958,57 @@ const Atelie = {
     b.style.setProperty('--cp', cor || '#888'); b.innerHTML = img ? `<img src="${img}" alt="">` : ic('layers', 16); b.onclick = () => this.configIcone();
   },
   async configIcone() {
-    const def = this.def; let modo = def.iconeModo || 'auto', img = def.icone || null, corModo = def.corModo || 'auto', cor = def.cor || '#8fb3ff';
-    const auto = { img: await Icone.cabeca(def).catch(() => null), cor: await Icone.corAuto(def).catch(() => '#8fb3ff') }; if (corModo === 'auto') cor = auto.cor;
-    const body = h(`<div class="ico-cfg"><div class="ico-prev"><div class="ico-grande" data-g></div><div class="ico-ex"><small>Na hierarquia do editor</small><div class="ico-linha" data-l></div><small>Na timeline</small><div class="ico-linha tl" data-t></div></div></div>
+    const def = this.def; let modo = def.iconeModo || 'auto', corModo = def.corModo || 'auto', cor = def.cor || '#8fb3ff';
+    // as duas fontes do ícone: o personagem desenhado (corte automático na cabeça) e a imagem própria (guardada para poder mudar o zoom depois)
+    const autoF = await Icone.fonteAuto(def).catch(() => null), corAuto = await Icone.corAuto(def).catch(() => '#8fb3ff'); if (corModo === 'auto') cor = corAuto;
+    let propF = def.iconeFonte ? await Icone.aCanvas(def.iconeFonte).catch(() => null) : null; if (!propF && def.iconeModo === 'proprio' && def.icone) propF = await Icone.aCanvas(def.icone).catch(() => null);
+    const fonte = () => modo === 'auto' ? autoF?.cv : modo === 'proprio' ? propF : null, padrao = () => modo === 'auto' ? autoF?.corte : propF ? Icone.cortePadrao(propF) : null;
+    const cortes = { auto: def.iconeCorte?.modo === 'auto' ? { ...def.iconeCorte } : autoF?.corte && { ...autoF.corte }, proprio: def.iconeCorte?.modo === 'proprio' ? { ...def.iconeCorte } : propF && Icone.cortePadrao(propF) };
+    const body = h(`<div class="ico-cfg"><div class="ico-prev"><div class="ico-ed"><div class="ico-grande" data-g><canvas data-cv width="300" height="300"></canvas></div>
+        <div class="ico-zoom" data-z><button class="ibtn" data-zm title="Menos zoom">${ic('minus', 12)}</button><input type="range" min="0" max="100" data-zr><button class="ibtn" data-zp title="Mais zoom">${ic('plus', 12)}</button><button class="btn sm" data-zpad title="Voltar ao corte padrão">Padrão</button></div>
+        <small class="ico-dica" data-dz>Arraste a foto para mover · rodinha ou a barra para o zoom</small></div>
+        <div class="ico-ex"><small>Na hierarquia do editor</small><div class="ico-linha" data-l></div><small>Na timeline</small><div class="ico-linha tl" data-t></div></div></div>
       <div class="field">Ícone</div><div class="seg ico-seg" data-mi><button data-v="auto">Cabeça (automático)</button><button data-v="proprio">Imagem própria…</button><button data-v="nenhum">Sem ícone</button></div>
       <div class="field" style="margin-top:12px">Cor</div><div class="campo2"><div class="seg ico-seg" data-mc><button data-v="auto">Automática</button><button data-v="propria">Escolher</button></div><input type="color" data-c value="${cor}"><code data-hex>${cor}</code></div>
       <div style="color:var(--tx3);font-size:11.5px;margin-top:10px">A automática é a cor que mais aparece no personagem, ajustada para ficar fácil de ver no fundo escuro. O nome que aparece é sempre o nome do personagem/camada.</div></div>`);
-    const pinta = () => { const i = modo === 'nenhum' ? null : modo === 'auto' ? auto.img : img, c = corModo === 'auto' ? auto.cor : Icone.legivel(cor), d = { iconeModo: modo, icone: i, cor: c };
-      $('[data-g]', body).innerHTML = i ? `<img src="${i}" alt="" style="border-color:${c}">` : `<span style="border-color:${c}">${ic('layers', 30)}</span>`;
-      $('[data-l]', body).innerHTML = `<span class="no pers-cor" style="--cp:${c}"><span class="ti">${Icone.html(d, 18)}</span><span class="nm">${esc(def.nome)}</span></span>`;
-      $('[data-t]', body).innerHTML = `<span class="reg pers-cor" style="--cp:${c}">${Icone.html(d, 15)}<span class="nm">${esc(def.nome)}</span></span><i style="background:${c}88"></i>`;
+    const cvE = $('[data-cv]', body), xE = cvE.getContext('2d'), zr = $('[data-zr]', body);
+    // zoom na barra: 0 = a imagem inteira cabe; 100 = bem de perto (escala logarítmica)
+    const ladoMax = () => { const F = fonte(); return F ? Math.max(1, F.height / F.width) * 1.15 : 1; }, ladoMin = () => ladoMax() / 14;
+    const zParaLado = v => ladoMax() * Math.pow(ladoMin() / ladoMax(), v / 100), ladoParaZ = l => Math.round(100 * Math.log(l / ladoMax()) / Math.log(ladoMin() / ladoMax()));
+    let iconeAgora = null, _raf = 0;
+    const desenhaE = () => { const F = fonte(), c = cortes[modo], S = cvE.width, cr = corModo === 'auto' ? corAuto : Icone.legivel(cor); xE.setTransform(1, 0, 0, 1, 0, 0); xE.clearRect(0, 0, S, S);
+      xE.save(); xE.beginPath(); xE.arc(S / 2, S / 2, S / 2 - 6, 0, 7); xE.fillStyle = '#1d1d1d'; xE.fill(); xE.clip();
+      if (F && c) { const W = F.width, H = F.height, lado = c.lado * W, k = S / lado; xE.imageSmoothingQuality = 'high'; xE.drawImage(F, (S / 2) - (c.cx * W) * k, (S / 2) - (c.cy * H) * k, W * k, H * k); }
+      xE.restore(); xE.lineWidth = 8; xE.strokeStyle = cr; xE.beginPath(); xE.arc(S / 2, S / 2, S / 2 - 6, 0, 7); xE.stroke();
+      if (!F) { xE.fillStyle = '#888'; xE.font = '600 26px Segoe UI'; xE.textAlign = 'center'; xE.fillText(modo === 'nenhum' ? 'sem ícone' : '…', S / 2, S / 2 + 9); } };
+    const pinta = (soCorte) => { cancelAnimationFrame(_raf); _raf = requestAnimationFrame(async () => {
+      const F = fonte(), c = cortes[modo], cr = corModo === 'auto' ? corAuto : Icone.legivel(cor); desenhaE();
+      iconeAgora = F && c ? await Icone.recorta(F, c) : null; const d = { iconeModo: modo, icone: iconeAgora, cor: cr };
+      $('[data-z]', body).hidden = $('[data-dz]', body).hidden = !F; if (F && c) zr.value = ladoParaZ(c.lado);
+      $('[data-l]', body).innerHTML = `<span class="no pers-cor" style="--cp:${cr}"><span class="ti">${Icone.html(d, 18)}</span><span class="nm">${esc(def.nome)}</span></span>`;
+      $('[data-t]', body).innerHTML = `<span class="reg pers-cor" style="--cp:${cr}">${Icone.html(d, 15)}<span class="nm">${esc(def.nome)}</span></span><i style="background:${cr}88"></i>`;
+      if (soCorte) return;
       $$('[data-mi] button', body).forEach(b => b.classList.toggle('on', b.dataset.v === modo)); $$('[data-mc] button', body).forEach(b => b.classList.toggle('on', b.dataset.v === corModo));
-      $('[data-c]', body).value = c; $('[data-hex]', body).textContent = c; };
-    $$('[data-mi] button', body).forEach(b => b.onclick = async () => { if (b.dataset.v === 'proprio') { const fs = await pickFiles('image/*', false); const f = fs?.[0]; if (!f) return; img = await Icone.deArquivo(f); } modo = b.dataset.v; pinta(); });
+      $('[data-c]', body).value = cr; $('[data-hex]', body).textContent = cr; }); };
+    // arrastar move a foto; rodinha e barra dão zoom (em volta do centro)
+    const lim = c => { const F = fonte(); if (!F) return c; c.lado = clamp(c.lado, ladoMin(), ladoMax()); const r = F.height / F.width; c.cx = clamp(c.cx, -.25, 1.25); c.cy = clamp(c.cy, -.25 , 1.25); return c; };
+    cvE.onpointerdown = e => { const c = cortes[modo], F = fonte(); if (!c || !F) return; cvE.setPointerCapture(e.pointerId); const x0 = e.clientX, y0 = e.clientY, c0 = { ...c }, tela = cvE.getBoundingClientRect().width;
+      cvE.onpointermove = ev => { const dx = (ev.clientX - x0) / tela * c0.lado, dy = (ev.clientY - y0) / tela * c0.lado * F.width / F.height; c.cx = c0.cx - dx; c.cy = c0.cy - dy; lim(c); pinta(true); };
+      cvE.onpointerup = () => { cvE.onpointermove = null; }; };
+    cvE.onwheel = e => { const c = cortes[modo]; if (!c) return; e.preventDefault(); e.stopPropagation(); c.lado *= Math.exp(e.deltaY * .0015); lim(c); pinta(true); };
+    zr.oninput = () => { const c = cortes[modo]; if (!c) return; c.lado = zParaLado(+zr.value); lim(c); pinta(true); };
+    $('[data-zm]', body).onclick = () => { const c = cortes[modo]; if (c) { c.lado *= 1.2; lim(c); pinta(true); } }; $('[data-zp]', body).onclick = () => { const c = cortes[modo]; if (c) { c.lado /= 1.2; lim(c); pinta(true); } };
+    $('[data-zpad]', body).onclick = () => { const p = padrao(); if (p) { cortes[modo] = { ...p }; pinta(true); } };
+    $$('[data-mi] button', body).forEach(b => b.onclick = async () => { if (b.dataset.v === 'proprio') { const fs = await pickFiles('image/*', false); const f = fs?.[0]; if (!f) return; propF = await Icone.fonteDeArquivo(f); cortes.proprio = Icone.cortePadrao(propF); } modo = b.dataset.v; pinta(); });
     $$('[data-mc] button', body).forEach(b => b.onclick = () => { corModo = b.dataset.v; pinta(); });
     $('[data-c]', body).oninput = ev => { corModo = 'propria'; cor = ev.target.value; pinta(); };
     pinta();
-    const ok = await UI.modal({ title: 'Ícone e cor do personagem', icon: 'image', width: 520, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Aplicar', kind: 'primary', value: true }] }); if (!ok) return;
-    def.iconeModo = modo; if (modo === 'proprio') def.icone = img; else if (modo === 'nenhum') delete def.icone;
+    const ok = await UI.modal({ title: 'Ícone e cor do personagem', icon: 'image', width: 560, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Aplicar', kind: 'primary', value: true }] }); if (!ok) return;
+    def.iconeModo = modo; const c = cortes[modo];
+    if (modo === 'auto' && autoF) { const p = autoF.corte, igual = c && Math.abs(c.cx - p.cx) + Math.abs(c.cy - p.cy) + Math.abs(c.lado - p.lado) < .002; if (igual || !c) delete def.iconeCorte; else def.iconeCorte = { modo, ...c }; def.icone = await Icone.recorta(autoF.cv, c || p); }
+    else if (modo === 'proprio' && propF) { def.iconeFonte = propF.toDataURL('image/webp', .9); def.iconeCorte = { modo, ...(c || Icone.cortePadrao(propF)) }; def.icone = await Icone.recorta(propF, def.iconeCorte); }
+    else if (modo === 'nenhum') delete def.icone;
+    if (modo !== 'proprio') delete def.iconeFonte;
     def.corModo = corModo; if (corModo === 'propria') def.cor = Icone.legivel(cor);
     this._icAuto = null; this.commit(); UI.toast('Ícone e cor guardados. Vão para o editor quando o personagem for salvo (Ctrl+S ou nuvem).', { kind: 'ok' });
   },

@@ -12,10 +12,16 @@ const Icone = {
     for (const it of Modelo.montar(d, est)) { if (!it.img) continue; const bm = Arq.img.get(it.img.k); if (!bm) continue; algum = true; x.setTransform(base.multiply(it.m)); x.drawImage(bm, -(it.img.pivo?.x ?? it.img.w / 2) + (it.img.ajuste?.x || 0), -(it.img.pivo?.y ?? it.img.h / 2) + (it.img.ajuste?.y || 0), it.img.w, it.img.h); }
     return algum ? { cv, x, d, est, k, b, base } : null;
   },
-  // a cabeça: a parte "Cabeça/Rosto" (e o que encaixa nela); sem ela, o pedaço de cima do personagem
+  // a cabeça: a parte "Cabeça/Rosto" (e o que encaixa nela); sem ela, o pedaço de cima do personagem.
+  // Com def.iconeCorte (zoom/posição escolhidos na configuração) usa esse corte.
   async cabeca(def, S = 96) {
+    const F = await this.fonteAuto(def); if (!F) return null;
+    const c = def.iconeCorte?.modo === 'auto' ? def.iconeCorte : F.corte; return this.recorta(F.cv, c, S);
+  },
+  // o personagem desenhado (pose padrão) e o corte padrão da cabeça, em frações da imagem ({cx, cy, lado}: centro e lado do quadrado)
+  async fonteAuto(def) {
     await Arq.garantir(Modelo.chavesImgs(Modelo.naVista(def)));
-    const R = this.render(def); if (!R) return null; const { cv, x, d, est, k, base } = R, W = cv.width, H = cv.height, nrm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const R = this.render(def, 640); if (!R) return null; const { cv, x, d, est, base } = R, W = cv.width, H = cv.height, nrm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     let box = null; const cab = d.partes.find(p => /cabe[cç]a|cabeca|head|rosto|face|cara\b/.test(nrm(p.nome)));
     if (cab) { const filhos = id => d.partes.filter(p => p.pai === id).flatMap(p => [p.id, ...filhos(p.id)]), ids = new Set([cab.id, ...filhos(cab.id)]); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
       for (const it of Modelo.montar(d, est)) { if (!it.img || !ids.has(it.parte.id)) continue; const M = base.multiply(it.m), px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
@@ -25,13 +31,20 @@ const Icone = {
       const faixa = Math.max(4, Math.round(Math.min(H, W * 1.1) * .42)), D = x.getImageData(0, 0, W, Math.min(H, faixa)).data; let a = W, z = -1;
       for (let yy = 0; yy < Math.min(H, faixa); yy += 2) for (let xx = 0; xx < W; xx += 2) if (D[(yy * W + xx) * 4 + 3] > 40) { if (xx < a) a = xx; if (xx > z) z = xx; }
       box = z > a ? { x: a, y: 0, w: z - a, h: Math.min(H, faixa) } : { x: 0, y: 0, w: W, h: Math.min(H, W) }; }
-    const lado = Math.max(box.w, box.h) * 1.08, cx = box.x + box.w / 2, cy = box.y + box.h / 2, o = document.createElement('canvas'); o.width = o.height = S; const ox = o.getContext('2d');
-    ox.drawImage(cv, cx - lado / 2, cy - lado / 2, lado, lado, 0, 0, S, S);
-    return this.dataUrl(o);
+    return { cv, corte: { cx: (box.x + box.w / 2) / W, cy: (box.y + box.h / 2) / H, lado: Math.max(box.w, box.h) * 1.08 / W } };
   },
+  // corte padrão de uma imagem própria: o quadrado do meio
+  cortePadrao(cv) { const l = Math.min(cv.width, cv.height); return { cx: .5, cy: .5, lado: l / cv.width }; },
+  // recorta o quadrado {cx, cy, lado} (frações) da imagem e devolve o ícone S×S
+  recorta(cv, c, S = 96) {
+    const W = cv.width, H = cv.height, lado = c.lado * W, o = document.createElement('canvas'); o.width = o.height = S;
+    o.getContext('2d').drawImage(cv, c.cx * W - lado / 2, c.cy * H - lado / 2, lado, lado, 0, 0, S, S); return this.dataUrl(o);
+  },
+  // imagem escolhida pela pessoa (guardada até 512 px, para poder mudar o zoom depois)
+  async fonteDeArquivo(f) { const bm = await createImageBitmap(f), k = Math.min(1, 512 / Math.max(bm.width, bm.height)), c = document.createElement('canvas'); c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height); return c; },
+  aCanvas(url) { return new Promise((ok, erro) => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; c.getContext('2d').drawImage(i, 0, 0); ok(c); }; i.onerror = erro; i.src = url; }); },
   async dataUrl(cv) { if (cv.toDataURL) { const w = cv.toDataURL('image/webp', .9); return w.startsWith('data:image/webp') ? w : cv.toDataURL('image/png'); } const b = await cv.convertToBlob({ type: 'image/webp', quality: .9 }).catch(() => null) || await cv.convertToBlob({ type: 'image/png' }); return await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(b); }); },
-  // imagem escolhida pela pessoa: recorta no meio, quadrada
-  async deArquivo(f, S = 96) { const bm = await createImageBitmap(f); const l = Math.min(bm.width, bm.height), o = document.createElement('canvas'); o.width = o.height = S; o.getContext('2d').drawImage(bm, (bm.width - l) / 2, (bm.height - l) / 2, l, l, 0, 0, S, S); return this.dataUrl(o); },
+  async deArquivo(f, S = 96) { const c = await this.fonteDeArquivo(f); return this.recorta(c, this.cortePadrao(c), S); },
   // cor que mais aparece (sem contorno preto e sem branco), ajustada para aparecer bem no fundo escuro
   async corAuto(def) {
     await Arq.garantir(Modelo.chavesImgs(Modelo.naVista(def))); const R = this.render(def, 160); if (!R) return '#8fb3ff';
