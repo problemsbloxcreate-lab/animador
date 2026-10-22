@@ -98,7 +98,16 @@ const AoVivo = {
     let t; try { t = await this.transporte(); } catch (e) { if (o.avisa) UI.toast('Trabalhar junto: ' + esc(e.message), { kind: 'warn', time: 7000 }); return false; }
     this.t = t; this.ad = ad; this.sala = ad.sala; this.gente = {}; this.pend = []; this.log = []; this.minhas = []; this.refazerL = []; this.subidas = new Set(); this._fila = Promise.resolve();
     const eu = await this.quem();
-    let st; try { st = await t.estado(this.sala); } catch (e) { if (o.avisa) UI.toast('Trabalhar junto: ' + esc(e.message), { kind: 'warn', time: 7000 }); return false; }
+    try { return await this._entra(t, ad, eu, o); } catch (e) {
+      for (const f of (t.offs || []).splice(0)) try { f(); } catch { }
+      this.ativo = false; this.erro = this.motivo(e); console.warn('ao vivo', e);
+      if (o.avisa) UI.toast('Trabalhar junto: ' + esc(this.erro), { kind: 'warn', time: 9000 }); return false;
+    }
+  },
+  // erro do Firebase em palavras
+  motivo(e) { const m = String(e?.code || '') + ' ' + String(e?.message || e || ''); if (/permission.denied/i.test(m)) return 'sua conta ainda não foi liberada no tempo real (o servidor libera quem passou no login; recarregue a página daqui a pouco)'; return e?.message || 'o tempo real não respondeu'; },
+  async _entra(t, ad, eu, o) {
+    const st = await t.estado(this.sala);
     // Ateliê sem ninguém na sala: sobra de quem fechou de repente; a verdade é o personagem da nuvem, então começa do zero
     if (ad.ctx === 'atelie' && st.snap && !Object.keys(st.gente || {}).length) { try { await t.apagar(this.sala); } catch { } st.snap = null; }
     if (st.snap && !o.novo) { this.base = st.snap.j; this.ate = st.snap.ate || ''; }
@@ -224,7 +233,13 @@ const AoVivo = {
       get: () => App.P, set: d => { App.troca(d); App.ultimo = JSON.stringify(App.P); }, chaves: d => Toon.ids(d), redesenha: () => App.pinta(), salvar: () => App.salvarJa?.() };
   },
   // Ateliê: personagem da nuvem → entra sozinho
-  async entrarAtelie() { if (!this.ligado() || !Atelie.def || !Atelie.naNuvem || (this.ativo && this.ad?.ctx === 'animador')) return; if (this.ativo && this.sala === 'at-' + Atelie.def.id) return; await this.entrar(this.adAtelie(), { meta: { tipo: 'atelie', nome: Atelie.def.nome } }); },
+  // logo depois do login o servidor ainda pode estar liberando a conta no tempo real: tenta de novo algumas vezes e, se não der, avisa o motivo
+  async entrarAtelie(n = 0) {
+    if (!this.ligado() || !Atelie.def || !Atelie.naNuvem || (this.ativo && this.ad?.ctx === 'animador')) return; if (this.ativo && this.sala === 'at-' + Atelie.def.id) return;
+    const id = Atelie.def.id; if (await this.entrar(this.adAtelie(), { meta: { tipo: 'atelie', nome: Atelie.def.nome } })) return;
+    if (n < 4) { clearTimeout(this._tenta); this._tenta = setTimeout(() => { if (Atelie.def?.id === id) this.entrarAtelie(n + 1).catch(() => { }); }, 5000); return; }
+    UI.toast('Trabalhar junto ao vivo: ' + esc(this.erro || 'não consegui entrar'), { kind: 'warn', time: 10000 });
+  },
   async baixarSala(sala) {
     const t = await this.transporte(), st = await t.estado(sala); if (!st.snap) return null;
     const d = Difs.aplica(JSON.parse(st.snap.j), (st.ops || []).flatMap(op => JSON.parse(op.j || '[]'))); const ant = { t: this.t, sala: this.sala, subidas: this.subidas };
