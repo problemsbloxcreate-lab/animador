@@ -200,8 +200,8 @@ const Atelie = {
   sessao() { return this.edit ? this.def.sessoes.find(s => s.id === this.edit.s) : null; },
   preset() { const s = this.sessao(); return s ? s.presets.find(p => p.id === this.edit.p) : null; },
   estado() {
-    if (this.edit && !this.editPasso && !Animacoes.parado) return Modelo.partesNoEstado(this.def, { sessoes: { [this.edit.s]: this.edit.p } }); // arrumando um preset (mesmo com o painel aberto)
-    if (this.teste && Animacoes.parado) return Modelo.partesNoEstado(this.def, Animacoes.frameAtual()); // pausado / pose do editor: o quadro inteiro (as edições caem no passo ou preset certo)
+    if (this.edit && !this.editPasso && !Animacoes.mexivel) return Modelo.partesNoEstado(this.def, { sessoes: { [this.edit.s]: this.edit.p } }); // arrumando um preset (mesmo com o painel aberto)
+    if (this.teste && Animacoes.mexivel) return Modelo.partesNoEstado(this.def, Animacoes.frameAtual()); // pausado / pose do editor: o quadro inteiro (as edições caem no passo ou preset certo)
     return Modelo.partesNoEstado(this.def, this.teste ? this.teste : this.edit ? { sessoes: { [this.edit.s]: this.edit.p } } : {});
   },
   // muda um campo da parte no modo atual (base ou o preset em edição)
@@ -261,7 +261,7 @@ const Atelie = {
     ctx.save(); ctx.setTransform(V); Animacoes.desenhaFantasma(ctx); ctx.restore();
     // parte escolhida: só a caixa tracejada (numa cor que contrasta com a peça) e uma cruzinha discreta no centro.
     // O pivô (ponto de giro) só aparece segurando Alt (Alt+arrastar muda o pivô); a alça com seta circular (ou Ctrl+arrastar) gira a peça.
-    const it = this.teste && !Animacoes.parado && !this.edit ? null : itens.find(x => x.parte.id === this.sel); this._giro = null;
+    const it = itens.find(x => x.parte.id === this.sel); // a caixa aparece até com a animação tocando (acompanha a peça) this._giro = null;
     if (it?.img) {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); const T = V.multiply(it.m), px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, ax = it.img.ajuste?.x || 0, ay = it.img.ajuste?.y || 0;
       const c = [[0, 0], [it.img.w, 0], [it.img.w, it.img.h], [0, it.img.h]].map(([x, y]) => T.transformPoint(new DOMPoint(x - px + ax, y - py + ay))), cor = this.corContraste(it.img);
@@ -283,7 +283,7 @@ const Atelie = {
   },
   // "Mover todos": a parte escolhida (e as outras marcadas) e as que estão presas nelas, porque vão junto
   partesTodas() {
-    const out = new Set(); if (!this.moverTodos || !this.def || (this.teste && !Animacoes.parado && !this.edit)) return out;
+    const out = new Set(); if (!this.moverTodos || !this.def) return out;
     const fila = [...new Set([this.sel, ...this.multi].filter(Boolean))];
     while (fila.length) { const id = fila.shift(); if (out.has(id)) continue; out.add(id); for (const f of this.def.partes) if (f.pai === id) fila.push(f.id); }
     return out;
@@ -319,7 +319,15 @@ const Atelie = {
     const fim = (mov, up) => { const m = ev => mov(ev), u = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', u); up?.(ev); }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', u); };
     if (e.button === 1 || e.button === 2 || this.espaco) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; let mexeu = false;
       this._panMexeu = false; return fim(ev => { if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 3) mexeu = this._panMexeu = true; v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); }
-    if (this.teste && !Animacoes.parado && !this.edit && e.button === 0) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); } // testando: só move a tela
+    // animação TOCANDO: clicar numa peça escolhe (sem parar); arrastar a peça ou pintar pausa sozinho naquele passo e segue como pausado
+    if (this.teste && Animacoes.rodando && e.button === 0) {
+      if (Pintura.ferr !== 'mover') { Animacoes.pausar(true); return Pintura.desce(e); }
+      const it0 = this.acha(this.mundo(e)), v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y;
+      if (!it0) return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); // no vazio: move a tela
+      if (it0.parte.id !== this.sel || this.multi.size) { this.escolhe(it0.parte.id); this.pinta(); }
+      const mv = ev => { if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 4) return; tira(); Animacoes.pausar(true); this.desce(e); }, tira = () => { this.cv.removeEventListener('pointermove', mv); this.cv.removeEventListener('pointerup', tira); };
+      this.cv.addEventListener('pointermove', mv); this.cv.addEventListener('pointerup', tira); return;
+    }
     if (e.button === 0 && Pintura.ferr !== 'mover') return Pintura.desce(e); // pincel, borracha, balde, conta-gotas
     // girar: Ctrl+arrastar na peça escolhida (gira em volta do pivô)
     let pegaGiro = this._giro && Math.hypot(e.offsetX * d - this._giro.x, e.offsetY * d - this._giro.y) < 14 * d; // a alça de girar
@@ -368,7 +376,7 @@ const Atelie = {
     if (this.teste && Animacoes.parado && (k === ',' || k === '.')) { e.preventDefault(); return Animacoes.passoMais(k === '.' ? 1 : -1); }
     if (this.teste && k === 'Escape') { e.preventDefault(); Animacoes.parar(true); this.teste = { sessoes: {}, partes: {} }; return this.pinta(); } // Esc: volta tudo ao padrão (o painel continua aberto)
     if (this.teste && k.toLowerCase() === 't') { e.preventDefault(); return this.painelTeste(false); }
-    if (this.teste && !Animacoes.parado && !this.edit) return; // testando: só pausado (ou arrumando um preset) dá para mexer nas peças
+    if (this.teste && Animacoes.rodando) return; // tocando: as teclas de mexer esperam pausar (P)
     if (k.toLowerCase() === 't' && !e.shiftKey && !e.altKey) { e.preventDefault(); return this.painelTeste(true); }
     if (e.type === 'keydown' && Pintura.tecla(e)) return;
     if ((k === 'Delete' || k === 'Backspace') && Pintura.temSelecao()) { e.preventDefault(); return Pintura.mexeDentro('apagar'); } // área selecionada na imagem
@@ -396,8 +404,8 @@ const Atelie = {
     this.pintaBotaoNuvem(); this.pintaEstado();
     const au = $('#at-autores'); if (au && au._de !== this.def.autor?.em + '/' + (this.def.edicoes || []).length) { au._de = this.def.autor?.em + '/' + (this.def.edicoes || []).length; au.innerHTML = ''; const sl = Autores.selo(this.def); if (sl) au.appendChild(sl); }
     const pr = this.preset(), s = this.sessao();
-    $('#at-modo').innerHTML = this.teste && Animacoes.parado ? `${Animacoes.poseFixa ? `Pose do quadro ${Animacoes.poseFixa.quadro + 1}` : 'Pausado'} · arrumando <b>${esc(Animacoes.textoAlvo())}</b>` : Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? 'Testando os <b>botões</b>' : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
-    $('#at-base').hidden = !pr; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover').hidden = !!this.teste && !Animacoes.parado;
+    $('#at-modo').innerHTML = this.teste && Animacoes.parado ? `${Animacoes.poseFixa ? `Pose do quadro ${Animacoes.poseFixa.quadro + 1}` : 'Pausado'} · arrumando <b>${esc(Animacoes.textoAlvo())}</b>` : Animacoes.tocando ? `Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : this.teste ? `Testando · arrumando <b>${esc(Animacoes.textoAlvo())}</b>` : pr ? `Editando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : 'Montando a <b>base</b>';
+    $('#at-base').hidden = !pr; $$('#at-mover [data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === this.modoMover)); $('#at-mover').hidden = false;
     $('#at-testar').classList.toggle('on', !!this.painelAberto); $('#at-testar').innerHTML = `${ic('play', 13)} Testar`; $('#at-testar').title = 'Abrir/fechar o painel Testar (T)'; this.pintaTeste(); Pintura.pintaBarra();
     this.pintaIcone(); this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'pintar' ? Pintura.pintaAba(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();

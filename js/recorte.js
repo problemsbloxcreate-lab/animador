@@ -108,7 +108,7 @@ Object.assign(Pintura, {
   },
   // teclas com Ctrl (chamado pelo Atelie.teclas)
   teclaCtrl(e) {
-    const k = e.key.toLowerCase(); if (Atelie.teste) return false;
+    const k = e.key.toLowerCase(); if (Atelie.teste && Animacoes.rodando) return false;
     if (k === 'd') { e.preventDefault(); this.desmarcar(); return true; }
     if (k === 'a') { e.preventDefault(); this.tudo(); return true; }
     if (k === 'i' && e.shiftKey) { e.preventDefault(); this.inverter(); return true; }

@@ -112,7 +112,7 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
 
   /* ---------- barra de ferramentas no canto esquerdo do palco (como no Photoshop) ---------- */
   pintaBarra() {
-    const el = $('#at-ferr'); if (!el) return; el.hidden = !!Atelie.teste; if (Atelie.teste) return;
+    const el = $('#at-ferr'); if (!el) return; el.hidden = false; // sempre à mão (também com o Testar aberto)
     const grupo = (ids) => this.FERR.filter(f => ids.includes(f[0])).map(([f, n, i, k]) => `<button class="${this.ferr === f ? 'on' : ''}" data-f="${f}" title="${n} (${k})">${ic(i, 17)}</button>`).join('');
     el.innerHTML = `${grupo(['mover'])}<i></i>${grupo(['ret', 'laco', 'varinha'])}<i></i>${grupo(['pincel', 'borracha', 'magica', 'balde', 'conta'])}<i></i>
       <label class="fb-cor" title="Cor (${this.cor})" style="--c:${this.cor}"><input type="color" value="${this.cor}"></label>`;

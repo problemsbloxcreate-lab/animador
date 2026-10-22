@@ -47,7 +47,10 @@ const Animacoes = {
   passosAgora(a, i) { return (a.trilhas || []).map((t, ti) => t.length ? { ti, pi: ((i % t.length) + t.length) % t.length, p: t[((i % t.length) + t.length) % t.length] } : null).filter(Boolean); },
   // PAUSADO (animação parada num passo) ou POSE FIXA (veio do editor: "Editar no Ateliê"): a tela mostra esse quadro e dá para arrumar as peças
   get parado() { return !!(this.poseFixa || (this.tocando && this.pausado)); },
-  frameAtual() { if (this.poseFixa) return this.poseFixa; const a = this.achar(this.tocando); return a ? this.frame(a, this.i) : null; },
+  // dá para mexer nas peças: pausado, pose do editor, ou o Testar aberto sem animação tocando
+  get mexivel() { return this.parado || (!!Atelie.teste && !this.tocando); },
+  get rodando() { return !!(this.tocando && !this.pausado); },
+  frameAtual() { if (this.poseFixa) return this.poseFixa; const a = this.achar(this.tocando); return a ? this.frame(a, this.i) : Atelie.teste || null; },
   tocar(a, de = 0) {
     this.parar(true); window.Falas?.parar(); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem passos. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
     this.poseFixa = null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, de); this.tocando = a.id; this.sel = a.id; this.passo = null; this.pausado = false; this.i = de;
@@ -55,7 +58,7 @@ const Animacoes = {
     vai(); this._t = setInterval(vai, +a.vel || 250); Atelie.pinta();
   },
   // pausa no passo que está na tela (clicar numa peça arruma aquele passo/preset); continuar segue dali
-  pausar() { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; this.pausado = true; this.i = Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); UI.toast('Pausado. Clique numa peça para arrumar <b>este passo</b> (ou o preset que ele usa).', { time: 4000 }); },
+  pausar(quieto) { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; this.pausado = true; this.i = Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); if (!quieto) UI.toast('Pausado. Clique numa peça para arrumar <b>este passo</b> (ou o preset que ele usa).', { time: 4000 }); },
   continuar() { const a = this.achar(this.tocando); if (!a) return; Atelie.edit = null; Atelie.editPasso = null; this.tocar(a, this.i + 1); },
   passoMais(d) { const a = this.achar(this.tocando); if (!a) return; if (!this.pausado) this.pausar(); this.i = this.i + d; Atelie.teste = this.frame(a, this.i); Atelie.edit = null; Atelie.editPasso = null; Atelie.pinta(); },
   parar(quieto) { clearInterval(this._t); this._t = null; const tinha = this.tocando; this.tocando = null; this.pausado = false; if (Atelie.editPasso) Atelie.editPasso = null; if (tinha && !quieto) Atelie.pinta(); },
