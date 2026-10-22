@@ -580,3 +580,5 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .oc-barra.rodando i{width:32%!important;animation:ocRoda 1.3s ease-in-out infinite}@keyframes ocRoda{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}.oc-barra{overflow:hidden}
 
 #at-regua.on{background:#2a3b47;border-color:#19d3f0;color:#bff4ff}.at-palco.com-regua .modo-at{top:26px}.at-palco.com-regua .ferr-at{left:26px}.at-palco.com-regua .modo-at,.at-palco.com-regua .dica{left:74px}
+
+.np-grupo.ref{color:#9fe8ff}.np-grupo.ref b{color:#9fe8ff}

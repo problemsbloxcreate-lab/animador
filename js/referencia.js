@@ -111,9 +111,26 @@ const Referencia = {
     for (const p of ordem) { const L = local(p, sigma, 900, r + 2); if (!L) continue;
       if (L.c > 170) { ruins.push(p.nome); continue; } // nada parecido (a peça não está na referência)
       achados.push({ parte: p, u: L.u, v: L.v, custo: L.c }); }
-    return { sigma, achados, ruins, duvidas: duvidas.filter(n => !ruins.includes(n)) };
+    // 4) JÁ ESTÁ NO LUGAR? (camadas do mesmo desenho, ou arrumado à mão): onde cada peça está hoje, medido na referência como ela está agora.
+    //    Se o conjunto já bate, a escala de agora vale e só sai do lugar a peça que achou um lugar MUITO melhor.
+    const agora = this.agoraNaRef(def, ref, bmR);
+    if (agora) { const custoEm = (p, s, u, v) => { const it = porId[p.id], T = this.molde(it, Arq.img.get(it.img.k), s * c2, 900); if (!T) return Infinity; let b = Infinity; const bx = Math.round(u * c2 - T.cx), by = Math.round(v * c2 - T.cy); for (let y = by - 1; y <= by + 1; y++) for (let x = bx - 1; x <= bx + 1; x++) b = Math.min(b, this.custo(R2, T, x, y)); return b; };
+      for (const a of achados) { const c = agora.ref(a.parte); a.agora = c ? { u: c.u, v: c.v, custo: custoEm(a.parte, agora.sigma, c.u, c.v) } : null; }
+      const med = L => { L = L.filter(isFinite).sort((x, y) => x - y); return L.length ? L[Math.floor(L.length / 2)] : Infinity; };
+      const jaBate = Math.abs(agora.sigma / sigma - 1) < .05 && med(achados.map(a => a.agora?.custo)) <= med(achados.map(a => a.custo)) * 1.15 + 4;
+      if (jaBate) { sigma = agora.sigma; for (const a of achados) if (a.agora && !(a.custo < a.agora.custo * .7 - 6)) { a.u = a.agora.u; a.v = a.agora.v; a.ficou = true; } } }
+    return { sigma, achados, ruins, duvidas: duvidas.filter(n => !ruins.includes(n)), ficaram: achados.filter(a => a.ficou).length };
   },
 
+  // onde a referência está AGORA no desenho: a escala dela (px da referência por unidade) e onde cada peça cai nela
+  agoraNaRef(def, ref, bm) {
+    const L = Modelo.montar(def, Modelo.partesNoEstado(def, {})), centro = it => { const im = it.img; return it.m.transformPoint(new DOMPoint(im.w / 2 - (im.pivo?.x ?? im.w / 2) + (im.ajuste?.x || 0), im.h / 2 - (im.pivo?.y ?? im.h / 2) + (im.ajuste?.y || 0))); };
+    let paraRef, sigma;
+    if (ref.tipo === 'parte') { const itR = L.find(x => x.parte === ref.parte); if (!itR?.img) return null; const im = itR.img, kr = Math.sqrt(Math.abs(itR.m.a * itR.m.d - itR.m.b * itR.m.c)) || 1, inv = itR.m.inverse(), x0 = -(im.pivo?.x ?? im.w / 2) + (im.ajuste?.x || 0), y0 = -(im.pivo?.y ?? im.h / 2) + (im.ajuste?.y || 0);
+      sigma = bm.width / (im.w * kr); paraRef = w => { const l = inv.transformPoint(w); return { u: (l.x - x0) / im.w * bm.width, v: (l.y - y0) / im.h * bm.height }; }; }
+    else { const f = ref.f, s0 = f.s ?? 1; sigma = 1 / s0; paraRef = w => ({ u: (w.x - f.x) / s0, v: (w.y - f.y) / s0 }); }
+    return { sigma, ref: p => { const it = L.find(x => x.parte === p); return it?.img ? paraRef(centro(it)) : null; } };
+  },
   // no Ateliê: calcula e aplica (a referência fica do tamanho das peças; as peças vão para o lugar)
   async aplicar(A = Atelie, o = {}) {
     const def = A.def, ref = this.acha(def);
@@ -138,7 +155,7 @@ const Referencia = {
         const mae = a.parte.pai ? L.find(x => x.parte.id === a.parte.pai)?.mp : null, inv = mae ? new DOMMatrix([mae.a, mae.b, mae.c, mae.d, 0, 0]).inverse() : new DOMMatrix(), d = inv.transformPoint(new DOMPoint(alvo.x - c.x, alvo.y - c.y));
         const e = a.parte.encaixe || { x: 0, y: 0 }; a.parte.encaixe = { x: round(e.x + d.x, 1), y: round(e.y + d.y, 1) }; }
       fim(); if (!o.semCommit) { A.commit(); A.enquadrar?.(); }
-      if (!o.quieto) UI.toast(`<b>${r.achados.length}</b> peça(s) no lugar da referência.${r.ruins.length ? ` Não achei na referência: ${r.ruins.map(esc).join(', ')} (ficaram onde estavam).` : ''}${r.duvidas.length ? ` Confira: ${r.duvidas.map(esc).join(', ')} (combinam com mais de um lugar).` : ''} Ctrl+Z desfaz.`, { kind: 'ok', time: 8000 });
+      if (!o.quieto) UI.toast(`<b>${r.achados.length - r.ficaram}</b> peça(s) postas no lugar da referência${r.ficaram ? ` · ${r.ficaram} já estavam no lugar` : ''}.${r.ruins.length ? ` Não achei na referência: ${r.ruins.map(esc).join(', ')} (ficaram onde estavam).` : ''}${r.duvidas.length ? ` Confira: ${r.duvidas.map(esc).join(', ')} (combinam com mais de um lugar).` : ''} Ctrl+Z desfaz.`, { kind: 'ok', time: 8000 });
       return r;
     } catch (e) { fim(); if (!o.quieto) UI.toast('Não deu para encaixar pela referência: ' + esc(e.message), { kind: 'err', time: 7000 }); if (o.quieto) throw e; return null; }
   },

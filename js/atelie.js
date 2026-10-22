@@ -64,19 +64,20 @@ const Atelie = {
       // agrupado por pasta: "Pasta X" (a parte que vai virar) e embaixo as imagens dela; depois um separador e a próxima.
       // Antes de criar (e antes da IA): botão direito marca a RAIZ e muda imagens de pasta (ou arraste a imagem para outra pasta)
       const grupos = new Map(); fs.forEach((f, i) => { const g = f._parte || ''; if (!grupos.has(g)) grupos.set(g, []); grupos.get(g).push([f, i]); });
-      const ordem = [...grupos.keys()].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'pt', { numeric: true }));
+      const ehGR = g => grupos.get(g)?.some(([f]) => f._ref), ordem = [...grupos.keys()].sort((a, b) => ehGR(b) - ehGR(a) || (a === '') - (b === '') || a.localeCompare(b, 'pt', { numeric: true }));
       if (raiz && !(raiz.parte ? grupos.has(raiz.parte) : fs.includes(raiz.arquivo))) raiz = null;
       const ehRaiz = (g, f) => !!raiz && (f ? raiz.arquivo === f : raiz.parte === g);
-      const paraPasta = (lista, g) => { for (const f of lista) { if (g) f._parte = g; else delete f._parte; delete f._pasta; } const L = new Set(lista); fs = [...fs.filter(f => !L.has(f)), ...lista]; pintaL(); }; // vai para o fim da pasta (não vira a imagem padrão dela)
-      const destinos = (lista, deG) => [...ordem.filter(g => g !== deG).map(g => ({ label: g || 'Imagens soltas (cada uma vira uma parte)', icon: g ? 'folder' : 'image', action: () => paraPasta(lista, g) })),
+      const paraPasta = (lista, g) => { for (const f of lista) { if (f._ref) Pastas.virarRef(f, false); if (g) f._parte = g; else delete f._parte; delete f._pasta; } const L = new Set(lista); fs = [...fs.filter(f => !L.has(f)), ...lista]; pintaL(); }; // vai para o fim da pasta (não vira a imagem padrão dela)
+      const destinos = (lista, deG) => [...ordem.filter(g => g !== deG && !ehGR(g)).map(g => ({ label: g || 'Imagens soltas (cada uma vira uma parte)', icon: g ? 'folder' : 'image', action: () => paraPasta(lista, g) })),
         { label: 'Pasta nova…', icon: 'plus', action: async () => { const n = (await UI.prompt({ title: 'Pasta nova', label: 'Nome da parte (ex.: Cabeça)' }))?.trim(); if (n) paraPasta(lista, Pastas.limpa(n)); } }];
       const solta = (el, g) => { el.ondragover = e => { if (e.dataTransfer.types.includes('text/np-img')) { e.preventDefault(); e.stopPropagation(); el.classList.add('drop-dentro'); } }; el.ondragleave = () => el.classList.remove('drop-dentro');
         el.ondrop = e => { const i = e.dataTransfer.getData('text/np-img'); if (i === '') return; e.preventDefault(); e.stopPropagation(); el.classList.remove('drop-dentro'); const f = fs[+i]; if (f && (f._parte || '') !== g) paraPasta([f], g); }; };
-      for (const g of ordem) { const itens = grupos.get(g), rz = g && ehRaiz(g);
-        if (ordem.length > 1 || g) { const cab = h(`<div class="np-grupo ${rz ? 'raiz' : ''}">${ic(rz ? 'star' : g ? 'folder' : 'image', 13)}<b>${g ? esc(g) : 'Imagens soltas'}</b>${rz ? '<i class="np-raiz">RAIZ</i>' : ''}<small>${g ? `vira a parte "${esc(g)}" · ${itens.length} imagem(ns)` : 'cada uma vira uma parte'}</small><button class="ibtn" title="Tirar ${g ? 'a pasta inteira' : 'as soltas'}">${ic('x', 11)}</button></div>`);
+      for (const g of ordem) { const itens = grupos.get(g), gRef = ehGR(g), rz = g && !gRef && ehRaiz(g);
+        if (ordem.length > 1 || g) { const cab = h(`<div class="np-grupo ${rz ? 'raiz' : ''} ${gRef ? 'ref' : ''}">${ic(gRef ? 'eye' : rz ? 'star' : g ? 'folder' : 'image', 13)}<b>${g ? esc(g) : 'Imagens soltas'}</b>${rz ? '<i class="np-raiz">RAIZ</i>' : ''}<small>${gRef ? 'o personagem inteiro: põe as peças no lugar e depois fica invisível' : g ? `vira a parte "${esc(g)}" · ${itens.length} imagem(ns)` : 'cada uma vira uma parte'}</small><button class="ibtn" title="Tirar ${g ? 'a pasta inteira' : 'as soltas'}">${ic('x', 11)}</button></div>`);
           $('button', cab).onclick = () => { const tira = new Set(itens.map(([f]) => f)); fs = fs.filter(f => !tira.has(f)); pintaL(); };
           cab.oncontextmenu = e => { e.preventDefault(); UI.ctx(e.clientX, e.clientY, [{ head: g || 'Imagens soltas' },
-            g && { label: rz ? 'Não é mais a raiz' : 'Esta é a raiz (a parte principal)', icon: 'star', checked: rz, action: () => { raiz = rz ? null : { parte: g }; pintaL(); } },
+            gRef && { label: 'Não é a referência', icon: 'x', action: () => { itens.forEach(([f]) => Pastas.virarRef(f, false)); pintaL(); } },
+            g && !gRef && { label: rz ? 'Não é mais a raiz' : 'Esta é a raiz (a parte principal)', icon: 'star', checked: rz, action: () => { raiz = rz ? null : { parte: g }; pintaL(); } },
             g && { label: 'Renomear', icon: 'edit', action: async () => { const n = (await UI.prompt({ title: 'Nome da parte', value: g }))?.trim(); if (n && n !== g) { const nn = Pastas.limpa(n); if (raiz?.parte === g) raiz = { parte: nn }; paraPasta(itens.map(([f]) => f), nn); } } },
             { label: 'Mover todas para', icon: 'move', sub: destinos(itens.map(([f]) => f), g) },
             '-', { label: g ? 'Tirar a pasta inteira' : 'Tirar as soltas', icon: 'trash', danger: true, action: () => { const tira = new Set(itens.map(([f]) => f)); fs = fs.filter(f => !tira.has(f)); pintaL(); } }].filter(Boolean)); };
@@ -84,14 +85,15 @@ const Atelie = {
         for (const [f, i] of itens) { const u = URL.createObjectURL(f), fr = !g && ehRaiz('', f); urls.push(u); const c = h(`<div class="np-im ${fr ? 'raiz' : ''}" draggable="true" title="${esc((f._pasta ? f._pasta + ' › ' : '') + f.name)}\nBotão direito: raiz, mudar de pasta · arraste para outra pasta"><img src="${u}" alt="">${fr ? '<i class="np-raiz">RAIZ</i>' : ''}<span>${f._pasta ? `<b>${esc(f._pasta)}</b> ` : ''}${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn" title="Tirar">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); };
           c.ondragstart = e => e.dataTransfer.setData('text/np-img', String(i)); solta(c, g);
           c.oncontextmenu = e => { e.preventDefault(); UI.ctx(e.clientX, e.clientY, [{ head: f.name.replace(/\.[^.]+$/, '') },
-            g ? { label: ehRaiz(g) ? 'A pasta dela já é a raiz' : `A pasta "${g}" é a raiz`, icon: 'star', checked: ehRaiz(g), action: () => { raiz = ehRaiz(g) ? null : { parte: g }; pintaL(); } }
+            { label: f._ref ? 'Não é a referência' : 'Esta é a referência (o personagem inteiro)', icon: 'eye', checked: !!f._ref, action: () => { if (!f._ref) fs.forEach(x => x._ref && Pastas.virarRef(x, false)); Pastas.virarRef(f, !f._ref); pintaL(); } },
+            f._ref ? null : g ? { label: ehRaiz(g) ? 'A pasta dela já é a raiz' : `A pasta "${g}" é a raiz`, icon: 'star', checked: ehRaiz(g), action: () => { raiz = ehRaiz(g) ? null : { parte: g }; pintaL(); } }
               : { label: fr ? 'Não é mais a raiz' : 'Esta imagem é a raiz (a parte principal)', icon: 'star', checked: fr, action: () => { raiz = fr ? null : { arquivo: f }; pintaL(); } },
             { label: 'Mudar para a pasta', icon: 'folder', sub: destinos([f], g) },
-            '-', { label: 'Tirar', icon: 'trash', danger: true, action: () => { fs.splice(i, 1); pintaL(); } }]); };
+            '-', { label: 'Tirar', icon: 'trash', danger: true, action: () => { fs.splice(i, 1); pintaL(); } }].filter(Boolean)); };
           lista.appendChild(c); } }
       drop.classList.toggle('tem', !!fs.length); const nP = new Set(fs.map(f => f._parte).filter(Boolean)).size; $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns)${nP ? ` em ${nP} parte(s) pelas pastas` : ''} — arraste mais se quiser` : 'Arraste as imagens ou PASTAS aqui';
       $('.np-ia', body).hidden = $('[data-p]', body).hidden = !fs.length; };
-    const poe = l => { fs = fs.concat([...l].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name))); pintaL(); };
+    const poe = l => { const novos = [...l].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name)); for (const f of novos) if (Pastas.ehRefNome(f._parte) || Pastas.ehRefNome(f._pasta) || Pastas.ehRefNome(f.name.replace(/\.[^.]+$/, ''))) Pastas.virarRef(f, true); fs = fs.concat(novos); pintaL(); };
     drop.onclick = async ev => { const l = await Pastas.escolherDe(ev, () => pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true)); if (l) poe(l); };
     drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
     drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); Pastas.deDrop(e.dataTransfer).then(poe); };
@@ -114,7 +116,7 @@ const Atelie = {
     let fim = () => { };
     try {
       // folhas de peças / fundo / tamanho: pergunta ANTES (e antes da IA começar)
-      const pr = await this.prepararFolhas(novo.fs, false); if (!pr) return;
+      const refs = novo.fs.filter(f => f._ref), pr = await this.prepararFolhas(novo.fs.filter(f => !f._ref), false); if (!pr) return; pr.fs = [...refs, ...pr.fs]; // a referência não passa pela separação de folhas e fica atrás de tudo
       if (pr.separou.length) novo.pedido = [novo.pedido, 'Algumas imagens vieram de folhas separadas automaticamente: ' + pr.separou.map(f => `"${f.nome} 1..${f.n}" (${f.modo === 'versoes' ? 'versões da mesma peça, cada uma aparada e no centro: junte as do mesmo tipo numa parte só; numa folha de duas fileiras, a de baixo costuma ser o lado de trás' : 'corpo desmontado: cada peça está no lugar em que estava na folha'})`).join('; ')].filter(Boolean).join('\n');
       const nomesP = [...new Set(pr.fs.map(f => f._parte).filter(Boolean))]; if (nomesP.length) novo.pedido = [novo.pedido, `As imagens vieram em PASTAS e cada pasta já é UMA parte (${nomesP.map(n => `"${n}"`).join(', ')}). Mantenha essas partes com esses nomes (pode só arrumar acento/maiúscula), NÃO junte partes diferentes e NÃO separe as imagens de uma pasta.`].filter(Boolean).join('\n');
       if (novo.ia) fim = Ocupado.inicio({ tipo: 'novo', titulo: `A IA está montando "${novo.nome}"`, est: 75, subtitulo: 'Pondo as imagens…' });
@@ -123,6 +125,9 @@ const Atelie = {
       try { await Pintura.apararLista(this.def.partes.flatMap(p => p.imgs)); } catch { } t.remove(); this.commit(); this.enquadrar();
       const rzP = this.raizDoNovo(novo); if (rzP) novo.pedido = [novo.pedido, `A RAIZ é "${rzP.nome}" (escolhida pela pessoa): não mude.`].filter(Boolean).join('\n');
       if (novo.ia) await this.iaOrganizar('organizar', novo.pedido || '');
+      // com referência: põe as peças no lugar dela (a IA já fez isso ao organizar) e deixa a referência invisível
+      const rfP = refs.length && this.def.partes.find(p => Referencia.ehRef(p));
+      if (rfP) { if (!novo.ia) { try { await Referencia.aplicar(this, { quieto: true }); } catch { } } const rf = this.def.partes.find(p => Referencia.ehRef(p)); if (rf) { rf.base.vis = false; this.commit(); } }
       if (rzP && this.def.partes.includes(rzP) && this.def.raiz !== rzP.id) { if (rzP.pai) this.porNoPai(rzP.id, null, { semCommit: true }); this.def.raiz = rzP.id; this.sel = rzP.id; this.commit(); } // a escolha da pessoa vale mais que a da IA
     } finally { fim(); }
   },

@@ -59,5 +59,12 @@ const Pastas = {
   },
   // imagens soltas em cima de UMA parte: as pastas viram pastas de imagens dela (não partes novas)
   paraParte(fs) { for (const f of fs) if (f._parte) { f._pasta = [f._parte, f._pasta].filter(Boolean).join(' / '); delete f._parte; } return fs; },
+  // "referência" no nome da pasta ou da imagem = é a referência (o personagem inteiro)
+  ehRefNome: n => /(^|[^a-z])(referencia|ref)([^a-z]|$)/.test(String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()),
+  virarRef(f, sim) {
+    if (sim && !f._ref) { f._antes = { parte: f._parte, pasta: f._pasta }; f._parte = 'Referência'; f._pasta = null; f._ref = true; }
+    else if (!sim && f._ref) { const a = f._antes || {}; if (a.parte && !this.ehRefNome(a.parte)) f._parte = a.parte; else delete f._parte; f._pasta = a.pasta && !this.ehRefNome(a.pasta) ? a.pasta : null; delete f._ref; delete f._antes; }
+    return f;
+  },
   herda(novo, de) { if (novo && de && novo !== de) { if (de._parte) novo._parte = de._parte; if (de._pasta) novo._pasta = de._pasta; } return novo; },
 };
