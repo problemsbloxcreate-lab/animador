@@ -177,6 +177,9 @@ const Toon = {
 };
 
 /* ---------- começar (só depois do login do Google conferido no servidor) ---------- */
+// o "usar como programa" foi tirado: desliga o service worker antigo (se ainda estiver) e apaga o que ele guardou
+try { navigator.serviceWorker?.getRegistrations?.().then(rs => rs.forEach(r => { if (new URL(r.scope).pathname.startsWith(location.pathname.replace(/[^/]*$/, ''))) r.unregister(); })).catch(() => { });
+  self.caches?.keys?.().then(ks => ks.filter(k => k.startsWith('animador-')).forEach(k => caches.delete(k))).catch(() => { }); } catch { }
 addEventListener('DOMContentLoaded', async () => {
   const email = await TurmaAuth.gate(); if (!email || !TurmaAuth.passed) return;
   // ainda na tela de carregamento: a biblioteca da equipe, quem fez cada projeto (nome e foto de agora) e as miniaturas,

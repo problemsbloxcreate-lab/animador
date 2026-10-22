@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ANIMADOR · Estúdio Problems</title>
 <link rel="icon" href="icones/simbolo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icones/icone-192.png">
-<link rel="manifest" href="manifest.webmanifest">
 <script src="/estudio-carregando.js" data-so-progresso></script><!-- porcentagem e o que está carregando na tela de carregamento -->
 <meta name="theme-color" content="#232323">
 <link rel="stylesheet" href="css/app.css">
@@ -125,7 +124,6 @@
 <script src="js/ocupado.js"></script>
 <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
-<script src="js/pwa.js"></script>
 <script src="js/mp4mux.js"></script>
 <script src="js/modelo.js"></script>
 <script src="js/nuvem.js"></script>
@@ -160,7 +158,6 @@ window.ESTUDIO_CONTA = { nuvem: true, // círculo roxo: espaço na nuvem da equi
   extras: () => [
   typeof App !== 'undefined' && App.P && document.querySelector('#editor:not(.hidden)') && { texto: 'Citar este quadro em mensagens…', icone: 'msg', acao: () => Citacao.animacao(App.P, App.q, App.sel) },
   typeof Atelie !== 'undefined' && Atelie.def && document.querySelector('#atelie:not(.hidden)') && { texto: 'Citar este personagem em mensagens…', icone: 'msg', acao: () => Citacao.atelie() },
-  typeof PWA !== 'undefined' && { texto: PWA.installed ? 'Já está como programa ✓' : 'Usar como programa (instalar)…', icone: 'tela', acao: () => PWA.install() },
 ] };</script>
 <script src="/estudio-conta.js" defer></script>
 </body>
