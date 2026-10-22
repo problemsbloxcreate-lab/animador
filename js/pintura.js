@@ -24,7 +24,7 @@ const Pintura = {
     const cam = Camadas.tem(it.img) ? Camadas.ativa(it.img) : null, orig = Arq.img.get(it.img.k), bm = cam ? Arq.img.get(cam.k) : orig; if (!bm) return null;
     const img = it.img, px = img.pivo?.x ?? img.w / 2, py = img.pivo?.y ?? img.h / 2, inv = it.m.inverse(), kx = bm.width / img.w, ky = bm.height / img.h;
     const ajx = img.ajuste?.x || 0, ajy = img.ajuste?.y || 0;
-    return { p, img, bm, it, cam, orig, vivo: cam ? cv => Arq.img.set(img.k, Camadas.compoe(img, { [cam.id]: cv })) : null, de: q => it.m.transformPoint(new DOMPoint(q.x / kx - px + ajx, q.y / ky - py + ajy)), mImg: it.m.translate(-px + ajx, -py + ajy).scale(1 / kx, 1 / ky), para: w => { const l = inv.transformPoint(new DOMPoint(w.x, w.y)); return { x: (l.x + px - (img.ajuste?.x || 0)) * kx, y: (l.y + py - (img.ajuste?.y || 0)) * ky }; }, k: (kx + ky) / 2, escala: Math.hypot(it.m.a, it.m.b) };
+    return { p, img, bm, it, cam, orig, quadro: Quadro.ctx(p.id), ap: it.ap, vivo: cam ? cv => Arq.img.set(img.k, Camadas.compoe(img, { [cam.id]: cv })) : null, de: q => it.m.transformPoint(new DOMPoint(q.x / kx - px + ajx, q.y / ky - py + ajy)), mImg: it.m.translate(-px + ajx, -py + ajy).scale(1 / kx, 1 / ky), para: w => { const l = inv.transformPoint(new DOMPoint(w.x, w.y)); return { x: (l.x + px - (img.ajuste?.x || 0)) * kx, y: (l.y + py - (img.ajuste?.y || 0)) * ky }; }, k: (kx + ky) / 2, escala: Math.hypot(it.m.a, it.m.b) };
   },
   // círculo do pincel no palco
   desenhaCursor(ctx) {
@@ -57,12 +57,13 @@ const Pintura = {
       const up = async () => { if (acabou) return; acabou = true; for (const [t, f] of [['pointermove', mov], ['pointerup', up], ['pointercancel', up], ['lostpointercapture', up]]) cv0.removeEventListener(t, f);
         Arq.img.set(k0, a.orig); if (Math.abs(d.x) + Math.abs(d.y) < .5) return Atelie.desenha(); try { await this.gravar(a.img, Camadas.deslocado(a.bm, d.x, d.y)); } finally { Arq.img.set(k0, a.orig); } Atelie.commit(); };
       cv0.addEventListener('pointermove', mov); cv0.addEventListener('pointerup', up); cv0.addEventListener('pointercancel', up); cv0.addEventListener('lostpointercapture', up); return; }
-    const { cv, c } = this.tela(a.bm), orig = a.bm, k0 = a.img.k, mask = this.mascara(a);
+    const aq = this.ferr === 'magica' && a.quadro ? Quadro.alvoApagar(a) : a; // borracha mágica num keyframe: apaga só nele
+    const { cv, c } = this.tela(aq.bm), orig = aq.bm, k0 = a.img.k, mask = this.mascara(a);
     if (this.ferr === 'balde' || this.ferr === 'magica') { // balde pinta a área parecida; borracha mágica apaga a área parecida
-      const antes = mask ? this.tela(a.bm) : null;
+      const antes = mask ? this.tela(aq.bm) : null;
       if (this.ferr === 'balde') this.balde(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.cor, this.tol);
       else { const m = this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, e.shiftKey); if (!m) return; c.globalCompositeOperation = 'destination-out'; c.drawImage(m, 0, 0); c.globalCompositeOperation = 'source-over'; }
-      if (mask) this.soNaSelecao(c, antes.cv, mask); await this.gravar(a.img, cv); Atelie.commit(); return; }
+      if (mask) this.soNaSelecao(c, antes.cv, mask); if (aq !== a) { if (await Quadro.gravaApagado(a, aq.bm, cv)) Atelie.commit(); return; } await this.gravar(a.img, cv); Atelie.commit(); return; }
     return this.traco(e, a, pt, mask); // pincel / borracha (pinceis.js: pressão da caneta, dureza, fluxo, suavização…)
   },
   balde(c, W, H, x, y, hex, tol) {

@@ -304,9 +304,9 @@ const Atelie = {
     if (!fundo) for (let x = Math.floor(a.x / g) * g; x < b2.x; x += g) for (let y = Math.floor(a.y / g) * g; y < b2.y; y += g) if (((x + y) / g) % 2 === 0) ctx.fillRect(x, y, g, g);
     ctx.strokeStyle = fundo ? 'rgba(0,0,0,.1)' : '#2c2c2c'; ctx.lineWidth = 1 / this.vista.z; ctx.beginPath(); ctx.moveTo(-5000, 0); ctx.lineTo(5000, 0); ctx.moveTo(0, -5000); ctx.lineTo(0, 5000); ctx.stroke(); ctx.restore();
     const est = this.estado(), itens = Modelo.montar(this.def, est), roxo = this.partesTodas();
-    for (const it of itens) { if (!it.img) continue; const bm = Arq.bitmap(it.img.k, () => this.desenha()); if (!bm) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
+    for (const it of itens) { if (!it.img) continue; const bm = Arq.comAp(Arq.bitmap(it.img.k, () => this.desenha()), it, () => this.desenha()); if (!bm) continue; // comAp: o que foi apagado só neste keyframe const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
       ctx.save(); ctx.setTransform(V.multiply(it.m)); ctx.globalAlpha = this.sel && it.parte.id !== this.sel && this.destacar ? .45 : 1; ctx.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h);
-      if (roxo.has(it.parte.id)) ctx.drawImage(this.tingido(bm, it.img.k), -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); // MOVER TODOS: roxo meio transparente em tudo que vai junto
+      if (roxo.has(it.parte.id)) ctx.drawImage(this.tingido(bm, it.img.k + (it.ap?.k || '')), -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); // MOVER TODOS: roxo meio transparente em tudo que vai junto
       ctx.restore(); }
     ctx.save(); ctx.setTransform(V); Animacoes.desenhaFantasma(ctx); ctx.restore();
     // parte escolhida: só a caixa tracejada (numa cor que contrasta com a peça) e uma cruzinha discreta no centro.
@@ -375,7 +375,7 @@ const Atelie = {
   acha(w) {
     const itens = Modelo.montar(this.def, this.estado()).filter(i => i.img).reverse();
     for (const it of itens) { const loc = it.m.inverse().transformPoint(new DOMPoint(w.x, w.y)), px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, x = loc.x + px - (it.img.ajuste?.x || 0), y = loc.y + py - (it.img.ajuste?.y || 0);
-      if (x >= 0 && y >= 0 && x <= it.img.w && y <= it.img.h) { const bm = Arq.img.get(it.img.k); if (!bm || this.opaco(bm, x * bm.width / it.img.w, y * bm.height / it.img.h)) return it; } }
+      if (x >= 0 && y >= 0 && x <= it.img.w && y <= it.img.h) { const bm = Arq.comAp(Arq.img.get(it.img.k), it); if (!bm || this.opaco(bm, x * bm.width / it.img.w, y * bm.height / it.img.h)) return it; } }
     return null;
   },
   _alfa: new Map(),
@@ -506,7 +506,9 @@ const Atelie = {
   // Mexer aqui só muda o Z; quem encaixa em quem (a hierarquia) continua igual.
   ordemCamadas() { const est = this.estado(); return this.def.partes.map((p, i) => ({ p, i, z: (p.z || 0) + (est[p.id]?.z || 0) })).sort((a, b) => a.z - b.z || a.i - b.i).map(x => x.p); },
   passoCamada(p, d) { if (Referencia.ehRef(p)) return; const L = this.ordemCamadas().reverse().filter(x => !Referencia.ehRef(x)), i = L.indexOf(p), j = i - d; if (j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; this.reordenar(L); },
-  reordenar(frenteParaTras) { // reescreve os Z da base: 0 = mais atrás
+  reordenar(frenteParaTras, todos = false) { // reescreve os Z da base: 0 = mais atrás
+    // num keyframe (passo pausado ou pose do editor): pergunta se a profundidade muda só nele ou em todos (js/quadro.js)
+    const kq = !todos && Quadro.ctx(); if (kq) { frenteParaTras = frenteParaTras.filter(p => !Referencia.ehRef(p)); Quadro.escolheZ(kq).then(v => { if (v === 'quadro') Quadro.reordenar(kq, frenteParaTras); else if (v === 'todos') this.reordenar(frenteParaTras, true); }); return; }
     const n = frenteParaTras.length, pr = this.preset(), est = pr ? pr.estado : null;
     frenteParaTras.forEach((p, i) => { p.z = (n - 1 - i) - (est?.[p.id]?.z || 0); });
     // a referência fica sempre atrás de tudo (ela é o guia, não uma peça)

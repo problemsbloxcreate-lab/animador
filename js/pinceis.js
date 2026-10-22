@@ -60,6 +60,8 @@ Object.assign(Pintura, {
   // traço do pincel/borracha (chamado pelo Pintura.desce)
   async traco(e, a, pt, mask) {
     const apaga = this.ferr === 'borracha' || this.borrachaDaCaneta(e), cfg = this.cfg[apaga ? 'borracha' : 'pincel'], cor = apaga ? '#000000' : this.cor;
+    const a0 = a, noQuadro = apaga && !!a.quadro; if (noQuadro) a = Quadro.alvoApagar(a); // borracha num keyframe: parte da imagem como aparece nele e guarda só a máscara
+    const grava = async cv => { if (noQuadro) return Quadro.gravaApagado(a0, a.bm, cv); await this.gravar(a.img, cv); return true; };
     const { cv, c } = this.tela(a.bm), orig = a.orig || a.bm, k0 = a.img.k, vivo = a.vivo || (x => Arq.img.set(k0, x)), base = this.tela(a.bm).cv, lay = new OffscreenCanvas(cv.width, cv.height), lc = lay.getContext('2d');
     // borracha de fundo: só onde a cor parece com a do primeiro toque
     let fundo = null; if (apaga && cfg.modo === 'fundo') fundo = this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, true);
@@ -76,7 +78,7 @@ Object.assign(Pintura, {
       ult = { ...q }; pAnt = p;
     };
     // Shift+clique: linha reta desde o último ponto desta imagem
-    if (e.shiftKey && this._ultimo?.k === a.img.id) { ult = { ...this._ultimo.pt }; pAnt = this.pressao(e); ponto(pt, this.pressao(e)); junta(); this._ultimo = { k: a.img.id, pt }; await this.gravar(a.img, cv); Atelie.commit(); return; }
+    if (e.shiftKey && this._ultimo?.k === a.img.id) { ult = { ...this._ultimo.pt }; pAnt = this.pressao(e); ponto(pt, this.pressao(e)); junta(); this._ultimo = { k: a.img.id, pt }; if (await grava(cv)) Atelie.commit(); return; }
     ponto(pt, this.pressao(e)); junta(); vivo(cv); Atelie.desenha(); // com camadas: mostra a imagem final com o traço na camada ativa
     try { Atelie.cv.setPointerCapture(e.pointerId); } catch { } let pend = false, acabou = false;
     const mov = ev => {
@@ -90,7 +92,7 @@ Object.assign(Pintura, {
     const up = async ev => { if (acabou) return; acabou = true;
       for (const [t, f] of [['pointermove', mov], ['pointerup', up], ['pointercancel', up], ['lostpointercapture', up]]) Atelie.cv.removeEventListener(t, f);
       const raw = ev && ev.type === 'pointerup' ? a.para(Atelie.mundo(ev)) : null; if (raw) ponto(raw, pAnt); junta(); // fecha o traço onde a caneta saiu (a suavização não deixa ele curto)
-      this._ultimo = { k: a.img.id, pt: raw || liso }; Arq.img.set(k0, orig); try { await this.gravar(a.img, cv); } finally { Arq.img.set(k0, orig); } Atelie.commit(); };
+      this._ultimo = { k: a.img.id, pt: raw || liso }; Arq.img.set(k0, orig); let ok = false; try { ok = await grava(cv); } finally { Arq.img.set(k0, orig); } if (ok) Atelie.commit(); else Atelie.desenha(); };
     Atelie.cv.addEventListener('pointermove', mov); Atelie.cv.addEventListener('pointerup', up); Atelie.cv.addEventListener('pointercancel', up); Atelie.cv.addEventListener('lostpointercapture', up);
   },
 

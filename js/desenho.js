@@ -74,7 +74,7 @@ const Render = {
     ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a));
     if (n.tipo === 'personagem') {
       for (const it of this.pecasPersonagem(P, n, q, mm)) {
-        if (!it.img) continue; const bm = this.bm(it.img.k); if (!bm) continue;
+        if (!it.img) continue; const bm = Arq.comAp(this.bm(it.img.k), it, () => Render.aoChegarImagem?.()); if (!bm) continue;
         const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
         ctx.setTransform(base.multiply(it.m)); const x = -px + (it.img.ajuste?.x || 0), y = -py + (it.img.ajuste?.y || 0);
         if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, x, y, it.img.w, it.img.h); else ctx.drawImage(bm, x, y, it.img.w, it.img.h);

@@ -122,7 +122,9 @@ const Modelo = {
   },
   // todas as partes de todas as vistas (para baixar, mandar para a nuvem, backup…)
   todasPartes(def) { return [...(def?.partes || []), ...(def?.vistas || []).filter(v => v.id !== def.vistaAtual).flatMap(v => v.partes || [])]; },
-  chavesImgs(def) { return [...new Set([...Modelo.todasPartes(def).flatMap(p => p.imgs.flatMap(i => [i.k, ...(i.camadas || []).map(c => c.k)])), def?.vis?.fantasma?.k, ...(def?.vistas || []).map(v => v.vis?.fantasma?.k), ...(def?.refsAnim || []).map(r => r.k)].filter(Boolean))]; },
+  // máscaras de APAGADO só num keyframe (ap: { idDaImagem: { k, x, y } } nos passos/presets, e def.apKeys as que foram para chaves do editor)
+  chavesAp(o, out = []) { if (o && typeof o === 'object') for (const [c, v] of Object.entries(o)) { if (c === 'ap' && v && typeof v === 'object') { for (const m of Object.values(v)) if (m?.k) out.push(m.k); } else if (v && typeof v === 'object') Modelo.chavesAp(v, out); } return out; },
+  chavesImgs(def) { return [...new Set([...Modelo.chavesAp(def), ...(def?.apKeys || []), ...Modelo.todasPartes(def).flatMap(p => p.imgs.flatMap(i => [i.k, ...(i.camadas || []).map(c => c.k)])), def?.vis?.fantasma?.k, ...(def?.vistas || []).map(v => v.vis?.fantasma?.k), ...(def?.refsAnim || []).map(r => r.k)].filter(Boolean))]; },
   // a vista onde está uma animação de teste
   vistaDaAnim(def, animId) { if ((def.animacoes || []).some(a => a.id === animId)) return def.vistaAtual || null; return (def.vistas || []).find(v => (v.animacoes || []).some(a => a.id === animId))?.id || null; },
   // usa os mesmos ids das outras vistas para o que tem o mesmo nome (sessões, presets, partes, imagens, animações)
@@ -170,7 +172,7 @@ const Modelo = {
       const e = est[p.id] || p.base; if (e.vis === false) continue;
       const img = p.imgs.find(i => i.id === e.img) || null, dd = img && e.d?.[img.id], mp = mat(p.id);
       // m = onde a imagem é desenhada (com o "d" desta imagem neste preset) · mp = a parte (as filhas encaixam nela, sem o d)
-      out.push({ parte: p, img, m: dd ? mp.translate(dd.x || 0, dd.y || 0) : mp, mp, z: (p.z || 0) + (e.z || 0) + (img?.z || 0) }); // img.z: camada só daquela imagem (ex.: braço de trás que fica por cima do corpo só na pose base)
+      out.push({ parte: p, img, ap: (img && e.ap?.[img.id]) || null, m: dd ? mp.translate(dd.x || 0, dd.y || 0) : mp, mp, z: (p.z || 0) + (e.z || 0) + (img?.z || 0) }); // img.z: camada só daquela imagem (ex.: braço de trás que fica por cima do corpo só na pose base)
     }
     return out.sort((a, b) => a.z - b.z);
   },
@@ -232,6 +234,15 @@ const Arq = {
       const bm = await createImageBitmap(b).catch(() => null); if (bm) this.img.set(id, bm); return bm;
     })().then(bm => { this.carregando.delete(id); const l = this.avisar.get(id); this.avisar.delete(id); l?.forEach(f => { try { f(bm); } catch (e) { console.error(e); } }); return bm; }));
     return null;
+  },
+  // a imagem com o APAGADO daquele keyframe (máscara recortada: só a área apagada, posição em pixels da imagem). Fica guardada em memória
+  // (uma por imagem+máscara) e refaz sozinha se a imagem mudar (ex.: prévia do pincel). Sem máscara (ou carregando) = a imagem normal.
+  apCache: new Map(),
+  comAp(bm, it, aoChegar) {
+    const ap = it?.ap; if (!bm || !ap?.k) return bm; const m = this.bitmap(ap.k, aoChegar); if (!m) return bm;
+    const ch = it.img.k + '|' + ap.k + '|' + ap.x + '|' + ap.y, c = this.apCache.get(ch); if (c && c.src === bm) return c.cv;
+    const cv = document.createElement('canvas'); cv.width = bm.width; cv.height = bm.height; const x = cv.getContext('2d'); x.drawImage(bm, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(m, ap.x || 0, ap.y || 0);
+    this.apCache.set(ch, { cv, src: bm }); if (this.apCache.size > 160) this.apCache.delete(this.apCache.keys().next().value); return cv;
   },
   // ORIGINAL sem perda: imagens que foram para a nuvem em webp continuam com a PNG original guardada neste navegador (arquivos["orig:<chave webp>"] = chave da original)
   async original(k) { if (!/\.webp$/i.test(k || '')) return null; try { const o = await DB.get('arquivos', 'orig:' + k); return o ? await this.pegaBlob(o) : null; } catch { return null; } },

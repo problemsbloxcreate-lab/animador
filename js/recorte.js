@@ -65,7 +65,9 @@ Object.assign(Pintura, {
   inverter() { const a = this.alvo(), m0 = this.mascara(a); if (!m0) return; const m = new OffscreenCanvas(m0.width, m0.height), x = m.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, m.width, m.height); x.globalCompositeOperation = 'destination-out'; x.drawImage(m0, 0, 0); this.combina(a, m, 'nova'); },
   async mexeDentro(modo) { // 'apagar' a seleção ou 'manter' só ela
     const a = this.alvo(), m = this.mascara(a); if (!m) return UI.toast('Selecione uma área primeiro (M, L ou W)');
-    const { cv, c } = this.tela(a.bm); c.globalCompositeOperation = modo === 'apagar' ? 'destination-out' : 'destination-in'; c.drawImage(m, 0, 0); await this.gravar(a.img, cv); Atelie.commit();
+    const aq = modo === 'apagar' && a.quadro ? Quadro.alvoApagar(a) : a; // apagar a seleção num keyframe: só nele
+    const { cv, c } = this.tela(aq.bm); c.globalCompositeOperation = modo === 'apagar' ? 'destination-out' : 'destination-in'; c.drawImage(m, 0, 0);
+    if (aq !== a) { if (await Quadro.gravaApagado(a, aq.bm, cv)) Atelie.commit(); return; } await this.gravar(a.img, cv); Atelie.commit();
   },
   pedaco(a, m) { const { cv, c } = this.tela(a.bm); c.globalCompositeOperation = 'destination-in'; c.drawImage(m, 0, 0); const bb = this.bbox(cv); if (!bb) return null; const o = new OffscreenCanvas(bb.w, bb.h); o.getContext('2d').drawImage(cv, -bb.x, -bb.y); return { cv: o, bb }; },
   async guardarImg(cv) { const blob = await cv.convertToBlob({ type: 'image/png' }), k = `personagens/${Atelie.def.id}/img/${uid('im').toLowerCase().replace(/[^a-z0-9]/g, '')}.png`; await Arq.guardar(blob, k); Arq.img.set(k, await createImageBitmap(blob)); return k; },
@@ -82,7 +84,7 @@ Object.assign(Pintura, {
     // a parte nova encaixa NA original, no ponto zero: fica exatamente no mesmo lugar e acompanha a original quando ela mexe
     const p = a.p, q = Modelo.novaParte(nome, p.id); q.base.img = img.id; q.imgs = [img];
     const L = Atelie.ordemCamadas().reverse(); Atelie.def.partes.push(q); L.splice(L.indexOf(p), 0, q); // logo na frente da original
-    this.selecao = null; Atelie.escolhe(q.id); Atelie.reordenar(L);
+    this.selecao = null; Atelie.escolhe(q.id); Atelie.reordenar(L, true);
     UI.toast(`<b>${esc(nome)}</b> virou uma parte nova, no mesmo lugar e encaixada em "${esc(p.nome)}"${cortar ? ' (e saiu da original)' : ''}. Alt+arrastar muda o pivô dela.`, { kind: 'ok', time: 6000 });
   },
   // copiar a seleção como IMAGEM NOVA desta mesma parte (ex.: uma variação da boca)

@@ -43,7 +43,7 @@ const Previa = {
       if (!ctl.vivo) return; const f = rot[i % rot.length]; c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
       const base = new DOMMatrix().translate(ox, oy).scale(k);
       for (const it of Modelo.montar(def, Modelo.partesNoEstado(def, f.escolhas))) {
-        if (!it.img) continue; const bm = Arq.img.get(it.img.k); if (!bm) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
+        if (!it.img) continue; const bm = Arq.comAp(Arq.img.get(it.img.k), it); if (!bm) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
         c.setTransform(base.multiply(it.m)); c.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h);
       }
       rot1.textContent = f.nome; rot1.hidden = !f.nome; this.onde.set(kp, i % rot.length); i++; ctl.t = setTimeout(quadro, f.ms);

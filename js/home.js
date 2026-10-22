@@ -222,6 +222,15 @@ addEventListener('DOMContentLoaded', async () => {
       App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); const r = Modelo.achar(App.P, d.no), n = r?.no;
       if (n) { const k = Modelo.chave(n, d.quadro); if (d.vista) k.vista = d.vista; if (d.preset) k.sessoes = { ...(k.sessoes || {}), [d.sessao]: d.preset }; if (d.tiraEspelho) Modelo.poeTransf(n, d.quadro, { sx: Math.abs(Modelo.transf(n, d.quadro).sx || 1) }); if (d.tiraAjustes?.length) { k.partes = { ...(k.partes || {}) }; for (const pid of d.tiraAjustes) k.partes[pid] = null; } }
       App.commit('Pose nova do Ateliê'); UI.toast(`O quadro ${d.quadro + 1} agora usa a ${d.vista ? 'vista' : 'pose'} nova de <b>${esc(d.def.nome)}</b>.`, { kind: 'ok' }); return; }
+    if (d?.tipo === 'quadro-partes' && App.P?.id === d.projeto) { // o que foi mudado SÓ NESTE KEYFRAME no Ateliê (apagado, profundidade): vai para a chave do quadro
+      const n = Modelo.achar(App.P, d.no)?.no; if (!n) return; const def = App.P.personagens?.[d.personagem];
+      if (d.apKey) { if (def) def.apKeys = [...new Set([...(def.apKeys || []), d.apKey])]; await Arq.garantir([d.apKey]); }
+      const qs = Modelo.quadrosChave(n), prox = qs.find(q => q > d.quadro), antes = prox != null ? Modelo.estadoPersonagem(n, prox).partes : null, k = Modelo.chave(n, d.quadro); k.partes = { ...(k.partes || {}) };
+      for (const [pid, v] of Object.entries(d.partes || {})) { const e = { ...(k.partes[pid] || {}) }; if (v.ap) e.ap = { ...(e.ap || {}), ...v.ap }; if ('z' in v) e.z = v.z; k.partes[pid] = e;
+        // só neste keyframe: na próxima chave volta a ser como era
+        if (prox != null) { const k2 = n.chaves[prox]; k2.partes = { ...(k2.partes || {}) }; const e2 = { ...(k2.partes[pid] || {}) };
+          if (v.ap && e2.ap === undefined) e2.ap = antes?.[pid]?.ap ?? null; if ('z' in v && e2.z === undefined) e2.z = antes?.[pid]?.z ?? null; k2.partes[pid] = e2; } }
+      App.commit('Mudança só neste keyframe (Ateliê)'); return; }
     if (d?.tipo !== 'personagem' || !d.def) return;
     if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem atualizado'); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
     else if (!App.P && Home.atual === 'personagens' && !Atelie.emAba) Home.pinta();
