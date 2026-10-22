@@ -109,7 +109,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
     c.innerHTML = `<div class="novos"><button class="novo" data-novo><span class="fm">${ic('plus', 24)}</span><span><b>Personagem novo</b><small>montar pelas partes</small></span></button>
       <button class="novo" data-backup><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .atelieanimador</b><small>backup de um personagem</small></span></button></div>
       <div class="sec">${ic('cloud', 14)} Na nuvem da equipe <span class="sp"></span><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div>`;
-    $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-backup]', c).onclick = () => AtelieArq.escolher(); $('[data-atu]', c).onclick = () => this.pinta();
+    $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-backup]', c).onclick = () => AtelieArq.escolher(); $('[data-atu]', c).onclick = () => { Nuvem.lista(true).catch(() => { }); this.pinta(); };
     const l = $('[data-l]', c);
     // rascunhos: mudanças guardadas só neste computador (ainda não foram para a nuvem)
     Atelie.rascunhos().then(rs => { if (!rs.length) return; const sec = h(`<div><div class="sec">${ic('save', 14)} Só neste computador <small style="color:var(--tx3);font-weight:400;margin-left:6px">personagens locais e mudanças que ainda não foram para a nuvem (a equipe não vê)</small></div><div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div></div>`), g = $('.grade', sec);
@@ -168,6 +168,14 @@ const Toon = {
 /* ---------- começar (só depois do login do Google conferido no servidor) ---------- */
 addEventListener('DOMContentLoaded', async () => {
   const email = await TurmaAuth.gate(); if (!email || !TurmaAuth.passed) return;
+  // ainda na tela de carregamento: a biblioteca da equipe, quem fez cada projeto (nome e foto de agora) e as miniaturas,
+  // para nada "pipocar" depois na tela inicial, no Ateliê ou nas fichas
+  window.EstudioProgresso?.tarefa((async () => {
+    const [L, ps, rs] = await Promise.all([Nuvem.lista().catch(() => []), DB.all('projetos').catch(() => []), Atelie.rascunhos().catch(() => [])]);
+    const gente = [...L.flatMap(it => [it.autor, ...(it.edicoes || [])]), ...ps.flatMap(p => [p.autor, ...(p.edicoes || [])]), ...rs.flatMap(r => [r.def?.autor, ...(r.def?.edicoes || [])])].filter(Boolean);
+    const pre = window.EstudioConta?.preImg || (() => null);
+    await Promise.all([Autores.preCarregar(gente), ...L.map(it => pre(it.thumb)), ...ps.slice(0, 40).map(p => pre(p.thumb)), ...rs.map(r => pre(r.thumb))]);
+  })(), 'Carregando a biblioteca e quem fez cada projeto');
   // "Sair da conta" (botão da conta): salva a animação aberta antes de sair
   (window.ESTUDIO_AO_SAIR ||= []).push(() => App.salvarJa());
   $('#home-brand').onclick = () => App.P ? App.fechar() : Home.pinta();

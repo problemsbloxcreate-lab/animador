@@ -11,7 +11,12 @@ const Nuvem = {
     return r;
   },
   // lista os personagens da equipe: [{ id, nome, pasta, thumb, por, em }]
-  async lista() {
+  // a lista fica guardada por 2 min (já vem pronta da tela de carregamento); salvar/apagar ou "Atualizar" busca de novo
+  lista(novo) {
+    if (!novo && this._lista && Date.now() - this._listaEm < 120000) return this._lista;
+    this._listaEm = Date.now(); return (this._lista = this._listaJa().catch(e => { this._lista = null; throw e; }));
+  },
+  async _listaJa() {
     const j = await (await this.pede('/personagens')).json(), ids = new Set();
     for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) ids.add(m[1]); }
     const out = [];
@@ -38,6 +43,7 @@ const Nuvem = {
   // o que já está na nuvem de cada personagem fica guardado aqui depois da 1ª vez (o "salvar" automático não lista a nuvem toda a cada mudança)
   _ks: new Map(),
   async salvar(def, aoAndar) {
+    this._lista = null;
     let existentes = this._ks.get(def.id);
     if (!existentes) { existentes = new Set(); try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); } catch { } this._ks.set(def.id, existentes); }
     // PERSONAGENS VÃO EM PNG (sem perda nenhuma; decisão do dono). Imagens que chegaram a ir em webp voltam para a PNG original, se ela estiver neste computador.
@@ -83,7 +89,7 @@ const Nuvem = {
   },
   // aplica a troca de chaves num texto JSON do personagem
   remapear(txt, troca) { if (!txt) return txt; for (const [a, b] of Object.entries(troca || {})) txt = txt.split(JSON.stringify(a)).join(JSON.stringify(b)); return txt; },
-  async apagar(id) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/`), { method: 'DELETE' }); await DB.del('personagens', id); this._ks.delete(id); this.avisaEspaco(); },
+  async apagar(id) { this._lista = null; await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/`), { method: 'DELETE' }); await DB.del('personagens', id); this._ks.delete(id); this.avisaEspaco(); },
 
   /* ---------- cenários da equipe: só entram aqui quando alguém escolhe "Salvar na nuvem" (botão direito na camada) ---------- */
   async cenarios() { const j = await (await this.pede('/cenarios')).json(); return (j.itens || []).sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))); },
@@ -172,6 +178,20 @@ const Autores = {
     if (!p?.id || !/^u[0-9a-f]{16}$/.test(p.id)) return Promise.resolve(p);
     if (!this._vivos.has(p.id)) this._vivos.set(p.id, fetch('/pessoa?u=' + encodeURIComponent(p.id), { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null));
     return this._vivos.get(p.id).then(j => j?.nome ? { ...p, nome: j.nome, foto: j.foto || (/^\/conta\//.test(p.foto || '') ? null : p.foto) } : p);
+  },
+  // antes de mostrar: nome e foto de AGORA de cada pessoa, com a foto já baixada (sem trocar na frente da pessoa)
+  async preCarregar(gente) {
+    const ps = await Promise.all([...new Map(gente.filter(p => p?.id).map(p => [p.id, p])).values()].map(p => this.vivo(p)));
+    const pre = window.EstudioConta?.preImg || (u => !u ? null : new Promise(ok => { const im = new Image(); im.onload = im.onerror = ok; im.src = u; setTimeout(ok, 5000); }));
+    await Promise.all(ps.map(p => pre(p?.foto)));
+    return ps;
+  },
+  // ficha do arquivo: espera os nomes e fotos atualizados (no máximo 3 s) para já abrir certa
+  async prepara(o) {
+    const gente = [o.autor, ...(o.edicoes || []), o.pacote?.por].filter(Boolean);
+    await Promise.race([this.preCarregar(gente), new Promise(r => setTimeout(r, 3000))]).catch(() => { });
+    const [autor, edicoes, por] = await Promise.all([o.autor ? this.vivo(o.autor) : null, Promise.all((o.edicoes || []).map(x => this.vivo(x))), o.pacote?.por ? this.vivo(o.pacote.por) : null]);
+    return { ...o, autor: autor || o.autor, edicoes, pacote: o.pacote ? { ...o.pacote, por } : o.pacote };
   },
   async aoVivo(d) { const autor = await this.vivo(d.autor), edicoes = await Promise.all((d.edicoes || []).map(x => this.vivo(x))); return { ...d, autor, edicoes }; },
   selo(d0) {
