@@ -694,3 +694,12 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .at-palco .modo-at .at-ib{width:28px;height:28px;border-radius:8px;background:rgba(27,27,27,.94);border:1px solid var(--bd2);color:var(--tx2);display:grid;place-items:center}
 .at-palco .modo-at .at-ib.on{background:#2a3b47;border-color:#19d3f0;color:#bff4ff}
 .tl-c{width:56px;height:34px}.tl-c small{font-size:9.5px}
+/* PARTES: dá para pegar e arrastar (alça de pontinhos, mãozinha, linha azul de onde vai cair, área "sem pai" no fim da lista) */
+.at-partes .no{cursor:grab;position:relative}.at-partes .no:active{cursor:grabbing}
+.at-partes .no .pega{display:grid;place-items:center;width:10px;margin-left:-6px;color:var(--tx3);opacity:0;transition:opacity .12s}
+.at-partes .no:hover .pega,.at-partes .no.sel .pega{opacity:.7}
+.at-partes .no.arrastando{opacity:.4}
+.at-partes.arrastando-parte .no.drop-antes{box-shadow:inset 0 3px 0 #5aa9e8}.at-partes.arrastando-parte .no.drop-depois{box-shadow:inset 0 -3px 0 #5aa9e8}
+.at-partes.arrastando-parte .no.drop-dentro{outline:none;background:rgba(90,169,232,.18);box-shadow:inset 0 0 0 1px #5aa9e8}
+.at-partes.arrastando-parte .no.drop-dentro::after{content:'vira filha';position:absolute;right:30px;font-size:10px;color:#a9d3f5;background:#17273a;padding:1px 6px;border-radius:8px}
+.at-partes.arrastando-parte::after{content:'solte aqui: fica sem pai';display:block;margin:6px 8px;padding:8px;border:1px dashed #3d5f80;border-radius:8px;text-align:center;font-size:11px;color:#8fb6da}
