@@ -58,7 +58,7 @@ const Atelie = {
       <label class="field" style="flex:1" title="De que ângulo são estas imagens. Depois dá para pôr as outras vistas (frente, lado, costas…)">Vista<select data-vt>${Modelo.TIPOS_VISTA.map(([t, n]) => `<option value="${t}" ${t === 'frente' ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <div class="field">Imagens <small>(opcional) — as peças do personagem em PNG com fundo transparente. O melhor: as camadas do desenho exportadas no mesmo tamanho (já encaixam sozinhas).</small></div>
       <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens ou PASTAS aqui</b><small>ou clique para escolher imagens ou uma pasta · arrastando pastas, cada pasta vira uma parte (ex.: "perna_frente" → Perna frente)</small></div><div class="np-lista" data-l></div>
-      <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, camadas, sessões, presets e animações de teste)</label>
+      <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, profundidade, sessões, presets e animações de teste)</label>
       <textarea rows="2" data-p placeholder="Opcional: dicas para a IA. Ex.: &quot;as bocas são para falar&quot;, &quot;o corpo é a raiz&quot;"></textarea></div>`);
     const lista = $('[data-l]', body), drop = $('[data-d]', body), ia = $('[data-ia]', body), urls = [];
     const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = '';
@@ -625,7 +625,7 @@ const Atelie = {
         { head: `igual a "${(p.imgs.find(i => i.id === this.estado()[p.id]?.img) || p.imgs[0]).nome}" (a que aparece)` },
         { label: 'Pelo centro', action: () => this.alinharImagens(p, 'centro') }, { label: 'Por baixo (pés no mesmo chão)', action: () => this.alinharImagens(p, 'baixo') }, { label: 'Por cima', action: () => this.alinharImagens(p, 'cima') }] },
       !varias && p.pai && { label: 'Soltar do pai', icon: 'layers', action: () => this.porNoPai(p.id, null) },
-      !varias && '-', !varias && { label: 'Para a frente', icon: 'up', key: ']', action: () => this.passoCamada(p, 1) }, !varias && { label: 'Para trás', icon: 'down', key: '[', action: () => this.passoCamada(p, -1) }, !varias && { label: 'Ver as camadas', icon: 'layers', action: () => { this.vistaPartes = 'camadas'; this.pintaPartes(); } },
+      !varias && '-', !varias && { label: 'Para a frente', icon: 'up', key: ']', action: () => this.passoCamada(p, 1) }, !varias && { label: 'Para trás', icon: 'down', key: '[', action: () => this.passoCamada(p, -1) }, !varias && { label: 'Ver a profundidade', icon: 'layers', action: () => { this.vistaPartes = 'camadas'; this.pintaPartes(); } },
       '-', { label: varias ? `Apagar as ${lista.length} partes` : 'Apagar a parte', icon: 'trash', key: 'Delete', danger: true, action: () => this.apagarPartes(lista) },
     ].filter(Boolean); if (o.so) return itens; UI.ctx(e.clientX, e.clientY, itens);
   },
@@ -789,7 +789,7 @@ const Atelie = {
         const img = p.imgs.find(i => i.id === ev.dataTransfer.getData('text/img')); if (img && (img.pasta || null) !== pasta) { if (pasta) img.pasta = pasta; else delete img.pasta; this.commit(); } };
     };
     const card = img => {
-      const bm = Arq.bitmap(img.k, () => this.pintaImgs()), c = h(`<div class="im ${img.id === atual ? 'on' : ''} ${this.focoImg?.img === img.id ? 'foco' : ''} ${this.marcas().imgs.has(img.id) ? 'mod' : ''} ${this.moverTodos ? 'todos' : this.modoMover === 'imagem' && img.id === atual ? 'mesma' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span><button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
+      const bm = Arq.bitmap(img.k, () => this.pintaImgs()), c = h(`<div class="im ${img.id === atual ? 'on' : ''} ${this.focoImg?.img === img.id ? 'foco' : ''} ${this.marcas().imgs.has(img.id) ? 'mod' : ''} ${this.moverTodos ? 'todos' : this.modoMover === 'imagem' && img.id === atual ? 'mesma' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span>${Camadas.tem(img) ? `<i class="im-cam" title="Imagem com ${img.camadas.length} camada${img.camadas.length > 1 ? 's' : ''} (Pintar e cores › Camadas)">${ic('layers', 11)}${img.camadas.length}</i>` : ''}<button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
       if (bm) { const cv = document.createElement('canvas'); cv.width = 96; cv.height = 96; const k = Math.min(96 / bm.width, 96 / bm.height); cv.getContext('2d').drawImage(bm, (96 - bm.width * k) / 2, (96 - bm.height * k) / 2, bm.width * k, bm.height * k); c.style.backgroundImage = `url(${cv.toDataURL()})`; }
       c.onclick = ev => { if (ev.target.closest('.x')) return; this.focoImg = { p: p.id, img: img.id }; this.mudar(p.id, { img: img.id }); this.commit(); this.pintaImgs(); };
       c.ondblclick = () => this.renomearImg(img);
@@ -849,7 +849,7 @@ const Atelie = {
     else { box.appendChild(Lado.campo('Encaixe X', p.encaixe.x, -1500, 1500, 1, v => { p.encaixe.x = v; this.desenha(); }, sol)); box.appendChild(Lado.campo('Encaixe Y', p.encaixe.y, -1500, 1500, 1, v => { p.encaixe.y = v; this.desenha(); }, sol)); }
     box.appendChild(Lado.campo('Girar', est.r || 0, -180, 180, .5, v => mexe('r', v), sol)); box.appendChild(Lado.campo('Tamanho', est.s ?? 1, .05, 4, .01, v => mexe('s', v), sol));
     const o = h(`<div class="campo2"><label class="chk"><input type="checkbox" data-sx ${est.sx < 0 ? 'checked' : ''}> Espelhar (F)</label><label class="chk"><input type="checkbox" data-v ${est.vis !== false ? 'checked' : ''}> Aparece (H)</label>
-      <span class="sp"></span><span style="color:var(--tx2)">Camada</span><input type="number" value="${p.z || 0}" data-z style="width:54px" title="Maior = mais na frente ( [ e ] )"></div>`);
+      <span class="sp"></span><span style="color:var(--tx2)">Profundidade</span><input type="number" value="${p.z || 0}" data-z style="width:54px" title="Profundidade: maior = mais na frente ( [ e ] )"></div>`);
     $('[data-sx]', o).onchange = ev => { this.mudar(p.id, { sx: ev.target.checked ? -1 : 1 }); this.commit(); }; $('[data-v]', o).onchange = ev => { this.mudar(p.id, { vis: ev.target.checked }); this.commit(); };
     $('[data-z]', o).onchange = ev => { p.z = +ev.target.value; this.commit(); }; box.appendChild(o);
     if (this.edit && this.preset().estado[p.id]) { const lb = h(`<button class="btn sm">${ic('undo', 13)} Esta parte igual à base neste preset</button>`); lb.onclick = () => { delete this.preset().estado[p.id]; this.commit(); }; box.appendChild(lb); }
@@ -1172,7 +1172,7 @@ const Atelie = {
     const def = this.def; if (!def.partes.length) return UI.toast('Ponha as partes do personagem antes de usar a IA.', { kind: 'warn' });
     const atual = this.edit?.s || def.sessoes[0]?.id || '';
     const body = h(`<div><label class="field">O que a IA deve fazer<select data-modo>
-        <option value="organizar">Organizar tudo automaticamente (partes, raiz, encaixes, camadas, sessões, presets e animações de teste)</option>
+        <option value="organizar">Organizar tudo automaticamente (partes, raiz, encaixes, profundidade, sessões, presets e animações de teste)</option>
         <option value="animacoes">Criar animações de teste (andar, falar, piscar…)</option>
         <option value="preset">Criar um preset numa sessão</option><option value="vazios">Preencher os presets vazios de uma sessão</option></select></label>
       <label class="field" data-so-s>Sessão<select data-s>${def.sessoes.map(s => `<option value="${s.id}" ${s.id === atual ? 'selected' : ''}>${esc(s.nome)} (${s.presets.length})</option>`).join('')}<option value="__nova">+ Sessão nova…</option></select></label>

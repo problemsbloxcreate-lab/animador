@@ -18,7 +18,7 @@ const Camadas = {
     return cv;
   },
   async chave(blob) { const iid = uid('im').toLowerCase().replace(/[^a-z0-9]/g, ''), k = `personagens/${Atelie.def.id}/img/${iid}.png`; await Arq.guardar(blob, k); Arq.img.set(k, await createImageBitmap(blob)); return k; },
-  async guarda(cv) { return this.chave(await cv.convertToBlob({ type: 'image/png' })); },
+  async guarda(cv) { try { cv.getContext?.('2d'); } catch { } /* canvas sem desenho não vira PNG sem um contexto */ return this.chave(await cv.convertToBlob({ type: 'image/png' })); },
   // refaz a imagem final (img.k) a partir das camadas
   async achata(img) { await this.garante(img); img.k = await this.guarda(this.compoe(img)); return img.k; },
   async mudou(img) { await this.achata(img); Atelie.commit(); },
