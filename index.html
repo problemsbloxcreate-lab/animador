@@ -24,7 +24,7 @@
   <header class="bar">
     <div class="brand" id="ed-inicio" title="Voltar ao início (as animações ficam salvas)"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><path d="M12 7.2v6.4M12 9.3l-4.2 2.4-1.5 3.3M12 9.3l4.2-1.8 2.3-2.5M12 13.6l-2.9 3.6-.6 4.3M12 13.6l3.3 3 1.5 4"/></svg></span><span><b>ANIMADOR</b><small>Estúdio Problems</small></span></div>
     <span class="sep"></span>
-    <div class="proj-nome"><b id="proj-nome" title="Clique para renomear"></b><span class="salvo" id="salvo"></span></div>
+    <div class="proj-nome"><b id="proj-nome" title="Clique para renomear"></b><span class="salvo" id="salvo"></span></div><button class="btn sm" id="b-junto" title="Trabalhar junto ao vivo: outras pessoas da equipe entram, cada uma com o cursor e o nome, e veem as mudanças na hora"></button><span class="aovivo-barra" data-aovivo="animador" hidden></span>
     <span class="sep"></span>
     <button class="ibtn" id="b-undo" title="Desfazer (Ctrl+Z)"></button><button class="ibtn" id="b-redo" title="Refazer (Ctrl+Y)"></button>
     <span class="sp"></span>
@@ -94,7 +94,7 @@
     <span id="at-autores" class="at-autores"></span>
     <button class="btn ia" id="at-ia" title="IA do Ateliê: criar presets e expressões a partir das peças"></button>
     <button class="ibtn" id="at-backup" title="Baixar backup do personagem (.atelieanimador)"></button>
-    <span id="at-estado" class="at-estado"></span>
+    <span class="aovivo-barra" data-aovivo="atelie" hidden></span><span id="at-estado" class="at-estado"></span>
     <button class="btn primary" id="at-salvar" title="Salvar na nuvem da equipe (Ctrl+S)"></button>
     <span data-estudio-conta></span>
   </header>
@@ -148,6 +148,8 @@
 <script src="js/arquivos.js"></script>
 <script src="js/camadas.js"></script>
 <script src="js/ajustes.js"></script>
+<script src="js/aovivo.js"></script>
+<script src="js/aovivolocal.js"></script>
 <script src="js/falas.js"></script>
 <script src="js/pintura.js"></script>
 <script src="js/recorte.js"></script>

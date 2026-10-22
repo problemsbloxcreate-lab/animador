@@ -8,6 +8,8 @@ const TURMA_CONFIG = {
   menuUrl: '/',
   // login com Google (Firebase)
   equipeLimiteGB: 1,
+  // trabalhar junto ao vivo (Firebase Realtime Database do mesmo projeto do login). Vazio = desligado
+  aoVivoUrl: 'https://problems-estudios-default-rtdb.firebaseio.com',
   firebase: {
     apiKey: 'AIzaSyAi04-Bbe-1yUG6xi9S2Ef26nImJUi6q60',
     authDomain: 'problems-estudios.firebaseapp.com',

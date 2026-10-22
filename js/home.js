@@ -23,6 +23,17 @@ const Home = {
     $('[data-abrir]', c).onclick = async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) this.importar(f); };
     const busca = $('input[type=search]', c); busca.oninput = () => { this.q = busca.value; this.grade(c); };
     this.grade(c);
+    // AO VIVO AGORA: animações abertas para trabalhar junto
+    this._offLista?.(); const av = h('<section class="aovivo-agora" hidden><div class="sec">' + ic('users', 14) + ' Ao vivo agora <small class="sec-sub">animações abertas para trabalhar junto · entre e veja quem está mexendo</small></div><div class="av-salas"></div></section>'); $('[data-g]', c).before(av);
+    this._offLista = AoVivo.ouvirLista(L => { if (!av.isConnected) return this._offLista?.(); av.hidden = !L.length; const g = $('.av-salas', av); g.innerHTML = '';
+      for (const s of L) { const b = h(`<button class="av-sala"><b>${esc(s.nome || 'Animação')}</b><small>aberta por ${esc(s.por || 'alguém')}</small><span class="btn sm">Entrar</span></button>`); b.onclick = () => this.entrarJunto(s); g.appendChild(b); } });
+  },
+  async entrarJunto(s) {
+    const fim = Ocupado.inicio({ tipo: 'junto', titulo: `Entrando em "${s.nome || 'Animação'}"`, subtitulo: 'Baixando a animação e os arquivos…' }); let r;
+    try { r = await AoVivo.baixarSala(s.sala); } catch (e) { fim(); return UI.toast('Não deu para entrar: ' + esc(e.message), { kind: 'err' }); }
+    if (!r) { fim(); return UI.toast('Essa sala já terminou.', { kind: 'warn' }); }
+    try { const P = r.P; P.modificado = Date.now(); await DB.put('projetos', JSON.parse(JSON.stringify(P))); await App.abrir(P); await AoVivo.entrar(AoVivo.adAnimador(false), { avisa: true }); App.pintaJunto(); } finally { fim(); }
+    UI.toast('Você entrou! Ao sair, a cópia com as últimas mudanças fica salva neste computador.', { kind: 'ok', time: 6000 });
   },
   async grade(c) {
     const g = $('[data-g]', c), todos = (await DB.all('projetos')).sort((a, b) => b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));

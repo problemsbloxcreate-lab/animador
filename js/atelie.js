@@ -49,6 +49,7 @@ const Atelie = {
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
     if (this.naNuvem && this.sujo) this.agendaNuvem(); // mudanças guardadas aqui que ainda não foram: vão agora
     if (novo?.fs.length) await this.montarNovo(novo); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
+    AoVivo.entrarAtelie().catch(() => { }); // personagem da nuvem: quem mais estiver nele aparece (cursor, nome, mudanças)
   },
   // tela do personagem novo (qualquer personagem): nome, as imagens (camadas do desenho ou peças soltas) e, se quiser, a IA organiza tudo
   async assistenteNovo() {
@@ -135,6 +136,7 @@ const Atelie = {
     } finally { fim(); }
   },
   async sair() {
+    if (AoVivo.ad?.ctx === 'atelie') await AoVivo.sair();
     // nada se perde ao sair: guarda já neste computador e, se o personagem é da nuvem, manda o que falta
     await this.guardarLocalJa();
     if (this.naNuvem && this.sujo) { const t = UI.toast('<span class="spin-dot"></span> Mandando as últimas mudanças para a nuvem…', { time: 60000 }); await this.sincronizar(true); t.remove();
@@ -330,6 +332,7 @@ const Atelie = {
     // régua (em cima e à esquerda) e as guias de onde a peça grudou
     const itS = itens.find(x => x.parte.id === this.sel && x.img);
     Regua.desenha(ctx, V, W, H, d, { guias: this.guias, on: this.regua(), sel: itS ? this.caixaItem(itS) : null });
+    AoVivo.desenha(ctx, V, d); // quem está junto: cursor com cor e nome
   },
   /* ---------- régua e ímã (como no editor): R liga/desliga; arrastando, a peça gruda nas bordas e no meio das outras e no centro (0,0); Ctrl segura para não grudar ---------- */
   regua() { if (this._regua == null) { try { this._regua = localStorage.getItem('animador-atelie-regua') !== '0'; } catch { this._regua = true; } } return this._regua; },
@@ -1247,7 +1250,7 @@ const Atelie = {
     const t = UI.toast('<span class="spin-dot"></span> <span data-p>Salvando na nuvem…</span>', { time: 600000 });
     try { await Icone.prepara(def); await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); this.aplicaTroca(Nuvem.ultimaTroca); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.base0 = this.baseNuvem = this.ultimo; this.pinta();
       this.avisaAnimador(def, false); // a animação aberta (aqui ou na outra aba) atualiza o personagem e tira o "não está na nuvem"
-      this.naNuvem = true; this.pintaBotaoNuvem(); this.pintaEstado();
+      this.naNuvem = true; this.pintaBotaoNuvem(); this.pintaEstado(); AoVivo.entrarAtelie().catch(() => { });
       UI.toast(`<b>${esc(def.nome)}</b> salvo na nuvem da equipe (pasta "${esc(def.pasta)}"). Agora as mudanças vão sozinhas para a nuvem.`, { kind: 'ok', time: 5000 });
       if (!o.semAviso) await this.avisoLocais(); }
     catch (e) { t.remove(); UI.toast('Não salvou: ' + esc(e.message), { kind: 'err', time: 7000 }); }

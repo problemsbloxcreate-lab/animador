@@ -6,14 +6,33 @@ const App = {
 
   /* ---------- abrir / fechar ---------- */
   async abrir(P) {
+    if (AoVivo.ad?.ctx === 'animador' && AoVivo.ad.sala !== 'an-' + P.id) await AoVivo.sair();
     if (!P.temFundoPadrao) { P.temFundoPadrao = true; if (!Modelo.todos(P).some(n => n.fundoPadrao)) P.raiz.push(Modelo.fundoPadrao(P.w, P.h, P.fundo)); } // projetos de antes: a folha vira camada
     this.P = P; this.q = 0; this.sel = null; this.desfazer = []; this.refazer = []; this.ultimo = JSON.stringify(P);
     Promise.all(Object.values(P.personagens || {}).map(def => Arq.garantir(Modelo.chavesImgs(def)))).then(() => Icone.garanteNoEditor(P)); // personagens sem ícone/cor ganham (a cabeça e a cor que mais aparece)
     Telas.mostra('editor'); $('#proj-nome').textContent = P.nome; this.titulo();
     this.palco.liga(); this.enquadrar(); Arvore.pinta(); Folha.liga(); Lado.pinta(); Som.prepara(P);
-    this.salvoTxt('Salvo neste computador');
+    this.salvoTxt('Salvo neste computador'); this.pintaJunto();
   },
-  async fechar() { this.pausa(); await this.salvarJa(); this.P = null; Telas.mostra('home'); Home.pinta(); this.titulo(); },
+  async fechar() { this.pausa(); await this.salvarJa(); if (AoVivo.ad?.ctx === 'animador') await this.sairJunto(false, true); this.P = null; Telas.mostra('home'); Home.pinta(); this.titulo(); },
+  // TRABALHAR JUNTO: o arquivo vai TEMPORARIAMENTE para a nuvem enquanto as pessoas trabalham (js/aovivo.js)
+  async trabalharJunto() {
+    if (AoVivo.ativo && AoVivo.ad?.ctx === 'animador') return UI.toast('Já está ao vivo: quem é da equipe entra pela tela inicial, em "Ao vivo agora".');
+    if (!AoVivo.ligado()) return UI.modal({ title: 'Trabalhar junto', icon: 'users', width: 440, body: '<div>O tempo real ainda não foi ligado no Estúdio. Quem cuida do Firebase precisa ativar o <b>Realtime Database</b> uma vez (é grátis).</div>', buttons: [{ label: 'Entendi', kind: 'primary', value: true }] });
+    const ok = await UI.confirm({ title: 'Trabalhar junto nesta animação?', msg: `Uma cópia de <b>${esc(this.P.nome)}</b> fica <b>temporariamente</b> na nuvem enquanto vocês trabalham. Quem é da equipe entra pela tela inicial (<b>Ao vivo agora</b>) e cada um vê o cursor, o nome e as mudanças dos outros na hora.<br><br>Ao terminar, cada um fica com a cópia com as últimas mudanças, a nuvem é apagada, e a versão de agora fica guardada aqui como <b>(anterior)</b>.`, ok: 'Abrir para a equipe' });
+    if (!ok) return; await this.salvarJa();
+    const ant = JSON.parse(JSON.stringify(this.P)); ant.id = uid('p'); ant.nome = this.P.nome + ' (anterior)'; ant.anterior = { em: Date.now() }; await DB.put('projetos', ant);
+    const fim = Ocupado.inicio({ tipo: 'junto', titulo: 'Abrindo para trabalhar junto', subtitulo: 'Mandando a animação e os arquivos…' }); let entrou = false;
+    try { const eu = await AoVivo.quem(); entrou = await AoVivo.entrar(AoVivo.adAnimador(true), { novo: true, avisa: true, meta: { tipo: 'animador', nome: this.P.nome, por: eu.nome, w: this.P.w, h: this.P.h, fim: false } }); } finally { fim(); }
+    if (!entrou) { await DB.del('projetos', ant.id).catch(() => { }); return; }
+    this.pintaJunto(); UI.toast('Ao vivo! Quem é da equipe entra pela tela inicial, em <b>Ao vivo agora</b>.', { kind: 'ok', time: 7000 });
+  },
+  // sair (cada um fica com a sua cópia) ou encerrar para todos (quem abriu)
+  async sairJunto(encerrar, quieto) {
+    if (!(AoVivo.ativo && AoVivo.ad?.ctx === 'animador')) return; if (encerrar && !(await UI.confirm({ title: 'Encerrar para todos?', msg: 'Cada pessoa fica com a cópia com as últimas mudanças no computador dela, e a animação sai da nuvem.', ok: 'Encerrar' }))) return;
+    await this.salvarJa(); await AoVivo.sair({ encerrar }); this.pintaJunto(); if (!quieto) UI.toast(encerrar ? 'Encerrado: a animação saiu da nuvem. A cópia com as últimas mudanças ficou salva aqui.' : 'Você saiu. A cópia com as últimas mudanças ficou salva neste computador.', { kind: 'ok', time: 7000 });
+  },
+  pintaJunto() { const b = $('#b-junto'); if (!b) return; const on = AoVivo.ativo && AoVivo.ad?.ctx === 'animador'; b.hidden = on; b.innerHTML = ic('users', 13) + ' Trabalhar junto'; b.onclick = () => this.trabalharJunto(); AoVivo.pintaBarra(); },
   titulo() { document.title = (this.P ? this.P.nome + ' — ' : '') + 'ANIMADOR · Estúdio Problems'; },
 
   /* ---------- mudanças, desfazer, salvar ---------- */
@@ -301,7 +320,7 @@ const App = {
     ctx.fillStyle = 'rgba(21,21,21,.38)'; ctx.fill('evenodd');
     ctx.strokeStyle = this.sel === 'camera' ? '#9fc3ff' : 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5 * pc.dpr; ctx.beginPath(); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = `${11 * pc.dpr}px Segoe UI`; ctx.fillText(`Câmera · ${P.w}×${P.h}`, ct[0].x + 6 * pc.dpr, ct[0].y - 6 * pc.dpr);
-    this.desenhaRegua(ctx, V, W, H, pc.dpr);
+    this.desenhaRegua(ctx, V, W, H, pc.dpr); AoVivo.desenha(ctx, V, pc.dpr);
     // seleção com alças (girar em cima, tamanho no canto)
     const al = this.palco.alcas();
     if (al) {

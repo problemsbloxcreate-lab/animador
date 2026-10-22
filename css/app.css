@@ -630,3 +630,12 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 /* referência: sempre em cima da hierarquia e das camadas (guia, desenhada atrás de tudo) */
 .at-partes .no.ref{border-left-color:#5aa9e8;background:rgba(90,169,232,.08)}.at-partes .no.ref .nm{color:#a9d3f5}
 .cam.ref{border-left:3px solid #5aa9e8;background:rgba(90,169,232,.08)}.cam.ref .grip{opacity:.25}
+
+/* trabalhar junto ao vivo */
+.aovivo-barra{display:inline-flex;align-items:center;gap:4px;margin-left:8px}.aovivo-barra[hidden]{display:none}
+.av-ao{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#7bd88f;margin-right:2px;white-space:nowrap}
+.av-p{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#111;background:var(--c);box-shadow:0 0 0 2px var(--c);overflow:hidden;margin-left:-3px;border:2px solid var(--bg1,#151515)}.av-p img{width:100%;height:100%;object-fit:cover}
+#b-junto{margin-left:8px;display:inline-flex;align-items:center;gap:5px}
+.aovivo-agora{margin:6px 0 14px}.av-salas{display:flex;flex-wrap:wrap;gap:8px}
+.av-sala{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:10px;border:1px solid #2e6b3e;background:rgba(123,216,143,.08);color:var(--tx);cursor:pointer;min-width:200px;font:inherit;text-align:left}
+.av-sala small{color:var(--tx3);font-size:11px}.av-sala .btn{margin-top:6px}.av-sala:hover{background:rgba(123,216,143,.15)}
