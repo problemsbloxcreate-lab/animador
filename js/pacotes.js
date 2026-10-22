@@ -32,6 +32,29 @@ const AtelieArq = {
     for (const [nome, d] of m) if (nome.startsWith('arq/')) { const k = decodeURIComponent(nome.slice(4)); await Arq.guardar(new Blob([d]), k); Arq.img.delete(k); }
     return { def, info };
   },
+  // SUBSTITUIR o personagem aberto pelo arquivo: tudo (partes, imagens, poses/presets, animações, vistas) vem do arquivo; o personagem continua o
+  // mesmo (id, nome, pasta, autor), então se está na nuvem a nuvem é atualizada sozinha. Antes, a versão de agora vira uma cópia só neste computador.
+  async substituir(f) {
+    const atual = Atelie.def; if (!atual) return this.abrir(f);
+    let r; try { r = await this.ler(f); } catch (e) { return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
+    const novo = r.def, np = Modelo.todasPartes ? Modelo.todasPartes(novo).length : novo.partes.length, nps = (novo.sessoes || []).reduce((n, s) => n + (s.presets?.length || 0), 0) + (novo.vistas || []).reduce((n, v) => n + (v.sessoes || []).reduce((m, s) => m + (s.presets?.length || 0), 0), 0);
+    const op = await UI.modal({ title: 'Substituir este personagem?', icon: 'layers', width: 480, body: `<div>Trocar tudo de <b>${esc(atual.nome)}</b> — partes, imagens, poses e presets, animações de teste e vistas — pelo que está no arquivo <b>${esc(f.name)}</b> (${esc(novo.nome || '')}: ${np} parte${np === 1 ? '' : 's'}, ${nps} preset${nps === 1 ? '' : 's'}).<br><br>Antes, uma cópia de como ele está agora fica guardada <b>neste computador</b> ("${esc(atual.nome)} (anterior)", em Só neste computador).${Atelie.naNuvem ? '<br><br>Ele está na nuvem: a nuvem da equipe também passa a ter a versão do arquivo.' : ''}</div>`,
+      buttons: [{ label: 'Cancelar', value: null }, { label: 'Abrir como outro personagem', value: 'abrir' }, { label: 'Substituir', kind: 'primary', value: 'sub' }] });
+    if (op === 'abrir') return this.abrir(f); if (op !== 'sub') return;
+    const t = UI.toast('<span class="spin-dot"></span> Guardando a cópia de antes…', { time: 300000 });
+    try {
+      await Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(atual)), atual.thumb, `${atual.nome} (anterior)`);
+      // as imagens do arquivo passam a morar no personagem aberto (mesmo id = mesma pasta na nuvem)
+      const velho = novo.id, id = atual.id, troca = k => k.split(`personagens/${velho}/`).join(`personagens/${id}/`);
+      if (velho !== id) for (const k of Modelo.chavesImgs(novo)) { const b = await Arq.pegaBlob(k).catch(() => null); if (!b) continue; const k2 = troca(k); await Arq.guardar(b, k2); Arq.img.delete(k2); }
+      const d = velho === id ? novo : JSON.parse(troca(JSON.stringify(novo)));
+      Object.assign(d, { id, nome: atual.nome, pasta: atual.pasta, autor: atual.autor, edicoes: atual.edicoes, modificado: Date.now() }); for (const c of ['autor', 'edicoes']) if (d[c] === undefined) delete d[c];
+      Modelo.garanteVistas?.(d); await Arq.garantir(Modelo.chavesImgs(d)).catch(() => { });
+      Atelie.def = d; Atelie.sel = d.raiz || d.partes[0]?.id || null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = null; if (Atelie.edImg) Atelie.fecharEditor(); Atelie.multi?.clear();
+      Atelie.commit(); Atelie.enquadrar?.(); t.remove();
+      UI.toast(`<b>${esc(atual.nome)}</b> agora é a versão do arquivo.${Atelie.naNuvem ? ' A nuvem está sendo atualizada.' : ''} A de antes ficou em <b>${esc(atual.nome)} (anterior)</b>, só neste computador (Ctrl+Z também volta).`, { kind: 'ok', time: 8000 });
+    } catch (e) { t.remove(); UI.toast('Não consegui substituir: ' + esc(e.message), { kind: 'err', time: 7000 }); }
+  },
   // errado = soltou/abriu no lugar de animação: abre no Ateliê do mesmo jeito, mas avisa que projeto do Animador é .animador
   async abrir(f, o = {}) {
     if (!$('#atelie').classList.contains('hidden') && Atelie.sujo && !(await UI.confirm({ title: 'Trocar de personagem?', msg: `"<b>${esc(Atelie.def?.nome || '')}</b>" tem mudanças que ainda não foram para a nuvem.`, ok: 'Abrir o arquivo', danger: true }))) return;
@@ -63,7 +86,7 @@ async function fichaAnimacao(P, info) {
     e.preventDefault(); e.stopPropagation(); // os arquivos do Animador não viram imagem
     if (!TurmaAuth.passed) return;
     const tipo = await AtelieArq.tipo(f), noAtelie = !$('#atelie').classList.contains('hidden');
-    if (tipo === 'atelie') return AtelieArq.abrir(f, { errado: !noAtelie });
+    if (tipo === 'atelie') return noAtelie && Atelie.def ? AtelieArq.substituir(f) : AtelieArq.abrir(f, { errado: !noAtelie }); // com um personagem aberto: pergunta se é para trocar ele pelo arquivo
     if (tipo === 'animador') {
       if (noAtelie && Atelie.sujo && !(await UI.confirm({ title: 'Sair do Ateliê para abrir a animação?', msg: `"<b>${esc(Atelie.def?.nome || '')}</b>" tem mudanças que ainda não foram para a nuvem.`, ok: 'Abrir a animação', danger: true }))) return;
       if (noAtelie) { Atelie.sujo = false; if (Atelie.emAba) { Atelie.emAba = false; history.replaceState(null, '', location.pathname); } }

@@ -18,10 +18,10 @@ const Arquivos = {
   // escreve o tamanho num elemento quando ficar pronto
   poe(el, prom) { Promise.resolve(prom).then(b => { const t = this.fmt(b); if (t && el.isConnected !== false) { el.textContent = t; el.hidden = false; } }).catch(() => { }); },
   // personagem duplicado só neste computador: id novo, imagens copiadas com as chaves novas
-  async duplicarPersonagem(def0, thumb) {
+  async duplicarPersonagem(def0, thumb, nome) {
     const novo = uid('c').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20), velho = def0.id;
     let txt = JSON.stringify(def0); txt = txt.split(`personagens/${velho}/`).join(`personagens/${novo}/`); const def = JSON.parse(txt);
-    def.id = novo; def.nome = (def0.nome || 'Personagem') + ' (cópia)'; delete def._mod; def.modificado = Date.now();
+    def.id = novo; def.nome = nome || (def0.nome || 'Personagem') + ' (cópia)'; delete def._mod; def.modificado = Date.now();
     const t = UI.toast('<span class="spin-dot"></span> Copiando as imagens…', { time: 120000 });
     try { for (const k of Modelo.chavesImgs(def0)) { let b = await Arq.pegaBlob(k); if (!b) b = await Nuvem.baixar(k).catch(() => null); if (b) await Arq.guardar(b, k.split(`personagens/${velho}/`).join(`personagens/${novo}/`)); }
       await DB.put('arquivos', { tipo: 'rascunho-atelie', def, em: Date.now(), thumb: thumb || def0.thumb || null, nuvem: false }, 'rascunho:' + novo); }
