@@ -274,6 +274,7 @@ const UI = {
         if (it === '-') return m.appendChild(h('<div class="ctx-sep"></div>'));
         if (it.head) return m.appendChild(h(`<div class="ctx-head">${esc(it.head)}</div>`));
         const el = h(`<div class="ctx-item ${it.disabled ? 'dis' : ''} ${it.danger ? 'danger' : ''} ${it.ai ? 'ai' : ''} ${it.used ? 'used' : ''}"><span class="ctx-ic">${it.img ? '<canvas class="ctx-thumb" width="36" height="36"></canvas>' : it.cor ? `<i class="ctx-cor" style="background:${it.cor}">${it.checked ? ic('check', 11) : ''}</i>` : it.icon ? ic(it.icon, 14) : (it.checked ? ic('check', 14) : '')}</span><span class="ctx-label">${esc(it.label)}</span>${it.key ? `<span class="ctx-key">${esc(it.key)}</span>` : ''}${it.sub ? ic('right', 13) : ''}</div>`);
+        el._it = it; // o modo ajuda do Ateliê lê o item (nome, ícone, dica)
         if (it.img) UI.ctxImg(el, it, m);
         if (it.sub) {
           el.onmouseenter = () => {

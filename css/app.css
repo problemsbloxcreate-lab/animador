@@ -1055,3 +1055,22 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 
 .ctx-prev.lado canvas{border-radius:8px;background:repeating-conic-gradient(#2a2a2a 0 25%,#202020 0 50%) 0 0/16px 16px}.ctx-prev.lado span{font-size:12px;color:var(--tx2);max-width:300px;text-align:center}
 .vt-cam .cam-l canvas{width:40px;height:40px;border-radius:4px;background:repeating-conic-gradient(#2a2a2a 0 25%,#202020 0 50%) 0 0/10px 10px;flex:none}.vt-cam .cam-l .vt-papel{flex:none}
+
+/* MODO AJUDA do Ateliê (js/ajudamodo.js): botão "?" aceso, cursor de interrogação, tela pausada e a janelinha explicando */
+#at-ajuda.on{background:#e8c25a;color:#1b1b1b;border-color:#e8c25a;box-shadow:0 0 0 3px rgba(232,194,90,.25)}
+body.ajuda-on #atelie,body.ajuda-on #atelie *,body.ajuda-on #ctx-root *,body.ajuda-on .dock-soltos *,body.ajuda-on #at-ferr *,body.ajuda-on .ferr-op *{cursor:help!important}
+body.ajuda-on #atelie .at-palco{box-shadow:inset 0 0 0 2px rgba(232,194,90,.7)!important}
+body.ajuda-on #atelie .at-palco::after{content:'Ajuda ligada · tela pausada';position:absolute;right:10px;bottom:10px;z-index:5;padding:3px 9px;border-radius:9px;background:rgba(232,194,90,.15);border:1px solid rgba(232,194,90,.5);color:#f1d78f;font-size:11px;pointer-events:none}
+.ajm-alvo{outline:2px solid #e8c25a!important;outline-offset:2px;border-radius:6px}
+.ajm{position:fixed;z-index:2147483100;width:300px;max-width:calc(100vw - 16px);background:#1b1d21;border:1px solid #e8c25a;border-radius:12px;box-shadow:0 16px 44px rgba(0,0,0,.6);padding:10px 12px;color:var(--tx);font-size:12.5px;line-height:1.45;cursor:default}
+.ajm[hidden]{display:none}
+.ajm-cab{display:flex;align-items:center;gap:8px;margin-bottom:6px}.ajm-cab b{flex:1;font-size:13.5px}
+.ajm-ic{width:30px;height:30px;flex:none;border-radius:8px;background:rgba(232,194,90,.14);color:#f1d78f;display:grid;place-items:center}.ajm-ic svg{width:18px;height:18px}
+.ajm kbd{font:600 11px ui-monospace,monospace;background:var(--bg3);border:1px solid var(--bd2);border-radius:5px;padding:1px 6px;color:var(--tx2)}
+.ajm-x{width:22px;height:22px}
+.ajm-txt{color:var(--tx2)}.ajm-txt b{color:var(--tx)}
+.ajm-ex,.ajm-img{display:block;margin:8px auto 0;background:#101010 repeating-conic-gradient(#161616 0 25%,#101010 0 50%) 0 0/12px 12px;border-radius:8px;border:1px solid var(--bd)}
+.ajm-ex{display:flex;justify-content:center;padding:6px}
+.ajm-img{width:200px;height:110px}
+.ajm-extra{margin-top:8px;padding-top:8px;border-top:1px solid var(--bd);color:var(--tx3);font-size:11.5px}
+.ajm-pe{margin-top:8px;font-size:10.5px;color:var(--tx3)}.ajm-pe a{color:#f1d78f}
