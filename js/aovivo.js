@@ -236,7 +236,7 @@ const AoVivo = {
     if (cv && this.ad && cv !== (this.ad.ctx === 'atelie' ? Atelie.cv : App.palco?.cv)) return; // o palco do outro programa (escondido) não mexe nos cursores
     const r = cv?.getBoundingClientRect?.(), k = r && cv.width ? r.width / cv.width : 0; if (!k || !(r.width > 0)) return;
     const minhaV = this.ad?.vista?.(); // Ateliê: só aparece o cursor de quem está na MESMA vista
-    for (const g of this.outros()) { if (g.x == null || g.afk || (minhaV && g.vista && g.vista !== minhaV)) continue; vivos.add(g.id); // ausente (1 min parado ou aba escondida): o cursor some
+    for (const g of this.outros()) { if (g.x == null || g.afk || (minhaV && g.vista && g.vista !== minhaV)) continue; vivos.add(g.id); // ausente (1 min parado, ou ~35 s com a aba escondida/sem foco): o cursor some
       const q = V.transformPoint(new DOMPoint(g.x, g.y)), x = clamp(r.left + q.x * k, 0, innerWidth - 14), y = clamp(r.top + q.y * k, 0, innerHeight - 22), c = g.cor || '#19d3f0';
       let el = lay.querySelector(`[data-id="${CSS.escape(g.id)}"]`);
       if (!el) { el = h(`<div class="av-cur" data-id="${esc(g.id)}"><svg width="16" height="22" viewBox="0 0 16 22"><path d="M1 1 L1 18 L5.5 14 L9 21 L11.5 20 L8.2 13.3 L14 13 Z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg><span></span></div>`); lay.appendChild(el); }
@@ -281,18 +281,21 @@ const AoVivo = {
     for (const el of $$('[data-aovivo]')) { const outros = this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx ? this.outros() : [];
       el.hidden = !(this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx); if (el.dataset.aovivo === 'atelie') { const au = document.getElementById('at-autores'); if (au) au.hidden = !el.hidden; } // ao vivo: some o "editado por…" (mais espaço)
       if (el.hidden) { el.innerHTML = ''; continue; }
-      el.innerHTML = `<span class="av-ao" title="Trabalhando junto ao vivo">${ic('users', 13)} ${outros.length ? 'ao vivo' : 'só você'}</span>` + outros.map(g => `<span class="av-p${g.afk ? ' afk' : ''}" style="--c:${g.cor}" title="${esc(g.nome)}${g.fazendo ? ' · ' + esc(g.fazendo) : ''}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(document.createTextNode('${esc((g.nome || '?')[0]).replace(/'/g, '')}'))">` : esc((g.nome || '?')[0])}</span>`).join('')
+      el.innerHTML = `<span class="av-ao" title="Trabalhando junto ao vivo">${ic('users', 13)} ${outros.length ? 'ao vivo' : 'só você'}</span>` + [...outros].sort((a, b) => (a.afk ? 1 : 0) - (b.afk ? 1 : 0)).map((g, i, L) => `<span class="av-p${g.afk ? ' afk' : ''}" style="--c:${g.cor};z-index:${g.afk ? 0 : L.length - i}" title="${esc(g.nome)}${g.fazendo ? ' · ' + esc(g.fazendo) : ''}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(document.createTextNode('${esc((g.nome || '?')[0]).replace(/'/g, '')}'))">` : esc((g.nome || '?')[0])}</span>`).join('')
         + (this.ad.ctx === 'animador' ? `<button class="btn sm" data-sair>Sair</button>${this.ad.dono ? '<button class="btn sm" data-fim>Encerrar</button>' : ''}` : '');
       this.ligaPop(el); if ($('[data-sair]', el)) $('[data-sair]', el).onclick = () => App.sairJunto(false); if ($('[data-fim]', el)) $('[data-fim]', el).onclick = () => App.sairJunto(true); }
   },
   // ---------- ganchos (uma vez): commit, desfazer, cursor e desenho ----------
   liga() {
     if (this._ligado) return; this._ligado = true;
-    // AUSENTE: 1 minuto sem mexer (ou a aba escondida) = os outros deixam de ver o meu cursor e a minha foto fica meio transparente
-    const ativou = () => { this._mexeu = Date.now(); if (this._afk) this.ausente(false); };
+    // AUSENTE: 1 minuto sem mexer (ou ~35 s com a aba escondida ou o navegador sem foco) = os outros deixam de ver o meu cursor e a minha foto fica meio transparente
+    const ativou = () => { this._mexeu = Date.now(); if (!document.hidden) this._fora = 0; if (this._afk) this.ausente(false); }; // mexer o mouse em cima da página = está vendo (mesmo sem foco)
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) addEventListener(ev, ativou, { passive: true, capture: true });
-    document.addEventListener('visibilitychange', () => document.hidden ? this.ausente(true) : ativou());
-    setInterval(() => { if (this.ativo && !this._afk && Date.now() - (this._mexeu || this.desde || 0) > 60000) this.ausente(true); }, 10000);
+    // aba escondida ou janela sem foco (outro programa na frente): depois de ~35 s fica ausente; voltar = ativo na hora
+    const fora = () => { if (!this._fora) this._fora = Date.now(); }, volta = () => { this._fora = 0; ativou(); };
+    document.addEventListener('visibilitychange', () => document.hidden ? fora() : (document.hasFocus() ? volta() : fora()));
+    addEventListener('blur', fora); addEventListener('focus', volta);
+    setInterval(() => { if (!this.ativo || this._afk) return; const ag = Date.now(); if ((this._fora && ag - this._fora > 35000) || ag - (this._mexeu || this.desde || 0) > 60000) this.ausente(true); }, 5000);
     const envolve = (obj, nome, depois) => { const f = obj[nome]; obj[nome] = function (...a) { const r = f.apply(this, a); depois.call(this, a); return r; }; };
     envolve(Atelie, 'commit', () => { if (AoVivo.ad?.ctx === 'atelie') AoVivo.mudouLocal(); });
     envolve(App, 'commit', a => { if (AoVivo.ad?.ctx === 'animador') AoVivo.mudouLocal(typeof a[0] === 'string' ? a[0].toLowerCase() : ''); });
