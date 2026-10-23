@@ -8,7 +8,9 @@ const Ajustes = {
   alvo() { const a = Pintura.alvo(); if (!a) { UI.toast('Escolha uma parte com imagem (aba Pintar e cores).', { kind: 'warn' }); return null; } return { ...a, mask: Pintura.mascara?.(a) || null }; },
   mostra(a, cv) { if (a.vivo) a.vivo(cv); else Arq.img.set(a.img.k, cv); Atelie.desenha(); },
   volta(a) { Arq.img.set(a.img.k, a.orig || a.bm); Atelie.desenha(); },
-  async grava(a, cv) { const k0 = a.img.k; try { await Pintura.gravar(a.img, cv); } finally { Arq.img.set(k0, a.orig || a.bm); } Atelie.commit(); }, // a prévia fica até a nova estar pronta (sem piscar)
+  async grava(a, cv, info) { const k0 = a.img.k; try {
+      if (info && Vetor.eh(a.img.k)) { if (a.mask && !this._avisouSel) { this._avisouSel = true; UI.toast('No vetor, ajustes e transformar valem para a camada escolhida inteira (sem a seleção).', { kind: 'warn', time: 5000 }); } await Vetor.ajustar(a, info); } // SVG: muda as cores/a matriz da camada (continua vetor)
+      else await Pintura.gravar(a.img, cv); } finally { Arq.img.set(k0, a.orig || a.bm); } Atelie.commit(); }, // a prévia fica até a nova estar pronta (sem piscar)
   // aplica o desenho novo só dentro da seleção (fora fica o de antes)
   naSelecao(a, novo) { if (!a.mask) return novo; const W = a.bm.width, H = a.bm.height, cv = new OffscreenCanvas(W, H), x = cv.getContext('2d'), t = new OffscreenCanvas(W, H), tx = t.getContext('2d');
     tx.drawImage(novo, 0, 0); tx.globalCompositeOperation = 'destination-in'; tx.drawImage(a.mask, 0, 0); x.drawImage(a.bm, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(a.mask, 0, 0); x.globalCompositeOperation = 'source-over'; x.drawImage(t, 0, 0); return cv; },
@@ -34,9 +36,9 @@ const Ajustes = {
     $$('[data-k]', body).forEach(i => i.oninput = () => { v[i.dataset.k] = +i.value; i.nextElementSibling.textContent = i.value + (i.dataset.k === 'matiz' ? '°' : i.dataset.k === 'desfoque' ? ' px' : ''); prev(); });
     $$('[data-c]', body).forEach(i => i.onchange = () => { v[i.dataset.c] = i.checked; prev(); });
     const ok = await UI.modal({ title: 'Ajustes de cor', icon: 'palette', width: 420, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Aplicar', kind: 'primary', value: true }] });
-    cancelAnimationFrame(raf); if (!ok) return this.volta(a); await this.grava(a, this.filtrado(a, v));
+    cancelAnimationFrame(raf); if (!ok) return this.volta(a); await this.grava(a, this.filtrado(a, v), { v });
   },
-  async rapido(v, nome) { const a = this.alvo(); if (!a) return; await this.grava(a, this.filtrado(a, v)); UI.toast(`${nome} (Ctrl+Z desfaz).`, { kind: 'ok' }); },
+  async rapido(v, nome) { const a = this.alvo(); if (!a) return; await this.grava(a, this.filtrado(a, v), { v }); UI.toast(`${nome} (Ctrl+Z desfaz).`, { kind: 'ok' }); },
   // transformar: tamanho, giro e espelhar em volta do meio do desenho (ou da seleção)
   transformado(a, t) {
     const W = a.bm.width, H = a.bm.height, bb = this.caixa(a.mask ? this.recortado(a) : a.bm) || { x: 0, y: 0, w: W, h: H };
@@ -60,7 +62,7 @@ const Ajustes = {
     $$('[data-c]', body).forEach(i => i.onchange = () => { t[i.dataset.c] = i.checked; prev(); });
     $$('[data-g]', body).forEach(b => b.onclick = () => { t.r = ((t.r + +b.dataset.g + 540) % 360) - 180; const i = $('[data-k=r]', body); i.value = t.r; i.nextElementSibling.textContent = t.r + '°'; prev(); });
     const ok = await UI.modal({ title: 'Transformar', icon: 'move', width: 420, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Aplicar', kind: 'primary', value: true }] });
-    cancelAnimationFrame(raf); if (!ok) return this.volta(a); await this.grava(a, this.transformado(a, t));
+    cancelAnimationFrame(raf); if (!ok) return this.volta(a); await this.grava(a, this.transformado(a, t), { t, bb: this.caixa(a.bm) });
   },
   // botões na aba Pintar e cores
   botoes(el) {
@@ -69,7 +71,7 @@ const Ajustes = {
       <button class="btn sm" data-a="fx">Espelhar ↔</button><button class="btn sm" data-a="fy">Espelhar ↕</button><button class="btn sm" data-a="g90">Girar 90°</button>
       <button class="btn sm" data-a="inv" title="Ctrl+I">Inverter cores</button><button class="btn sm" data-a="pb" title="Ctrl+Shift+U">Preto e branco</button></div>
       <div style="color:var(--tx3);font-size:11.5px;margin-top:4px">Valem para a camada ativa (ou a imagem) e, com seleção, só dentro dela.</div></div>`);
-    const tr = (t, n) => async () => { const a = this.alvo(); if (!a) return; await this.grava(a, this.transformado(a, { s: 100, r: 0, ...t })); UI.toast(n + ' (Ctrl+Z desfaz).', { kind: 'ok' }); };
+    const tr = (t, n) => async () => { const a = this.alvo(); if (!a) return; const tt = { s: 100, r: 0, ...t }; await this.grava(a, this.transformado(a, tt), { t: tt, bb: this.caixa(a.bm) }); UI.toast(n + ' (Ctrl+Z desfaz).', { kind: 'ok' }); };
     const acao = { abrir: () => this.abrir(), transformar: () => this.transformar(), fx: tr({ fx: true }, 'Espelhado'), fy: tr({ fy: true }, 'Espelhado'), g90: tr({ r: 90 }, 'Girado'), inv: () => this.rapido({ inverter: true }, 'Cores invertidas'), pb: () => this.rapido({ pb: true }, 'Preto e branco') };
     $$('[data-a]', box).forEach(b => b.onclick = () => acao[b.dataset.a]()); el.appendChild(box);
   },

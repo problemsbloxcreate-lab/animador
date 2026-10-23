@@ -5,13 +5,14 @@
 const Pintura = {
   ferr: 'mover', cor: '#222222', tam: 14, tol: 48, opac: 1, escopo: 'imagem', selCores: [], paletaEscopo: 'tudo', mouse: null,
   FERR: [['mover', 'Mover', 'move', 'V'], ['pincel', 'Pincel', 'brush', 'B'], ['borracha', 'Borracha', 'eraser', 'N'], ['balde', 'Balde', 'bucket', 'G'], ['conta', 'Conta-gotas', 'pipette', 'I'],
-    ['camada', 'Mover camada', 'layers', 'K'], ['ret', 'Seleção', 'marquee', 'M'], ['laco', 'Laço', 'lasso', 'L'], ['varinha', 'Varinha', 'wand', 'W'], ['magica', 'Borr. mágica', 'magicEraser', 'Y']],
+    ['camada', 'Mover camada', 'layers', 'K'], ['ret', 'Seleção', 'marquee', 'M'], ['laco', 'Laço', 'lasso', 'L'], ['varinha', 'Varinha', 'wand', 'W'], ['magica', 'Borr. mágica', 'magicEraser', 'Y'], ['pontos', 'Pontos do vetor', 'nodes', 'A']],
   liga() {
     if (this._ligado) return; this._ligado = true; const cv = Atelie.cv;
     cv.addEventListener('pointermove', e => { if (this.ferr === 'mover') { if (this.mouse) { this.mouse = null; Atelie.desenha(); } return; } this.mouse = { x: e.offsetX, y: e.offsetY }; Atelie.desenha(); });
     cv.addEventListener('pointerleave', () => { this.mouse = null; Atelie.desenha(); });
   },
-  usa(f) { this.ferr = f; if (!Atelie.edImg) Atelie.abaPintar?.(f !== 'mover'); // no palco: ferramenta de pintar abre a aba Camadas à direita (uma vez a cada clique); Mover volta para a aba de antes
+  usa(f) { if (f === 'pontos') { const a = this.alvo(); if (!a || !Vetor.eh(a.img.k)) { UI.toast('A ferramenta Pontos é do vetor: converta a imagem para SVG (botão direito na imagem › Converter para SVG).', { kind: 'warn', time: 5000 }); return; } } if (f !== 'pontos' && typeof VetorUI !== 'undefined') VetorUI.nos = null;
+    this.ferr = f; if (!Atelie.edImg) Atelie.abaPintar?.(f !== 'mover'); // no palco: ferramenta de pintar abre a aba Camadas à direita (uma vez a cada clique); Mover volta para a aba de antes
     Atelie.cv.style.cursor = f === 'mover' ? '' : f === 'conta' ? 'copy' : 'crosshair'; Atelie.pinta(); },
   tecla(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false; const k = e.key.toLowerCase(), f = this.FERR.find(x => x[3].toLowerCase() === k);
@@ -37,6 +38,7 @@ const Pintura = {
   },
   // grava o canvas como imagem nova da parte (chave nova: o desfazer volta a antiga)
   async gravar(img, cv) {
+    if (Vetor.eh(img.k) && !this._avisouPx) { this._avisouPx = true; UI.toast('Esta ferramenta trabalha em pixels: a imagem SVG virou PNG (Ctrl+Z volta para o SVG).', { kind: 'warn', time: 6000 }); }
     if (Camadas.tem(img)) { const c = Camadas.ativa(img); c.k = await Camadas.guarda(cv); return Camadas.achata(img); } // pinta na camada ativa e refaz a imagem final
     const blob = await cv.convertToBlob({ type: 'image/png' }), iid = uid('im').toLowerCase().replace(/[^a-z0-9]/g, ''), k = `personagens/${Atelie.def.id}/img/${iid}.png`;
     await Arq.guardar(blob, k); Arq.img.set(k, await createImageBitmap(blob)); img.k = k; return k;
@@ -49,6 +51,7 @@ const Pintura = {
       const d = devicePixelRatio || 1, px = Atelie.ctx.getImageData(Math.round(e.offsetX * d), Math.round(e.offsetY * d), 1, 1).data, hex = hexDe(px[0], px[1], px[2]);
       this.cor = hex; if (e.shiftKey) this.marca(hex, true); Atelie.pinta(); return;
     }
+    if (Vetor.eh(a.img.k) && VetorUI.desce(e, a, pt)) return; // imagem SVG: balde, borracha mágica, mover camada e pontos no vetor
     if (['ret', 'laco', 'varinha'].includes(this.ferr)) return this.desceSelecao(e, a, pt);
     if (this.ferr === 'camada') { // MOVER CAMADA: arrasta os pixels da camada ativa
       if (!a.cam) return UI.toast('Esta imagem não tem camadas: botão direito na imagem › Editar com camadas (ou Pintar e cores › Camadas).', { kind: 'warn' });
@@ -103,6 +106,7 @@ const Pintura = {
     let n = 0; const lim = tol * 1.7;
     for (const [, img] of this.imagens(escopo)) {
       if (Camadas.tem(img)) { let algum = false; for (const cam of img.camadas) { await Arq.garantir([cam.k]); const b = Arq.img.get(cam.k); if (!b) continue; const t = this.tela(b), dd = t.c.getImageData(0, 0, t.cv.width, t.cv.height); if (this.trocaPixels(dd.data, trocas, lim)) { t.c.putImageData(dd, 0, 0); cam.k = await Camadas.guarda(t.cv); algum = true; } } if (algum) { await Camadas.achata(img); n++; } continue; } // com camadas: troca em cada uma
+      if (Vetor.eh(img.k)) { if (await Vetor.trocaCores(img, trocas, lim)) n++; continue; } // vetor: troca a cor de cada forma
       await Arq.garantir([img.k]); const bm = Arq.img.get(img.k); if (!bm) continue; const { cv, c } = this.tela(bm), d = c.getImageData(0, 0, cv.width, cv.height), D = d.data; let mudou = false;
       for (let i = 0; i < D.length; i += 4) { if (!D[i + 3]) continue; let best = null, bd = lim;
         for (const t of trocas) { const dd = Math.abs(D[i] - t.de[0]) + Math.abs(D[i + 1] - t.de[1]) + Math.abs(D[i + 2] - t.de[2]); if (dd < bd) { bd = dd; best = t; } }
@@ -158,16 +162,17 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
   /* ---------- barra de ferramentas no canto esquerdo do palco (como no Photoshop) ---------- */
   pintaBarra() {
     const el = $('#at-ferr'); if (!el) return; el.hidden = !Atelie.def; if (el.hidden) { $('#at-ferr-op')?.remove(); return; } // a barra aparece no palco e no editor de imagem
+    const aV = this.alvo(), vet = !!aV && Vetor.eh(aV.img.k); el.classList.toggle('vet', vet); el.title = vet ? 'Ferramentas — a imagem escolhida é SVG (vetor)' : 'Ferramentas'; if (!vet && this.ferr === 'pontos') this.ferr = 'mover';
     const grupo = (ids) => this.FERR.filter(f => ids.includes(f[0])).map(([f, n, i, k]) => `<button class="${this.ferr === f ? 'on' : ''}" data-f="${f}" title="${f === 'mover' ? 'Mão: arrastar move a tela' : n} (${k})">${ic(i, 17)}</button>`).join('');
-    el.innerHTML = `<span class="fb-pega" title="Arraste para mudar a barra de lugar (gruda numa das bordas)">${ic('grip', 11)}</span>${grupo(['mover'])}<i></i>${grupo(['ret', 'laco', 'varinha'])}<i></i>${grupo(['pincel', 'borracha', 'magica', 'balde', 'conta'])}<i></i>
+    el.innerHTML = `<span class="fb-pega" title="Arraste para mudar a barra de lugar (gruda numa das bordas)">${ic('grip', 11)}</span>${grupo(vet ? ['mover', 'pontos'] : ['mover'])}<i></i>${grupo(['ret', 'laco', 'varinha'])}<i></i>${grupo(['pincel', 'borracha', 'magica', 'balde', 'conta'])}<i></i>
       <label class="fb-cor" title="Cor (${this.cor})" style="--c:${this.cor}"><input type="color" value="${this.cor}"></label>`;
     $$('[data-f]', el).forEach(b => b.onclick = () => this.usa(b.dataset.f));
     this.lugarBarra(el); this.alcaBarra(el, $('.fb-pega', el));
     $('input', el).oninput = ev => { this.cor = ev.target.value; $('.fb-cor', el).style.setProperty('--c', this.cor); }; $('input', el).onchange = () => Atelie.pinta();
     // opções da ferramenta (tamanho, opacidade, tolerância) do lado da barra
-    let op = $('#at-ferr-op'); const precisa = ['pincel', 'borracha', 'balde', 'varinha', 'magica'].includes(this.ferr);
+    let op = $('#at-ferr-op'); const precisa = ['pincel', 'borracha', 'balde', 'varinha', 'magica'].includes(this.ferr) && !(vet && ['balde', 'magica'].includes(this.ferr));
     if (!precisa) { op?.remove(); return; }
-    if (!op) { op = h('<div id="at-ferr-op" class="ferr-op"></div>'); el.after(op); }
+    if (!op) { op = h('<div id="at-ferr-op" class="ferr-op"></div>'); el.after(op); } op.classList.toggle('vet', vet);
     if (['pincel', 'borracha'].includes(this.ferr)) { op.innerHTML = `<b>${this.ferr === 'borracha' ? 'Borracha' : 'Pincel'}</b>`; op.appendChild(this.controles(true)); return; }
     const nome = this.FERR.find(f => f[0] === this.ferr)?.[1] || '', campos = ['pincel', 'borracha'].includes(this.ferr) ? [['tam', 'Tamanho', 1, 300, 1], ['opac', 'Opacidade', .05, 1, .01]] : [['tol', 'Tolerância', 0, 160, 1]];
     op.innerHTML = `<b>${esc(nome)}</b>` + campos.map(([c, n, a, b, p]) => `<label title="${n}">${n}<input type="range" min="${a}" max="${b}" step="${p}" value="${this[c]}" data-c="${c}"><output>${c === 'opac' ? Math.round(this[c] * 100) + '%' : Math.round(this[c])}</output></label>`).join('');

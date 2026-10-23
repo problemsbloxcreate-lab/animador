@@ -36,8 +36,8 @@ const PresetArq = {
       const mapa = {}; // id da imagem no arquivo → id aqui (pelo nome; se não tem, a imagem entra na parte)
       for (const im of info.imgs || []) {
         let aqui = p.imgs.find(i => nrm(i.nome) === nrm(im.nome));
-        if (!aqui) { const bin = m.get('arq/' + encodeURIComponent(im.k)); if (!bin) continue; const iid = uid('im').toLowerCase().replace(/[^a-z0-9]/g, ''), ext = (im.k.match(/\.(png|webp|jpe?g|gif)$/i) || [, 'png'])[1], k = `personagens/${def.id}/img/${iid}.${ext}`;
-          const blob = new Blob([bin], { type: ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/' + ext }); await Arq.guardar(blob, k); Arq.img.set(k, await createImageBitmap(blob).catch(() => null));
+        if (!aqui) { const bin = m.get('arq/' + encodeURIComponent(im.k)); if (!bin) continue; const iid = uid('im').toLowerCase().replace(/[^a-z0-9]/g, ''), ext = (im.k.match(/\.(png|webp|jpe?g|gif|svg)$/i) || [, 'png'])[1], k = `personagens/${def.id}/img/${iid}.${ext}`;
+          const blob = new Blob([bin], { type: ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : 'image/' + ext }); await Arq.guardar(blob, k); Arq.img.set(k, await Arq.deBlob(blob, k));
           aqui = { id: uid('i'), nome: im.nome, k, w: im.w, h: im.h, pivo: im.pivo || { x: im.w / 2, y: im.h / 2 }, ajuste: im.ajuste || { x: 0, y: 0 } }; p.imgs.push(aqui); novasImgs.push(`${p.nome} › ${im.nome}`); }
         mapa[im.id] = aqui.id;
       }
@@ -99,8 +99,8 @@ const VistaArq = {
     const fim = Ocupado.inicio({ tipo: 'arquivo', icone: 'eye', titulo: `Pondo a vista ${d.vista?.nome || ''}`, subtitulo: 'Copiando as imagens…', aviso: 'Aguarde um instante.' });
     try {
       Modelo.garanteVistas(def); let txt = JSON.stringify(d.vista); const ks = [...m.keys()].filter(x => x.startsWith('arq/')); let i = 0;
-      for (const nomeZ of ks) { Ocupado.parte(++i, ks.length); const k = decodeURIComponent(nomeZ.slice(4)), ext = (k.match(/\.(png|webp|jpe?g|gif)$/i) || [, 'png'])[1], k2 = `personagens/${def.id}/img/${uid('im').toLowerCase().replace(/[^a-z0-9]/g, '')}.${ext}`;
-        await Arq.guardar(new Blob([m.get(nomeZ)], { type: ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/' + ext }), k2); Arq.img.delete(k2); txt = txt.split(JSON.stringify(k).slice(1, -1)).join(k2); }
+      for (const nomeZ of ks) { Ocupado.parte(++i, ks.length); const k = decodeURIComponent(nomeZ.slice(4)), ext = (k.match(/\.(png|webp|jpe?g|gif|svg)$/i) || [, 'png'])[1], k2 = `personagens/${def.id}/img/${uid('im').toLowerCase().replace(/[^a-z0-9]/g, '')}.${ext}`;
+        await Arq.guardar(new Blob([m.get(nomeZ)], { type: ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : 'image/' + ext }), k2); Arq.img.delete(k2); txt = txt.split(JSON.stringify(k).slice(1, -1)).join(k2); }
       const v = JSON.parse(txt), n = PresetArq.nrm; let nome = v.nome || 'Vista'; const tem = x => def.vistas.some(y => n(y.nome) === n(x)); if (tem(nome)) { let k = 0; while (tem(`${v.nome} (${++k})`)); nome = `${v.nome} (${k})`; }
       def.vistas.push({ id: uid('vi'), nome, tipo: v.tipo || 'outra', partes: v.partes || [], sessoes: v.sessoes || [], animacoes: v.animacoes || [], raiz: v.raiz, vis: v.vis || undefined });
       fim(); Atelie.commit(); UI.toast(`Vista <b>${esc(nome)}</b> entrou no personagem (clique nela em Vistas para abrir). Ctrl+Z desfaz.`, { kind: 'ok', time: 6000 });

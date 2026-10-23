@@ -252,15 +252,17 @@ const Arq = {
       let b = await this.pegaBlob(id);
       if (!b && /^personagens\//.test(id)) b = await Nuvem.baixar(id).catch(() => null); // imagem de personagem: da nuvem da equipe
       if (!b) return null;
-      const bm = await createImageBitmap(b).catch(() => null); if (bm) this.img.set(id, bm); return bm;
+      const bm = await this.deBlob(b, id); if (bm) this.img.set(id, bm); return bm;
     })().then(bm => { this.carregando.delete(id); const l = this.avisar.get(id); this.avisar.delete(id); l?.forEach(f => { try { f(bm); } catch (e) { console.error(e); } }); return bm; }));
     return null;
   },
+  // blob → imagem para desenhar (SVG vira <img> de vetor: o navegador desenha no tamanho da tela, sem perder qualidade)
+  async deBlob(b, k) { return typeof Vetor !== 'undefined' && (Vetor.eh(k) || b.type === 'image/svg+xml') ? Vetor.imagem(b) : createImageBitmap(b).catch(() => null); },
   // a imagem com o APAGADO daquele keyframe (máscara recortada: só a área apagada, posição em pixels da imagem). Fica guardada em memória
   // (uma por imagem+máscara) e refaz sozinha se a imagem mudar (ex.: prévia do pincel). Sem máscara (ou carregando) = a imagem normal.
   apCache: new Map(),
   comAp(bm, it, aoChegar) {
-    const ap = it?.ap; if (!bm || !ap?.k) return bm; const m = this.bitmap(ap.k, aoChegar); if (!m) return bm;
+    const ap = it?.ap; if (!bm || !ap?.k) return bm; if (typeof Vetor !== 'undefined' && Vetor.eh(ap.k) && Vetor.eh(it.img.k)) return Vetor.comAp(bm, it, aoChegar); // keyframe de imagem SVG: o apagado também é vetor const m = this.bitmap(ap.k, aoChegar); if (!m) return bm;
     const ch = it.img.k + '|' + ap.k + '|' + ap.x + '|' + ap.y, c = this.apCache.get(ch); if (c && c.src === bm) return c.cv;
     const cv = document.createElement('canvas'); cv.width = bm.width; cv.height = bm.height; const x = cv.getContext('2d'); x.drawImage(bm, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(m, ap.x || 0, ap.y || 0);
     this.apCache.set(ch, { cv, src: bm }); if (this.apCache.size > 160) this.apCache.delete(this.apCache.keys().next().value); return cv;

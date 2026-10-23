@@ -239,7 +239,7 @@ const AoVivo = {
     const prazo = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
     conta(); const tudo = this.emLote(faltam, async k => {
       let b = null; try { const s = await prazo(this.t.getArq(this.sala, k), 30000); if (s) b = this.doB64(s); } catch { } if (!b && /^personagens\//.test(k)) b = await prazo(Nuvem.baixar(k).catch(() => null), 30000);
-      if (b) { await Arq.guardar(b, k); if (/^image\//.test(b.type) || /\.(png|webp|jpe?g|gif)$/i.test(k)) Arq.img.set(k, await createImageBitmap(b).catch(() => null)); tem.add(k); falhou.delete(k); this.ad?.redesenha?.(); } else falhou.set(k, Date.now()); feitas++; conta(); });
+      if (b) { await Arq.guardar(b, k); if (/^image\//.test(b.type) || /\.(png|webp|jpe?g|gif|svg)$/i.test(k)) Arq.img.set(k, await Arq.deBlob(b, k)); tem.add(k); falhou.delete(k); this.ad?.redesenha?.(); } else falhou.set(k, Date.now()); feitas++; conta(); });
     await (espera === Infinity ? tudo : Promise.race([tudo, new Promise(r => setTimeout(r, espera))])); // mudança de fora: espera as imagens no máximo uns segundos; o resto chega e aparece depois
   },
   // ---------- cursores e quem está junto ----------

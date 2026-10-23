@@ -61,16 +61,20 @@ Object.assign(Pintura, {
   async traco(e, a, pt, mask) {
     const apaga = this.ferr === 'borracha' || this.borrachaDaCaneta(e), cfg = this.cfg[apaga ? 'borracha' : 'pincel'], cor = apaga ? '#000000' : this.cor;
     const a0 = a, noQuadro = apaga && !!a.quadro; if (noQuadro) a = Quadro.alvoApagar(a); // borracha num keyframe: parte da imagem como aparece nele e guarda só a máscara
-    const grava = async cv => { if (noQuadro) return Quadro.gravaApagado(a0, a.bm, cv); await this.gravar(a.img, cv); return true; };
+    // IMAGEM SVG: o traço vira uma forma do vetor (pincel) ou um apagado na camada escolhida (borracha); a prévia continua em pixels
+    const vet = Vetor.eh(a0.img.k), pts = [], sep = vet && !noQuadro ? Vetor.separadas(a0.img) : null;
+    const grava = async cv => { if (vet) return Vetor.traco(a0, pts, { apaga, cor, opac: cfg.opac, dureza: cfg.dureza, mask }); if (noQuadro) return Quadro.gravaApagado(a0, a.bm, cv); await this.gravar(a.img, cv); return true; };
     const { cv, c } = this.tela(a.bm), orig = a.orig || a.bm, k0 = a.img.k, vivo = a.vivo || (x => Arq.img.set(k0, x)), base = this.tela(a.bm).cv, lay = new OffscreenCanvas(cv.width, cv.height), lc = lay.getContext('2d');
     // borracha de fundo: só onde a cor parece com a do primeiro toque
-    let fundo = null; if (apaga && cfg.modo === 'fundo') fundo = this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, true);
+    let fundo = null; if (apaga && cfg.modo === 'fundo' && !vet) fundo = this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, true);
     const junta = () => { let l2 = lay; for (const m of [mask, fundo]) if (m) { const t = new OffscreenCanvas(cv.width, cv.height), x = t.getContext('2d'); x.drawImage(l2, 0, 0); x.globalCompositeOperation = 'destination-in'; x.drawImage(m, 0, 0); l2 = t; }
+      if (sep?.v) { const s = sep.v, t = new OffscreenCanvas(cv.width, cv.height), tx = t.getContext('2d'); tx.drawImage(s.ativa, 0, 0); tx.globalCompositeOperation = apaga ? 'destination-out' : 'source-over'; tx.globalAlpha = cfg.opac; tx.drawImage(l2, 0, 0); // vetor: o traço só na camada escolhida
+        c.globalCompositeOperation = 'copy'; c.globalAlpha = 1; c.drawImage(s.abaixo, 0, 0); c.globalCompositeOperation = 'source-over'; c.drawImage(t, 0, 0); c.drawImage(s.acima, 0, 0); return; }
       c.globalCompositeOperation = 'copy'; c.globalAlpha = 1; c.drawImage(base, 0, 0); c.globalCompositeOperation = apaga ? 'destination-out' : 'source-over'; c.globalAlpha = cfg.opac; c.drawImage(l2, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; };
     const tamDe = p => cfg.tam * (cfg.pTam ? cfg.pMin + (1 - cfg.pMin) * p : 1), alfaDe = p => cfg.fluxo * (cfg.pOpac ? p : 1);
     // pontos: estabilizados (suavização) e com carimbos a cada "espaçamento"
     let liso = { ...pt }, ult = null, sobra = 0, pAnt = this.pressao(e);
-    const ponto = (q, p) => {
+    const ponto = (q, p) => { if (vet) pts.push({ x: q.x, y: q.y, w: Math.max(.5, tamDe(p)) });
       if (!ult) { this.bate(lc, q.x, q.y, tamDe(p), alfaDe(p), cfg, cor); ult = { ...q }; pAnt = p; return; }
       const dx = q.x - ult.x, dy = q.y - ult.y, L = Math.hypot(dx, dy); let t = -sobra;
       while (true) { const s = Math.max(.4, tamDe(pAnt + (p - pAnt) * Math.max(0, t / (L || 1))) * cfg.espac); t += s; if (t > L) { sobra = L - (t - s); break; }
@@ -78,7 +82,7 @@ Object.assign(Pintura, {
       ult = { ...q }; pAnt = p;
     };
     // Shift+clique: linha reta desde o último ponto desta imagem
-    if (e.shiftKey && this._ultimo?.k === a.img.id) { ult = { ...this._ultimo.pt }; pAnt = this.pressao(e); ponto(pt, this.pressao(e)); junta(); this._ultimo = { k: a.img.id, pt }; if (await grava(cv)) Atelie.commit(); return; }
+    if (e.shiftKey && this._ultimo?.k === a.img.id) { ult = { ...this._ultimo.pt }; pAnt = this.pressao(e); if (vet) pts.push({ ...ult, w: Math.max(.5, tamDe(pAnt)) }); ponto(pt, this.pressao(e)); junta(); this._ultimo = { k: a.img.id, pt }; if (await grava(cv)) Atelie.commit(); return; }
     ponto(pt, this.pressao(e)); junta(); vivo(cv); Atelie.desenha(); // com camadas: mostra a imagem final com o traço na camada ativa
     try { Atelie.cv.setPointerCapture(e.pointerId); } catch { } let pend = false, acabou = false;
     const mov = ev => {

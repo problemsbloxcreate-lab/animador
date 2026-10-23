@@ -64,6 +64,7 @@ Object.assign(Pintura, {
   inverter() { const a = this.alvo(), m0 = this.mascara(a); if (!m0) return; const m = new OffscreenCanvas(m0.width, m0.height), x = m.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, m.width, m.height); x.globalCompositeOperation = 'destination-out'; x.drawImage(m0, 0, 0); this.combina(a, m, 'nova'); },
   async mexeDentro(modo) { // 'apagar' a seleção ou 'manter' só ela
     const a = this.alvo(), m = this.mascara(a); if (!m) return UI.toast('Selecione uma área primeiro (M, L ou W)');
+    if (Vetor.eh(a.img.k)) { if (await Vetor.naSelecao(a, m, modo)) Atelie.commit(); return; } // SVG: apagar = só na camada escolhida; manter = em todas
     const aq = modo === 'apagar' && a.quadro ? Quadro.alvoApagar(a) : a; // apagar a seleção num keyframe: só nele
     const { cv, c } = this.tela(aq.bm); c.globalCompositeOperation = modo === 'apagar' ? 'destination-out' : 'destination-in'; c.drawImage(m, 0, 0);
     if (aq !== a) { if (await Quadro.gravaApagado(a, aq.bm, cv)) Atelie.commit(); return; } await this.gravar(a.img, cv); Atelie.commit();
@@ -76,10 +77,10 @@ Object.assign(Pintura, {
   // copiar/recortar a seleção para uma PARTE NOVA, encaixada no mesmo pai e no mesmo lugar (bom para separar braço, cabelo, olho…)
   async paraParte(cortar) {
     const a = this.alvo(), m = this.mascara(a); if (!m) return UI.toast('Selecione uma área primeiro (M, L ou W)');
-    const pc = this.pedaco(a, m); if (!pc) return UI.toast('A seleção está vazia (só transparência)', { kind: 'warn' });
+    const vet = Vetor.eh(a.img.k), pc = vet ? await Vetor.pedaco(a, m) : this.pedaco(a, m); if (!pc) return UI.toast('A seleção está vazia (só transparência)', { kind: 'warn' });
     const nome = await UI.prompt({ title: cortar ? 'Recortar para uma parte nova' : 'Copiar para uma parte nova', label: 'Nome da parte (ex.: Mão direita, Franja, Olho esquerdo)', value: a.p.nome + (cortar ? ' (recorte)' : ' (cópia)'), ok: cortar ? 'Recortar' : 'Copiar' }); if (!nome) return;
-    const img = this.imgDoPedaco(a, pc, nome); img.k = await this.guardarImg(pc.cv);
-    if (cortar) { const { cv, c } = this.tela(a.bm); c.globalCompositeOperation = 'destination-out'; c.drawImage(m, 0, 0); await this.gravar(a.img, cv); }
+    const img = this.imgDoPedaco(a, pc, nome); if (vet) await Vetor.gravar(img, pc.m); else img.k = await this.guardarImg(pc.cv);
+    if (cortar) { if (vet) await Vetor.naSelecao(a, m, 'cortar'); else { const { cv, c } = this.tela(a.bm); c.globalCompositeOperation = 'destination-out'; c.drawImage(m, 0, 0); await this.gravar(a.img, cv); } }
     // a parte nova encaixa NA original, no ponto zero: fica exatamente no mesmo lugar e acompanha a original quando ela mexe
     const p = a.p, q = Modelo.novaParte(nome, p.id); q.base.img = img.id; q.imgs = [img];
     const L = Atelie.ordemCamadas().reverse(); Atelie.def.partes.push(q); L.splice(L.indexOf(p), 0, q); // logo na frente da original
@@ -89,16 +90,17 @@ Object.assign(Pintura, {
   // copiar a seleção como IMAGEM NOVA desta mesma parte (ex.: uma variação da boca)
   async paraImagem() {
     const a = this.alvo(), m = this.mascara(a); if (!m) return UI.toast('Selecione uma área primeiro (M, L ou W)');
-    const pc = this.pedaco(a, m); if (!pc) return UI.toast('A seleção está vazia', { kind: 'warn' });
+    const vet = Vetor.eh(a.img.k), pc = vet ? await Vetor.pedaco(a, m) : this.pedaco(a, m); if (!pc) return UI.toast('A seleção está vazia', { kind: 'warn' });
     const nome = await UI.prompt({ title: 'Imagem nova desta parte', label: 'Nome da imagem', value: a.img.nome + ' (pedaço)', ok: 'Criar' }); if (!nome) return;
-    const img = this.imgDoPedaco(a, pc, nome); img.k = await this.guardarImg(pc.cv); if (a.img.pasta) img.pasta = a.img.pasta; a.p.imgs.push(img);
+    const img = this.imgDoPedaco(a, pc, nome); if (vet) await Vetor.gravar(img, pc.m); else img.k = await this.guardarImg(pc.cv); if (a.img.pasta) img.pasta = a.img.pasta; a.p.imgs.push(img);
     this.selecao = null; Atelie.mudar(a.p.id, { img: img.id }); Atelie.commit();
   },
   // corta as bordas transparentes sem tirar a peça do lugar
   // corta as bordas transparentes sem tirar a peça do lugar
   async apararLista(lista) {
     let n = 0; await Arq.garantir(lista.map(i => i.k));
-    for (const img of lista) { if (Camadas.tem(img)) continue; /* com camadas: não apara (as camadas têm o tamanho da imagem) */ const bm = Arq.img.get(img.k); if (!bm) continue; const { cv } = this.tela(bm), bb = this.bbox(cv); if (!bb || (bb.w === bm.width && bb.h === bm.height)) continue;
+    for (const img of lista) { if (Vetor.eh(img.k)) { const r = await Vetor.aparar(img); if (!r) continue; const pv = img.pivo || { x: img.w / 2, y: img.h / 2 }, bm0 = Arq.img.get(img.k), qx = bm0 ? bm0.width / img.w : 1, qy = bm0 ? bm0.height / img.h : 1; await Vetor.gravar(img, r.m); img.pivo = { x: round(pv.x - r.bb.x / qx, 2), y: round(pv.y - r.bb.y / qy, 2) }; img.w = round(r.bb.w / qx, 2); img.h = round(r.bb.h / qy, 2); n++; continue; } // SVG: o recorte vira um deslocamento do vetor
+      if (Camadas.tem(img)) continue; /* com camadas: não apara (as camadas têm o tamanho da imagem) */ const bm = Arq.img.get(img.k); if (!bm) continue; const { cv } = this.tela(bm), bb = this.bbox(cv); if (!bb || (bb.w === bm.width && bb.h === bm.height)) continue;
       const o = new OffscreenCanvas(bb.w, bb.h); o.getContext('2d').drawImage(cv, -bb.x, -bb.y); const kx = bm.width / img.w, ky = bm.height / img.h, pv = img.pivo || { x: img.w / 2, y: img.h / 2 };
       img.k = await this.guardarImg(o); img.pivo = { x: round(pv.x - bb.x / kx, 2), y: round(pv.y - bb.y / ky, 2) }; img.w = round(bb.w / kx, 2); img.h = round(bb.h / ky, 2); n++; }
     return n;

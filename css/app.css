@@ -1002,3 +1002,23 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 /* aviso da nuvem reserva na biblioteca */
 .res-aviso{display:flex;gap:8px;align-items:flex-start;margin:4px 0 10px;padding:8px 12px;border-radius:10px;font-size:12.5px;line-height:1.45;color:var(--tx2);background:rgba(61,139,255,.08);border:1px solid rgba(61,139,255,.28)}.res-aviso svg{flex:none;margin-top:2px;color:#3d8bff}.res-aviso b{color:var(--tx)}
 .res-aviso.lim{background:rgba(255,184,77,.08);border-color:rgba(255,184,77,.3)}.res-aviso.lim svg{color:#ffb84d}
+/* ---------- VETOR (SVG): selos, ferramentas roxas, conversão e camadas do vetor ---------- */
+.selo-tipo{display:inline-block;margin-left:5px;padding:0 5px;border-radius:5px;font:700 8.5px/15px 'Segoe UI',sans-serif;letter-spacing:.05em;vertical-align:1px;background:rgba(255,255,255,.08);color:var(--tx3);white-space:nowrap}
+.selo-tipo.svg{background:rgba(139,92,246,.25);color:#cdb8ff}
+.selo-tipo.misto{background:linear-gradient(90deg,rgba(139,92,246,.3) 0 50%,rgba(255,255,255,.08) 50% 100%);color:#d8caff;box-shadow:inset 0 0 0 1px rgba(139,92,246,.45)}
+.at-partes .no .selo-tipo{margin-left:4px;font-size:8px;line-height:13px}
+.imgs .im .im-tipo{position:absolute;right:3px;bottom:19px;padding:0 4px;border-radius:4px;background:rgba(0,0,0,.55);color:#aaa;font:700 8px/13px 'Segoe UI',sans-serif;font-style:normal;letter-spacing:.04em;pointer-events:none;opacity:.75}
+.imgs .im .im-tipo.svg{background:#8b5cf6;color:#fff;opacity:1}
+.ferr-at.vet{border-color:rgba(139,92,246,.75);box-shadow:0 0 0 1px rgba(139,92,246,.35),0 8px 24px rgba(0,0,0,.4)}
+.ferr-at.vet button.on{background:#8b5cf6;color:#fff}.ferr-at.vet button:hover:not(.on){color:#d8caff}
+.ferr-op.vet{border-color:rgba(139,92,246,.6)}.ferr-op.vet>b{color:#cdb8ff}
+#atelie.ed-img .ferr-op.vet{box-shadow:inset 0 -2px 0 rgba(139,92,246,.6)}
+.vt-conv .vt-cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.vt-conv figure{margin:0;display:flex;flex-direction:column;gap:5px}.vt-conv figcaption{font-size:11.5px;color:var(--tx2)}
+.vt-conv canvas{width:100%;aspect-ratio:1;border-radius:8px;border:1px solid var(--bd);cursor:zoom-in;background:#2a2a2a}
+.vt-conv .vt-ctl{display:flex;align-items:center;gap:12px;margin:10px 0 6px}.vt-conv .vt-ctl .aj-l{flex:1}
+.vt-dica{color:var(--tx3);font-size:11px}
+.vt-conv .vt-info{margin-top:8px;color:var(--tx3);font-size:11.5px;line-height:1.45}
+.vt-cam .cam-l{display:flex;align-items:center;gap:7px}.vt-cam .cam-l .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vt-cam .cam-l small{color:var(--tx3);font-size:10.5px}
+.vt-papel{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:rgba(139,92,246,.18);color:#cdb8ff}.vt-papel.linha{background:rgba(255,255,255,.08);color:var(--tx)}
+.vt-cam h4 .selo-tipo{margin-left:6px}.vt-cam>.vt-dica{margin-top:6px;line-height:1.45}

@@ -23,12 +23,12 @@ const Nuvem = {
     catch (e) { // a nuvem não deixou listar (ex.: limite grátis do dia): mostra os personagens da nuvem que este computador já tem guardados
       const locais = (await DB.all('personagens').catch(() => [])).filter(d => d?.id && d.nome && !d._local);
       if (!locais.length) throw e; this.listaDoPc = true; setTimeout(() => this._listaPc?.(), 0);
-      return locais.map(d => ({ id: d.id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes })).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
+      return locais.map(d => ({ id: d.id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes, tipos: Vetor.tiposDef(d) })).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
     }
-    const ids = new Set(), mods = {}; const tams = {}; for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\//); if (m) tams[m[1]] = (tams[m[1]] || 0) + (+it.tam || 0); }
+    const ids = new Set(), mods = {}; const tams = {}, exts = {}; for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\//); if (m) { tams[m[1]] = (tams[m[1]] || 0) + (+it.tam || 0); if (/\/img\/(?!ap)[^/]+$/.test(it.k)) (exts[m[1]] ||= []).push(it.k); } }
     for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) { ids.add(m[1]); mods[m[1]] = it.mod || null; } }
     const out = [];
-    await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true, mods[id]); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes, tam: tams[id] || 0 }); } catch { } }));
+    await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true, mods[id]); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes, tam: tams[id] || 0, tipos: Vetor.tiposDef(d).length ? Vetor.tiposDef(d) : Vetor.tipos(exts[id] || []) }); } catch { } }));
     return out.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
   },
   // definição do personagem (da nuvem; se estiver sem internet, a cópia do navegador)
