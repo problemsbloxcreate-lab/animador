@@ -39,7 +39,7 @@ const IAUso = {
       for (const m of [n, ...n.querySelectorAll('.modal')]) if (m.classList?.contains('modal') && m.querySelector('.modal-icon.ia') && !m.querySelector('[data-ia-uso]')) {
         const hd = m.querySelector('.modal-head'), x = hd?.querySelector('[data-x]'); const s = this.selo(true); if (x) hd.insertBefore(s, x); else hd?.appendChild(s);
       }
-      for (const o of [n, ...n.querySelectorAll('.ocupado')]) if (o.classList?.contains('ocupado') && !o.querySelector('[data-ia-uso]')) {
+      for (const o of [n, ...n.querySelectorAll('.ocupado')]) if (o.classList?.contains('ocupado') && !o.classList.contains('sem-ia') && !o.querySelector('[data-ia-uso]')) {
         const c = o.querySelector('.oc-card'); if (!c) continue; const s = this.selo(true, 22); s.dataset.txt = '2'; s.classList.add('oc'); this.pintaUm(s); c.appendChild(s); this.pega(true);
       }
     };

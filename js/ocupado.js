@@ -13,12 +13,12 @@ const Ocupado = {
     Object.assign(this, { t0: performance.now(), letras: 0, tipo: o.tipo || 'ia', feito: null, titulo: o.titulo || 'A IA está trabalhando', tituloAba: document.title });
     // aba escondida: a IA continua. A trava pede ao Chrome para não congelar a aba enquanto isso; no fim, avisa (notificação) se a aba não estiver à vista
     try { navigator.locks?.request('animador-ia-' + Math.random(), () => new Promise(r => { this._solta = r; })).catch(() => { }); } catch { }
-    this.el = h(`<div class="ocupado" role="alertdialog" aria-live="polite"><div class="oc-card">
-      <div class="oc-ic">${ic('sparkles', 30)}</div><b class="oc-tit">${esc(o.titulo || 'A IA está trabalhando')}</b>
+    this.el = h(`<div class="ocupado${(o.tipo || 'ia') === 'ia' ? '' : ' sem-ia'}" role="alertdialog" aria-live="polite"><div class="oc-card">
+      <div class="oc-ic">${ic(o.icone || 'sparkles', 30)}</div><b class="oc-tit">${esc(o.titulo || 'A IA está trabalhando')}</b>
       <div class="oc-sub" data-sub>${esc(o.subtitulo || 'Pensando…')}</div>
       <div class="oc-barra rodando" data-barra><i data-b></i></div>
       <div class="oc-num"><span data-conta></span><span class="sp"></span><span>passou <b data-pas>0:00</b></span></div>
-      <div class="oc-av">Aguarde: enquanto a IA trabalha não dá para mexer (para nada sair do lugar). Não feche esta aba.</div></div></div>`);
+      <div class="oc-av">${esc(o.aviso || 'Aguarde: enquanto a IA trabalha não dá para mexer (para nada sair do lugar). Não feche esta aba.')}</div></div></div>`);
     document.body.appendChild(this.el); requestAnimationFrame(() => this.el?.classList.add('on'));
     this._bloq = e => { if (this.n > 0) { e.preventDefault(); e.stopPropagation(); } };
     for (const ev of ['keydown', 'keyup', 'wheel', 'contextmenu']) addEventListener(ev, this._bloq, { capture: true, passive: false });

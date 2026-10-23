@@ -36,17 +36,18 @@ const AtelieArq = {
   // mesmo (id, nome, pasta, autor), então se está na nuvem a nuvem é atualizada sozinha. Antes, a versão de agora vira uma cópia só neste computador.
   async substituir(f) {
     const atual = Atelie.def; if (!atual) return this.abrir(f);
-    let r; try { r = await this.ler(f); } catch (e) { return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
+    const tela = o => Ocupado.inicio({ tipo: 'arquivo', icone: 'layers', aviso: 'Aguarde: não dá para mexer enquanto isso. Não feche esta aba.', ...o });
+    let r, fim = tela({ titulo: 'Abrindo o arquivo', subtitulo: `Lendo ${f.name}…` }); try { r = await this.ler(f); } catch (e) { fim(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } fim();
     const novo = r.def, np = Modelo.todasPartes ? Modelo.todasPartes(novo).length : novo.partes.length, nps = (novo.sessoes || []).reduce((n, s) => n + (s.presets?.length || 0), 0) + (novo.vistas || []).reduce((n, v) => n + (v.sessoes || []).reduce((m, s) => m + (s.presets?.length || 0), 0), 0);
     const op = await UI.modal({ title: 'Substituir este personagem?', icon: 'layers', width: 480, body: `<div>Trocar tudo de <b>${esc(atual.nome)}</b> — partes, imagens, poses e presets, animações de teste e vistas — pelo que está no arquivo <b>${esc(f.name)}</b> (${esc(novo.nome || '')}: ${np} parte${np === 1 ? '' : 's'}, ${nps} preset${nps === 1 ? '' : 's'}).<br><br>Antes, uma cópia de como ele está agora fica guardada <b>neste computador</b> ("${esc(atual.nome)} (anterior)", em Só neste computador).${Atelie.naNuvem ? '<br><br>Ele está na nuvem: a nuvem da equipe também passa a ter a versão do arquivo.' : ''}</div>`,
       buttons: [{ label: 'Cancelar', value: null }, { label: 'Abrir como outro personagem', value: 'abrir' }, { label: 'Substituir', kind: 'primary', value: 'sub' }] });
     if (op === 'abrir') return this.abrir(f); if (op !== 'sub') return;
-    const t = UI.toast('<span class="spin-dot"></span> Guardando a cópia de antes…', { time: 300000 });
+    fim = tela({ titulo: `Substituindo ${atual.nome}`, subtitulo: 'Guardando a cópia de antes neste computador…' }); const t = { remove: () => fim() };
     try {
       await Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(atual)), atual.thumb, `${atual.nome} (anterior)`);
       // as imagens do arquivo passam a morar no personagem aberto (mesmo id = mesma pasta na nuvem)
-      const velho = novo.id, id = atual.id, troca = k => k.split(`personagens/${velho}/`).join(`personagens/${id}/`);
-      if (velho !== id) for (const k of Modelo.chavesImgs(novo)) { const b = await Arq.pegaBlob(k).catch(() => null); if (!b) continue; const k2 = troca(k); await Arq.guardar(b, k2); Arq.img.delete(k2); }
+      Ocupado.passo('Trocando pelo arquivo…'); const velho = novo.id, id = atual.id, troca = k => k.split(`personagens/${velho}/`).join(`personagens/${id}/`);
+      const ks = velho !== id ? Modelo.chavesImgs(novo) : []; let n = 0; for (const k of ks) { Ocupado.parte(++n, ks.length); const b = await Arq.pegaBlob(k).catch(() => null); if (!b) continue; const k2 = troca(k); await Arq.guardar(b, k2); Arq.img.delete(k2); }
       const d = velho === id ? novo : JSON.parse(troca(JSON.stringify(novo)));
       Object.assign(d, { id, nome: atual.nome, pasta: atual.pasta, autor: atual.autor, edicoes: atual.edicoes, modificado: Date.now() }); for (const c of ['autor', 'edicoes']) if (d[c] === undefined) delete d[c];
       Modelo.garanteVistas?.(d); await Arq.garantir(Modelo.chavesImgs(d)).catch(() => { });
