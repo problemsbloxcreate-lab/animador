@@ -61,7 +61,11 @@ const Deformar = {
     else if (n.tipo === 'imagem') { const bm = Render.bm(n.arq); if (!bm) return true; g.setTransform(S); g.drawImage(bm, -bm.width / 2, -bm.height / 2); }
     else if (n.tipo === 'texto') { g.setTransform(S); Render.texto(g, n); }
     else if (n.tipo === 'forma') { g.setTransform(S); Render.forma(g, n); }
-    // malha de triângulos: cada pedacinho da imagem vai para o lugar deformado
+    this.malha(ctx, off, W, H, R, k, df, C, M, ks);
+    return true;
+  },
+  // malha de triângulos: cada pedacinho de `off` (a região R do espaço da camada, k px por unidade) vai para o lugar deformado; M = espaço da camada → ctx
+  malha(ctx, off, W, H, R, k, df, C, M, ks = 1) {
     const N = df.g === 2 ? 10 : 16, eps = 1.2 / ks; // um tiquinho de sobra no recorte = sem risquinhos entre os triângulos
     const vs = []; for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) { const sx = R.x + R.w * i / N, sy = R.y + R.h * j / N; vs.push({ s: [(sx - R.x) * k, (sy - R.y) * k], d: this.F(df, C, sx, sy) }); }
     const tri = (A, B, Cc) => {
@@ -76,7 +80,18 @@ const Deformar = {
       if (sw > 0 && sh > 0) ctx.drawImage(off, sx, sy, sw, sh, sx, sy, sw, sh); ctx.restore();
     };
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const p00 = vs[j * (N + 1) + i], p10 = vs[j * (N + 1) + i + 1], p01 = vs[(j + 1) * (N + 1) + i], p11 = vs[(j + 1) * (N + 1) + i + 1]; tri(p00, p10, p11); tri(p00, p11, p01); }
-    return true;
+  },
+  // uma imagem inteira deformada (Ateliê › editor de imagem): mesma conta, em pixels da imagem
+  // pad = { L, T, R, B }: a imagem cresce para caber o que saiu da borda (o desenho fica no mesmo lugar)
+  imagem(src, df, pad) {
+    const W = src.width, H = src.height, P = pad || { L: 0, T: 0, R: 0, B: 0 }, out = new OffscreenCanvas(W + P.L + P.R, H + P.T + P.B), g = out.getContext('2d'); g.imageSmoothingQuality = 'high';
+    this.malha(g, src, W, H, { x: 0, y: 0, w: W, h: H }, 1, df, this.pontos(df), new DOMMatrix().translate(P.L, P.T), 1); return out;
+  },
+  // quanto o desenho deformado passa das bordas da imagem (px)
+  sobra(df, W, H) {
+    const C = this.pontos(df), b = df.b, pts = []; for (let i = 0; i <= 24; i++) { const t = i / 24; pts.push([b.x + b.w * t, b.y], [b.x + b.w * t, b.y + b.h], [b.x, b.y + b.h * t], [b.x + b.w, b.y + b.h * t]); }
+    let x0 = 0, y0 = 0, x1 = W, y1 = H; for (const [x, y] of pts) { const [X, Y] = this.F(df, C, x, y); x0 = Math.min(x0, X); y0 = Math.min(y0, Y); x1 = Math.max(x1, X); y1 = Math.max(y1, Y); }
+    const r = v => Math.max(0, Math.ceil(v) + 2); return { L: x0 < 0 ? r(-x0) : 0, T: y0 < 0 ? r(-y0) : 0, R: x1 > W ? r(x1 - W) : 0, B: y1 > H ? r(y1 - H) : 0 };
   },
 
   /* ---------- editar no palco ---------- */

@@ -480,7 +480,7 @@ const Atelie = {
     if (ctrl && k.toLowerCase() === 's') { e.preventDefault(); return this.salvarLocal(); } // Ctrl+S = guardar neste computador
     if (ctrl) { Pintura.teclaCtrl(e); return; }
     if (this.edImg) { // EDITOR DE IMAGEM: só as teclas de pintar; Esc sai (ou desmarca a seleção primeiro)
-      if (k === 'Escape') { e.preventDefault(); return Pintura.selecao ? Pintura.desmarcar() : this.fecharEditor(); }
+      if (k === 'Escape') { e.preventDefault(); if (Pintura.dfi?.mexeu()) return Pintura.dfi.cancela(); return Pintura.selecao ? Pintura.desmarcar() : this.fecharEditor(); } // deformando: o Esc primeiro desfaz a deformação
       if (e.type === 'keydown' && k === 'T' && e.shiftKey && !e.altKey) return Ajustes.tecla(e);
       if (e.type === 'keydown' && Pintura.tecla(e)) return;
       if ((k === 'Delete' || k === 'Backspace') && Pintura.temSelecao()) { e.preventDefault(); return Pintura.mexeDentro('apagar'); }
