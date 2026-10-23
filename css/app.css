@@ -1027,3 +1027,6 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .copias-pc-t{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;color:#ff8a9a}.copias-pc-t b{color:var(--tx)}.copias-pc-t small{color:var(--tx3);font-size:12px}
 .pc.pc-local{border-color:rgba(255,107,107,.6)!important}.pc-local .th{position:relative}.pc-local-selo{position:absolute;left:6px;top:6px;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:#c8323f;color:#fff}
 .at-copia-local{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;color:#ffb3ba;background:rgba(200,50,63,.18);border:1px solid rgba(255,107,107,.6);white-space:nowrap}
+
+/* o tamanho do arquivo no canto do cartão não cobre o texto */
+.pc:has(.tam:not([hidden])) .in small{padding-right:46px}
