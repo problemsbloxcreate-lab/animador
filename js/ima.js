@@ -8,7 +8,7 @@
 const Ima = {
   DIST: 22,
   rectDe(alvo) {
-    if (alvo === 'palco') { const p = $('#atelie .at-palco'); if (!p) return null; const r = p.getBoundingClientRect(), tl = parseFloat(getComputedStyle(p).getPropertyValue('--tl')) || 0; return r.width ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom - tl, width: r.width, height: r.height - tl } : null; }
+    if (alvo === 'palco') { const p = $('#atelie .at-palco'); if (!p) return null; const r = p.getBoundingClientRect(), tl = parseFloat(getComputedStyle(p).getPropertyValue('--tl')) || 0; const R = p.classList.contains('com-regua') ? 18 : 0; /* régua ligada: gruda do lado dela (a régua fica à vista, a barra não cobre) */ return r.width ? { left: r.left + R, top: r.top + R, right: r.right, bottom: r.bottom - tl, width: r.width - R, height: r.height - tl - R } : null; }
     const [t, id] = String(alvo).split(':'), el = t === 'jan' ? $(`.dock-janela[data-jan="${id}"]`) : t === 'col' ? $(`.dock-col[data-col="${id}"]`) : null;
     if (!el || !el.offsetWidth) return null; return el.getBoundingClientRect();
   },
@@ -19,6 +19,10 @@ const Ima = {
     if (preso.esticar) { if (vert) { o.h = r.height; o.y = r.top; } else { o.w = r.width; o.x = r.left; } }
     if (vert) { o.x = preso.lado === 'esq' ? (dentro ? r.left : r.left - o.w) : (dentro ? r.right - o.w : r.right); if (!preso.esticar) o.y = clamp(r.top + preso.off, r.top - o.h + 20, r.bottom - 20); }
     else { o.y = preso.lado === 'cima' ? (dentro ? r.top : r.top - o.h) : (dentro ? r.bottom - o.h : r.bottom); if (!preso.esticar) o.x = clamp(r.left + preso.off, r.left - o.w + 20, r.right - 20); }
+    // régua ligada: o que cairia em cima da régua do palco (faixa de 18 px na esquerda e em cima) vai para o lado dela
+    const pal = $('#atelie .at-palco'); if (pal?.classList.contains('com-regua') && preso.alvo !== 'palco') { const p = pal.getBoundingClientRect(), R = 18;
+      if (o.x >= p.left - 2 && o.x < p.left + R && o.y < p.bottom && o.y + o.h > p.top) { o.x = p.left + R; }
+      if (o.y >= p.top - 2 && o.y < p.top + R && o.x < p.right && o.x + o.w > p.left) { if (preso.esticar && (preso.lado === 'esq' || preso.lado === 'dir')) o.h -= p.top + R - o.y; o.y = p.top + R; } }
     return o;
   },
   // procurando onde grudar: a coisa (caixa b) perto da borda de algum alvo; sem = null

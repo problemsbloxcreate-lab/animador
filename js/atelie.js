@@ -348,7 +348,7 @@ const Atelie = {
   /* ---------- régua e ímã (como no editor): R liga/desliga; arrastando, a peça gruda nas bordas e no meio das outras e no centro (0,0); Ctrl segura para não grudar ---------- */
   regua() { if (this._regua == null) { try { this._regua = localStorage.getItem('animador-atelie-regua') !== '0'; } catch { this._regua = true; } } return this._regua; },
   trocaRegua() { this._regua = !this.regua(); try { localStorage.setItem('animador-atelie-regua', this._regua ? '1' : '0'); } catch { } this.pintaRegua(); UI.toast(this._regua ? 'Régua e ímã ligados (Ctrl segura para não grudar)' : 'Régua e ímã desligados'); this.desenha(); },
-  pintaRegua() { const b = $('#at-regua'); if (b) { b.innerHTML = ic('ruler', 14); b.classList.toggle('on', this.regua()); } $('.at-palco')?.classList.toggle('com-regua', this.regua()); },
+  pintaRegua() { const b = $('#at-regua'); if (b) { b.innerHTML = ic('ruler', 14); b.classList.toggle('on', this.regua()); } $('.at-palco')?.classList.toggle('com-regua', this.regua()); if (typeof Ima !== 'undefined') Ima.arruma(); },
   caixaItem(it) { const im = it.img, px = im.pivo?.x ?? im.w / 2, py = im.pivo?.y ?? im.h / 2, ax = im.ajuste?.x || 0, ay = im.ajuste?.y || 0; return Regua.caixa([[0, 0], [im.w, 0], [0, im.h], [im.w, im.h]].map(([x, y]) => it.m.transformPoint(new DOMPoint(x - px + ax, y - py + ay)))); },
   imaInicio(it) {
     if (!it?.img) return null; const fora = new Set([it.parte.id]); let mudou = true; while (mudou) { mudou = false; for (const q of this.def.partes) if (q.pai && fora.has(q.pai) && !fora.has(q.id)) { fora.add(q.id); mudou = true; } } // ela e as presas nela (vão junto)
