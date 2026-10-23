@@ -1192,7 +1192,7 @@ const Atelie = {
   },
   /* ---------- ÍCONE e COR do personagem (hierarquia e timeline do editor) ---------- */
   pintaIcone() {
-    const b = $('#at-icone'); if (!b || !this.def) return; const def = this.def, auto = (def.iconeModo || 'auto') === 'auto', cAuto = (def.corModo || 'auto') === 'auto';
+    const b = $('#at-icone'); if (!b || !this.def) return; const def = this.def, auto = (def.iconeModo || 'auto') === 'auto' && !(def.iconeFixo && def.icone), cAuto = (def.corModo || 'auto') === 'auto'; // iconeFixo: aplicado na configuração = fica ASSIM (não é refeito sozinho)
     const deIc = def.id + ':' + (def.vistas?.[0]?.id || ''); // UM ícone para o personagem todo (feito da vista principal): trocar de vista não muda nem apaga a foto
     if ((auto || cAuto) && this._icAuto?.de !== deIc) { const ant = this._icAuto?.de?.startsWith(def.id + ':') ? this._icAuto : null, m = this._icAuto = { de: deIc, img: ant?.img, cor: ant?.cor }; Icone.cabeca(def).then(i => { m.img = i; if (this._icAuto === m) this.pintaIcone(); }).catch(() => { }); Icone.corAuto(def).then(c => { m.cor = c; if (this._icAuto === m) this.pintaIcone(); }).catch(() => { }); }
     const img = def.iconeModo === 'nenhum' ? null : auto ? this._icAuto?.img : def.icone, cor = cAuto ? this._icAuto?.cor : def.cor;
@@ -1265,7 +1265,7 @@ const Atelie = {
     $('[data-c]', body).oninput = ev => { corModo = 'propria'; cor = ev.target.value; pinta(); };
     pinta();
     const ok = await UI.modal({ title: 'Ícone e cor do personagem', icon: 'image', width: 640, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Aplicar', kind: 'primary', value: true }] }); if (!ok) return;
-    def.iconeModo = modo; const c = cortes[modo];
+    def.iconeModo = modo; const c = cortes[modo]; if (modo === 'auto') def.iconeFixo = true; else delete def.iconeFixo; // aplicou = a foto fica como ficou (para todos, vai com o personagem); só muda quando alguém aplicar de novo
     if (modo === 'auto' && autoF) { const p = autoF.corte, igual = c && Math.abs(c.cx - p.cx) + Math.abs(c.cy - p.cy) + Math.abs(c.lado - p.lado) < .002 && !c.r && (c.fx || 1) === 1; if (igual || !c) delete def.iconeCorte; else def.iconeCorte = { modo, ...c }; def.icone = await Icone.recorta(autoF.cv, c || p); }
     else if (modo === 'proprio' && propF) { def.iconeFonte = propF.toDataURL('image/webp', .9); def.iconeCorte = { modo, ...(c || Icone.cortePadrao(propF)) }; def.icone = await Icone.recorta(propF, def.iconeCorte); }
     else if (modo === 'nenhum') delete def.icone;

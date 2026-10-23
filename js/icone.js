@@ -63,7 +63,7 @@ const Icone = {
   // completa o que é automático (antes de mandar para a nuvem / para a animação, ou no editor quando falta)
   async prepara(def) {
     if (!def) return def;
-    if ((def.iconeModo || 'auto') === 'auto') { try { const i = await this.cabeca(def); if (i) def.icone = i; } catch { } }
+    if ((def.iconeModo || 'auto') === 'auto' && !(def.iconeFixo && def.icone)) { try { const i = await this.cabeca(def); if (i) def.icone = i; } catch { } } // iconeFixo: aplicado à mão, não refaz
     if ((def.corModo || 'auto') === 'auto') { try { def.cor = await this.corAuto(def); } catch { } }
     return def;
   },

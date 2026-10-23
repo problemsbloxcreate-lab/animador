@@ -40,14 +40,21 @@ const AtelieArq = {
     let r, fim = tela({ titulo: 'Abrindo o arquivo', subtitulo: `Lendo ${f.name}…` }); try { r = await this.ler(f); } catch (e) { fim(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } fim();
     const novo = r.def, np = Modelo.todasPartes ? Modelo.todasPartes(novo).length : novo.partes.length, nps = (novo.sessoes || []).reduce((n, s) => n + (s.presets?.length || 0), 0) + (novo.vistas || []).reduce((n, v) => n + (v.sessoes || []).reduce((m, s) => m + (s.presets?.length || 0), 0), 0);
     AoVivo.avisaTroca?.({ estado: 'pergunta', arquivo: f.name, resumo: `${np} parte${np === 1 ? '' : 's'}, ${nps} preset${nps === 1 ? '' : 's'}` }); // trabalhando junto: os outros veem que está sendo decidido
-    const op = await UI.modal({ title: 'Substituir este personagem?', icon: 'layers', width: 480, body: `<div>Trocar tudo de <b>${esc(atual.nome)}</b> — partes, imagens, poses e presets, animações de teste e vistas — pelo que está no arquivo <b>${esc(f.name)}</b> (${esc(novo.nome || '')}: ${np} parte${np === 1 ? '' : 's'}, ${nps} preset${nps === 1 ? '' : 's'}).<br><br>As vistas de agora continuam no personagem, com <b>(antigo)</b> no nome (ex.: "${esc((atual.vistas?.[0]?.nome) || 'Frente')} (antigo)"), para você passar presets de uma para a outra ou apagar depois.<br><br>Antes, uma cópia de como ele está agora fica guardada <b>neste computador</b> ("${esc(atual.nome)} (anterior)", em Só neste computador).${Atelie.naNuvem ? '<br><br>Ele está na nuvem: a nuvem da equipe também passa a ter a versão do arquivo.' : ''}</div>`,
+    // COMO guardar a versão de agora: (a) as vistas antigas ficam NO MESMO personagem com "(antigo)" no nome; ou (b) uma cópia "(anterior)"
+    // vai para "Só neste computador" de TODOS que estão junto e o personagem fica só com o que veio do arquivo
+    const corpo = h(`<div>Trocar tudo de <b>${esc(atual.nome)}</b> — partes, imagens, poses e presets, animações de teste e vistas — pelo que está no arquivo <b>${esc(f.name)}</b> (${esc(novo.nome || '')}: ${np} parte${np === 1 ? '' : 's'}, ${nps} preset${nps === 1 ? '' : 's'}).${Atelie.naNuvem ? ' Ele está na nuvem: a nuvem da equipe também passa a ter a versão do arquivo.' : ''}
+      <div class="sub-esc"><b>E a versão de agora?</b>
+        <label class="sub-op"><input type="radio" name="guarda" value="antigo" checked><span><b>Guardar as vistas de agora no mesmo personagem</b><small>Elas continuam nele com <b>(antigo)</b> no nome (ex.: "${esc((atual.vistas?.[0]?.nome) || 'Frente')} (antigo)"), para passar presets de uma para a outra ou apagar depois.</small></span></label>
+        <label class="sub-op"><input type="radio" name="guarda" value="rascunho"><span><b>Guardar uma cópia como rascunho e trocar tudo</b><small>A versão de agora vira "${esc(atual.nome)} (anterior)" em <b>Só neste computador</b>${AoVivo.ativo ? ' de <b>todos que estão junto</b>' : ''}, e o personagem fica só com o que veio do arquivo.</small></span></label></div></div>`);
+    const op = await UI.modal({ title: 'Substituir este personagem?', icon: 'layers', width: 520, body: corpo,
       buttons: [{ label: 'Cancelar', value: null }, { label: 'Abrir como outro personagem', value: 'abrir' }, { label: 'Substituir', kind: 'primary', value: 'sub' }] });
+    const guarda = $('input[name=guarda]:checked', corpo)?.value || 'antigo';
     if (op !== 'sub') AoVivo.avisaTroca?.({ estado: 'cancelado', arquivo: f.name });
     if (op === 'abrir') return this.abrir(f); if (op !== 'sub') return;
-    AoVivo.avisaTroca?.({ estado: 'trocando', arquivo: f.name });
-    fim = tela({ titulo: `Substituindo ${atual.nome}`, subtitulo: 'Guardando a cópia de antes neste computador…' }); const t = { remove: () => fim() };
+    AoVivo.avisaTroca?.({ estado: 'trocando', arquivo: f.name, backup: guarda === 'rascunho' });
+    fim = tela({ titulo: `Substituindo ${atual.nome}`, subtitulo: guarda === 'rascunho' ? 'Guardando a cópia de antes neste computador…' : 'Trocando pelo arquivo…' }); const t = { remove: () => fim() };
     try {
-      await Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(atual)), atual.thumb, `${atual.nome} (anterior)`);
+      if (guarda === 'rascunho') await Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(atual)), atual.thumb, `${atual.nome} (anterior)`);
       // as imagens do arquivo passam a morar no personagem aberto (mesmo id = mesma pasta na nuvem)
       Ocupado.passo('Trocando pelo arquivo…'); const velho = novo.id, id = atual.id, troca = k => k.split(`personagens/${velho}/`).join(`personagens/${id}/`);
       const ks = velho !== id ? Modelo.chavesImgs(novo) : []; let n = 0; for (const k of ks) { Ocupado.parte(++n, ks.length); const b = await Arq.pegaBlob(k).catch(() => null); if (!b) continue; const k2 = troca(k); await Arq.guardar(b, k2); Arq.img.delete(k2); }
@@ -55,12 +62,12 @@ const AtelieArq = {
       Object.assign(d, { id, nome: atual.nome, pasta: atual.pasta, autor: atual.autor, edicoes: atual.edicoes, modificado: Date.now() }); for (const c of ['autor', 'edicoes']) if (d[c] === undefined) delete d[c];
       // as vistas de antes ficam no personagem como "(antigo)": dá para mandar presets de uma para a outra e apagar quando quiser
       const velhas = (atual.vistas?.length ? atual.vistas : [{ id: null, nome: 'Vista', tipo: 'frente' }]).map(v => { const dv = v.id ? Modelo.naVista(atual, v.id) : atual; return { id: uid('vi'), nome: `${v.nome} (antigo)`.slice(0, 40), tipo: v.tipo || 'outra', partes: clone(dv.partes || []), sessoes: clone(dv.sessoes || []), animacoes: clone(dv.animacoes || []), raiz: dv.raiz, ...(dv.vis ? { vis: clone(dv.vis) } : {}) }; });
-      Modelo.garanteVistas?.(d); d.vistas.push(...velhas); await Arq.garantir(Modelo.chavesImgs(d)).catch(() => { });
+      Modelo.garanteVistas?.(d); if (guarda === 'antigo') d.vistas.push(...velhas); await Arq.garantir(Modelo.chavesImgs(d)).catch(() => { });
       Atelie.def = d; Atelie.sel = d.raiz || d.partes[0]?.id || null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = null; if (Atelie.edImg) Atelie.fecharEditor(); Atelie.multi?.clear();
       Atelie.commit(); Atelie.enquadrar?.();
       if (AoVivo.ativo) { Ocupado.passo('Mandando para quem está junto…'); try { await AoVivo._fila; } catch { } const snap = await AoVivo.fixaSala?.(); AoVivo.avisaTroca({ estado: 'feito', arquivo: f.name, snap: !!snap }); }
       t.remove();
-      UI.toast(`<b>${esc(atual.nome)}</b> agora é a versão do arquivo.${Atelie.naNuvem ? ' A nuvem está sendo atualizada.' : ''} A de antes ficou em <b>${esc(atual.nome)} (anterior)</b>, só neste computador (Ctrl+Z também volta).`, { kind: 'ok', time: 8000 });
+      UI.toast(`<b>${esc(atual.nome)}</b> agora é a versão do arquivo.${Atelie.naNuvem ? ' A nuvem está sendo atualizada.' : ''} ${guarda === 'rascunho' ? `A de antes ficou em <b>${esc(atual.nome)} (anterior)</b>, só neste computador` : 'As vistas de antes ficaram nele com <b>(antigo)</b> no nome'} (Ctrl+Z também volta).`, { kind: 'ok', time: 8000 });
     } catch (e) { t.remove(); AoVivo.avisaTroca?.({ estado: 'cancelado', arquivo: f.name }); UI.toast('Não consegui substituir: ' + esc(e.message), { kind: 'err', time: 7000 }); }
   },
   // errado = soltou/abriu no lugar de animação: abre no Ateliê do mesmo jeito, mas avisa que projeto do Animador é .animador

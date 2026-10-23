@@ -163,16 +163,16 @@ const AoVivo = {
       document.body.appendChild(this._trocaEl); return;
     }
     if (x.estado === 'trocando') {
-      this._trocaFim?.(); this._trocaFim = Ocupado.inicio({ tipo: 'arquivo', icone: 'layers', titulo: `${x.nome ? (x.nome || '').split(' ')[0] : 'Alguém'} está substituindo ${Atelie.def?.nome || 'o personagem'}`, subtitulo: 'Guardando a cópia de antes neste computador…', aviso: 'Aguarde: a versão nova vem do arquivo que a outra pessoa soltou. Não feche esta aba.' });
+      this._trocaFim?.(); this._trocaFim = Ocupado.inicio({ tipo: 'arquivo', icone: 'layers', titulo: `${x.nome ? (x.nome || '').split(' ')[0] : 'Alguém'} está substituindo ${Atelie.def?.nome || 'o personagem'}`, subtitulo: x.backup === false ? 'Esperando a versão nova…' : 'Guardando a cópia de antes neste computador…', aviso: 'Aguarde: a versão nova vem do arquivo que a outra pessoa soltou. Não feche esta aba.' });
       clearTimeout(this._trocaTo); this._trocaTo = setTimeout(() => { this._trocaFim?.(); this._trocaFim = null; }, 180000);
-      const d = Atelie.def; this._backup = Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(d)), d.thumb, `${d.nome} (anterior)`).catch(() => null); // as mudanças de fora esperam a cópia ficar pronta
+      this._trocaCopia = x.backup !== false; const d = Atelie.def; this._backup = x.backup === false ? Promise.resolve() : Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(d)), d.thumb, `${d.nome} (anterior)`).catch(() => null); // quem soltou escolheu "cópia como rascunho": cada um guarda a sua (as mudanças de fora esperam ela ficar pronta); "vistas (antigo)" = sem cópia
       try { await this._backup; } catch { } Ocupado.passo('Esperando a versão nova chegar…');
       return;
     }
     if (x.estado === 'feito' && this._trocaFim) { Ocupado.passo('Pondo a versão nova…'); await Promise.race([this._fila.catch(() => { }), new Promise(r => setTimeout(r, 90000))]); }
     if (x.estado === 'feito' && x.snap) { try { await this.ressinc(); } catch (e) { console.warn('ao vivo', e); } } // pega a versão inteira de quem trocou (igualzinha) // fica na espera até a versão nova estar na tela
     this._trocaFim?.(); this._trocaFim = null; clearTimeout(this._trocaTo);
-    if (x.estado === 'feito') UI.toast(`<b>${quem}</b> trocou <b>${nome}</b> pelo arquivo <b>${esc(x.arquivo || '')}</b>. A versão de antes ficou em <b>${nome} (anterior)</b>, neste computador.`, { kind: 'ok', time: 9000 });
+    if (x.estado === 'feito') UI.toast(`<b>${quem}</b> trocou <b>${nome}</b> pelo arquivo <b>${esc(x.arquivo || '')}</b>. ${this._trocaCopia === false ? 'As vistas de antes ficaram nele com <b>(antigo)</b> no nome.' : `A versão de antes ficou em <b>${nome} (anterior)</b>, neste computador.`}`, { kind: 'ok', time: 9000 });
     else if (x.estado === 'cancelado') UI.toast(`<b>${quem}</b> não trocou o personagem pelo arquivo.`, { time: 3500 });
   },
   // ---------- mudanças ----------
