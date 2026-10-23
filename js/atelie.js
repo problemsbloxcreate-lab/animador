@@ -196,7 +196,7 @@ const Atelie = {
     this.enviando = (async () => {
       try { try { def.thumb = this.miniatura(); } catch { }
         if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
-        await Icone.prepara(def); await Nuvem.salvar(def); this.aplicaTroca(Nuvem.ultimaTroca); const snapR = Nuvem.remapear(snap, Nuvem.ultimaTroca);
+        await Icone.prepara(def); await Nuvem.salvar(def, null, { limpar: !!agora }); this.aplicaTroca(Nuvem.ultimaTroca); const snapR = Nuvem.remapear(snap, Nuvem.ultimaTroca);
         if ((this.ultimo || JSON.stringify(this.def)) === snapR) { this.sujo = false; await DB.del('arquivos', this.chaveRascunho(def.id)).catch(() => { }); this.rascunhoEm = null; }
         if (this.def?.id === def.id) { this.def.modificado = def.modificado; this.def.autor = def.autor; this.def.edicoes = def.edicoes; this.def.thumb = def.thumb; }
         this.baseNuvem = snapR; if (this.base0 === snapR || !this.sujo) this.base0 = snapR; this.avisaAnimador(def, false); this.pinta();

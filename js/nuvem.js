@@ -41,10 +41,12 @@ const Nuvem = {
   adm: false, // guardado da última vez que perguntou (para o menu já sair certo)
   async souAdm() { try { return (this.adm = !!(await window.EstudioConta?.perfil?.())?.adm); } catch { return false; } },
   async pedeAdm(nome) { if (window.EstudioConta?.nuvem?.pedeAdm) return window.EstudioConta.nuvem.pedeAdm(nome); return UI.modal({ title: 'Só um ADM pode apagar da nuvem', icon: 'cloud', width: 440, body: `<div>Peça para um ADM apagar <b>${esc(nome || 'isso')}</b> da nuvem da equipe (no menu, ADM › Nuvem).</div>`, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] }); },
-  avisaEspaco() { try { window.EstudioConta?.nuvem?.atualizar?.(); } catch { } },
+  avisaEspaco() { if (Date.now() - (this._espEm || 0) < 120e3) return; this._espEm = Date.now(); try { window.EstudioConta?.nuvem?.atualizar?.(); } catch { } },
   // o que já está na nuvem de cada personagem fica guardado aqui depois da 1ª vez (o "salvar" automático não lista a nuvem toda a cada mudança)
   _ks: new Map(),
-  async salvar(def, aoAndar) {
+  // o.limpar === false (envio automático): as imagens que saíram ficam para apagar no próximo envio "de verdade" (botão, sair):
+  // cada apagada gasta do limite do dia e, com o Ctrl+Z, a mesma imagem voltaria e teria de subir de novo
+  async salvar(def, aoAndar, o = {}) {
     this._lista = null;
     let existentes = this._ks.get(def.id);
     if (!existentes) { existentes = new Set(); try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); } catch { } this._ks.set(def.id, existentes); }
@@ -66,7 +68,7 @@ const Nuvem = {
     await DB.put('personagens', JSON.parse(JSON.stringify(def)));
     // imagens que saíram do personagem não ficam ocupando espaço na nuvem
     const usadas = new Set(imgs);
-    for (const k of [...existentes]) if ((k.startsWith(`personagens/${def.id}/img/`) || k.startsWith(`personagens/${def.id}/aud/`)) && !usadas.has(k)) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }).catch(() => { }); existentes.delete(k); }
+    if (o.limpar !== false) for (const k of [...existentes]) if ((k.startsWith(`personagens/${def.id}/img/`) || k.startsWith(`personagens/${def.id}/aud/`)) && !usadas.has(k)) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }).catch(() => { }); existentes.delete(k); }
     existentes.add(`personagens/${def.id}/personagem.json`); this.avisaEspaco();
   },
   // converte as imagens PNG/JPG do personagem para WEBP (só se ficar menor) e troca as chaves no def; devolve { chaveVelha: chaveNova }
