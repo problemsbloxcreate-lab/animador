@@ -146,7 +146,7 @@ const Atelie = {
     if (this.emAba) { this.sujo = false; window.close(); setTimeout(() => { if (!window.closed) { history.replaceState(null, '', location.pathname); this.emAba = false; Telas.mostra('home'); Home.aba('personagens'); } }, 300); return; }
     if (this.volta && App.P) { Telas.mostra('editor'); App.titulo(); App.atualiza(); } else { Telas.mostra('home'); Home.aba('personagens'); }
   },
-  commit(o = {}) { const s = JSON.stringify(this.def); if (s !== this.ultimo) { this.pilha.push(this.ultimo); if (this.pilha.length > 120) this.pilha.shift(); this.refazer = []; this.ultimo = s; this.sujo = true; this.rascunho(); } if (!o.soDesenho) this.pinta(); else this.desenha(); },
+  commit(o = {}) { if (this.edit && !this.editPasso) { const ses = this.sessao?.(); if (ses && this.ligaPresets(ses) && this.teste) { const st = Animacoes.passoAtual(); if (st) this.teste = Animacoes.frame(st.a, Animacoes.i); } } const s = JSON.stringify(this.def); if (s !== this.ultimo) { this.pilha.push(this.ultimo); if (this.pilha.length > 120) this.pilha.shift(); this.refazer = []; this.ultimo = s; this.sujo = true; this.rascunho(); } if (!o.soDesenho) this.pinta(); else this.desenha(); },
   // Ctrl+Z logo depois de riscar: o traço ainda está sendo gravado (imagem grande demora). Espera ele entrar no histórico e SÓ DEPOIS desfaz —
   // antes o Ctrl+Z desfazia a mudança de antes e o traço chegava depois (parecia que "voltava o risco" e não saía mais). Um de cada vez.
   desfazJa(refaz) { const vez = (this._filaZ || Promise.resolve()).then(async () => { if (Pintura._gravando) await Pintura._gravando; await new Promise(r => setTimeout(r, 0)); refaz ? this.redo() : this.undo(); }).catch(() => { }); this._filaZ = vez; return vez; },
@@ -855,12 +855,20 @@ const Atelie = {
         const pid = ev.dataTransfer.getData('text/parte'); if (pid) { const ids = this._arrasto?.includes(pid) ? this._arrasto : [pid]; this._arrasto = null; return this.virarImagens(ids.map(i => this.parte(i)), p, pasta); } // parte arrastada da lista: vira imagem desta parte
         const img = p.imgs.find(i => i.id === ev.dataTransfer.getData('text/img')); if (img && (img.pasta || null) !== pasta) { if (pasta) img.pasta = pasta; else delete img.pasta; this.commit(); } };
     };
+    if (this.focoImg && (this.focoImg.p !== p.id || this.focoImg.img !== atual)) this.focoImg = null; // a imagem que aparece mudou (outro frame, preset…): não fica marcada a de antes junto com a nova
     const card = img => {
-      const bm = Arq.bitmap(img.k, () => this.pintaImgs()), c = h(`<div data-iid="${img.id}" class="im ${img.id === atual ? 'on' : ''} ${this.focoImg?.img === img.id ? 'foco' : ''} ${this.marcas().imgs.has(img.id) ? 'mod' : ''} ${this.moverTodos ? 'todos' : this.modoMover === 'imagem' && img.id === atual ? 'mesma' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span>${Camadas.tem(img) ? `<i class="im-cam" title="Imagem com ${img.camadas.length} camada${img.camadas.length > 1 ? 's' : ''} (Pintar e cores › Camadas)">${ic('layers', 11)}${img.camadas.length}</i>` : ''}<button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
-      if (bm) { const cv = document.createElement('canvas'); cv.width = 96; cv.height = 96; const k = Math.min(96 / bm.width, 96 / bm.height); cv.getContext('2d').drawImage(bm, (96 - bm.width * k) / 2, (96 - bm.height * k) / 2, bm.width * k, bm.height * k); c.style.backgroundImage = `url(${cv.toDataURL()})`; }
+      const fundo = (el, b) => { if (!b || !el) return; const cv = document.createElement('canvas'); cv.width = 96; cv.height = 96; const k = Math.min(96 / b.width, 96 / b.height); cv.getContext('2d').drawImage(b, (96 - b.width * k) / 2, (96 - b.height * k) / 2, b.width * k, b.height * k); el.style.backgroundImage = `url(${cv.toDataURL()})`; };
+      let cEl = null; const bm = Arq.bitmap(img.k, () => fundo(cEl, Arq.img.get(img.k))), c = h(`<div data-iid="${img.id}" class="im ${img.id === atual ? 'on' : ''} ${this.focoImg?.img === img.id ? 'foco' : ''} ${this.marcas().imgs.has(img.id) ? 'mod' : ''} ${this.moverTodos ? 'todos' : this.modoMover === 'imagem' && img.id === atual ? 'mesma' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span>${Camadas.tem(img) ? `<i class="im-cam" title="Imagem com ${img.camadas.length} camada${img.camadas.length > 1 ? 's' : ''} (Pintar e cores › Camadas)">${ic('layers', 11)}${img.camadas.length}</i>` : ''}<button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
+      cEl = c; fundo(c, bm);
       c.onclick = ev => { if (ev.target.closest('.x')) return; this.focoImg = { p: p.id, img: img.id };
         // parado num passo da animação: trocar a imagem NÃO muda a animação (ela só guarda poses) — só escolhe a imagem
-        if (Animacoes.passoAtual()) { Animacoes.alvoPausa(p.id); this.mudar(p.id, { img: img.id }); this.commit(); if (!this._avisouImg) { this._avisouImg = true; UI.toast('Imagem trocada <b>só neste frame</b>.', { time: 3500 }); } return; } // passo parado: a imagem muda só nele (keyframe)
+        const stF = Animacoes.passoAtual();
+        if (stF) { // passo parado: a imagem muda só nele (keyframe). Se ela é a imagem de um PRESET (ex.: Boca › "O"), o frame passa a usar o preset
+          const ach = this.presetDaImagem(p.id, img.id);
+          if (ach) { for (const x of Animacoes.passosAgora(stF.a, Animacoes.i)) { const e = x.p.p?.[p.id]; if (e && 'img' in e) { delete e.img; if (Object.keys(e).every(k => (k === 'vis' && e.vis !== false) || (k === 'r' && !e.r))) delete x.p.p[p.id]; } }
+            Animacoes.usarPose(ach.s, ach.pr); this.pinta(); UI.toast(`Este frame agora usa o preset <b>${esc(ach.s.nome)} › ${esc(ach.pr.nome)}</b>.`, { time: 2600 }); return; }
+          Animacoes.alvoPausa(p.id); this.mudar(p.id, { img: img.id }); Atelie.teste = Animacoes.frame(stF.a, Animacoes.i); this.commit(); this.pinta();
+          if (!this._avisouImg) { this._avisouImg = true; UI.toast('Imagem trocada <b>só neste frame</b>.', { time: 3500 }); } return; }
         if (this.edImg) { this.edImg = { pid: p.id, iid: img.id }; return this.pinta(); }
         this.mudar(p.id, { img: img.id }); this.commit(); this.pintaImgs(); };
       c.ondblclick = ev => { if (ev.target.closest('.x')) return; this.abrirEditor(p, img); }; // EDITOR DE IMAGEM (estilo Photoshop)
@@ -1270,6 +1278,17 @@ const Atelie = {
     let n = 0; for (const [pid, e] of Object.entries(pr.estado || {})) { const p = this.parte(pid); if (!p) continue; const { d, ...resto } = e; Object.assign(p.base, resto); if (d) p.base.d = { ...(p.base.d || {}), ...d }; n++; }
     this.edit = null; this.commit(); UI.toast(n ? `A pose padrão agora é igual a <b>${esc(s.nome)} › ${esc(pr.nome)}</b> (${n} parte(s)). Ctrl+Z desfaz.` : 'Esse preset está vazio: nada mudou.', { kind: n ? 'ok' : 'warn' });
   },
+  // o preset (de uma sessão que mexe nesta parte) cuja imagem desta parte é esta — para o frame usar o preset em vez da imagem solta
+  presetDaImagem(pid, iid) { const ss = this.def.sessoes || [], cand = ss.filter(s => s.partes?.includes(pid)).concat(ss.filter(s => !s.partes?.length));
+    for (const s of cand) { const pr = s.presets.find(x => x.estado?.[pid]?.img === iid); if (pr) return { s, pr }; } return null; },
+  // preset criado/mudado DEPOIS: os frames das animações de teste que só trocavam a imagem para a mesma do preset passam a usar o preset
+  ligaPresets(s) {
+    if (!s) return 0; let n = 0; const so = e => e && Object.keys(e).every(k => k === 'img' || (k === 'vis' && e.vis !== false) || (k === 'r' && !e.r));
+    for (const pr of s.presets) { const ents = Object.entries(pr.estado || {}); if (!ents.length || !ents.every(([, e]) => e.img && so(e))) continue; /* só presets que trocam imagens (sem mexer em posição): o frame fica igualzinho */
+      for (const a of this.def.animacoes || []) for (const tr of a.trilhas || []) for (const ps of tr) { if (!ps.p || ps.s?.[s.id]) continue;
+        if (!ents.every(([pid, e]) => so(ps.p[pid]) && ps.p[pid].img === e.img)) continue;
+        for (const [pid] of ents) delete ps.p[pid]; ps.s = ps.s || {}; ps.s[s.id] = pr.id; n++; } }
+    return n; },
   menuPreset(e, s, pr) {
     UI.ctx(e.clientX, e.clientY, [
       { label: 'Mudar a imagem…', icon: 'image', key: '2 cliques', action: () => { Linha.parar?.(); this.trocarImagemPreset(s, pr); } }, // o mesmo que dois cliques no preset
