@@ -36,10 +36,11 @@ const Nuvem = {
   },
   // definição do personagem (da nuvem; se estiver sem internet, a cópia do navegador)
   // mod = marca da última gravação na nuvem: se a cópia deste computador é a mesma, não baixa de novo
-  async abrir(id, rapido, mod) {
+  // soNuvem: só a versão da nuvem (sem cair na cópia do computador quando a nuvem não responde) — o Ateliê usa para não confundir as duas
+  async abrir(id, rapido, mod, soNuvem) {
     if (mod) { const local = await DB.get('personagens', id).catch(() => null); if (local && local._mod === mod) return local; }
     try { const d = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/personagem.json`))).json(); if (mod) d._mod = mod; await DB.put('personagens', d); return d; }
-    catch (e) { const local = await DB.get('personagens', id); if (local) return local; throw e; }
+    catch (e) { if (soNuvem) throw e; const local = await DB.get('personagens', id); if (local) return local; throw e; }
   },
   async baixar(k) {
     let r; try { r = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k)); }

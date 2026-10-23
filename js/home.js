@@ -62,8 +62,8 @@ const Home = {
       Arquivos.poe($('.tam', card), Arquivos.tamProjeto(p));
       card.onclick = e => { if (!e.target.closest('.mn')) App.abrir(p); };
       $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
-        { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da animação', value: p.nome }); if (n) { p.nome = n; await DB.put('projetos', p); this.pinta(); } } },
-        { label: 'Duplicar', icon: 'dup', action: async () => { const c2 = clone(p); c2.id = uid('p'); c2.nome += ' (cópia)'; c2.modificado = Date.now(); await DB.put('projetos', c2); this.pinta(); } },
+        { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da animação', value: p.nome }); if (n) { p.nome = await Arquivos.nomeAnimacao(n, p.id); await DB.put('projetos', p); this.pinta(); } } },
+        { label: 'Duplicar', icon: 'dup', action: async () => { const c2 = clone(p); c2.id = uid('p'); c2.nome = await Arquivos.nomeAnimacao(p.nome, c2.id); c2.modificado = Date.now(); await DB.put('projetos', c2); this.pinta(); } },
         { label: 'Baixar .animador', icon: 'download', action: () => Toon.baixar(p) },
         p.anterior && { label: 'Apagar este anterior', icon: 'trash', danger: true, action: () => this.apagar(p) },
         { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.animacao(p, 0) },
@@ -127,12 +127,12 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       catch (e) { t.remove(); UI.toast('A IA não terminou: ' + esc(e.message), { kind: 'err' }); } }
   },
   async apagar(p) { if (!(await UI.confirm({ title: 'Apagar a animação?', msg: `"<b>${esc(p.nome)}</b>" sai deste computador. Baixe o .animador antes se quiser guardar.`, ok: 'Apagar', danger: true }))) return; await DB.del('projetos', p.id); this.pinta(); EstudioConta?.espaco?.atualizar?.(); },
-  async nova(f, o = {}) { const P = Modelo.novoProjeto({ w: f.w, h: f.h, fps: f.fps, duracao: o.duracao || f.fps * 4, nome: o.nome || 'Animação ' + new Date().toLocaleDateString('pt-BR'), fundo: o.folha });
+  async nova(f, o = {}) { const P = Modelo.novoProjeto({ w: f.w, h: f.h, fps: f.fps, duracao: o.duracao || f.fps * 4, nome: o.nome || 'Animação ' + new Date().toLocaleDateString('pt-BR'), fundo: o.folha }); P.nome = await Arquivos.nomeAnimacao(P.nome, P.id);
     if (o.palco) P.palco = o.palco; if (o.semFolha) P.raiz = P.raiz.filter(n => !n.fundoPadrao); P.temFundoPadrao = true; try { P.autor = { ...(await Autores.eu()), em: Date.now() }; } catch { } await DB.put('projetos', P); App.abrir(P); },
   // abrir um .animador; se for um personagem do Ateliê (.atelieanimador), abre no Ateliê e avisa
   async importar(f) {
     if ((await AtelieArq.tipo(f)) === 'atelie') return AtelieArq.abrir(f, { errado: true });
-    try { const { P, info } = await Toon.ler(f); await DB.put('projetos', P); await App.abrir(P); fichaAnimacao(P, info); } catch (e) { UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
+    try { const { P, info } = await Toon.ler(f); P.nome = await Arquivos.nomeAnimacao(P.nome, P.id); await DB.put('projetos', P); await App.abrir(P); fichaAnimacao(P, info); } catch (e) { UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
   },
   // título de pasta da biblioteca: botão direito muda a cor (guardada neste navegador)
   tituloPasta(pa) {

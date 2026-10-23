@@ -33,7 +33,12 @@ const Atelie = {
     let doRascunho = false, novo = null, soLocal = false;
     if (o.def) def = o.def; // veio de um arquivo .atelieanimador
     else if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }), r = await DB.get('arquivos', this.chaveRascunho(id)).catch(() => null); this._rascNuvem = !!r?.nuvem;
-      try { def = await Nuvem.abrir(id); this._temNuvem = true; } catch (e) { this._temNuvem = false; if (!r?.def && !o.reserva) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } } t.remove();
+      // a versão da NUVEM de verdade (nunca a cópia do computador no lugar dela): se a nuvem não responder, abre o que é deste computador COMO LOCAL
+      try { def = await Nuvem.abrir(id, false, undefined, true); this._temNuvem = true; } catch (e) { this._temNuvem = false;
+        const pc = r?.def || await DB.get('personagens', id).catch(() => null);
+        if (!pc && !o.reserva) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
+        if (pc) { t.remove(); def = pc; doRascunho = true; soLocal = true;
+          UI.toast(`A nuvem não respondeu agora (${esc(e.message)}). Abri <b>a cópia deste computador</b>${r?.def ? ' (o seu rascunho)' : ''}: o que você mudar fica só aqui até a nuvem voltar; aí é só clicar em <b>Salvar na nuvem</b>.`, { kind: 'warn', time: 9000 }); } } t.remove();
       if (!def && !r?.def && o.reserva) { def = o.reserva; doRascunho = true; } // só existe na animação (ex.: veio de um .animador): usa a cópia de lá
       if (r?.def && !def) { def = r.def; doRascunho = true; } // ainda não foi para a nuvem: só existe o rascunho deste computador
       else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def)) {
@@ -41,7 +46,7 @@ const Atelie = {
           buttons: [{ label: 'Continuar o rascunho', icon: 'monitor', kind: 'rasc-local', value: 'rascunho' }, { label: 'Seguir na nuvem', icon: 'cloud', kind: 'nuvem-dest', value: 'nuvem' }] }); // em destaque: seguir na nuvem (com quem estiver junto)
         if (usa === 'rascunho') { this.base0Nuvem = JSON.stringify(def); def = r.def; doRascunho = true; soLocal = true; } // continuar o rascunho = a versão LOCAL (não entra no ao vivo; "Salvar na nuvem" manda depois) else if (usa === 'nuvem') await this.apagarRascunho(id); else return;
       } }
-    else { novo = await this.assistenteNovo(); if (!novo) return; def = Modelo.novoPersonagem(novo.nome); Modelo.garanteVistas(def); Object.assign(def.vistas[0], { tipo: novo.vtipo || 'frente', nome: (novo.vtipo === 'outra' && novo.vnome) || Modelo.nomeTipo(novo.vtipo || 'frente') }); def.fps = novo.fps || Modelo.FPS_PADRAO; }
+    else { novo = await this.assistenteNovo(); if (!novo) return; def = Modelo.novoPersonagem(await Arquivos.nomePersonagem(novo.nome)); Modelo.garanteVistas(def); Object.assign(def.vistas[0], { tipo: novo.vtipo || 'frente', nome: (novo.vtipo === 'outra' && novo.vnome) || Modelo.nomeTipo(novo.vtipo || 'frente') }); def.fps = novo.fps || Modelo.FPS_PADRAO; }
     // NA NUVEM: depois da 1ª vez em "Salvar na nuvem", toda mudança vai sozinha para a nuvem. Antes disso o personagem é LOCAL (só neste computador).
     this.naNuvem = !soLocal && !o.def && !!id && !!def && !(doRascunho && !this._temNuvem && !this._rascNuvem); this._temNuvem = this._rascNuvem = false; this.erroNuvem = null; clearTimeout(this._tn);
     Modelo.sincAnims(def); // tempo dos frames em quadros no fps do personagem (animações antigas em ms viram o nº de quadros mais perto)
@@ -322,7 +327,7 @@ const Atelie = {
     this.cv.addEventListener('wheel', e => this.roda(e), { passive: false }); // rodinha do mouse: zoom no ponto do mouse
     $('#at-voltar').onclick = () => this.sair(); $('#at-voltar').hidden = true; { const br = $('#atelie header .brand'); if (br) { br.style.cursor = ''; br.removeAttribute('title'); br.onclick = null; } } // o nome ATELIÊ NÃO é clicável (decisão do dono: não sair da aba sem querer)
     $('#at-salvar').onclick = () => this.naNuvem ? this.sincronizar(true) : this.salvar(); $('#at-undo').onclick = () => this.desfazJa(false); $('#at-redo').onclick = () => this.desfazJa(true);
-    $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); Telas.marca('atelie'); };
+    $('#at-nome').onchange = async e => { const n = e.target.value.trim(); if (n && n !== this.def.nome) { this.def.nome = await Arquivos.nomePersonagem(n, this.def.id); e.target.value = this.def.nome; } this.commit(); Telas.marca('atelie'); };
     $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); if (this.naNuvem) PastasBib.mover('nuvem', [this.def.id], this.def.pasta).catch(() => { }); }; // a pasta da biblioteca da equipe também (personagens/pastas.json)
     $('#at-add-parte').onclick = () => this.novaParte(); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
     // soltar imagens no palco do ateliê: entram na parte escolhida (sem parte escolhida, cada uma vira uma parte)
@@ -1456,6 +1461,7 @@ const Atelie = {
   async salvar(o = {}) {
     const def = this.def; if (!def.partes.length) return UI.toast('Ponha pelo menos uma parte antes de salvar.', { kind: 'warn' });
     if (this.naNuvem) return this.sincronizar(true);
+    { const n = await Arquivos.nomePersonagem(def.nome, def.id); if (n !== def.nome) { def.nome = n; $('#at-nome') && ($('#at-nome').value = n); } } // já tem um com esse nome na nuvem: o mais novo ganha (1), (2)…
     def.thumb = this.miniatura();
     // aprendizado: o que a equipe corrigiu depois da IA organizar vai junto (a IA lê isso nos próximos personagens)
     if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }

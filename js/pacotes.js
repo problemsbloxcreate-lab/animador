@@ -77,6 +77,7 @@ const AtelieArq = {
     if (!$('#atelie').classList.contains('hidden') && Atelie.sujo && !(await UI.confirm({ title: 'Trocar de personagem?', msg: `"<b>${esc(Atelie.def?.nome || '')}</b>" tem mudanças que ainda não foram para a nuvem.`, ok: 'Abrir o arquivo', danger: true }))) return;
     let r; try { r = await this.ler(f); } catch (e) { return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
     const assumiu = await Autores.assumir(r.def); // sem criador conhecido (IA): quem abre primeiro vira o dono
+    r.def.nome = await Arquivos.nomePersonagem(r.def.nome, r.def.id); // outro personagem (outro id) com o mesmo nome: este ganha (1), (2)…
     await Atelie.abrir(null, { def: r.def, volta: !!App.P && !Atelie.emAba });
     const n = r.def.partes.length, ns = r.def.sessoes?.length || 0;
     const body = Autores.ficha(await Autores.prepara({ tipo: 'Personagem do Ateliê · .atelieanimador', nome: r.def.nome, thumb: r.def.thumb, ico: 'layers', resumo: `${n} parte${n === 1 ? '' : 's'} · ${ns} sess${ns === 1 ? 'ão' : 'ões'}`, autor: r.def.autor, verboAutor: 'subiu para a nuvem', edicoes: r.def.edicoes, pacote: r.info,
