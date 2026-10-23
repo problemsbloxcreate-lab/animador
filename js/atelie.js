@@ -241,9 +241,11 @@ const Atelie = {
   },
   pintaBotaoNuvem() {
     const b = $('#at-salvar'); if (!b) return;
-    const txt = !this.naNuvem ? 'Salvar na nuvem' : this.enviando ? 'Enviando…' : this.sujo ? 'Enviar agora' : 'Salvo na nuvem'; // salvo: o selo do lado some e o botão já diz
+    const res = !!window.EstudioLimite?.naReserva?.(); // principal no limite: o que vai agora fica na nuvem reserva (volta sozinho às 21h)
+    const txt = !this.naNuvem ? 'Salvar na nuvem' : this.enviando ? 'Enviando…' : this.sujo ? 'Enviar agora' : res ? 'Salvo na reserva' : 'Salvo na nuvem'; // salvo: o selo do lado some e o botão já diz
     b.innerHTML = `${ic('cloud', 15)} ${txt}`; b.classList.toggle('primary', !this.naNuvem || !!this.sujo); b.classList.toggle('salvo-nuvem', !!this.naNuvem && !this.sujo && !this.enviando);
-    b.title = this.naNuvem ? 'Este personagem está na nuvem da equipe: as mudanças vão sozinhas (clique para mandar agora).' : 'Salvar na nuvem da equipe (Ctrl+S guarda só neste computador)';
+    b.title = (this.naNuvem ? 'Este personagem está na nuvem da equipe: as mudanças vão sozinhas (clique para mandar agora).' : 'Salvar na nuvem da equipe (Ctrl+S guarda só neste computador)')
+      + (res ? ' A nuvem principal chegou ao limite de hoje: por enquanto vai para a nuvem reserva (a equipe vê igual) e passa sozinho para a principal às 21h.' : '');
   },
   async apagarRascunho(id = this.def?.id) { clearTimeout(this._tr); this.salvandoLocal = false; this.rascunhoEm = null; try { await DB.del('arquivos', this.chaveRascunho(id)); } catch { } },
   async rascunhos() { try { const ks = (await DB.keys('arquivos')).filter(k => String(k).startsWith('rascunho:')); return (await Promise.all(ks.map(k => DB.get('arquivos', k)))).filter(r => r?.def).sort((a, b) => b.em - a.em); } catch { return []; } },

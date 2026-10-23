@@ -7,6 +7,7 @@ const Nuvem = {
   async hd() { try { const t = await TurmaAuth.token(); return t ? { authorization: 'Bearer ' + t } : {}; } catch { return {}; } },
   async pede(caminho, o = {}) {
     const r = await fetch(this.srv + caminho, { ...o, headers: { ...(await this.hd()), ...(o.headers || {}) } });
+    setTimeout(() => this._resPinta?.(), 0);
     if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error?.message || 'A nuvem respondeu ' + r.status); }
     return r;
   },
@@ -41,6 +42,16 @@ const Nuvem = {
   adm: false, // guardado da última vez que perguntou (para o menu já sair certo)
   async souAdm() { try { return (this.adm = !!(await window.EstudioConta?.perfil?.())?.adm); } catch { return false; } },
   async pedeAdm(nome) { if (window.EstudioConta?.nuvem?.pedeAdm) return window.EstudioConta.nuvem.pedeAdm(nome); return UI.modal({ title: 'Só um ADM pode apagar da nuvem', icon: 'cloud', width: 440, body: `<div>Peça para um ADM apagar <b>${esc(nome || 'isso')}</b> da nuvem da equipe (no menu, ADM › Nuvem).</div>`, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] }); },
+  // aviso na biblioteca enquanto a nuvem principal está no limite do dia (usando a reserva, ou só esperando as 21h);
+  // a marca vem do /estudio-conta.js (EstudioLimite), que lê o que o servidor responde
+  avisoReserva(el) {
+    if (!el) return; const L = window.EstudioLimite;
+    const pinta = () => { if (!el.isConnected) { clearInterval(iv); return; } const t = L?.marcado?.() || 0; if (!t) { el.innerHTML = ''; return; }
+      const m = Math.max(0, Math.ceil((t - Date.now()) / 6e4)), falta = m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}min` : `${m} min`;
+      el.innerHTML = L.naReserva?.() ? `<div class="res-aviso">${ic('cloud', 14)}<span>A nuvem principal chegou ao limite grátis de hoje. O que a equipe salvar vai para a <b>nuvem reserva</b> e continua aparecendo aqui para todos; às 21h (em ${falta}) passa sozinho de volta para a principal.</span></div>`
+        : `<div class="res-aviso lim">${ic('cloud', 14)}<span>A nuvem da equipe chegou ao limite grátis de hoje da Cloudflare. Volta às 21h (em ${falta}); o que você fizer fica guardado neste computador.</span></div>`; };
+    const iv = setInterval(pinta, 30e3); addEventListener('storage', e => { if (e.key === 'estudio-limite-cf') pinta(); }); pinta(); this._resPinta = pinta;
+  },
   avisaEspaco() { if (Date.now() - (this._espEm || 0) < 120e3) return; this._espEm = Date.now(); try { window.EstudioConta?.nuvem?.atualizar?.(); } catch { } },
   // o que já está na nuvem de cada personagem fica guardado aqui depois da 1ª vez (o "salvar" automático não lista a nuvem toda a cada mudança)
   _ks: new Map(),
