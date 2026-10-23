@@ -251,6 +251,12 @@ const Atelie = {
   // partes marcadas: a escolhida + as do Ctrl/Shift+clique
   selecionadas() { return [...new Set([this.sel, ...this.multi])].map(id => this.parte(id)).filter(Boolean); },
   escolhe(id) { this.sel = id; this.multi.clear(); this.focoImg = null; },
+  // VÁRIAS PARTES: roda fn em cada parte escolhida (Ctrl/Shift+clique na lista, Shift+clique no palco). Num frame parado,
+  // cada parte vai para o passo certo dela (alvoPausa) — tudo fica SÓ no frame; a pose padrão (base) não muda.
+  cadaSel(fn, p0 = this.parte()) { const L = p0 && (p0.id === this.sel || this.multi.has(p0.id)) ? this.selecionadas() : p0 ? [p0] : [];
+    for (const q of L) { if (Animacoes.passoAtual()) { this.editPasso = null; Animacoes.alvoPausa(q.id); } fn(q, this.estado()[q.id] || {}); } return L.length; },
+  // num frame parado, "imagem em todas" e "parte inteira" também ficam SÓ no frame (a base não muda)
+  modoAqui(pid) { const m = this.modoDe(pid); return Animacoes.passoAtual() && m === 'imagem' ? 'preset' : m; },
   sessao() { return this.edit ? this.def.sessoes.find(s => s.id === this.edit.s) : null; },
   preset() { const s = this.sessao(); return s ? s.presets.find(p => p.id === this.edit.p) : null; },
   estado() {
@@ -421,7 +427,10 @@ const Atelie = {
     }
     const w = this.mundo(e), it = this.acha(w);
     if (!it) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; let mexeu = false; return fim(ev => { mexeu = true; v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }, () => { if (!mexeu) { this.escolhe(null); this.pinta(); } }); }
-    if (it.parte.id !== this.sel || this.multi.size || this.focoImg || this.teste) { this.escolhe(it.parte.id); if (this.teste) Animacoes.alvoPausa(it.parte.id); this.pinta(); }
+    if (e.shiftKey && this.sel && it.parte.id !== this.sel) { this.multi.has(it.parte.id) ? this.multi.delete(it.parte.id) : this.multi.add(it.parte.id); return this.pinta(); } // Shift+clique: junta/tira da escolha
+    const naEscolha = it.parte.id === this.sel || this.multi.has(it.parte.id);
+    if (!naEscolha || (!this.multi.size && (this.focoImg || this.teste))) { this.escolhe(it.parte.id); if (this.teste) Animacoes.alvoPausa(it.parte.id); this.pinta(); }
+    else if (this.multi.size && it.parte.id !== this.sel) { this.multi.delete(it.parte.id); this.multi.add(this.sel); this.sel = it.parte.id; this.focoImg = null; } // arrastar uma das escolhidas: ela vira a principal e as outras vão junto
     const p = it.parte, est = this.estado(), w0 = w, ima = this.regua() && !e.ctrlKey ? this.imaInicio(it) : null; // régua ligada: gruda nas outras peças e no centro
     if (e.altKey && it.img) { // pivô: muda o ponto de giro sem tirar a peça do lugar
       const img = it.img, inv = it.m.inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), piv0 = { ...(img.pivo || { x: img.w / 2, y: img.h / 2 }) }, enc0 = { ...p.encaixe }, filhos = this.def.partes.filter(f => f.pai === p.id).map(f => [f, { ...f.encaixe }]);
@@ -432,12 +441,22 @@ const Atelie = {
         p.encaixe = { x: round(enc0.x + dp.x, 1), y: round(enc0.y + dp.y, 1) }; for (const [f, e0] of filhos) f.encaixe = { x: round(e0.x - dx, 1), y: round(e0.y - dy, 1) };
         this.desenha(); }, () => this.commit());
     }
-    if (this.modoDe(p.id) === 'preset' && it.img) { // PADRÃO: esta imagem SÓ neste preset (ou só na base)
+    // VÁRIAS escolhidas: arrastar leva todas juntas (cada uma no jeito dela de mover; num frame, só no frame)
+    if (this.multi.size) { const its = Modelo.montar(this.def, est), grupo = this.selecionadas().map(q => { const iq = its.find(x => x.parte.id === q.id); if (!iq) return null; const modo = this.modoAqui(q.id), m = iq.img && modo === 'preset' ? (iq.mp || iq.m) : modo === 'imagem' && iq.img ? iq.m : this.matPai(q.id, est);
+        return { q, iq, modo, inv: m.inverse(), e0: { ...est[q.id] }, d0: { ...(iq.img && est[q.id]?.d?.[iq.img.id] || { x: 0, y: 0 }) }, aj0: { ...(iq.img?.ajuste || { x: 0, y: 0 }) }, enc0: { ...q.encaixe } }; }).filter(Boolean);
+      return fim(ev => { let wx = this.mundo(ev).x - w0.x, wy = this.mundo(ev).y - w0.y; if (ev.shiftKey) { if (Math.abs(wx) > Math.abs(wy)) wy = 0; else wx = 0; }
+        for (const g of grupo) { const a = g.inv.transformPoint(new DOMPoint(w0.x, w0.y)), b = g.inv.transformPoint(new DOMPoint(w0.x + wx, w0.y + wy)), dx = b.x - a.x, dy = b.y - a.y;
+          if (Animacoes.passoAtual()) { this.editPasso = null; Animacoes.alvoPausa(g.q.id); }
+          if (g.modo === 'preset' && g.iq.img) this.poeD(g.q, g.iq.img, { x: round(g.d0.x + dx, 1), y: round(g.d0.y + dy, 1) });
+          else if (g.modo === 'imagem' && g.iq.img) g.iq.img.ajuste = { x: round(g.aj0.x + dx, 1), y: round(g.aj0.y + dy, 1) };
+          else if (this.edit || this.editPasso) this.mudar(g.q.id, { x: round((g.e0.x || 0) + dx, 1), y: round((g.e0.y || 0) + dy, 1) }); else g.q.encaixe = { x: round(g.enc0.x + dx, 1), y: round(g.enc0.y + dy, 1) }; }
+        this.desenha(); }, () => this.commit()); }
+    if (this.modoAqui(p.id) === 'preset' && it.img) { // PADRÃO: esta imagem SÓ neste preset (ou só na base; num frame, só no frame)
       const img = it.img, inv = (it.mp || it.m).inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), d0 = { ...(est[p.id]?.d?.[img.id] || { x: 0, y: 0 }) };
       return fim(ev => { const w2 = this.imaPonto(ev, ima, w0), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
         this.poeD(p, img, { x: round(d0.x + dx, 1), y: round(d0.y + dy, 1) }); this.desenha(); }, () => this.commit());
     }
-    if (this.modoDe(p.id) === 'imagem' && it.img) { // a mesma imagem em TODOS os presets (e na base)
+    if (this.modoAqui(p.id) === 'imagem' && it.img) { // a mesma imagem em TODOS os presets (e na base)
       const img = it.img, inv = it.m.inverse(), l0 = inv.transformPoint(new DOMPoint(w0.x, w0.y)), aj0 = { ...(img.ajuste || { x: 0, y: 0 }) };
       return fim(ev => { const w2 = this.imaPonto(ev, ima, w0), l = inv.transformPoint(new DOMPoint(w2.x, w2.y)); let dx = l.x - l0.x, dy = l.y - l0.y; if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
         img.ajuste = { x: round(aj0.x + dx, 1), y: round(aj0.y + dy, 1) }; this.desenha(); }, () => this.commit());
@@ -478,15 +497,16 @@ const Atelie = {
     if (k === 'Tab') { e.preventDefault(); const ps = this.def.partes; if (!ps.length) return; const i = ps.findIndex(x => x.id === this.sel); this.multi.clear(); this.focoImg = null; this.sel = ps[(i + (e.shiftKey ? -1 : 1) + ps.length) % ps.length].id; return this.pinta(); }
     if (!p) return; const est = this.estado()[p.id], passo = e.shiftKey ? 10 : 1, kk = k.toLowerCase();
     const leva = () => { clearTimeout(this._t); this.desenha(); this._t = setTimeout(() => this.commit(), 300); };
+    // as teclas valem para TODAS as partes escolhidas (num frame parado, só no frame)
     if (k.startsWith('Arrow')) { e.preventDefault(); const dd = { ArrowLeft: [-passo, 0], ArrowRight: [passo, 0], ArrowUp: [0, -passo], ArrowDown: [0, passo] }[k];
-      const im = p.imgs.find(i => i.id === est.img);
-      if (this.modoDe(p.id) === 'preset' && im) { const d0 = est.d?.[im.id] || { x: 0, y: 0 }; this.poeD(p, im, { x: round(d0.x + dd[0], 1), y: round(d0.y + dd[1], 1) }); } // só neste preset
-      else if (this.modoDe(p.id) === 'imagem' && im) im.ajuste = { x: round((im.ajuste?.x || 0) + dd[0], 1), y: round((im.ajuste?.y || 0) + dd[1], 1) }; // a mesma imagem em todos
-      else if (this.edit || this.editPasso) this.mudar(p.id, { x: (est.x || 0) + dd[0], y: (est.y || 0) + dd[1] }); else p.encaixe = { x: p.encaixe.x + dd[0], y: p.encaixe.y + dd[1] }; return leva(); }
-    if (kk === 'q' || kk === 'e') { this.mudar(p.id, { r: round((est.r || 0) + (kk === 'q' ? -1 : 1) * (e.shiftKey ? 15 : 2), 1) }); return leva(); }
-    if (k === '+' || k === '=' || k === '-') { this.mudar(p.id, { s: round(clamp((est.s ?? 1) * (k === '-' ? .96 : 1.04), .05, 10), 3) }); return leva(); }
-    if (kk === 'f') { this.mudar(p.id, { sx: (est.sx || 1) * -1 }); return leva(); }
-    if (kk === 'h') { this.mudar(p.id, { vis: est.vis === false }); return leva(); }
+      this.cadaSel((q, eq) => { const im = q.imgs.find(i => i.id === eq.img), modo = this.modoAqui(q.id);
+        if (modo === 'preset' && im) { const d0 = eq.d?.[im.id] || { x: 0, y: 0 }; this.poeD(q, im, { x: round(d0.x + dd[0], 1), y: round(d0.y + dd[1], 1) }); } // só neste preset/frame
+        else if (modo === 'imagem' && im) im.ajuste = { x: round((im.ajuste?.x || 0) + dd[0], 1), y: round((im.ajuste?.y || 0) + dd[1], 1) }; // a mesma imagem em todos
+        else if (this.edit || this.editPasso) this.mudar(q.id, { x: (eq.x || 0) + dd[0], y: (eq.y || 0) + dd[1] }); else q.encaixe = { x: q.encaixe.x + dd[0], y: q.encaixe.y + dd[1] }; }, p); return leva(); }
+    if (kk === 'q' || kk === 'e') { this.cadaSel((q, eq) => this.mudar(q.id, { r: round((eq.r || 0) + (kk === 'q' ? -1 : 1) * (e.shiftKey ? 15 : 2), 1) }), p); return leva(); }
+    if (k === '+' || k === '=' || k === '-') { this.cadaSel((q, eq) => this.mudar(q.id, { s: round(clamp((eq.s ?? 1) * (k === '-' ? .96 : 1.04), .05, 10), 3) }), p); return leva(); }
+    if (kk === 'f') { this.cadaSel((q, eq) => this.mudar(q.id, { sx: (eq.sx || 1) * -1 }), p); return leva(); }
+    if (kk === 'h') { this.cadaSel((q, eq) => this.mudar(q.id, { vis: eq.vis === false }), p); return leva(); }
     if (k === '[' || k === ']') return this.passoCamada(p, k === ']' ? 1 : -1);
   },
 
@@ -924,10 +944,11 @@ const Atelie = {
     const box = h(`<div class="props peca-c"><div class="pc-t"><b>${esc(p.nome)}</b><small>${esc(onde)}</small><span class="sp"></span><button class="ibtn ${ehRaiz ? 'on' : ''}" data-raiz title="${ehRaiz ? 'É a raiz (a parte principal)' : 'Marcar como raiz (a parte principal)'}">${ic('star', 14)}</button></div>
       <label class="field">Encaixa em<select data-pai><option value="">(nenhuma)</option>${this.def.partes.filter(x => x.id !== p.id).map(x => `<option value="${x.id}" ${x.id === p.pai ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label></div>`);
     $('[data-pai]', box).onchange = ev => this.porNoPai(p.id, ev.target.value || null); $('[data-raiz]', box).onclick = () => this.marcarRaiz(p);
-    const mexe = (c, v) => { this.mudar(p.id, { [c]: v }); this.desenha(); }, sol = () => this.commit(), noPasso = !!Animacoes.passoAtual();
+    const mexe = (c, v) => { this.cadaSel(q => this.mudar(q.id, { [c]: v }), p); this.desenha(); }, sol = () => this.commit(), noPasso = !!Animacoes.passoAtual(), nSel = this.multi.size ? this.selecionadas().length : 1; // várias escolhidas: os campos mudam todas
     box.appendChild(Lado.campo('Girar', est.r || 0, -180, 180, .5, v => mexe('r', v), sol)); box.appendChild(Lado.campo('Tamanho', est.s ?? 1, .05, 4, .01, v => mexe('s', v), sol));
     const o = h(`<div class="campo2"><label class="chk"><input type="checkbox" data-sx ${est.sx < 0 ? 'checked' : ''}> Espelhar</label><label class="chk"><input type="checkbox" data-v ${est.vis !== false ? 'checked' : ''}> Aparece</label></div>`);
-    $('[data-sx]', o).onchange = ev => { this.mudar(p.id, { sx: ev.target.checked ? -1 : 1 }); this.commit(); }; $('[data-v]', o).onchange = ev => { this.mudar(p.id, { vis: ev.target.checked }); this.commit(); }; box.appendChild(o);
+    $('[data-sx]', o).onchange = ev => { this.cadaSel(q => this.mudar(q.id, { sx: ev.target.checked ? -1 : 1 }), p); this.commit(); }; $('[data-v]', o).onchange = ev => { this.cadaSel(q => this.mudar(q.id, { vis: ev.target.checked }), p); this.commit(); }; box.appendChild(o);
+    if (nSel > 1) box.insertBefore(h(`<div class="ps-aviso">${ic('layers', 13)}<span><b>${nSel} partes</b> escolhidas: girar, tamanho, espelhar, mover e as teclas mudam todas${noPasso ? ' (só neste frame)' : ''}. Esc solta.</span></div>`), box.children[1]);
     if (this.edit && !noPasso && this.preset().estado[p.id]) { const lb = h(`<button class="btn sm">${ic('undo', 13)} Igual à padrão nesta pose</button>`); lb.onclick = () => { delete this.preset().estado[p.id]; this.commit(); }; box.appendChild(lb); }
     const fino = h(`<details class="ab-sec"><summary>Ajuste fino</summary></details>`);
     if (this.edit || noPasso) { fino.appendChild(Lado.campo('Mover X', est.x || 0, -500, 500, 1, v => mexe('x', v), sol)); fino.appendChild(Lado.campo('Mover Y', est.y || 0, -500, 500, 1, v => mexe('y', v), sol)); }
