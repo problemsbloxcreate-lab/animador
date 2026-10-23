@@ -55,12 +55,16 @@ const Deformar = {
     if (!this._off || this._off.width < W || this._off.height < H) this._off = new OffscreenCanvas(Math.max(W, this._off?.width || 0), Math.max(H, this._off?.height || 0));
     const off = this._off, g = off.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W + 2, H + 2);
     const S = new DOMMatrix().scale(k).translate(-R.x, -R.y);
+    // ONDULAR junto com a deformação: as faixas da onda vão para o desenho antes de esticar (vale para imagem, SVG, peças do personagem, texto e forma)
+    const ondula = n.tremulo?.modo === 'ondular', ond = (bm, x, y, w, h, M) => ondula ? Render.ondulado(g, n, q, Render.nitido(bm, w, h, M), x, y, w, h) : g.drawImage(bm, x, y, w, h);
     // a camada sem deformação, no espaço dela
     if (n.tipo === 'personagem') { for (const it of Render.pecasPersonagem(P, n, q, new DOMMatrix())) { if (!it.img) continue; const bm = Arq.comAp(Render.bm(it.img.k), it, () => Render.aoChegarImagem?.()); if (!bm) continue;
-      const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2; g.setTransform(S.multiply(it.m)); g.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); } }
-    else if (n.tipo === 'imagem') { const bm = Render.bm(n.arq); if (!bm) return true; g.setTransform(S); g.drawImage(bm, -bm.width / 2, -bm.height / 2); }
-    else if (n.tipo === 'texto') { g.setTransform(S); Render.texto(g, n); }
-    else if (n.tipo === 'forma') { g.setTransform(S); Render.forma(g, n); }
+      const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2; g.setTransform(S.multiply(it.m)); ond(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h, S.multiply(it.m)); } }
+    else if (n.tipo === 'imagem') { const bm = Render.bm(n.arq); if (!bm) return true; g.setTransform(S); ond(bm, -bm.width / 2, -bm.height / 2, bm.width, bm.height, S); }
+    else if (n.tipo === 'texto' || n.tipo === 'forma') { g.setTransform(S);
+      if (!ondula) n.tipo === 'texto' ? Render.texto(g, n) : Render.forma(g, n);
+      else { const b = Render.caixaNo(g, n), c = Render.tela('ondDf', Math.ceil(b.w * k) + 4, Math.ceil(b.h * k) + 4), cx = c.getContext('2d'); cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, c.width, c.height); cx.setTransform(k, 0, 0, k, c.width / 2, c.height / 2);
+        n.tipo === 'texto' ? Render.texto(cx, n) : Render.forma(cx, n); Render.ondulado(g, n, q, c, -c.width / 2 / k, -c.height / 2 / k, c.width / k, c.height / k); } }
     this.malha(ctx, off, W, H, R, k, df, C, M, ks);
     return true;
   },

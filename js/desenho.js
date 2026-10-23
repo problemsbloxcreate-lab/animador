@@ -26,6 +26,22 @@ const Render = {
     return new DOMMatrix().translate(r(1) * f * 16, r(2) * f * 16).rotate(r(3) * f * 2.4).scale(1 + r(4) * f * .03);
   },
   // imagem em faixas deslocadas por uma onda que muda a cada passo (efeito "ondular")
+  // caixa (no espaço da camada) de um texto ou forma, com a borda
+  caixaNo(ctx, n) {
+    const bl = (n.bordaL || 0) + 2;
+    if (n.tipo === 'forma') return { w: (n.w || 100) + bl * 2, h: (n.h || 100) + bl * 2 };
+    ctx.save(); ctx.font = `${n.negrito ? '800 ' : ''}${n.tam || 72}px ${n.fonte || 'Segoe UI'}, sans-serif`; const L = String(n.texto || '').split('\n'), w = Math.max(1, ...L.map(l => ctx.measureText(l).width)); ctx.restore();
+    return { w: w + bl * 2 + (n.tam || 72) * .2, h: L.length * (n.tam || 72) * 1.15 + bl * 2 + (n.tam || 72) * .2 };
+  },
+  // canvas reaproveitado (um por nome) para desenhos de passagem
+  tela(nome, w, h) { const c = (this._telas ||= {})[nome] ||= document.createElement('canvas'); w = Math.min(4096, Math.max(1, w)); h = Math.min(4096, Math.max(1, h)); if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } return c; },
+  // SVG (vetor) no ondular: as faixas são recortadas do desenho já no tamanho da tela, então continua nítido no zoom e no MP4
+  nitido(bm, w, h, M) {
+    if (!(bm instanceof HTMLImageElement)) return bm; const k = Math.min(4, Math.max(.25, Math.hypot(M.a, M.b))), W = Math.ceil(w * k), H = Math.ceil(h * k);
+    const ch = (this._nit ||= new Map()), id = bm.src + '|' + W + 'x' + H; if (ch.has(id)) return ch.get(id);
+    const c = document.createElement('canvas'); c.width = Math.min(4096, W); c.height = Math.min(4096, H); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+    if (ch.size > 40) ch.delete(ch.keys().next().value); ch.set(id, c); return c;
+  },
   ondulado(ctx, n, q, bm, x, y, w, h) {
     const T = n.tremulo, f = T.forca ?? .4, k = this.passo(n, q), fase = this.sorte(n.id, k, 9) * 40, amp = 1.5 + f * 7, freq = .045 + (this.sorte(n.id, k, 8) + .5) * .03;
     const faixa = Math.max(2, Math.round(bm.height / 120)), ky = h / bm.height;
@@ -78,14 +94,17 @@ const Render = {
         if (!it.img) continue; const bm = Arq.comAp(this.bm(it.img.k), it, () => Render.aoChegarImagem?.()); if (!bm) continue;
         const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
         ctx.setTransform(base.multiply(it.m)); const x = -px + (it.img.ajuste?.x || 0), y = -py + (it.img.ajuste?.y || 0);
-        if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, x, y, it.img.w, it.img.h); else ctx.drawImage(bm, x, y, it.img.w, it.img.h);
+        if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, this.nitido(bm, it.img.w, it.img.h, base.multiply(it.m)), x, y, it.img.w, it.img.h); else ctx.drawImage(bm, x, y, it.img.w, it.img.h);
       }
     } else if (n.tipo === 'imagem') {
-      const bm = this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(mm)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, bm, -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
-    } else if (n.tipo === 'texto') {
-      ctx.setTransform(base.multiply(mm)); this.texto(ctx, n);
-    } else if (n.tipo === 'forma') {
-      ctx.setTransform(base.multiply(mm)); this.forma(ctx, n);
+      const bm = this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(mm)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, this.nitido(bm, bm.width, bm.height, base.multiply(mm)), -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
+    } else if (n.tipo === 'texto' || n.tipo === 'forma') {
+      ctx.setTransform(base.multiply(mm));
+      if (n.tremulo?.modo === 'ondular') { // ONDULAR também em texto e forma: desenha num canvas à parte (no tamanho da tela, nítido) e passa pela onda
+        const b = this.caixaNo(ctx, n), M = base.multiply(mm), k = Math.min(4, Math.max(.25, Math.hypot(M.a, M.b))), c = this.tela('ond', Math.ceil(b.w * k) + 4, Math.ceil(b.h * k) + 4), cx = c.getContext('2d');
+        cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, c.width, c.height); cx.setTransform(k, 0, 0, k, c.width / 2, c.height / 2); n.tipo === 'texto' ? this.texto(cx, n) : this.forma(cx, n);
+        this.ondulado(ctx, n, q, c, -c.width / 2 / k, -c.height / 2 / k, c.width / k, c.height / k);
+      } else n.tipo === 'texto' ? this.texto(ctx, n) : this.forma(ctx, n);
     }
     ctx.restore(); return true;
   },
