@@ -29,9 +29,9 @@ const Nuvem = {
     }
     this.semLista = null; this.copiasPc = null; this.parcial = r0.headers.get('x-nuvem-parcial') === '1';
     const ids = new Set(), mods = {}; const tams = {}, exts = {}; for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\//); if (m) { tams[m[1]] = (tams[m[1]] || 0) + (+it.tam || 0); if (/\/img\/(?!ap)[^/]+$/.test(it.k)) (exts[m[1]] ||= []).push(it.k); } }
-    for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) { ids.add(m[1]); mods[m[1]] = it.mod || null; } }
+    const naRes = new Set(); for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) { ids.add(m[1]); mods[m[1]] = it.mod || null; if (it._res) naRes.add(m[1]); } }
     const out = [];
-    await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true, mods[id]); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes, tam: tams[id] || 0, tipos: Vetor.tiposDef(d).length ? Vetor.tiposDef(d) : Vetor.tipos(exts[id] || []) }); } catch { } }));
+    await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true, mods[id]); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes, tam: tams[id] || 0, naRes: naRes.has(id), tipos: Vetor.tiposDef(d).length ? Vetor.tiposDef(d) : Vetor.tipos(exts[id] || []) }); } catch { } }));
     // lista PARCIAL (a principal não listou, sem foto nem cópia de segurança): só vieram os personagens salvos na reserva;
     // os outros que este computador tem aparecem separados como cópia local
     if (this.parcial) this.copiasPc = (await DB.all('personagens').catch(() => [])).filter(d => d?.id && d.nome && !d._local && !ids.has(d.id));
@@ -65,7 +65,7 @@ const Nuvem = {
       if (!t) { el.innerHTML = pc; return; }
       const m = Math.max(0, Math.ceil((t - Date.now()) / 6e4)), falta = m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}min` : `${m} min`;
       const usos = [...(this._usoRes || [])], diz = usos.length ? ` Agora ela está sendo usada para: <b>${usos.join(', ')}</b>.` : '';
-      el.innerHTML = L.naReserva?.() ? `<div class="res-aviso">${ic('cloud', 14)}<span>A nuvem principal chegou ao limite de hoje, então a <b>nuvem reserva</b> (a conta antiga) entra no lugar dela em algumas coisas.${diz} Tudo continua igual para a equipe e às 21h (em ${falta}) passa sozinho de volta para a principal.</span></div>`
+      el.innerHTML = L.naReserva?.() || usos.length || this.parcial ? `<div class="res-aviso">${ic('cloud', 14)}<span>A nuvem principal chegou ao limite de hoje, então a <b>nuvem reserva</b> (a conta antiga) entra no lugar dela em algumas coisas.${diz} Tudo continua igual para a equipe e às 21h (em ${falta}) passa sozinho de volta para a principal.</span></div>`
         : `<div class="res-aviso lim">${ic('cloud', 14)}<span>A nuvem principal chegou ao limite de hoje e volta às 21h (em ${falta}). Enquanto isso, a <b>nuvem reserva</b> entra no lugar dela quando precisar (salvar, apagar, listar) e este aviso diz quando ela estiver em uso.</span></div>`; el.innerHTML += pc; };
     const iv = setInterval(pinta, 30e3); addEventListener('storage', e => { if (e.key === 'estudio-limite-cf') pinta(); }); pinta(); this._resPinta = this._listaPc = pinta;
   },
