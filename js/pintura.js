@@ -11,7 +11,7 @@ const Pintura = {
     cv.addEventListener('pointermove', e => { if (this.ferr === 'mover') { if (this.mouse) { this.mouse = null; Atelie.desenha(); } return; } this.mouse = { x: e.offsetX, y: e.offsetY }; Atelie.desenha(); });
     cv.addEventListener('pointerleave', () => { this.mouse = null; Atelie.desenha(); });
   },
-  usa(f) { if (f !== 'mover' && !Atelie.edImg && Atelie.def && !Atelie.abrirEditor()) return; this.ferr = f; // ferramenta de pintar fora do editor: abre o editor da imagem da parte escolhida
+  usa(f) { this.ferr = f; if (!Atelie.edImg) Atelie.abaPintar?.(f !== 'mover'); // no palco: ferramenta de pintar abre a aba Camadas à direita (uma vez a cada clique); Mover volta para a aba de antes
     Atelie.cv.style.cursor = f === 'mover' ? '' : f === 'conta' ? 'copy' : 'crosshair'; Atelie.pinta(); },
   tecla(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false; const k = e.key.toLowerCase(), f = this.FERR.find(x => x[3].toLowerCase() === k);
@@ -127,13 +127,29 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
     const n = await this.trocar(trocas, escopo, Math.max(this.tol, 40)); return { n, trocas, explica: j.explica || '' };
   },
 
+  // lugar da barra: { lado: esq|dir|cima|baixo, f: posição ao longo da borda (0..1) }, guardado neste computador
+  lugar() { if (!this._lugar) { try { this._lugar = JSON.parse(localStorage.getItem('animador-ferr-lugar') || 'null'); } catch { } this._lugar ||= { lado: 'esq', f: .5 }; } return this._lugar; },
+  lugarBarra(el) {
+    const L = this.lugar(); el.classList.remove('lado-esq', 'lado-dir', 'lado-cima', 'lado-baixo'); el.classList.add('lado-' + L.lado);
+    if (L.lado === 'esq' || L.lado === 'dir') { el.style.left = L.lado === 'esq' ? '' : 'auto'; el.style.top = L.lado === 'esq' && L.f === .5 ? '' : `calc(${Math.round(L.f * 100)}%)`; }
+    else { el.style.top = ''; el.style.left = `${Math.round(L.f * 100)}%`; }
+  },
+  alcaBarra(el, pega) {
+    if (!pega) return; pega.onpointerdown = e => {
+      if (e.button !== 0) return; e.preventDefault(); pega.setPointerCapture(e.pointerId); el.classList.add('arrastando'); const pal = el.parentElement.getBoundingClientRect();
+      const mov = ev => { const x = (ev.clientX - pal.left) / pal.width, y = (ev.clientY - pal.top) / pal.height, d = { esq: x, dir: 1 - x, cima: y, baixo: 1 - y }, lado = Object.entries(d).sort((a, b) => a[1] - b[1])[0][0];
+        this._lugar = { lado, f: clamp(lado === 'esq' || lado === 'dir' ? y : x, .12, .88) }; this.lugarBarra(el); };
+      const up = () => { pega.onpointermove = null; pega.onpointerup = null; el.classList.remove('arrastando'); try { localStorage.setItem('animador-ferr-lugar', JSON.stringify(this._lugar)); } catch { } };
+      pega.onpointermove = mov; pega.onpointerup = up; pega.onpointercancel = up; };
+  },
   /* ---------- barra de ferramentas no canto esquerdo do palco (como no Photoshop) ---------- */
   pintaBarra() {
-    const el = $('#at-ferr'); if (!el) return; el.hidden = !Atelie.edImg; if (el.hidden) { $('#at-ferr-op')?.remove(); return; } // as ferramentas de pintar ficam só no editor de imagem
+    const el = $('#at-ferr'); if (!el) return; el.hidden = !Atelie.def; if (el.hidden) { $('#at-ferr-op')?.remove(); return; } // a barra aparece no palco e no editor de imagem
     const grupo = (ids) => this.FERR.filter(f => ids.includes(f[0])).map(([f, n, i, k]) => `<button class="${this.ferr === f ? 'on' : ''}" data-f="${f}" title="${f === 'mover' ? 'Mão: arrastar move a tela' : n} (${k})">${ic(i, 17)}</button>`).join('');
-    el.innerHTML = `${grupo(['mover'])}<i></i>${grupo(['ret', 'laco', 'varinha'])}<i></i>${grupo(['pincel', 'borracha', 'magica', 'balde', 'conta'])}<i></i>
+    el.innerHTML = `<span class="fb-pega" title="Arraste para mudar a barra de lugar (gruda numa das bordas)">${ic('grip', 11)}</span>${grupo(['mover'])}<i></i>${grupo(['ret', 'laco', 'varinha'])}<i></i>${grupo(['pincel', 'borracha', 'magica', 'balde', 'conta'])}<i></i>
       <label class="fb-cor" title="Cor (${this.cor})" style="--c:${this.cor}"><input type="color" value="${this.cor}"></label>`;
     $$('[data-f]', el).forEach(b => b.onclick = () => this.usa(b.dataset.f));
+    this.lugarBarra(el); this.alcaBarra(el, $('.fb-pega', el));
     $('input', el).oninput = ev => { this.cor = ev.target.value; $('.fb-cor', el).style.setProperty('--c', this.cor); }; $('input', el).onchange = () => Atelie.pinta();
     // opções da ferramenta (tamanho, opacidade, tolerância) do lado da barra
     let op = $('#at-ferr-op'); const precisa = ['pincel', 'borracha', 'balde', 'varinha', 'magica'].includes(this.ferr);

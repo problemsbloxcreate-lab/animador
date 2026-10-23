@@ -274,7 +274,7 @@ const Atelie = {
     this.cv = $('#at-cv'); this.ctx = this.cv.getContext('2d'); new ResizeObserver(() => this.tamanho()).observe(this.cv.parentElement); this.tamanho();
     this.cv.addEventListener('pointerdown', e => this.desce(e)); this.cv.addEventListener('contextmenu', e => { e.preventDefault(); if (!this._panMexeu) { if (this.teste && Animacoes.rodando && this.acha(this.mundo(e))) Animacoes.pausar(true); this.menuPalco(e); } this._panMexeu = false; }); // botão direito sem arrastar (também com o Testar aberto; tocando, pausa naquele passo): menu da peça
     this.cv.addEventListener('wheel', e => this.roda(e), { passive: false }); // rodinha do mouse: zoom no ponto do mouse
-    $('#at-voltar').onclick = () => this.sair(); $('#at-salvar').onclick = () => this.naNuvem ? this.sincronizar(true) : this.salvar(); $('#at-undo').onclick = () => this.undo(); $('#at-redo').onclick = () => this.redo();
+    $('#at-voltar').onclick = () => this.sair(); $('#at-voltar').hidden = true; { const br = $('#atelie header .brand'); if (br) { br.style.cursor = 'pointer'; br.title = 'Sair do Ateliê (volta ao início)'; br.onclick = () => this.sair(); } } // sem o botão Voltar no topo (decisão do dono): o nome ATELIÊ leva de volta $('#at-salvar').onclick = () => this.naNuvem ? this.sincronizar(true) : this.salvar(); $('#at-undo').onclick = () => this.undo(); $('#at-redo').onclick = () => this.redo();
     $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); };
     $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); };
     $('#at-add-parte').onclick = () => this.novaParte(); $$('#at-vista-partes [data-v]').forEach(b => b.onclick = () => { this.vistaPartes = b.dataset.v; this.pintaPartes(); }); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
@@ -283,7 +283,7 @@ const Atelie = {
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
     $('#at-mover').onchange = e => this.setModo(e.target.value);
-    $('#at-enq').onclick = () => this.enquadrar(); $('#at-regua').onclick = () => this.trocaRegua(); this.pintaRegua(); this.cv.addEventListener('pointerup', () => { if (this.guias) { this.guias = null; this.desenha(); } }); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 15); $('#at-enq').innerHTML = ic('frame', 15); $('#at-ed-ok').onclick = () => this.fecharEditor(); this.cv.addEventListener('dblclick', e => { if (this.edImg || Pintura.ferr !== 'mover') return; const it = this.acha(this.mundo(e)); if (it?.img) this.abrirEditor(it.parte, it.img); }); /* dois cliques numa peça: edita a imagem dela */
+    $('#at-enq').onclick = () => this.enquadrar(); $('#at-regua').onclick = () => this.trocaRegua(); this.pintaRegua(); this.cv.addEventListener('pointerup', () => { if (this.guias) { this.guias = null; this.desenha(); } }); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 15); $('#at-enq').innerHTML = ic('frame', 15); $('#at-ed-ok').onclick = () => this.fecharEditor(); $('#at-ed-ok').innerHTML = `${ic('check', 13)} Salvar`; $('#at-ed-ok').title = 'Guarda o que mudou nesta imagem e volta ao Ateliê (Esc)'; $('#at-ed-ok').classList.add('ed-salvar'); { const bv = h(`<button class="btn sm ed-voltar" id="at-ed-voltar" hidden title="Fecha o editor SEM guardar o que mudou nesta imagem desde que abriu">${ic('x', 13)} Voltar</button>`); $('#at-ed-ok').before(bv); bv.onclick = () => this.voltarEditor(); } this.cv.addEventListener('dblclick', e => { if (this.edImg || Pintura.ferr !== 'mover') return; const it = this.acha(this.mundo(e)); if (it?.img) this.abrirEditor(it.parte, it.img); }); /* dois cliques numa peça: edita a imagem dela */
     $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
     addEventListener('keydown', e => this.teclas(e));
     Pintura.liga(); Divisores.liga(); Paineis.liga(); // bordas dos painéis e da timeline: arrastar muda o tamanho
@@ -306,8 +306,12 @@ const Atelie = {
     if (!fundo) for (let x = Math.floor(a.x / g) * g; x < b2.x; x += g) for (let y = Math.floor(a.y / g) * g; y < b2.y; y += g) if (((x + y) / g) % 2 === 0) ctx.fillRect(x, y, g, g);
     ctx.strokeStyle = fundo ? 'rgba(0,0,0,.1)' : '#2c2c2c'; ctx.lineWidth = 1 / this.vista.z; ctx.beginPath(); ctx.moveTo(-5000, 0); ctx.lineTo(5000, 0); ctx.moveTo(0, -5000); ctx.lineTo(0, 5000); ctx.stroke(); ctx.restore();
     if (this.edImg) { const it = this.itemEditor(); // EDITOR DE IMAGEM: só a imagem que está sendo editada (com o apagado do keyframe, se houver)
+      // "Mostrar o resto": as outras partes em volta, meio apagadas, na profundidade/frame de agora (o estado da tela); a editada no lugar dela
+      const resto = this.mostraResto && it ? Modelo.montar(this.def, this.estado()) : null, desenhaOutra = o => { if (!o.img || o.parte.id === it.parte.id) return; const b = Arq.comAp(Arq.bitmap(o.img.k, () => this.desenha()), o, () => this.desenha()); if (!b) return; const ox = o.img.pivo?.x ?? o.img.w / 2, oy = o.img.pivo?.y ?? o.img.h / 2; ctx.save(); ctx.setTransform(V.multiply(o.m)); ctx.globalAlpha = .45; ctx.drawImage(b, -ox + (o.img.ajuste?.x || 0), -oy + (o.img.ajuste?.y || 0), o.img.w, o.img.h); ctx.restore(); };
+      const zEd = resto ? (resto.find(o => o.parte.id === it.parte.id)?.z ?? 0) : 0; if (resto) for (const o of resto) if (o.z <= zEd && o.parte.id !== it.parte.id) desenhaOutra(o);
       if (it) { const bm = Arq.comAp(Arq.bitmap(it.img.k, () => this.desenha()), it, () => this.desenha()); if (bm) { const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2; ctx.save(); ctx.setTransform(V.multiply(it.m)); ctx.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h);
         ctx.strokeStyle = 'rgba(120,170,255,.55)'; ctx.lineWidth = 1 / this.vista.z; ctx.setLineDash([4 / this.vista.z, 3 / this.vista.z]); ctx.strokeRect(-px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); ctx.restore(); } }
+      if (resto) for (const o of resto) if (o.z > zEd) desenhaOutra(o); // as da frente por cima
       Pintura.desenhaCursor(ctx); AoVivo.desenha(ctx, V, d); return; }
     const est = this.estado(), itens = Modelo.montar(this.def, est), roxo = this.partesTodas();
     for (const it of itens) { if (!it.img) continue; const bm = Arq.comAp(Arq.bitmap(it.img.k, () => this.desenha()), it, () => this.desenha()); if (!bm) continue; /* comAp: o que foi apagado só neste keyframe */ const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
@@ -488,20 +492,30 @@ const Atelie = {
     // o que está sendo mexido agora, numa frase só
     $('#at-modo').innerHTML = ed ? `${ic('brush', 13)} Editando <b>${esc(ed.img.nome)}</b> <small>${esc(ed.parte.nome)}</small>` : Animacoes.poseFixa ? `Pose do quadro ${Animacoes.poseFixa.quadro + 1} · arrumando <b>${esc(Animacoes.textoAlvo())}</b>`
       : st ? `${ic('film', 13)} Frame <b>${st.pi + 1}</b> de <b>${esc(st.a.nome)}</b>` : Animacoes.tocando && !Animacoes.pausado ? `${ic('play', 12)} Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : pr ? `Editando a pose <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : `Pose <b>padrão</b>`;
-    $('#at-base').hidden = !pr || !!ed; $('#at-ed-ok').hidden = !ed; $('#at-mover').value = this.modoMover;
+    $('#at-base').hidden = !pr || !!ed; $('#at-ed-ok').hidden = !ed; if ($('#at-ed-voltar')) $('#at-ed-voltar').hidden = !ed;
+    let cr = $('#at-ed-resto'); if (!cr) { cr = h(`<label class="chk at-ed-resto" id="at-ed-resto" title="Mostra as outras partes em volta (meio apagadas), na profundidade e no frame que estão agora — só para ver; a pintura continua só nesta imagem"><input type="checkbox"> Mostrar o resto</label>`); $('#at-ed-ok').after(cr); $('input', cr).onchange = ev => { this.mostraResto = ev.target.checked; try { localStorage.setItem('animador-ed-resto', this.mostraResto ? '1' : ''); } catch { } this.desenha(); }; try { this.mostraResto = !!localStorage.getItem('animador-ed-resto'); } catch { } }
+    cr.hidden = !ed; $('input', cr).checked = !!this.mostraResto; $('#at-mover').value = this.modoMover;
     for (const x of ['#at-mover', '#at-regua', '#at-ref']) { const e = $(x); if (e) e.hidden = !!ed; }
     Pintura.pintaBarra(); Linha.pinta();
+    let bp = $('#at-abas [data-aba="pintar"]'); if (!bp && $('#at-abas')) { bp = h(`<button data-aba="pintar" title="Camadas, cores e opções de pintar da parte escolhida">${ic('layers', 12)} Camadas</button>`); $('#at-abas').appendChild(bp); bp.onclick = () => { this.aba = 'pintar'; this.pinta(); }; }
+    if (bp) bp.hidden = Pintura.ferr === 'mover' && this.aba !== 'pintar';
     this.pintaIcone(); this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
-    const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; if (this.aba === 'pintar') this.aba = 'peca';
-    if (ed) this.pintaEditor(lado); else this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
+    const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; if (this.aba === 'pintar' && !$('#at-abas [data-aba="pintar"]')) this.aba = 'peca';
+    if (ed) this.pintaEditor(lado); else this.aba === 'pintar' ? this.pintaPintar(lado) : this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
   },
   /* ---------- EDITOR DE IMAGEM (duplo clique na imagem, ou escolher uma ferramenta de pintar): estilo Photoshop, só a imagem na tela,
      ferramentas na barra da esquerda e, na direita, camadas, ajustes e cores. Concluir (ou Esc) volta ao Ateliê. ---------- */
   abrirEditor(p, img) {
+    if (!this.edImg) this._edAntes = JSON.stringify(this.def); // para o Voltar (sair sem guardar)
     p = p || this.parte(); if (!p) { UI.toast('Escolha uma parte (ou dê dois cliques numa imagem).'); return false; }
     img = img || p.imgs.find(i => i.id === this.estado()[p.id]?.img) || p.imgs[0]; if (!img) { UI.toast('Esta parte ainda não tem imagem.'); return false; }
     this.edImg = { pid: p.id, iid: img.id }; this.sel = p.id; this.multi.clear(); this.focoImg = { p: p.id, img: img.id };
     if (Pintura.ferr === 'mover') Pintura.ferr = 'pincel'; Pintura.usa(Pintura.ferr); this.enquadrar(); return true;
+  },
+  // VOLTAR no editor: desfaz tudo o que mudou desde que abriu (como uma mudança só: Ctrl+Z traz de volta) e fecha
+  async voltarEditor() {
+    const antes = this._edAntes; if (antes && antes !== JSON.stringify(this.def)) { if (!(await UI.confirm({ title: 'Sair sem guardar?', msg: 'O que você mudou nesta imagem desde que abriu o editor vai ser desfeito (Ctrl+Z traz de volta).', ok: 'Sair sem guardar', danger: true }))) return; this.def = JSON.parse(antes); this.commit(); }
+    this.fecharEditor();
   },
   fecharEditor() { this.edImg = null; Pintura.selecao = null; Pintura.ferr = 'mover'; if (this.cv) this.cv.style.cursor = ''; this.pinta(); this.enquadrar(); },
   // a peça do editor: a parte com A IMAGEM ESCOLHIDA (mesmo que a pose na tela mostre outra), no lugar da parte
@@ -509,6 +523,14 @@ const Atelie = {
     const e = this.edImg; if (!e) return null; const p = this.parte(e.pid), img = p?.imgs.find(i => i.id === e.iid); if (!img) { this.edImg = null; return null; }
     const it = Modelo.montar(this.def, this.estado()).find(x => x.parte.id === p.id); if (!it) { const m = new DOMMatrix(); return { parte: p, img, ap: null, m, mp: m }; }
     return it.img?.id === img.id ? it : { ...it, img, ap: null, m: it.mp || it.m };
+  },
+  // ferramenta de pintar no palco (fora do editor): a aba Camadas aparece e vai para ela; Mover volta para a aba de antes
+  abaPintar(on) { if (on) { if (this.aba !== 'pintar') this._abaAntes = this.aba; this.aba = 'pintar'; } else if (this.aba === 'pintar') this.aba = this._abaAntes && this._abaAntes !== 'pintar' ? this._abaAntes : 'peca'; },
+  pintaPintar(el) {
+    const p = this.parte(), img = p && p.imgs.find(i => i.id === this.estado()[p.id]?.img);
+    el.appendChild(h(`<div class="ed-cab"><div class="ed-t"><small>Pintando no palco</small><b>${p ? `${esc(img?.nome || '—')} <small>(${esc(p.nome)})</small>` : 'Escolha uma parte'}</b></div>${img ? `<button class="btn sm" data-ab title="Abrir só esta imagem, como no Photoshop">${ic('brush', 12)} Abrir no editor</button>` : ''}</div>`));
+    const ab = $('[data-ab]', el); if (ab) ab.onclick = () => { if (this.abrirEditor(p, img)) this.pinta(); };
+    Pintura.pintaAba(el);
   },
   pintaEditor(el) {
     const it = this.itemEditor(); if (!it) return; const p = it.parte, cab = h(`<div class="ed-cab"><div class="ed-t"><small>Imagem de "${esc(p.nome)}"</small>
