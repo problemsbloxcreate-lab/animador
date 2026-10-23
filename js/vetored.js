@@ -20,7 +20,7 @@ const VetorUI = {
     $('[data-z]', body).oninput = ev => { z = +ev.target.value; ev.target.nextElementSibling.textContent = z + '×'; pinta(); };
     for (const cv of [ca, cd]) cv.onclick = ev => { if (!orig) return; const r = cv.getBoundingClientRect(), W = orig.width, H = orig.height, k = Math.min(300 / W, 300 / H) * z; cx = clamp(cx + ((ev.clientX - r.left) / r.width * 300 - 150) / (W * k), 0, 1); cy = clamp(cy + ((ev.clientY - r.top) / r.height * 300 - 150) / (H * k), 0, 1); if (z < 2) { z = 3; $('[data-z]', body).value = 3; $('[data-z]', body).nextElementSibling.textContent = '3×'; } pinta(); };
     const prev = async () => { try { const b = await Arq.pegaBlob(um.img.k) || await Nuvem.baixar(um.img.k); orig = await createImageBitmap(b); pinta(); await cede();
-        const { D, W, H } = await Vetor.pixelsDe(um.img.k), t0 = performance.now(), m = Vetor.dePixels(D, W, H, { limpa: $('[data-limpa]', body).checked }); delete m.cores; const txt = Vetor.svg(m);
+        const { D, W, H } = await Vetor.pixelsDe(um.img.k), t0 = performance.now(), m = Vetor.deImagem(D, W, H, { limpa: $('[data-limpa]', body).checked }); delete m.cores; const txt = Vetor.svg(m);
         svgIm = await Vetor.imagem(new Blob([txt], { type: 'image/svg+xml' })); pinta();
         $('.vt-info', body).innerHTML = `${lista.length > 1 ? `Esta é a 1ª de <b>${lista.length}</b> imagens. ` : ''}Duas camadas separadas: <b>Linha</b> e <b>Cor</b> (${m.cam[0].f.length} cores). ${Arquivos.fmt(b.size)} → ${Arquivos.fmt(txt.length)}. O ${esc(Vetor.tipo(um.img.k) || 'PNG')} de antes fica guardado: dá para voltar (botão direito na imagem › Converter para PNG).`;
       } catch (e) { $('.vt-info', body).textContent = 'Não consegui converter: ' + e.message; } };

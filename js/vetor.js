@@ -10,6 +10,19 @@
 'use strict';
 const Vetor = {
     // PNG → modelo vetorial com DUAS camadas: "Cor" (as áreas, que vão por baixo da linha até o meio dela) e "Linha" (o traço)
+  // PEÇA PEQUENA (boca, olho, cílio): o desenho é recortado e AMPLIADO antes de virar vetor (até 4×), assim as partes finas
+  // (o vermelho de 1–2 px entre o dente e a língua) não somem nem viram lasquinhas; as curvas voltam para o tamanho certo
+  deImagem(D, W, H, o = {}) {
+    let x0 = W, y0 = H, x1 = -1, y1 = -1; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (D[(y * W + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return { W, H, off: { x: 0, y: 0 }, cam: [{ id: 'cor', nome: 'Cor', papel: 'cor', f: [], m: [] }, { id: 'linha', nome: 'Linha', papel: 'linha', f: [], m: [] }], cores: [] };
+    const pad = 4; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1, s = o.escala ?? Math.max(1, Math.min(4, Math.floor(700 / Math.max(bw, bh))));
+    if (s <= 1 || typeof OffscreenCanvas === 'undefined') return this.dePixels(D, W, H, o);
+    const a = new OffscreenCanvas(bw, bh), ax = a.getContext('2d'), id = ax.createImageData(bw, bh); for (let y = 0; y < bh; y++) id.data.set(D.subarray(((y + y0) * W + x0) * 4, ((y + y0) * W + x0 + bw) * 4), y * bw * 4); ax.putImageData(id, 0, 0);
+    const b = new OffscreenCanvas(bw * s, bh * s), bx = b.getContext('2d', { willReadFrequently: true }); bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = 'high'; bx.drawImage(a, 0, 0, bw * s, bh * s);
+    const s2 = s * s, m = this.dePixels(bx.getImageData(0, 0, bw * s, bh * s).data, bw * s, bh * s, { min: 14 * s2, fiapoMin: 15 * s2, fiapoMax: 160 * s2, fiapo: 4 * s, alcance: 6 * s, zonaR: 12 * s, fiapoGrupo: 60 * s, corpoMin: 3000 * s2, bordaPerto: 3 * s, bordaDentro: 3 * s - 1, ...o, mapa: p => ({ x: p.x / s + x0, y: p.y / s + y0 }) });
+    m.W = W; m.H = H; return m;
+  },
   dePixels(D0, W, H, o = {}) {
     const D = new Uint8ClampedArray(D0); if (o.limpa !== false) { const z = this.limpa(D, W, H, o); if (z) o = { ...o, zona: z, zW: W }; }
     const N = W * H, A = new Uint8Array(N); for (let i = 0; i < N; i++) A[i] = D[i * 4 + 3];
@@ -83,6 +96,14 @@ const Vetor = {
         const perto = new Set(); { const x0 = i % W, y0 = (i / W) | 0; for (let yy = Math.max(0, y0 - 6); yy <= Math.min(H - 1, y0 + 6); yy++) for (let xx = Math.max(0, x0 - 6); xx <= Math.min(W - 1, x0 + 6); xx++) { const q = yy * W + xx; if (reg[q] >= 0) perto.add(corDe[reg[q]]); } }
         for (const j of perto) { if (j === bj || j < 0) continue; const [e, t] = erro(p, pal[j].c); if (e < be) { be = e; bt = t; bj = j; } }
         if (bj !== lab[i]) { lab[i] = bj; cob[i] = bt; } } }
+    // BORDA ENTRE DUAS CORES (dente branco encostado no vermelho, sem traço no meio): o pixel é mistura das duas cores, não traço.
+    // Antes virava meio traço (uma linha preta que não existe) e sobravam lasquinhas da outra cor. Agora fica com a cor mais perto, inteira.
+    { const mix = (p, a, b) => { const v = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], vv = v[0] * v[0] + v[1] * v[1] + v[2] * v[2] || 1, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * v[0] + (p[1] - a[1]) * v[1] + (p[2] - a[2]) * v[2]) / vv)), e = [a[0] + t * v[0] - p[0], a[1] + t * v[1] - p[1], a[2] + t * v[2] - p[2]]; return [e[0] * e[0] + e[1] * e[1] + e[2] * e[2], t]; };
+      for (let i = 0; i < N; i++) { if (reg[i] >= 0 || A[i] < 128) continue; const x0 = i % W, y0 = (i / W) | 0, P = new Set();
+        for (let yy = Math.max(0, y0 - 3); yy <= Math.min(H - 1, y0 + 3); yy++) for (let xx = Math.max(0, x0 - 3); xx <= Math.min(W - 1, x0 + 3); xx++) { const q = yy * W + xx; if (reg[q] >= 0 && corDe[reg[q]] >= 0) P.add(corDe[reg[q]]); }
+        if (P.size < 2) continue; const L0 = [...P], p = rgb(i); let tin = Infinity; for (const j of L0) tin = Math.min(tin, mix(p, tinta, pal[j].c)[0]);
+        let best = null; for (let u = 0; u < L0.length; u++) for (let w = u + 1; w < L0.length; w++) { const [e, t] = mix(p, pal[L0[u]].c, pal[L0[w]].c); if (!best || e < best.e) best = { e, j: t < .5 ? L0[u] : L0[w] }; }
+        if (best && best.e < 1600 && best.e < tin * .6) { lab[i] = best.j; cob[i] = 1; } } }
     // ÁREA FECHADA = UMA COR: dentro de cada área entre traços, cores quase iguais (ruído/degradê do PNG numa argola fina)
     // viram a cor que mais aparece ali (blush e outras cores bem diferentes ficam)
     { const fe = new Int32Array(N).fill(-1); let nc = 0; const ok = i => lab[i] >= 0 && cob[i] >= .5;
@@ -101,9 +122,9 @@ const Vetor = {
     let b1 = null; if (o.bordaLinha !== false) { const fora = i => A[i] < 40, viz = (i, f) => { const x = i % W; if (x > 0) f(i - 1); if (x < W - 1) f(i + 1); if (i >= W) f(i - W); if (i + W < N) f(i + W); };
       // só onde a beira tem TRAÇO perto (até 3 px): beira cortada sem contorno (braço que entra embaixo do corpo, peça recortada) continua cor
       const tin = new Uint8Array(N); for (let i = 0; i < N; i++) if (A[i] > 200 && L(i) < tL + 60) tin[i] = 1;
-      let perto = tin; for (let k = 0; k < 3; k++) { const nx = Uint8Array.from(perto); for (let i = 0; i < N; i++) if (perto[i]) viz(i, j => { nx[j] = 1; }); perto = nx; }
+      let perto = tin; for (let k = 0; k < (o.bordaPerto ?? 3); k++) { const nx = Uint8Array.from(perto); for (let i = 0; i < N; i++) if (perto[i]) viz(i, j => { nx[j] = 1; }); perto = nx; }
       b1 = new Uint8Array(N); for (let i = 0; i < N; i++) { if (fora(i) || !perto[i]) continue; let t = false; viz(i, j => { if (fora(j)) t = true; }); if (t) b1[i] = 1; }
-      const b2 = Uint8Array.from(b1); for (let i = 0; i < N; i++) if (b1[i]) viz(i, j => { if (!fora(j) && perto[j]) b2[j] = 1; }); b1 = b2; } // a cor fica 2 px para dentro da beira
+      for (let k = 0; k < (o.bordaDentro ?? 1); k++) { const b2 = Uint8Array.from(b1); for (let i = 0; i < N; i++) if (b1[i]) viz(i, j => { if (!fora(j) && perto[j]) b2[j] = 1; }); b1 = b2; } } // a cor fica 2 px para dentro da beira
     // ---- 5) CAMADAS: Cor (embaixo) e Linha (em cima), separadas ----
     // cada pixel opaco ganha a cor da área mais perto (por baixo do traço também): apagar a linha mostra a cor, não um buraco
     const tudo = Int32Array.from(lab); { let fr = []; for (let i = 0; i < N; i++) if (tudo[i] >= 0) fr.push(i);
@@ -150,7 +171,7 @@ const Vetor = {
     const cands = [], vs = new Uint8Array(N); for (let s0 = 0; s0 < N; s0++) { if (!sob[s0] || vs[s0]) continue; const px = [s0], pilha = [s0]; vs[s0] = 1;
       while (pilha.length) { const i = pilha.pop(); viz4(i, j => { if (sob[j] && !vs[j]) { vs[j] = 1; px.push(j); pilha.push(j); } }); }
       let enc = 0, corpo = 0; for (const i of px) { let t = false; viz4(i, j => { if (ab[j]) { t = true; corpo = Math.max(corpo, corpoTam[corpoId[j]] || 0); } }); if (t) enc++; } // presa por uma base estreita = fiapo (canto arredondado não)
-      if (enc > 0 && corpo >= Math.max(3000, px.length * 20) && px.length >= (o.fiapoMin ?? 15) && px.length <= (o.fiapoMax ?? 160) && px.length / enc >= 4 && px.length / enc <= 22) { let cx = 0, cy = 0; for (const i of px) { cx += i % W; cy += (i / W) | 0; } cands.push({ px, cx: cx / px.length, cy: cy / px.length }); } }
+      if (enc > 0 && corpo >= Math.max(o.corpoMin ?? 3000, px.length * 20) && px.length >= (o.fiapoMin ?? 15) && px.length <= (o.fiapoMax ?? 160) && px.length / enc >= 4 && px.length / enc <= 22) { let cx = 0, cy = 0; for (const i of px) { cx += i % W; cy += (i / W) | 0; } cands.push({ px, cx: cx / px.length, cy: cy / px.length }); } }
     // fiapo é um risco SOZINHO; vários parecidos juntos (cílios, pontas de cabelo, dedos) são desenho e ficam
     for (const c of cands) { const viz = cands.filter(d => d !== c && Math.hypot(d.cx - c.cx, d.cy - c.cy) < (o.fiapoGrupo ?? 60)).length; if (!viz) for (const i of c.px) tira[i] = 2; }
     // aplica: some, e a borda clara/meio-transparente em volta vira traço com a transparência certa
@@ -518,7 +539,7 @@ const Vetor = {
   /* ---------- converter ---------- */
   async pixelsDe(k) { const b = await Arq.pegaBlob(k) || (/^personagens\//.test(k) ? await Nuvem.baixar(k).catch(() => null) : null); if (!b) throw new Error('A imagem não está neste computador.'); const bm = await createImageBitmap(b), c = new OffscreenCanvas(bm.width, bm.height).getContext('2d', { willReadFrequently: true }); c.drawImage(bm, 0, 0); return { D: c.getImageData(0, 0, bm.width, bm.height).data, W: bm.width, H: bm.height }; },
   async converteImg(img, o = {}) {
-    const k0 = img.k, { D, W, H } = await this.pixelsDe(k0), m = this.dePixels(D, W, H, { limpa: o.limpa !== false }); delete m.cores;
+    const k0 = img.k, { D, W, H } = await this.pixelsDe(k0), m = this.deImagem(D, W, H, { limpa: o.limpa !== false }); delete m.cores;
     await this.gravar(img, m); img.dePng = k0; if (img.camadas) { delete img.camadas; delete img.camAtiva; } delete img.vCam; return m;
   },
   // SVG → PNG (do tamanho da imagem). Se ninguém mexeu desde a conversão, volta o PNG original (sem perda nenhuma)
