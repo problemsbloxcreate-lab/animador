@@ -1216,6 +1216,7 @@ const Atelie = {
       { label: 'Duplicar', icon: 'dup', action: () => { const c = clone(pr); c.id = uid('pr'); c.nome += ' 2'; s.presets.splice(s.presets.indexOf(pr) + 1, 0, c); this.edit = { s: s.id, p: c.id }; this.commit(); } },
       { label: 'Voltar à base (limpar)', icon: 'undo', action: () => { pr.estado = {}; this.commit(); } },
       { label: 'Usar como pose padrão (a base fica assim)', icon: 'home', action: () => this.virarPadrao(s, pr) },
+      { label: 'Exportar como .presetatelie', icon: 'download', action: () => PresetArq.exportar(s, pr) },
       '-', { label: 'Apagar', icon: 'trash', danger: true, action: () => { s.presets = s.presets.filter(x => x !== pr); if (this.edit?.p === pr.id) this.edit = null; this.commit(); } },
     ]);
   },

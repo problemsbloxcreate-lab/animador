@@ -85,12 +85,13 @@ async function fichaAnimacao(P, info) {
 
 /* ---------- soltar arquivos em qualquer lugar do Animador ---------- */
 (() => {
-  const pega = e => [...(e.dataTransfer?.files || [])].find(f => /\.(atelieanimador|animador|toon)$/i.test(f.name));
+  const pega = e => [...(e.dataTransfer?.files || [])].find(f => /\.(atelieanimador|animador|toon|presetatelie)$/i.test(f.name));
   document.addEventListener('dragover', e => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault(); }); // o navegador não abre o arquivo por cima do Animador
   document.addEventListener('drop', async e => {
     const f = pega(e); if (!f) { if (e.dataTransfer?.files?.length && !e.defaultPrevented) e.preventDefault(); return; }
     e.preventDefault(); e.stopPropagation(); // os arquivos do Animador não viram imagem
     if (!TurmaAuth.passed) return;
+    if (/\.presetatelie$/i.test(f.name)) return PresetArq.importar(f); // um preset: entra no personagem aberto no Ateliê
     const tipo = await AtelieArq.tipo(f), noAtelie = !$('#atelie').classList.contains('hidden');
     if (tipo === 'atelie') return noAtelie && Atelie.def ? AtelieArq.substituir(f) : AtelieArq.abrir(f, { errado: !noAtelie }); // com um personagem aberto: pergunta se é para trocar ele pelo arquivo
     if (tipo === 'animador') {
