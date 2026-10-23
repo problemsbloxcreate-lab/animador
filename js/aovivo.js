@@ -124,7 +124,7 @@ const AoVivo = {
     if (st.snap && !o.novo) { const d = JSON.parse(this.confirmado); await this.garanteArqs(ad.chaves(d)); ad.set(d); }
     this.local = JSON.stringify(ad.get()); this.ativo = true; this.desde = Date.now();
     t.ouvirOps(this.sala, this.log.length ? this.log[this.log.length - 1].k : this.ate, op => this.recebe(op));
-    t.ouvirGente(this.sala, g => { this.gente = g; this.pintaBarra(); this.ad?.gente?.(); this.ad?.redesenha(); });
+    t.ouvirGente(this.sala, g => { this.gente = g; this.pintaBarra(); this.ad?.gente?.(); this.ad?.redesenha(); this.pintaMarcas(); });
     t.ouvirMeta?.(this.sala, m => this.meta(m));
     await t.presenca(this.sala, eu.id, { nome: eu.nome, foto: eu.foto, cor: eu.cor, onde: ad.ctx, fazendo: '', afk: false, conta: eu.conta, vista: ad.vista?.() || '', u: Date.now() }, true); this._afk = false; this._mexeu = Date.now();
     if (o.meta) await t.setMeta(this.sala, o.meta);
@@ -134,7 +134,7 @@ const AoVivo = {
   async sair(o = {}) {
     if (!this.ativo) return; this.ativo = false; clearInterval(this._iv); const t = this.t, sala = this.sala, eu = this.eu;
     try { await this._fila; } catch { } try { if (o.encerrar) await t.setMeta(sala, { fim: true }); await t.sair(sala, eu.id); if (o.encerrar) await t.apagar(sala); } catch { }
-    this.gente = {}; this.ad?.redesenha(); this.ad = null; this.sala = null; this.pintaBarra();
+    this.gente = {}; this.ad?.redesenha(); this.ad = null; this.sala = null; this.pintaBarra(); this.pintaMarcas(); this._focoJ = null;
   },
   meta(m) { if (m?.troca) this.recebeTroca(m.troca); if (m?.fim && this.ativo && this.ad?.ctx === 'animador' && !this._saindo) { this._saindo = true; this.ad.salvar?.(); this.sair().then(() => { this._saindo = false; UI.toast('O trabalho em conjunto terminou. A cópia com as últimas mudanças ficou salva neste computador.', { kind: 'ok', time: 9000 }); }); } },
   // ---------- TROCAR O PERSONAGEM PELO ARQUIVO (.atelieanimador) com gente junto ----------
@@ -250,25 +250,78 @@ const AoVivo = {
       const v = por.get(c), t = g.afk ? -1 : (g.u || g.t || 0); if (!v || t > v._t) por.set(c, { id, ...g, _t: t }); }
     return [...por.values()];
   },
-  cursor(x, y, extra = {}) { if (!this.ativo) return; const t = performance.now(); this._curX = extra; this._cur = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, ui: null, ...extra }; if (t - (this._curT || 0) < 70) { clearTimeout(this._curTo); this._curTo = setTimeout(() => this.cursor(this._cur.x, this._cur.y, this._curX), 80); this._curX = extra; return; } this._curT = t; this.t.presenca(this.sala, this.eu.id, { ...this._cur, u: Date.now() }); },
+  cursor(x, y, extra = {}) { return; /* sem cursor na tela (decisão do dono): o lugar de cada um vai no "foco" */ if (!this.ativo) return; const t = performance.now(); this._curX = extra; this._cur = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, ui: null, ...extra }; if (t - (this._curT || 0) < 70) { clearTimeout(this._curTo); this._curTo = setTimeout(() => this.cursor(this._cur.x, this._cur.y, this._curX), 80); this._curX = extra; return; } this._curT = t; this.t.presenca(this.sala, this.eu.id, { ...this._cur, u: Date.now() }); },
   // cursores dos outros: numa camada por cima de TUDO (painéis, janelas), na posição do palco
+  // QUEM ESTÁ MEXENDO ONDE (jeito do Figma/Canva): no palco, a parte de cada um ganha contorno fino na cor dela + a fotinho no canto;
+  // nas listas (partes, poses, frames, imagens, camadas) a fotinho aparece no item. Sem cursor na tela (não suja a visão).
+  // Muita gente no mesmo lugar: no máximo 2 fotos + "+N" (passar o mouse mostra os nomes).
   desenha(ctx, V) {
-    const lay = this._lay || (this._lay = document.body.appendChild(h('<div class="av-cursores" aria-hidden="true"></div>'))), vivos = new Set();
+    const lay = this._lay || (this._lay = document.body.appendChild(h('<div class="av-cursores" aria-hidden="true"></div>')));
     const cv = ctx?.canvas; if (!this.ativo) { lay.innerHTML = ''; return; }
-    if (cv && this.ad && cv !== (this.ad.ctx === 'atelie' ? Atelie.cv : App.palco?.cv)) return; // o palco do outro programa (escondido) não mexe nos cursores
+    if (cv && this.ad && cv !== (this.ad.ctx === 'atelie' ? Atelie.cv : App.palco?.cv)) return; // o palco do outro programa (escondido) não mexe
     const r = cv?.getBoundingClientRect?.(), k = r && cv.width ? r.width / cv.width : 0; if (!k || !(r.width > 0)) return;
-    const minhaV = this.ad?.vista?.(); // Ateliê: só aparece o cursor de quem está na MESMA vista
-    for (const g of this.outros()) { if (g.x == null || g.afk || (minhaV && g.vista && g.vista !== minhaV)) continue; vivos.add(g.id); // ausente (1 min parado, ou ~35 s com a aba escondida/sem foco): o cursor some
-      let x, y, fora = false;
-      if (g.ui) { const a = document.getElementById(g.ui), ra = a?.getBoundingClientRect(); if (!ra || !(ra.width > 0 && ra.height > 0) || !a.offsetParent && getComputedStyle(a).position !== 'fixed') { vivos.delete(g.id); continue; } // o painel não está aberto aqui: não inventa lugar
-        x = ra.left + clamp(+g.rx || 0, 0, 1) * ra.width; y = ra.top + clamp(+g.ry || 0, 0, 1) * ra.height; }
-      else { const q = V.transformPoint(new DOMPoint(g.x, g.y)), px = r.left + q.x * k, py = r.top + q.y * k; x = clamp(px, r.left, r.right - 14); y = clamp(py, r.top, r.bottom - 22); fora = x !== px || y !== py; }
-      x = clamp(x, 0, innerWidth - 14); y = clamp(y, 0, innerHeight - 22); const c = g.cor || '#19d3f0';
-      let el = lay.querySelector(`[data-id="${CSS.escape(g.id)}"]`);
-      if (!el) { el = h(`<div class="av-cur" data-id="${esc(g.id)}"><svg width="16" height="22" viewBox="0 0 16 22"><path d="M1 1 L1 18 L5.5 14 L9 21 L11.5 20 L8.2 13.3 L14 13 Z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg><span></span></div>`); lay.appendChild(el); }
-      el.classList.toggle('esq', x > innerWidth - 180); el.classList.toggle('fora', fora); el.title = fora ? 'Fora da parte que você está vendo' : ''; el.style.setProperty('--c', c); el.style.transform = `translate(${Math.round(x)}px,${Math.round(y)}px)`; $('path', el).setAttribute('fill', c);
-      const txt = (g.nome || 'Alguém').split(' ')[0] + (g.fazendo ? ' · ' + g.fazendo : ''), sp = $('span', el); if (sp.textContent !== txt) sp.textContent = txt; sp.style.color = this.claro(c) ? '#111' : '#fff'; }
+    const minhaV = this.ad?.vista?.(), grupos = new Map();
+    for (const g of this.outros()) { const alvo = this.ad?.ctx === 'atelie' ? g.foco?.parte : g.foco?.no; if (!alvo || (minhaV && g.vista && g.vista !== minhaV)) continue; (grupos.get(alvo) || grupos.set(alvo, []).get(alvo)).push(g); }
+    const vivos = new Set();
+    for (const [alvo, gs] of grupos) {
+      const polis = this.contorno(alvo); if (!polis.length) continue;
+      gs.sort((a, b) => (a.afk - b.afk) || ((b.u || 0) - (a.u || 0))); const cor = gs[0].cor || '#19d3f0';
+      // contorno fino na cor de quem mexeu por último (desenhado no próprio palco, por cima de tudo)
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.lineWidth = Math.max(1.5, 2 / k); ctx.strokeStyle = cor; ctx.globalAlpha = gs.every(x => x.afk) ? .35 : .95; ctx.setLineDash([]);
+      let mx = Infinity, my = Infinity, Mx = -Infinity;
+      for (const pts of polis) { ctx.beginPath(); pts.forEach((w, i) => { const q = V.transformPoint(new DOMPoint(w.x, w.y)); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); if (q.y < my || (q.y === my && q.x < mx)) { my = q.y; mx = q.x; } Mx = Math.max(Mx, q.x); }); ctx.closePath(); ctx.stroke(); }
+      ctx.restore();
+      // fotinhas no canto de cima do contorno (dentro do palco)
+      const x = clamp(r.left + mx * k, r.left + 2, r.right - 60), y = clamp(r.top + my * k - 24, r.top + 2, r.bottom - 26), id = 'p:' + alvo; vivos.add(id);
+      let el = lay.querySelector(`[data-id="${CSS.escape(id)}"]`); if (!el) { el = h(`<div class="av-selp" data-id="${esc(id)}"></div>`); lay.appendChild(el); }
+      const html = this.fotinhas(gs, 2); if (el._h !== html) { el._h = html; el.innerHTML = html; }
+      el.style.setProperty('--c', cor); el.style.transform = `translate(${Math.round(x)}px,${Math.round(y)}px)`; el.title = gs.map(g => (g.nome || 'Alguém') + (g.fazendo ? ' · ' + g.fazendo : '')).join('\n');
+    }
     for (const el of [...lay.children]) if (!vivos.has(el.dataset.id)) el.remove();
+  },
+  // onde fica a parte (Ateliê) ou a camada (Animador) no palco: polígonos em coordenadas do mundo
+  contorno(alvo) {
+    try {
+      if (this.ad?.ctx === 'atelie') {
+        if (!Atelie.def) return [];
+        return Modelo.montar(Atelie.def, Atelie.estado()).filter(it => it.img && it.parte.id === alvo).map(it => {
+          const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, x0 = -px + (it.img.ajuste?.x || 0), y0 = -py + (it.img.ajuste?.y || 0), x1 = x0 + it.img.w, y1 = y0 + it.img.h;
+          return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => it.m.transformPoint(new DOMPoint(x, y))); });
+      }
+      if (!App.P) return []; const c = Render.caixas(App.P, App.q).find(c => c.no?.id === alvo); return c?.cantos ? [c.cantos.map(p => ({ x: p.x ?? p[0], y: p.y ?? p[1] }))] : [];
+    } catch { return []; }
+  },
+  // fotinhas de quem está num lugar: no máximo n + "+N"
+  fotinhas(gs, n) {
+    const f = g => `<span class="av-mini${g.afk ? ' afk' : ''}" style="--c:${esc(g.cor || '#888')}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer">` : esc((g.nome || '?')[0].toUpperCase())}</span>`;
+    return gs.slice(0, n).map(f).join('') + (gs.length > n ? `<span class="av-mini av-mais">+${gs.length - n}</span>` : '');
+  },
+  // o que EU estou usando agora (vai na presença; os outros mostram a minha fotinha nesses lugares)
+  focoAgora() {
+    if (this.ad?.ctx === 'atelie') { const A = typeof Animacoes !== 'undefined' ? Animacoes : null, an = A?.passoSel && (A.tocando || A.sel);
+      return { parte: Atelie.sel || null, preset: Atelie.edit?.p || null, img: Atelie.edImg?.iid || Atelie.focoImg?.img || null, passo: an ? `${an}:${A.passoSel.t}:${A.passoSel.i}` : null }; }
+    if (this.ad?.ctx === 'animador') return { no: App.sel || null, q: App.q ?? null };
+    return null;
+  },
+  // fotinhas nas listas: põe/atualiza em cada item que alguém está usando
+  pintaMarcas() {
+    if (this._pintandoMk) return; this._pintandoMk = true;
+    try {
+      const outros = this.ativo ? this.outros().filter(g => g.foco && !(this.ad?.vista?.() && g.vista && g.vista !== this.ad.vista())) : [], por = new Map();
+      const add = (sel, g) => { if (!sel) return; (por.get(sel) || por.set(sel, []).get(sel)).push(g); };
+      const anAqui = typeof Animacoes !== 'undefined' ? (Animacoes.tocando || Animacoes.sel) : null;
+      for (const g of outros) { const f = g.foco;
+        if (this.ad?.ctx === 'atelie') { if (f.parte) add(`#atelie .no[data-pid="${CSS.escape(f.parte)}"]`, g); if (f.preset) add(`[data-prid="${CSS.escape(f.preset)}"]`, g); if (f.img) add(`.im[data-iid="${CSS.escape(f.img)}"]`, g);
+          if (f.passo) { const [an, t, i] = String(f.passo).split(':'); if (an === anAqui) add(`.tl-c[data-t="${CSS.escape(t)}"][data-i="${CSS.escape(i)}"]`, g); } }
+        else if (f.no) add(`#editor .no[data-id="${CSS.escape(f.no)}"]`, g); }
+      const vistos = new Set();
+      for (const [sel, gs] of por) for (const el of document.querySelectorAll(sel)) {
+        vistos.add(el); el.classList.add('av-mk-host'); let mk = el.querySelector(':scope > .av-mk'); if (!mk) { mk = document.createElement('span'); mk.className = 'av-mk'; el.appendChild(mk); }
+        gs.sort((a, b) => (a.afk - b.afk) || ((b.u || 0) - (a.u || 0))); const html = this.fotinhas(gs, 2); if (mk._h !== html) { mk._h = html; mk.innerHTML = html; }
+        mk.title = gs.map(g => g.nome || 'Alguém').join(', ') + (gs.length > 1 ? ' estão aqui' : ' está aqui'); el.style.setProperty('--avc', gs[0].cor || '#19d3f0');
+      }
+      for (const el of document.querySelectorAll('.av-mk-host')) if (!vistos.has(el)) { el.classList.remove('av-mk-host'); el.querySelector(':scope > .av-mk')?.remove(); el.style.removeProperty('--avc'); }
+    } finally { this._mkObs?.takeRecords(); this._pintandoMk = false; }
   },
   claro(hex) { const v = parseInt(hex.slice(1), 16); return ((v >> 16 & 255) * .3 + (v >> 8 & 255) * .59 + (v & 255) * .11) > 150; },
   atividade(nome, r) { const k = nome + r, t = Date.now(); if (this._ult?.k === k && t - this._ult.t < 4000) return; this._ult = { k, t }; UI.toast(`<b>${esc((nome || 'Alguém').split(' ')[0])}</b> ${esc(r)}`, { time: 2200 }); },
@@ -353,6 +406,9 @@ const AoVivo = {
       const r = a.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return;
       this.cursor(this._cur?.x ?? 0, this._cur?.y ?? 0, { ui: a.id, rx: Math.round((e.clientX - r.left) / r.width * 1000) / 1000, ry: Math.round((e.clientY - r.top) / r.height * 1000) / 1000 });
     }, { passive: true, capture: true });
+    setInterval(() => { if (!this.ativo || !this.ad) return; const f = this.focoAgora(), j = JSON.stringify(f); if (j === this._focoJ) return; this._focoJ = j; try { this.t.presenca(this.sala, this.eu.id, { foco: f, u: Date.now() }); } catch { } }, 400);
+    this._mkObs = new MutationObserver(() => { if (this._pintandoMk || !this.ativo) return; cancelAnimationFrame(this._mkRaf); this._mkRaf = requestAnimationFrame(() => this.pintaMarcas()); });
+    this._mkObs.observe(document.body, { childList: true, subtree: true });
     addEventListener('pointerup', () => { this._gesto = false; }, true); addEventListener('pointercancel', () => { this._gesto = false; }, true);
     ligaPalcos(); setInterval(ligaPalcos, 1500); addEventListener('resize', () => { clearTimeout(this._rz); this._rz = setTimeout(() => this.ativo && this.pintaBarra(), 150); }); // cabem 3 ou 4 fotos conforme a tela
     addEventListener('pagehide', () => { if (this.ativo) try { this.t.sair(this.sala, this.eu.id); } catch { } });

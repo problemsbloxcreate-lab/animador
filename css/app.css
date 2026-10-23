@@ -920,6 +920,7 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .avc-lista{margin:0 8px 8px 42px!important;max-height:180px;overflow:auto;padding-right:4px!important}
 .avc-tx b small{display:inline;font-weight:500}.avp-comp{gap:3px}.avc-l{padding:5px 8px}
 .modal-back .modal{max-width:calc(100vw - 20px)}
+<<<<<<< Updated upstream
 /* PASTAS da biblioteca de personagens (abrir/fechar, arrastar entre pastas) */
 .pb-t{cursor:pointer;user-select:none;padding:5px 6px;margin:14px 0 6px;border-radius:8px;border:1px solid transparent;transition:background .12s,border-color .12s}
 .pb-t:hover{background:var(--bg2)}
@@ -932,3 +933,16 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .pb-vazia{grid-column:1/-1;padding:14px;border:1px dashed var(--bd2);border-radius:10px;color:var(--tx3);font-size:12px;text-align:center}
 .pc.pb-indo{opacity:.4}
 .btn.danger-l{color:#ff8a80}.btn.danger-l:hover{background:rgba(255,80,80,.12);border-color:rgba(255,80,80,.4)}
+=======
+/* AO VIVO — quem está mexendo onde (como Figma/Canva): fotinha no canto da parte no palco e nos itens das listas */
+.av-selp{position:absolute;left:0;top:0;display:flex;align-items:center;padding:2px;border-radius:999px;background:var(--c);box-shadow:0 2px 8px rgba(0,0,0,.35);transition:transform .12s ease-out;pointer-events:auto}
+.av-mini{width:18px;height:18px;border-radius:50%;overflow:hidden;display:inline-grid;place-items:center;flex:none;background:var(--c,#888);color:#111;font:700 10px/1 'Segoe UI',system-ui,sans-serif;box-shadow:0 0 0 1.5px var(--c,#888),0 0 0 2.5px rgba(0,0,0,.45);position:relative}
+.av-mini+.av-mini{margin-left:-6px}.av-mini img{width:100%;height:100%;object-fit:cover;display:block}
+.av-mini.afk{opacity:.45;filter:grayscale(.6)}
+.av-mini.av-mais{background:#2b2c31;color:#e9ebef;box-shadow:0 0 0 1.5px #555,0 0 0 2.5px rgba(0,0,0,.45);font-size:9px;width:auto;min-width:18px;padding:0 4px;border-radius:9px}
+.av-mk-host{position:relative;box-shadow:inset 2px 0 0 var(--avc,#19d3f0)}
+.av-mk{position:absolute;right:3px;top:50%;transform:translateY(-50%);display:flex;align-items:center;z-index:2;pointer-events:auto}
+.av-mk .av-mini{width:15px;height:15px;font-size:8.5px}.av-mk .av-mini+.av-mini{margin-left:-5px}
+.tl-c.av-mk-host .av-mk,.im.av-mk-host .av-mk{top:3px;right:3px;transform:none}
+.presets button.av-mk-host{padding-right:24px}.presets button.av-mk-host .av-mk{right:4px}
+>>>>>>> Stashed changes
