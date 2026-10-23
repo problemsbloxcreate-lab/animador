@@ -199,7 +199,8 @@ const Atelie = {
   salvoPorOutro(m) { // quem salvou avisou: se não tenho mudança minha ainda indo, o que está na tela é o que foi para a nuvem
     if (!this.naNuvem || !this.def || m.por === AoVivo.eu?.id || AoVivo.pend?.length) return; this.sujo = false; clearTimeout(this._tn); this.baseNuvem = this.ultimo; this.base0 = this.ultimo;
     DB.del('arquivos', this.chaveRascunho(this.def.id)).catch(() => { }); this.rascunhoEm = null; this.pintaEstado(); $('#at-salvar') && this.pintaBotaoNuvem(); },
-  agendaNuvem() { clearTimeout(this._tn); this._tn = setTimeout(() => this.sincronizar(), this.aoVivoJunto() ? 600000 : 60000); this.pintaEstado();
+  naReserva() { try { return window.EstudioLimite?.marcado?.() > Date.now(); } catch { return false; } },
+  agendaNuvem() { clearTimeout(this._tn); this._tn = setTimeout(() => this.sincronizar(), this.aoVivoJunto() || this.naReserva() ? 600000 : 60000); // na nuvem reserva (a principal no limite): de 10 em 10 min, cada envio gasta gravações dela this.pintaEstado();
     if (!this._ligouEsconder) { this._ligouEsconder = true; document.addEventListener('visibilitychange', () => { if (document.hidden && this.naNuvem && this.sujo && !this.enviando && Date.now() - (this._envioEm || 0) > 120000) this.sincronizar(); }); } },
   async sincronizar(agora) {
     clearTimeout(this._tn); if (!this.naNuvem || !this.def) return;
