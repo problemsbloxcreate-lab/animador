@@ -1030,3 +1030,7 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 
 /* o tamanho do arquivo no canto do cartão não cobre o texto */
 .pc:has(.tam:not([hidden])) .in small{padding-right:46px}
+/* ATELIÊ tem o próprio ícone (paleta) e cor, para não confundir com o editor */
+.brand .logo.logo-atelie{background:linear-gradient(135deg,#ff9a62,#ffd36b)}
+/* mudar a ordem das pastas arrastando o título */
+.pb-t.pb-antes{box-shadow:0 -2px 0 0 #3d8bff}.pb-t.pb-depois{box-shadow:0 2px 0 0 #3d8bff}.pb-t.pb-indo{opacity:.45}.pb-t[draggable=true]{cursor:grab}

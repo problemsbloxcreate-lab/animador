@@ -36,6 +36,11 @@ const PastasBib = {
   fechada(esc, p) { return this.fechadas().has(esc + ':' + p); },
   alterna(esc, p) { const s = this.fechadas(), k = esc + ':' + p; s.has(k) ? s.delete(k) : s.add(k); try { localStorage.setItem('animador-pastas-fechadas', JSON.stringify([...s])); } catch { } return s.has(k); },
   // ---------- ações ----------
+  // muda a ORDEM das pastas: tira "pasta" e põe antes (ou depois) de "alvo"; grava a ordem inteira de agora
+  async reordena(esc, todas, pasta, alvo, depois) {
+    if (pasta === alvo) return false; const L = todas.filter(p => p !== pasta), i = L.indexOf(alvo); if (i < 0) return false;
+    L.splice(depois ? i + 1 : i, 0, pasta); await this.grava(esc, o => { o.pastas = [...L, ...o.pastas.filter(p => !L.includes(p))]; }); return true;
+  },
   async mover(esc, ids, pasta) { if (!ids.length || !pasta) return; await this.grava(esc, o => { if (!o.pastas.includes(pasta)) o.pastas.push(pasta); for (const id of ids) o.de[id] = pasta; }); },
   async nova(esc, mover = []) {
     const nome = (await UI.prompt({ title: 'Pasta nova', label: 'Nome da pasta', placeholder: 'Ex.: Heróis, Vilões, Figurantes', ok: 'Criar', icon: 'folder' }))?.trim(); if (!nome) return null;
@@ -71,12 +76,21 @@ const PastasBib = {
       for (const it of itens) { const c = o.cartao(it); c.draggable = true; c.dataset.pbId = it.id; c.ondragstart = ev => { ev.dataTransfer.setData('text/pers-id', it.id); ev.dataTransfer.effectAllowed = 'move'; c.classList.add('pb-indo'); }; c.ondragend = () => c.classList.remove('pb-indo'); g.appendChild(c); }
       if (!itens.length) g.appendChild(h(`<div class="pb-vazia">Pasta vazia: arraste ${varios} para cá</div>`));
       t.onclick = e => { if (e.target.closest('.pb-mn')) return; const f = this.alterna(esc, pa); t.classList.toggle('fechada', f); g.hidden = f; };
-      const menu = (x, y) => UI.ctx(x, y, [{ head: pa }, { label: 'Renomear…', icon: 'edit', action: async () => { try { if (await this.renomear(esc, pa, o.itens)) o.aoMudar(); } catch (e) { UI.toast(esc2(e.message), { kind: 'err' }); } } },
+      // arrastar o TÍTULO da pasta para cima/baixo de outra = muda a ordem (linha azul mostra onde entra)
+      t.draggable = true; t.ondragstart = ev => { ev.dataTransfer.setData('text/pasta-bib', esc + '\n' + pa); ev.dataTransfer.effectAllowed = 'move'; t.classList.add('pb-indo'); };
+      t.ondragend = () => { t.classList.remove('pb-indo'); box.querySelectorAll('.pb-antes,.pb-depois').forEach(x => x.classList.remove('pb-antes', 'pb-depois')); };
+      const ladoDe = ev => { const r = t.getBoundingClientRect(); return ev.clientY > r.top + r.height / 2; };
+      const pos = todas.indexOf(pa), sobe = async d => { try { if (await this.reordena(esc, todas, pa, todas[pos + d], d > 0)) o.aoMudar(); } catch (e) { UI.toast(esc2(e.message), { kind: 'err' }); } };
+      const menu = (x, y) => UI.ctx(x, y, [{ head: pa }, { label: 'Subir a pasta', icon: 'up', disabled: pos <= 0, action: () => sobe(-1) }, { label: 'Descer a pasta', icon: 'down', disabled: pos >= todas.length - 1, action: () => sobe(1) }, '-', { label: 'Renomear…', icon: 'edit', action: async () => { try { if (await this.renomear(esc, pa, o.itens)) o.aoMudar(); } catch (e) { UI.toast(esc2(e.message), { kind: 'err' }); } } },
         { label: 'Pasta nova…', icon: 'folder', action: async () => { try { if (await this.nova(esc)) o.aoMudar(); } catch (e) { UI.toast(esc2(e.message), { kind: 'err' }); } } },
         menuCor(cor, c => { CoresPasta.set(this.COR[esc] + pa, c); o.aoMudar(); }),
         '-', { label: `Apagar a pasta (${varios === 'animações' ? 'as' : 'os'} ${varios} ficam)`, icon: 'trash', danger: true, action: async () => { try { if (await this.apagar(esc, pa, o.itens, todas)) o.aoMudar(); } catch (e) { UI.toast(esc2(e.message), { kind: 'err' }); } } }]);
       $('.pb-mn', t).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); menu(r.right - 200, r.bottom + 4); };
       t.oncontextmenu = e => { e.preventDefault(); menu(e.clientX, e.clientY); };
+      t.addEventListener('dragover', ev => { if (!ev.dataTransfer.types.includes('text/pasta-bib')) return; ev.preventDefault(); const d = ladoDe(ev); t.classList.toggle('pb-depois', d); t.classList.toggle('pb-antes', !d); });
+      t.addEventListener('dragleave', () => t.classList.remove('pb-antes', 'pb-depois'));
+      t.addEventListener('drop', async ev => { const v = ev.dataTransfer.getData('text/pasta-bib'); if (!v) return; ev.preventDefault(); t.classList.remove('pb-antes', 'pb-depois');
+        const [e2, de] = v.split('\n'); if (e2 !== esc || de === pa) return; try { if (await this.reordena(esc, todas, de, pa, ladoDe(ev))) o.aoMudar(); } catch (e) { UI.toast('Não consegui mudar a ordem: ' + esc2(e.message), { kind: 'err' }); } });
       for (const alvo of [t, g]) {
         alvo.ondragover = ev => { if (!ev.dataTransfer.types.includes('text/pers-id')) return; ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; t.classList.add('pb-alvo'); g.classList.add('pb-alvo'); };
         alvo.ondragleave = ev => { if (alvo.contains(ev.relatedTarget)) return; t.classList.remove('pb-alvo'); g.classList.remove('pb-alvo'); };

@@ -49,7 +49,7 @@ const Atelie = {
     Modelo.garanteVistas(def); await Arq.garantir(Modelo.chavesImgs(def)); await Arq.usarOriginais(Modelo.chavesImgs(def)); // edita sempre a partir da original
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
     if (this.naNuvem && this.sujo) this.agendaNuvem(); // mudanças guardadas aqui que ainda não foram: vão agora
-    if (novo?.fs.length) await this.montarNovo(novo); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
+    if (novo?.fs.length) await this.montarNovo(novo); Telas.marca('atelie');
     Nuvem.souAdm?.(); // ADM: só eles apagam vistas (o menu já sai certo)
     AoVivo.entrarAtelie().catch(() => { }); // personagem da nuvem: quem mais estiver nele aparece (cursor, nome, mudanças)
   },
@@ -319,7 +319,7 @@ const Atelie = {
     this.cv.addEventListener('pointerdown', e => { const a = document.activeElement; if (a && a !== document.body && a.matches?.('select,button,input:not([type=text]):not([type=number]):not([type=search])')) a.blur(); this.desce(e); }); // clicar no palco tira o foco do que estava escolhido (os atalhos voltam a valer) this.cv.addEventListener('contextmenu', e => { e.preventDefault(); if (!this._panMexeu) { if (this.teste && Animacoes.rodando && this.acha(this.mundo(e))) Animacoes.pausar(true); this.menuPalco(e); } this._panMexeu = false; }); // botão direito sem arrastar (também com o Testar aberto; tocando, pausa naquele passo): menu da peça
     this.cv.addEventListener('wheel', e => this.roda(e), { passive: false }); // rodinha do mouse: zoom no ponto do mouse
     $('#at-voltar').onclick = () => this.sair(); $('#at-voltar').hidden = true; { const br = $('#atelie header .brand'); if (br) { br.style.cursor = 'pointer'; br.title = 'Sair do Ateliê (volta ao início)'; br.onclick = () => this.sair(); } } // sem o botão Voltar no topo (decisão do dono): o nome ATELIÊ leva de volta $('#at-salvar').onclick = () => this.naNuvem ? this.sincronizar(true) : this.salvar(); $('#at-undo').onclick = () => this.undo(); $('#at-redo').onclick = () => this.redo();
-    $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); };
+    $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); Telas.marca('atelie'); };
     $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); if (this.naNuvem) PastasBib.mover('nuvem', [this.def.id], this.def.pasta).catch(() => { }); }; // a pasta da biblioteca da equipe também (personagens/pastas.json)
     $('#at-add-parte').onclick = () => this.novaParte(); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
     // soltar imagens no palco do ateliê: entram na parte escolhida (sem parte escolhida, cada uma vira uma parte)
