@@ -870,7 +870,10 @@ const Atelie = {
       const bm = await createImageBitmap(f).catch(() => null); if (!bm) { UI.toast(`"${esc(f.name)}" não é uma imagem que dá para usar`, { kind: 'err' }); continue; }
       let blob = f; if (bm.width > 2048 || bm.height > 2048 || f.size > 3 * 1048576) { const k = Math.min(1, 2048 / Math.max(bm.width, bm.height)), c = new OffscreenCanvas(Math.round(bm.width * k), Math.round(bm.height * k)); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height); blob = await c.convertToBlob({ type: 'image/png' }); }
       const ext = blob.type === 'image/jpeg' ? 'jpg' : blob.type === 'image/webp' ? 'webp' : blob.type === 'image/gif' ? 'gif' : 'png', iid = uid('im').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const k = `personagens/${this.def.id}/img/${iid}.${ext}`; await Arq.guardar(blob, k); Arq.img.set(k, await createImageBitmap(blob));
+      let k = `personagens/${this.def.id}/img/${iid}.${ext}`;
+      const fw = bm.width > 2048 || bm.height > 2048 ? Math.round(bm.width * Math.min(1, 2048 / Math.max(bm.width, bm.height))) : bm.width, fh = bm.width > 2048 || bm.height > 2048 ? Math.round(bm.height * Math.min(1, 2048 / Math.max(bm.width, bm.height))) : bm.height;
+      let vet = null; if (f._svg) try { vet = await Vetor.deArquivo(f._svg, fw, fh); } catch (e) { console.warn(e); } // .svg solto: continua VETOR (camada "Arte" com as curvas originais)
+      if (vet) { k = `personagens/${this.def.id}/img/${iid}.svg`; await Vetor.gravar(null, vet, k); } else { await Arq.guardar(blob, k); Arq.img.set(k, await createImageBitmap(blob)); }
       const nome = f.name.replace(/\.[^.]+$/, '').slice(0, 40);
       let alvo; if (f._parte) alvo = this.parteDaPasta(f._parte); // veio de uma pasta: a parte é a pasta
       else { if (cadaUmaParte || !p) { p = Modelo.novaParte(nome, null); p.z = this.def.partes.length; this.def.partes.push(p); } alvo = p; }

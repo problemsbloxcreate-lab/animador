@@ -120,7 +120,7 @@ const VetorUI = {
     for (const c of ordem) { const inv = this.matriz(a, m, c).inverse(), q = inv.transformPoint(new DOMPoint(sx, sy));
       for (let i = c.f.length - 1; i >= 0; i--) { const f = c.f[i], P2 = new Path2D(f.d); if (f.s) { ctx.lineWidth = Math.max(f.s, 6 / Math.hypot(this.matriz(a, m, c).a, this.matriz(a, m, c).b)); ctx.lineCap = ctx.lineJoin = 'round'; } if (f.s ? ctx.isPointInStroke(P2, q.x, q.y) : ctx.isPointInPath(P2, q.x, q.y, f.r ? 'evenodd' : 'nonzero')) {
         if (c !== at) img.vCam = c.id; this.nos = { k: img.k, cam: c.id, i, S: this.parse(f.d), cor: f.c || '#000000', s: f.s, sel: null }; Atelie.pinta(); return; } } }
-    this.nos = null; Atelie.desenha();
+    this.nos = null; Atelie.desenha(); if (m.cam.some(c => c.raw)) UI.toast('Os desenhos que vieram de um arquivo .svg (camada Arte) ainda não mexem ponto a ponto: a borracha, o pincel, o balde e os ajustes funcionam neles.', { kind: 'warn', time: 6000 });
   },
   arrasta(e, a, m, c, T, hit) {
     const N = this.nos, inv = T.inverse(), d = devicePixelRatio || 1, cv0 = Atelie.cv; try { cv0.setPointerCapture(e.pointerId); } catch { } const r = cv0.getBoundingClientRect(), loc = ev => inv.transformPoint(new DOMPoint((ev.clientX - r.left) * d, (ev.clientY - r.top) * d));

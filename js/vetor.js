@@ -271,7 +271,7 @@ const Vetor = {
     const vb = (r.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number), W = vb[2] || +r.getAttribute('width') || 100, H = vb[3] || +r.getAttribute('height') || 100;
     if (r.getAttribute('data-animador') !== 'vetor') { // SVG de fora: fica inteiro por baixo, e as camadas de cima recebem o que for desenhado
       [...r.querySelectorAll('script,foreignObject')].forEach(e => e.remove()); const raw = [...r.childNodes].map(n => new XMLSerializer().serializeToString(n)).join('');
-      return { W, H, off: { x: 0, y: 0 }, raw, cam: [{ id: 'cor', nome: 'Cor', papel: 'cor', f: [], m: [] }, { id: 'linha', nome: 'Linha', papel: 'linha', f: [], m: [] }] };
+      return { W, H, off: { x: 0, y: 0 }, cam: [{ id: 'cor', nome: 'Cor', papel: 'cor', f: [], m: [] }, { id: 'arte', nome: 'Arte', papel: 'linha', raw, f: [], m: [] }] };
     }
     const byId = id => r.querySelector(`[id="${id}"]`), url = v => (/url\(#([^)]+)\)/.exec(v || '') || [])[1], blurDe = el => { const f = url(el.getAttribute('filter')); return f ? +f.slice(1).replace('_', '.') || 0 : 0; };
     const forma = (p, cl) => { const o = { d: p.getAttribute('d') || '' }, sw = p.getAttribute('stroke-width'), tr = sw && p.getAttribute('fill') === 'none'; if (tr) o.s = +sw; const c = p.getAttribute(tr ? 'stroke' : 'fill'); if (c && c !== '#000') o.c = c; const op = p.getAttribute(tr ? 'stroke-opacity' : 'fill-opacity'); if (op != null && +op < 1) o.o = +op;
@@ -280,7 +280,7 @@ const Vetor = {
     const raiz = r.querySelector(':scope > g'), t = /translate\(\s*([-\d.e]+)[\s,]+([-\d.e]+)\s*\)/.exec(raiz?.getAttribute('transform') || ''), off = { x: t ? -+t[1] : 0, y: t ? -+t[2] : 0 };
     const rawEl = raiz?.querySelector(':scope > g[data-raw]'), raw = rawEl ? [...rawEl.childNodes].map(n => new XMLSerializer().serializeToString(n)).join('') : '';
     const cam = [...(raiz || r).querySelectorAll(':scope > g[data-cam]')].map(g => { const i = g.querySelector(':scope > g') || g, mt = /matrix\(([^)]+)\)/.exec(i.getAttribute('transform') || ''), mk = byId(url(i.getAttribute('mask'))), cp = byId(url(g.getAttribute('clip-path')));
-      const c = { id: g.getAttribute('data-cam'), nome: g.getAttribute('data-nome') || 'Camada', papel: g.getAttribute('data-papel') || 'cor', f: lista(i), m: mk ? lista(mk, true).filter(x => x.d && !/^M-5e4/.test(x.d)) : [] };
+      const rw = i.querySelector(':scope > g[data-raw]'), c = { id: g.getAttribute('data-cam'), nome: g.getAttribute('data-nome') || 'Camada', papel: g.getAttribute('data-papel') || 'cor', f: lista(i), m: mk ? lista(mk, true).filter(x => x.d && !/^M-5e4/.test(x.d)) : [] }; if (rw) c.raw = [...rw.childNodes].map(n => new XMLSerializer().serializeToString(n)).join('');
       if (g.getAttribute('display') === 'none') c.vis = false; const op = g.getAttribute('opacity'); if (op != null && +op < 1) c.op = +op; if (mt) c.tr = mt[1].split(/[\s,]+/).map(Number); if (cp) c.clip = cp.querySelector('path')?.getAttribute('d'); const b = blurDe(i); if (b) c.b = b; return c; });
     return { W, H, off, cam, ...(raw ? { raw } : {}) };
   },
@@ -294,10 +294,22 @@ const Vetor = {
     const G = 50000, corpo = m.cam.map(c => { const id = X(c.id);
       if (c.m?.length) defs.push(`<mask id="m-${id}" maskUnits="userSpaceOnUse" x="-${G}" y="-${G}" width="${2 * G}" height="${2 * G}"><path d="M-5e4 -5e4H5e4V5e4H-5e4Z" fill="#fff"/>${c.m.map(p => caminho(p, true)).join('')}</mask>`);
       if (c.clip) defs.push(`<clipPath id="c-${id}"><path d="${c.clip}" clip-rule="evenodd"/></clipPath>`);
-      return `<g data-cam="${id}" data-nome="${X(c.nome || 'Camada')}" data-papel="${X(c.papel || 'cor')}"${c.vis === false ? ' display="none"' : ''}${c.op != null && c.op < 1 ? ` opacity="${+c.op.toFixed(3)}"` : ''}${c.clip ? ` clip-path="url(#c-${id})"` : ''}><g${c.tr ? ` transform="matrix(${c.tr.map(v => +(+v).toFixed(5)).join(' ')})"` : ''}${c.m?.length ? ` mask="url(#m-${id})"` : ''}${fb(c.b)}>${(c.f || []).map(p => caminho(p)).join('')}</g></g>`; }).join('');
+      return `<g data-cam="${id}" data-nome="${X(c.nome || 'Camada')}" data-papel="${X(c.papel || 'cor')}"${c.vis === false ? ' display="none"' : ''}${c.op != null && c.op < 1 ? ` opacity="${+c.op.toFixed(3)}"` : ''}${c.clip ? ` clip-path="url(#c-${id})"` : ''}><g${c.tr ? ` transform="matrix(${c.tr.map(v => +(+v).toFixed(5)).join(' ')})"` : ''}${c.m?.length ? ` mask="url(#m-${id})"` : ''}${fb(c.b)}>${c.raw ? `<g data-raw="1">${c.raw}</g>` : ''}${(c.f || []).map(p => caminho(p)).join('')}</g></g>`; }).join('');
     for (const b of blurs) defs.push(`<filter id="${bid(b)}" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="${b}"/></filter>`);
     const o = m.off || { x: 0, y: 0 };
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${m.W} ${m.H}" width="${m.W}" height="${m.H}" data-animador="vetor"><defs>${defs.join('')}</defs><g transform="translate(${-o.x} ${-o.y})">${m.raw ? `<g data-raw="1">${m.raw}</g>` : ''}${corpo}</g></svg>`;
+  },
+  // um .svg de fora (Illustrator, Corel, Inkscape…) entra como vetor: o desenho vira a camada "Arte" (com as curvas originais),
+  // no tamanho W×H da imagem; por baixo uma camada "Cor" vazia para o balde. Sem scripts nem nada que rode.
+  async deArquivo(f, W, H) {
+    const doc = new DOMParser().parseFromString(await f.text(), 'image/svg+xml'), r = doc.documentElement; if (!r || r.nodeName.toLowerCase() !== 'svg' || doc.querySelector('parsererror')) throw new Error('SVG inválido');
+    r.querySelectorAll('script,foreignObject,iframe,audio,video').forEach(e => e.remove());
+    for (const e of [r, ...r.querySelectorAll('*')]) for (const at of [...e.attributes]) { const n = at.name.toLowerCase(), v = at.value.trim(); if (n.startsWith('on') || ((n === 'href' || n === 'xlink:href') && !/^#|^data:image\//i.test(v))) e.removeAttribute(at.name); }
+    const num = v => { const n = parseFloat(v); return Number.isFinite(n) && n > 0 && !/%$/.test(String(v)) ? n : 0; }, vb = (r.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+    const vx = vb.length === 4 ? vb[0] : 0, vy = vb.length === 4 ? vb[1] : 0, vw = vb.length === 4 && vb[2] > 0 ? vb[2] : num(r.getAttribute('width')) || W, vh = vb.length === 4 && vb[3] > 0 ? vb[3] : num(r.getAttribute('height')) || H;
+    const k = Math.min(W / vw, H / vh), dx = (W - vw * k) / 2 - vx * k, dy = (H - vh * k) / 2 - vy * k, inner = [...r.childNodes].map(n => new XMLSerializer().serializeToString(n)).join('');
+    const raw = `<g transform="matrix(${+k.toFixed(6)} 0 0 ${+k.toFixed(6)} ${+dx.toFixed(3)} ${+dy.toFixed(3)})">${inner}</g>`;
+    return { W, H, off: { x: 0, y: 0 }, cam: [{ id: 'cor', nome: 'Cor', papel: 'cor', f: [], m: [] }, { id: 'arte', nome: 'Arte', papel: 'linha', raw, f: [], m: [] }] };
   },
   chave(ext = 'svg') { return `personagens/${Atelie.def.id}/img/${uid('im').toLowerCase().replace(/[^a-z0-9]/g, '')}.${ext}`; },
   // grava o modelo como uma imagem NOVA (chave nova: o Ctrl+Z do Ateliê volta a de antes)

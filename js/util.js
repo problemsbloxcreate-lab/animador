@@ -392,7 +392,7 @@ async function vetorParaPng(f, max = 2048) {
   const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
   try { const im = new Image(); im.src = url; await im.decode(); const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(im, 0, 0, W, H);
     const b = await new Promise(ok => c.toBlob(ok, 'image/png')); if (!b) throw new Error('não deu para desenhar o SVG');
-    return new File([b], (f.name || 'vetor').replace(/\.svg$/i, '') + '.png', { type: 'image/png' }); }
+    const n = new File([b], (f.name || 'vetor').replace(/\.svg$/i, '') + '.png', { type: 'image/png' }); n._svg = f; return n; } // _svg: no Ateliê o arquivo entra como VETOR (o PNG serve para a prévia e as folhas)
   finally { URL.revokeObjectURL(url); }
 }
 async function semVetor(fs) { return Promise.all([...(fs || [])].map(f => ehVetor(f) ? vetorParaPng(f).then(n => window.Pastas ? Pastas.herda(n, f) : n).catch(() => { UI.toast(`Não consegui abrir o vetor "${esc(f.name)}"`, { kind: 'err' }); return null; }) : f)).then(l => l.filter(Boolean)); }
