@@ -47,6 +47,8 @@ const Linha = {
     }
     el.appendChild(cab);
     const g = h('<div class="tl-grade"></div>'); el.appendChild(g);
+    // clicar no VAZIO da timeline (fora dos frames, nomes e botões) = Esc: tira a escolha de vários frames e volta à pose padrão
+    el.onclick = ev => { if (ev.target.closest('.tl-c, .tl-t, .tl-n, .tl-cab, button, select, input, label, .tl-vazio, .dock-pega')) return; if (Atelie.teste || A.multi?.size) { A.multi?.clear?.(); this.parar(); } };
     if (!a) { g.appendChild(h('<div class="tl-vazio">Sem animação: crie no <b>+</b></div>')); return; }
     // como a timeline do Animador: régua com o número dos frames e uma linha por TRILHA (nome = o que ela mexe, cor própria).
     // Cada frame mostra a miniatura do que ele põe na tela; trilha mais curta RECOMEÇA (frames apagadinhos com ↻) até o fim da mais comprida.
