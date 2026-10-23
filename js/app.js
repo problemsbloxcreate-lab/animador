@@ -296,6 +296,8 @@ const App = {
     },
     duplo(e) { const w = this.paraMundo(e), alvo = Render.caixas(App.P, App.q).find(c => dentroPoligono(w, c.cantos)); if (alvo?.no.tipo === 'texto') Lado.editarTexto(alvo.no); else if (alvo?.no.tipo === 'personagem') Lado.aba('quadro'); },
     menu(e) {
+      const w = this.paraMundo(e), sob = Render.caixas(App.P, App.q).find(c => dentroPoligono(w, c.cantos))?.no; // botão direito numa camada: ela passa a ser a escolhida
+      if (sob && sob.id !== App.sel) App.selecionar(sob.id);
       const s = App.noSel();
       UI.ctx(e.clientX, e.clientY, [
         { label: 'Personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Imagem…', icon: 'image', action: () => App.addImagem() }, { label: 'Cenário (prontos e IA)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() }, { label: 'Cenário da nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() }, { label: 'Texto', icon: 'text', action: () => App.addTexto() }, '-',
