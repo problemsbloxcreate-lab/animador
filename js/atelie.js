@@ -139,7 +139,9 @@ const Atelie = {
     } finally { fim(); }
   },
   async sair() {
+    const ficam = this.aoVivoJunto(); // ainda tem gente na sala: ela continua com tudo e quem salva na nuvem é ela (não manda daqui)
     if (AoVivo.ad?.ctx === 'atelie') await AoVivo.sair();
+    if (ficam && this.naNuvem) { this.sujo = false; clearTimeout(this._tn); }
     // nada se perde ao sair: guarda já neste computador e, se o personagem é da nuvem, manda o que falta
     await this.guardarLocalJa();
     if (this.naNuvem && this.sujo) { const t = UI.toast('<span class="spin-dot"></span> Mandando as últimas mudanças para a nuvem…', { time: 60000 }); await this.sincronizar(true); t.remove();
@@ -176,10 +178,18 @@ const Atelie = {
   /* ---------- ENVIO AUTOMÁTICO para a nuvem (só personagens que já foram para a nuvem uma vez) ---------- */
   // 1 minuto depois da última mudança (antes eram 4 s: cada traço do pincel virava imagem nova na nuvem e o plano grátis da Cloudflare só deixa 1000 gravações por dia na conta toda);
   // sair da aba / esconder manda na hora; "Enviar agora" também
-  agendaNuvem() { clearTimeout(this._tn); this._tn = setTimeout(() => this.sincronizar(), 60000); this.pintaEstado();
+  // AO VIVO com mais gente: as mudanças já chegam para todos pelo ao vivo (Firebase), então a nuvem da Cloudflare NÃO precisa de cada uma:
+  // só UMA pessoa da sala (a de menor id, `guardiao`) manda, de 10 em 10 min, ao esconder a aba e quando é a última a sair; depois avisa os outros (meta.nuvemEm)
+  aoVivoJunto() { if (!AoVivo.ativo || AoVivo.ad?.ctx !== 'atelie') return false; const me = AoVivo.eu?.id; return Object.keys(AoVivo.gente || {}).some(id => id !== me); },
+  guardiao() { if (!this.aoVivoJunto()) return true; const me = AoVivo.eu.id, ids = [...new Set([...Object.keys(AoVivo.gente || {}), me])].sort(); return ids[0] === me; },
+  salvoPorOutro(m) { // quem salvou avisou: se não tenho mudança minha ainda indo, o que está na tela é o que foi para a nuvem
+    if (!this.naNuvem || !this.def || m.por === AoVivo.eu?.id || AoVivo.pend?.length) return; this.sujo = false; clearTimeout(this._tn); this.baseNuvem = this.ultimo; this.base0 = this.ultimo;
+    DB.del('arquivos', this.chaveRascunho(this.def.id)).catch(() => { }); this.rascunhoEm = null; this.pintaEstado(); $('#at-salvar') && this.pintaBotaoNuvem(); },
+  agendaNuvem() { clearTimeout(this._tn); this._tn = setTimeout(() => this.sincronizar(), this.aoVivoJunto() ? 600000 : 60000); this.pintaEstado();
     if (!this._ligouEsconder) { this._ligouEsconder = true; document.addEventListener('visibilitychange', () => { if (document.hidden && this.naNuvem && this.sujo && !this.enviando) this.sincronizar(); }); } },
   async sincronizar(agora) {
     clearTimeout(this._tn); if (!this.naNuvem || !this.def) return;
+    if (!agora && !this.guardiao()) return; // ao vivo: quem manda é outra pessoa da sala (agora = botão / sair: manda mesmo)
     if (this.enviando) { this.denovo = true; if (agora) await this.enviando; return; }
     const snap = this.ultimo || JSON.stringify(this.def), def = JSON.parse(snap); if (!def.partes.length) return;
     this.erroNuvem = null; this.pintaEstado();
@@ -190,6 +200,7 @@ const Atelie = {
         if ((this.ultimo || JSON.stringify(this.def)) === snapR) { this.sujo = false; await DB.del('arquivos', this.chaveRascunho(def.id)).catch(() => { }); this.rascunhoEm = null; }
         if (this.def?.id === def.id) { this.def.modificado = def.modificado; this.def.autor = def.autor; this.def.edicoes = def.edicoes; this.def.thumb = def.thumb; }
         this.baseNuvem = snapR; if (this.base0 === snapR || !this.sujo) this.base0 = snapR; this.avisaAnimador(def, false); this.pinta();
+        if (this.aoVivoJunto()) try { AoVivo.t.setMeta(AoVivo.sala, { nuvemEm: { t: Date.now(), por: AoVivo.eu.id } }); } catch { }
       } catch (e) { this.erroNuvem = e.message || 'sem conexão'; }
     })();
     await this.enviando; this.enviando = null; this.pintaEstado(); $('#at-salvar') && this.pintaBotaoNuvem();
@@ -242,6 +253,7 @@ const Atelie = {
     const [cls, ico, txt, dica] = this.naNuvem ? (
         this.enviando ? ['nuvem', 'cloud', 'Enviando para a nuvem…', 'As mudanças estão indo para a nuvem da equipe.']
       : this.erroNuvem && this.sujo ? ['local', 'alert', 'Não foi para a nuvem', 'Ficou guardado neste computador. Tenta de novo sozinho na próxima mudança, ou clique em "Enviar agora". (' + this.erroNuvem + ')']
+      : this.sujo && this.aoVivoJunto() ? ['nuvem', 'cloud', 'Ao vivo: todos já veem', 'Trabalhando junto, as mudanças chegam na hora para quem está na sala. Para a nuvem vai uma pessoa só, de 10 em 10 minutos e quando o último sair (ou na hora em "Enviar agora").']
       : this.sujo ? ['nuvem', 'cloud', 'Mudanças indo para a nuvem…', 'Este personagem está na nuvem: as mudanças vão sozinhas em até 1 minuto (ou na hora em "Enviar agora" e ao sair da aba). Neste computador já estão guardadas.']
       : ['nuvem', 'cloud', 'Salvo na nuvem', 'Esta versão é a que está na nuvem da equipe; as próximas mudanças vão sozinhas.'])
       : this.salvandoLocal ? ['local', 'save', 'Guardando no computador…', 'Guardando neste navegador para não perder nada.']

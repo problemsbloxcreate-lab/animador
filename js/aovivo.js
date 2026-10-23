@@ -96,7 +96,7 @@ const AoVivo = {
   async entrar(ad, o = {}) {
     if (this.ativo) await this.sair(); if (!this.ligado()) return false;
     let t; try { t = await this.transporte(); } catch (e) { if (o.avisa) UI.toast('Trabalhar junto: ' + esc(e.message), { kind: 'warn', time: 7000 }); return false; }
-    this.t = t; this.ad = ad; this.sala = ad.sala; this.gente = {}; this.feitos = {}; this.pend = []; this.log = []; this.minhas = []; this.refazerL = []; this.subidas = new Set(); this._fila = Promise.resolve();
+    this.t = t; this.ad = ad; this.sala = ad.sala; this._nuvemEm = 0; this.gente = {}; this.feitos = {}; this.pend = []; this.log = []; this.minhas = []; this.refazerL = []; this.subidas = new Set(); this._fila = Promise.resolve();
     const eu = await this.quem();
     try { return await this._entra(t, ad, eu, o); } catch (e) {
       if (!o._de2 && /permission.denied/i.test(String(e?.code || '') + String(e?.message || ''))) { for (const f of (t.offs || []).splice(0)) try { f(); } catch { } const m = await this.liberar(); if (m === 'ok') return this.entrar(ad, { ...o, _de2: true }); e = new Error(m); }
@@ -136,7 +136,7 @@ const AoVivo = {
     try { await this._fila; } catch { } try { if (o.encerrar) await t.setMeta(sala, { fim: true }); await t.sair(sala, eu.id); if (o.encerrar) await t.apagar(sala); } catch { }
     this.gente = {}; this.ad?.redesenha(); this.ad = null; this.sala = null; this.pintaBarra(); this.pintaMarcas(); this._focoJ = null;
   },
-  meta(m) { if (m?.troca) this.recebeTroca(m.troca); if (m?.fim && this.ativo && this.ad?.ctx === 'animador' && !this._saindo) { this._saindo = true; this.ad.salvar?.(); this.sair().then(() => { this._saindo = false; UI.toast('O trabalho em conjunto terminou. A cópia com as últimas mudanças ficou salva neste computador.', { kind: 'ok', time: 9000 }); }); } },
+  meta(m) { if (m?.troca) this.recebeTroca(m.troca); if (m?.nuvemEm && this.ad?.ctx === 'atelie' && m.nuvemEm.t !== this._nuvemEm) { if (this._nuvemEm) Atelie.salvoPorOutro?.(m.nuvemEm); this._nuvemEm = m.nuvemEm.t; } if (m?.fim && this.ativo && this.ad?.ctx === 'animador' && !this._saindo) { this._saindo = true; this.ad.salvar?.(); this.sair().then(() => { this._saindo = false; UI.toast('O trabalho em conjunto terminou. A cópia com as últimas mudanças ficou salva neste computador.', { kind: 'ok', time: 9000 }); }); } },
   // ---------- TROCAR O PERSONAGEM PELO ARQUIVO (.atelieanimador) com gente junto ----------
   // quem soltou o arquivo decide; os outros veem o aviso, a tela de espera, e cada um guarda a cópia de antes no próprio computador
   avisaTroca(o) { if (!this.ativo || this.ad?.ctx !== 'atelie') return; try { return this.t.setMeta(this.sala, { troca: { ...o, por: this.eu.id, nome: this.eu.nome, t: Date.now() } }); } catch { } },
