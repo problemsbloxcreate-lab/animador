@@ -254,15 +254,6 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .seg{display:inline-flex;background:var(--bg0);border:1px solid var(--bd);border-radius:7px;padding:2px;gap:2px}
 .seg button{height:22px;padding:0 9px;border:0;border-radius:5px;background:none;color:var(--tx2);font:inherit;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
 .seg button.on{background:var(--bg3);color:var(--tx)}
-.cam{display:flex;align-items:center;gap:6px;height:34px;padding:0 4px 0 6px;border-bottom:1px solid var(--bd);cursor:pointer;border-left:2px solid transparent}
-.cam.sel{background:var(--sel2);border-left-color:#aac4e6}.cam:hover:not(.sel){background:var(--bg2)}
-.cam .grip{color:var(--tx3);cursor:grab;display:grid;place-items:center}
-.cam canvas{width:26px;height:26px;border-radius:4px;background:#121212;flex:none}
-.cam .nm{flex:1;min-width:0;line-height:1.15;overflow:hidden}.cam .nm b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cam .nm small{display:block;color:var(--tx3);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cam .zz{font:11px var(--mono);color:var(--tx3);min-width:22px;text-align:right}.cam .ibtn{width:20px;height:20px}.cam .ibtn.off{opacity:.35}
-.cam.drop-antes{box-shadow:inset 0 2px 0 #ccc}.cam.drop-depois{box-shadow:inset 0 -2px 0 #ccc}
-.cam-dica{padding:6px 8px;font-size:11px;color:var(--tx3);border-bottom:1px solid var(--bd)}
 .cen-barra{height:4px;border-radius:2px;background:var(--bg3);margin-top:8px;overflow:hidden}.cen-barra i{display:block;height:100%;width:0;background:var(--ac);transition:width .4s}
 .cen-pecas{margin-top:10px}.cen-lista{display:flex;flex-wrap:wrap;gap:6px;max-height:150px;overflow:auto}
 .cen-peca{display:flex;align-items:center;gap:6px;padding:3px 4px 3px 6px;border:1px solid var(--bd2);border-radius:6px;background:var(--bg2);font-size:12px;color:var(--tx2)}
@@ -309,7 +300,6 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .at-partes .no.raiz .ti{color:var(--warn)}.at-partes .no.raiz .nm{color:#f2d98c;font-weight:600}
 .at-partes .no.raiz.sel{background:rgba(232,194,90,.2);border-left-color:#ffd970}
 .no .tag-raiz{flex:none;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#1b1b1b;background:var(--warn);border-radius:4px;padding:1px 5px}
-.cam.raiz{border-left-color:var(--warn)}.cam.raiz .nm b{color:#f2d98c;font-weight:600}.cam.raiz .nm small{color:var(--warn)}
 .raiz-bt{margin-bottom:8px}.raiz-bt.on{color:#1b1b1b;background:var(--warn);border-color:var(--warn)}
 .imgs .im.foco{outline:2px solid #9fc3ff;outline-offset:1px}
 /* quem subiu / editou (cartões da biblioteca e topo do ateliê) */
@@ -634,7 +624,6 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .aj{display:grid;gap:8px}.aj-l{display:grid;grid-template-columns:80px 1fr 52px;align-items:center;gap:8px;font-size:12.5px}.aj-l output{text-align:right;color:var(--tx2);font-size:12px}
 /* referência: sempre em cima da hierarquia e das camadas (guia, desenhada atrás de tudo) */
 .at-partes .no.ref{border-left-color:#5aa9e8;background:rgba(90,169,232,.08)}.at-partes .no.ref .nm{color:#a9d3f5}
-.cam.ref{border-left:3px solid #5aa9e8;background:rgba(90,169,232,.08)}.cam.ref .grip{opacity:.25}
 
 /* trabalhar junto ao vivo */
 .aovivo-barra{display:inline-flex;align-items:center;gap:4px;margin-left:8px}.aovivo-barra[hidden]{display:none}
@@ -867,3 +856,10 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .at-tl .tl-c .tl-nf b{color:#fff;text-shadow:0 1px 2px #000}.at-tl .tl-c .tl-nf small{color:#ddd}
 .at-tl .tl-c .tl-pega{z-index:1}
 .at-tl .tl-c.multi{box-shadow:0 0 0 2px #19d3f0,0 0 0 4px rgba(25,211,240,.25)}
+/* vista com outras pessoas (ao vivo): borda na cor da pessoa e a foto pequena */
+.at-vistas .av.com-gente{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);background:color-mix(in srgb,var(--c) 14%,var(--bg2))}
+.av-gv{display:inline-flex;margin-left:2px}.av-gv i{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--c,#888);background:#222;display:grid;place-items:center;font:600 9px/1 inherit;font-style:normal;color:#fff;overflow:hidden;margin-left:-4px}
+.av-gv i:first-child{margin-left:0}.av-gv i img{width:100%;height:100%;object-fit:cover}.av-gv i.afk{opacity:.45}
+/* borda entre painéis empilhados: muda a altura */
+.dock-hb{position:absolute;left:0;right:0;top:-4px;height:7px;z-index:7;cursor:row-resize}
+.dock-hb:hover,.dock-hb.on{background:rgba(90,169,232,.45)}

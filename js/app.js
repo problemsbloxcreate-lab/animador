@@ -81,7 +81,6 @@ const App = {
   noSel() { return this.sel && this.sel !== 'camera' ? Modelo.achar(this.P, this.sel)?.no : null; },
   // matriz do pai do nó (pastas acima) no quadro atual: para mover no espaço certo
   matPai(id) { let m = new DOMMatrix(); for (const a of Modelo.ancestrais(this.P, id)) m = Render.matNo(m, Modelo.transf(a, this.q)); return m; },
-  centroMundo() { return { x: this.P.w / 2, y: this.P.h / 2 }; },
 
   /* ---------- adicionar coisas ---------- */
   ondeColocar() { const s = this.noSel(); if (s?.tipo === 'pasta') return s.filhos; const r = s ? Modelo.achar(this.P, s.id) : null; return r ? r.lista : this.P.raiz; },
@@ -233,9 +232,10 @@ const App = {
       new ResizeObserver(() => this.tamanho()).observe(this.cv.parentElement); this.tamanho();
       this.cv.addEventListener('pointerdown', e => this.desce(e)); this.cv.addEventListener('wheel', e => this.roda(e), { passive: false });
       this.cv.addEventListener('dblclick', e => this.duplo(e)); this.cv.addEventListener('contextmenu', e => { e.preventDefault(); this.menu(e); });
+      document.addEventListener('visibilitychange', () => { if (document.hidden || !App.P) return; this.tamanho(); }); // aberto numa aba escondida: ao aparecer, desenha tudo (e enquadra se ainda não tinha tamanho)
       Render.aoChegarImagem = () => { if (App._rafImg) return; App._rafImg = requestAnimationFrame(() => { App._rafImg = 0; App.pinta(); Folha.pinta(); }); }; // várias imagens chegando: redesenha uma vez por quadro
     },
-    tamanho() { const r = this.cv.getBoundingClientRect(); this.dpr = devicePixelRatio || 1; this.cv.width = Math.max(2, r.width * this.dpr); this.cv.height = Math.max(2, r.height * this.dpr); App.pinta(); },
+    tamanho() { const r = this.cv.getBoundingClientRect(); this.dpr = devicePixelRatio || 1; this.cv.width = Math.max(2, r.width * this.dpr); this.cv.height = Math.max(2, r.height * this.dpr); if (App._enq && r.width >= 4) return App.enquadrar(); App.pinta(); }, // projeto aberto antes da tela ter tamanho: enquadra agora (antes ficava vazio até mexer)
     // mundo ↔ tela
     vista() { const v = App.vista; return new DOMMatrix().scale(this.dpr).translate(v.x, v.y).scale(v.z); },
     paraMundo(e) { const r = this.cv.getBoundingClientRect(), v = App.vista; return { x: (e.clientX - r.left - v.x) / v.z, y: (e.clientY - r.top - v.y) / v.z }; },
@@ -352,7 +352,7 @@ const App = {
   fundoPalco() { return Render.fundoDe(this.P); },
   mudaFundoPalco(m, salvar = true) { Object.assign(this.fundoPalco(), m); if (salvar) this.commit('Fundo', { semArvore: true }); else this.pinta(); },
   quadriculado(ctx, V, W, H) { Render.fundo(ctx, this.P, V, W, H); },
-  enquadrar() { const pc = this.palco; if (!pc.cv || !this.P) return; const r = pc.cv.getBoundingClientRect(), c = Modelo.camera(this.P, this.q), z = Math.min(r.width / (this.P.w / c.zoom), r.height / (this.P.h / c.zoom)) * .86;
+  enquadrar() { const pc = this.palco; if (!pc.cv || !this.P) return; const r = pc.cv.getBoundingClientRect(); if (r.width < 4 || r.height < 4) { this._enq = true; return; } this._enq = false; const c = Modelo.camera(this.P, this.q), z = Math.min(r.width / (this.P.w / c.zoom), r.height / (this.P.h / c.zoom)) * .86;
     this.vista = { z, x: r.width / 2 - c.x * z, y: r.height / 2 - c.y * z }; this.pinta(); this.zoomTxt(); },
   zoomTxt() { const e = $('#zoom-txt'); if (e) e.textContent = Math.round(this.vista.z * 100) + '%'; },
   setFerr(f) { this.ferr = f; $$('[data-ferr]').forEach(b => b.classList.toggle('on', b.dataset.ferr === f)); $('#palco').classList.toggle('pan', f === 'mao'); if (f === 'camera') this.selecionar('camera'); },

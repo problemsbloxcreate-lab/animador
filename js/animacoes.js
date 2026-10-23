@@ -74,7 +74,6 @@ const Animacoes = {
   // pausa no passo que está na tela (clicar numa peça arruma aquele passo/preset); continuar segue dali
   pausar(quieto) { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; this.pausado = true; this.i = Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); if (!quieto) UI.toast('Pausado. Clique numa peça para arrumar <b>este frame</b> (ou o preset que ele usa).', { time: 4000 }); },
   continuar() { const a = this.achar(this.tocando); if (!a) return; Atelie.edit = null; Atelie.editPasso = null; this.tocar(a, this.i + 1); },
-  passoMais(d) { const a = this.achar(this.tocando); if (!a) return; if (!this.pausado) this.pausar(true); this.i = this.i + d; this.passoSel = { t: this.passoSel?.t ?? 0, i: this.i }; Atelie.teste = this.frame(a, this.i); Atelie.edit = null; Atelie.editPasso = null; Atelie.pinta(); },
   parar(quieto) { clearInterval(this._t); this._t = null; const tinha = this.tocando; this.tocando = null; this.pausado = false; if (Atelie.editPasso) Atelie.editPasso = null; if (tinha && !quieto) Atelie.pinta(); },
   // com a animação pausada (ou a pose do editor): clicou na peça → o que ela edita (o passo da trilha, o preset da sessão, ou a base)
   alvoPausa(pid) {

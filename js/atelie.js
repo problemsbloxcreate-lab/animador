@@ -30,7 +30,7 @@ const Atelie = {
   },
   async abrir(id, o = {}) {
     this.volta = !!o.volta; let def;
-    let doRascunho = false, novo = null;
+    let doRascunho = false, novo = null, soLocal = false;
     if (o.def) def = o.def; // veio de um arquivo .atelieanimador
     else if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }), r = await DB.get('arquivos', this.chaveRascunho(id)).catch(() => null); this._rascNuvem = !!r?.nuvem;
       try { def = await Nuvem.abrir(id); this._temNuvem = true; } catch (e) { this._temNuvem = false; if (!r?.def && !o.reserva) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } } t.remove();
@@ -39,11 +39,11 @@ const Atelie = {
       else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def)) {
         const usa = await UI.modal({ title: 'Tem um rascunho neste computador', icon: 'save', width: 460, body: `<div>As mudanças de <b>${esc(r.def.nome)}</b> feitas neste computador (guardadas ${fmtDate(r.em)}) <b>ainda não foram para a nuvem</b>.<br><br>A versão da nuvem é de ${def.modificado ? fmtDate(def.modificado) : 'antes'}.</div>`,
           buttons: [{ label: 'Abrir a da nuvem (descartar o rascunho)', value: 'nuvem' }, { label: 'Continuar o rascunho', kind: 'primary', value: 'rascunho' }] });
-        if (usa === 'rascunho') { this.base0Nuvem = JSON.stringify(def); def = r.def; doRascunho = true; } else if (usa === 'nuvem') await this.apagarRascunho(id); else return;
+        if (usa === 'rascunho') { this.base0Nuvem = JSON.stringify(def); def = r.def; doRascunho = true; soLocal = true; } // continuar o rascunho = a versão LOCAL (não entra no ao vivo; "Salvar na nuvem" manda depois) else if (usa === 'nuvem') await this.apagarRascunho(id); else return;
       } }
     else { novo = await this.assistenteNovo(); if (!novo) return; def = Modelo.novoPersonagem(novo.nome); Modelo.garanteVistas(def); Object.assign(def.vistas[0], { tipo: novo.vtipo || 'frente', nome: (novo.vtipo === 'outra' && novo.vnome) || Modelo.nomeTipo(novo.vtipo || 'frente') }); }
     // NA NUVEM: depois da 1ª vez em "Salvar na nuvem", toda mudança vai sozinha para a nuvem. Antes disso o personagem é LOCAL (só neste computador).
-    this.naNuvem = !o.def && !!id && !!def && !(doRascunho && !this._temNuvem && !this._rascNuvem); this._temNuvem = this._rascNuvem = false; this.erroNuvem = null; clearTimeout(this._tn);
+    this.naNuvem = !soLocal && !o.def && !!id && !!def && !(doRascunho && !this._temNuvem && !this._rascNuvem); this._temNuvem = this._rascNuvem = false; this.erroNuvem = null; clearTimeout(this._tn);
     this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.baseNuvem = this._temNuvem && !o.def ? (doRascunho ? this.base0Nuvem || null : this.ultimo) : null; this.base0 = o.def || !id ? this.ultimo : this.base0Nuvem || this.ultimo; this.base0Nuvem = null; this.modoMover = 'preset'; this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; window.Falas?.parar(); Falas.aberto = null; this.teste = null; this.edImg = null; Animacoes.passoSel = null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
     Modelo.garanteVistas(def); await Arq.garantir(Modelo.chavesImgs(def)); await Arq.usarOriginais(Modelo.chavesImgs(def)); // edita sempre a partir da original
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
@@ -147,8 +147,10 @@ const Atelie = {
     if (this.volta && App.P) { Telas.mostra('editor'); App.titulo(); App.atualiza(); } else { Telas.mostra('home'); Home.aba('personagens'); }
   },
   commit(o = {}) { const s = JSON.stringify(this.def); if (s !== this.ultimo) { this.pilha.push(this.ultimo); if (this.pilha.length > 120) this.pilha.shift(); this.refazer = []; this.ultimo = s; this.sujo = true; this.rascunho(); } if (!o.soDesenho) this.pinta(); else this.desenha(); },
-  undo() { if (!this.pilha.length) return; this.refazer.push(this.ultimo); this.ultimo = this.pilha.pop(); this.def = JSON.parse(this.ultimo); this.sujo = true; this.rascunho(); this.pinta(); },
-  redo() { if (!this.refazer.length) return; this.pilha.push(this.ultimo); this.ultimo = this.refazer.pop(); this.def = JSON.parse(this.ultimo); this.sujo = true; this.rascunho(); this.pinta(); },
+  undo() { if (!this.pilha.length) return; this.refazer.push(this.ultimo); this.ultimo = this.pilha.pop(); this.def = this.naMinhaVista(JSON.parse(this.ultimo)); this.ultimo = JSON.stringify(this.def); this.sujo = true; this.rascunho(); this.pinta(); },
+  redo() { if (!this.refazer.length) return; this.pilha.push(this.ultimo); this.ultimo = this.refazer.pop(); this.def = this.naMinhaVista(JSON.parse(this.ultimo)); this.ultimo = JSON.stringify(this.def); this.sujo = true; this.rascunho(); this.pinta(); },
+  // Ctrl+Z não troca a vista que está na tela (trocar de vista não é mudança): a de agora continua ativa se ainda existir
+  naMinhaVista(d) { const v = this.def?.vistaAtual; if (v && d.vistaAtual !== v && d.vistas?.some(x => x.id === v)) Modelo.ativaVista(d, v); return d; },
 
   /* ---------- RASCUNHO: toda mudança fica guardada NESTE navegador (se cair a energia, nada se perde). Só "Salvar na nuvem" manda para a equipe.
      Guardado em arquivos["rascunho:<id do personagem>"] = { def, em, thumb }. As imagens novas já ficam no navegador (Arq). ---------- */
@@ -277,7 +279,7 @@ const Atelie = {
     $('#at-voltar').onclick = () => this.sair(); $('#at-voltar').hidden = true; { const br = $('#atelie header .brand'); if (br) { br.style.cursor = 'pointer'; br.title = 'Sair do Ateliê (volta ao início)'; br.onclick = () => this.sair(); } } // sem o botão Voltar no topo (decisão do dono): o nome ATELIÊ leva de volta $('#at-salvar').onclick = () => this.naNuvem ? this.sincronizar(true) : this.salvar(); $('#at-undo').onclick = () => this.undo(); $('#at-redo').onclick = () => this.redo();
     $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); };
     $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); };
-    $('#at-add-parte').onclick = () => this.novaParte(); $$('#at-vista-partes [data-v]').forEach(b => b.onclick = () => { this.vistaPartes = b.dataset.v; this.pintaPartes(); }); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
+    $('#at-add-parte').onclick = () => this.novaParte(); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
     // soltar imagens no palco do ateliê: entram na parte escolhida (sem parte escolhida, cada uma vira uma parte)
     const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.soltouNoPalco(l)); } }; // pastas viram partes; editando uma imagem, pergunta se vai DENTRO dela (camada)
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
@@ -542,8 +544,6 @@ const Atelie = {
   },
   pintaPartes() { // na árvore: a referência sempre em cima, depois a raiz
     const el = $('#at-partes'), ps = this.def.partes; el.innerHTML = '';
-    $$('#at-vista-partes [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === (this.vistaPartes || 'arvore')));
-    if (this.vistaPartes === 'camadas' && ps.length) return this.pintaCamadas(el);
     if (!ps.length) { el.innerHTML = '<div class="vazio">Comece criando as partes: corpo, cabeça, cabelo, olhos, braços, pernas…<br>(ou solte as imagens aqui: cada imagem vira uma parte)</div>'; }
     // a ORDEM da lista É a profundidade (z): em cima = ATRÁS, embaixo = NA FRENTE (a referência fica fixa no topo). Quem encaixa em quem aparece em cinza ("em Corpo").
     // Com um passo parado na timeline, a ordem mostrada (e mudada) é a daquele passo.
@@ -601,37 +601,11 @@ const Atelie = {
     for (const r of this.def.partes) if (Referencia.ehRef(r) && !frenteParaTras.includes(r)) r.z = -1 - (est?.[r.id]?.z || 0);
     this.commit();
   },
-  pintaCamadas(el) {
-    // a referência aparece sempre em cima da lista (fixa, sem arrastar), mas é desenhada atrás de tudo
-    const est = this.estado(), refs = this.def.partes.filter(p => Referencia.ehRef(p)), lista = [...refs, ...this.ordemCamadas().reverse().filter(p => !Referencia.ehRef(p))], nomeDe = id => this.parte(id)?.nome;
-    el.appendChild(h(`<div class="cam-dica">De cima para baixo: quem fica <b>na frente</b>. Arraste para mudar a ordem (o encaixe não muda).${this.preset() ? ' Vale para a base e para todos os presets.' : ''}</div>`));
-    const nR = refs.length, outras = lista.slice(nR);
-    lista.forEach((p, i) => { const eR = i < nR;
-      const e = est[p.id] || {}, img = p.imgs.find(x => x.id === e.img), bm = img ? Arq.bitmap(img.k, () => this.pintaPartes()) : null;
-      const r = h(`<div class="cam ${p.id === this.sel ? 'sel' : ''} ${p.id === this.def.raiz ? 'raiz' : ''} ${eR ? 'ref' : ''}" draggable="${eR ? 'false' : 'true'}"><span class="grip">${ic('dots', 12)}</span><canvas width="52" height="52"></canvas>
-        <span class="nm"><b>${esc(p.nome)}</b><small>${eR ? 'REFERÊNCIA · o guia, desenhado atrás de tudo' : p.id === this.def.raiz ? 'RAIZ (principal)' : p.pai ? 'encaixa em ' + esc(nomeDe(p.pai) || '?') : 'solta (sem pai)'}</small></span><span class="zz" title="Z (maior = mais na frente)">${(p.z || 0) + (e.z || 0)}</span>
-        <button class="ibtn" data-up title="Para a frente ( ] )" ${!eR && i > nR ? '' : 'disabled'}>${ic('up', 12)}</button><button class="ibtn" data-dn title="Para trás ( [ )" ${!eR && i < lista.length - 1 ? '' : 'disabled'}>${ic('down', 12)}</button>
-        <button class="ibtn ${e.vis === false ? 'off' : ''}" data-vis title="Mostrar/esconder (H)">${ic(e.vis === false ? 'eyeOff' : 'eye', 12)}</button></div>`);
-      if (bm) { const c = $('canvas', r), x = c.getContext('2d'), k = Math.min(52 / bm.width, 52 / bm.height); x.drawImage(bm, (52 - bm.width * k) / 2, (52 - bm.height * k) / 2, bm.width * k, bm.height * k); }
-      const move = d => { if (eR) return; const L = outras.slice(), k = i - nR, j = k + d; if (j < 0 || j >= L.length) return; [L[k], L[j]] = [L[j], L[k]]; this.reordenar(L); };
-      r.onclick = ev => { if (ev.target.closest('button')) return; this.escolhe(p.id); this.pinta(); };
-      r.oncontextmenu = ev => { ev.preventDefault(); this.escolhe(p.id); this.pinta(); this.menuParte(ev, p); };
-      $('[data-up]', r).onclick = () => move(-1); $('[data-dn]', r).onclick = () => move(1);
-      $('[data-vis]', r).onclick = () => { this.mudar(p.id, { vis: e.vis === false }); this.commit(); };
-      r.ondragstart = ev => { if (eR) return ev.preventDefault(); ev.dataTransfer.setData('text/camada', p.id); };
-      r.ondragover = ev => { if (!ev.dataTransfer.types.includes('text/camada')) return; ev.preventDefault(); const b = r.getBoundingClientRect(), cima = ev.clientY < b.top + b.height / 2; r.classList.toggle('drop-antes', cima); r.classList.toggle('drop-depois', !cima); };
-      r.ondragleave = () => r.classList.remove('drop-antes', 'drop-depois');
-      r.ondrop = ev => { ev.preventDefault(); const cima = r.classList.contains('drop-antes'); r.classList.remove('drop-antes', 'drop-depois');
-        const q = this.parte(ev.dataTransfer.getData('text/camada')); if (!q || q === p || Referencia.ehRef(q)) return; const L = outras.filter(x => x !== q); L.splice(eR ? 0 : L.indexOf(p) + (cima ? 0 : 1), 0, q); this.reordenar(L); };
-      el.appendChild(r);
-    });
-  },
   todosSoParte(pid) { // liga/desliga "Mover todos" só nesta parte (o botão de cima continua valendo para as outras)
     if (this.todosSo.has(pid)) this.todosSo.delete(pid); else this.todosSo.add(pid); this.pinta();
     UI.toast(this.todosSo.has(pid) ? `<b>Mover todos</b> só em <b>${esc(this.parte(pid)?.nome || '')}</b>: arrastar move a parte inteira (fica roxa). As outras partes continuam como estão.` : `<b>${esc(this.parte(pid)?.nome || '')}</b> voltou a mover só a imagem.`, { time: 4500 });
   },
   setModo(m) { this.modoMover = m; this.todosSo.clear(); this.pinta();   },
-  setMoverTodos(v) { this.setModo(v ? 'todos' : 'preset'); },
   // posição desta imagem SÓ no preset que está na tela (ou só na base)
   poeD(p, img, v, onde = this.preset()) {
     if (arguments.length < 4 && !this.editPasso && Animacoes.passoAtual()) { Animacoes.alvoPausa(p.id); if (this.editPasso) onde = null; }
@@ -712,7 +686,7 @@ const Atelie = {
         { head: `igual a "${(p.imgs.find(i => i.id === this.estado()[p.id]?.img) || p.imgs[0]).nome}" (a que aparece)` },
         { label: 'Pelo centro', action: () => this.alinharImagens(p, 'centro') }, { label: 'Por baixo (pés no mesmo chão)', action: () => this.alinharImagens(p, 'baixo') }, { label: 'Por cima', action: () => this.alinharImagens(p, 'cima') }] },
       !varias && p.pai && { label: 'Soltar do pai', icon: 'layers', action: () => this.porNoPai(p.id, null) },
-      !varias && '-', !varias && { label: 'Para a frente', icon: 'down', key: ']', action: () => this.passoCamada(p, 1) }, !varias && { label: 'Para trás', icon: 'up', key: '[', action: () => this.passoCamada(p, -1) }, !varias && { label: 'Ver a profundidade', icon: 'layers', action: () => { this.vistaPartes = 'camadas'; this.pintaPartes(); } },
+      !varias && '-', !varias && { label: 'Para a frente', icon: 'down', key: ']', action: () => this.passoCamada(p, 1) }, !varias && { label: 'Para trás', icon: 'up', key: '[', action: () => this.passoCamada(p, -1) },
       '-', { label: varias ? `Apagar as ${lista.length} partes` : 'Apagar a parte', icon: 'trash', key: 'Delete', danger: true, action: () => this.apagarPartes(lista) },
     ].filter(Boolean); if (o.so) return itens; UI.ctx(e.clientX, e.clientY, itens);
   },
@@ -1074,16 +1048,22 @@ const Atelie = {
     const l = $('.av-lista', el);
     for (const v of V) { const on = v.id === this.def.vistaAtual, np = on ? this.def.partes.length : (v.partes || []).length;
       const pri = v === V[0] && V.length > 1, b = h(`<button class="av ${on ? 'on' : ''} ${pri ? 'pri' : ''}" title="${esc(v.nome)} (${esc(Modelo.nomeTipo(v.tipo))}) · ${np} parte(s)${pri ? ' · PRINCIPAL' : ''}${on ? '' : ' · clique para trocar'} · arraste para mudar a ordem · botão direito: opções">${pri ? `<i class="av-pri" title="Principal">${ic('star', 10)}</i>` : ''}${this.icVista(v.tipo)}<span>${esc(v.nome)}</span><small>${np}</small></button>`);
+      const gv = AoVivo.naVista?.(v.id) || []; // ao vivo: quem (dos outros) está nesta vista — borda na cor da pessoa + a foto pequena (nome ao passar o mouse)
+      if (gv.length) { b.classList.add('com-gente'); b.style.setProperty('--c', gv[0].cor || '#19d3f0'); b.title = gv.map(g => g.nome || 'Alguém').join(', ') + ' está nesta vista · ' + b.title;
+        b.appendChild(h(`<span class="av-gv">${gv.slice(0, 3).map(g => `<i style="--c:${esc(g.cor || '#888')}" class="${g.afk ? 'afk' : ''}" title="${esc(g.nome || 'Alguém')}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer">` : esc((g.nome || '?')[0])}</i>`).join('')}${gv.length > 3 ? `<i>+${gv.length - 3}</i>` : ''}</span>`)); }
       b.onclick = () => this.trocaVista(v.id); b.oncontextmenu = ev => { ev.preventDefault(); this.menuVista(ev, v); };
       ordenavel(b, 'vista', v.id, (id, antes) => { const i = V.findIndex(x => x.id === id), j = V.indexOf(v); if (i >= 0) { moveNaLista(V, i, j, antes); this.commit(); } }, true);
       l.appendChild(b); }
     $('[data-nova]', el).onclick = () => this.novaVista();
   },
-  async trocaVista(id) {
-    if (!this.def || id === this.def.vistaAtual) return; Animacoes.parar(true); window.Falas?.parar(); Pintura.selecao = null;
-    Modelo.ativaVista(this.def, id); this.edit = null; this.editPasso = null; Animacoes.sel = null; Animacoes.passo = null; Animacoes.poseFixa = null; if (this.teste) this.teste = { sessoes: {}, partes: {} };
+  // trocar de vista: na hora (nada espera a rede antes de aparecer), a câmera fica onde está (só muda arrastando) e, ao vivo, a troca é SÓ minha
+  // (as outras pessoas continuam na vista delas; js/aovivo.js guarda o personagem sempre com a mesma vista ativa e cada um põe a sua por cima)
+  trocaVista(id) {
+    if (!this.def || id === this.def.vistaAtual || !this.def.vistas?.some(v => v.id === id)) return; Animacoes.parar(true); window.Falas?.parar(); Pintura.selecao = null;
+    Modelo.ativaVista(this.def, id); this.edit = null; this.editPasso = null; Animacoes.sel = null; Animacoes.passo = null; Animacoes.poseFixa = null; Animacoes.multi?.clear?.(); if (this.teste) this.teste = { sessoes: {}, partes: {} };
     this.sel = (this.def.raiz && this.def.partes.some(p => p.id === this.def.raiz) ? this.def.raiz : this.def.partes[0]?.id) || null; this.multi.clear(); this.focoImg = null;
-    await Arq.garantir(Modelo.chavesImgs(this.def)); this.commit(); this.enquadrar();
+    this.ultimo = JSON.stringify(this.def); this.pinta(); AoVivo.minhaVista?.(id); // trocar de vista não é uma mudança do personagem (não entra no Ctrl+Z nem vai para os outros)
+    Arq.garantir(Modelo.chavesImgs(this.def)).then(() => this.desenha()).catch(() => { }); // o que ainda não estava aqui chega e aparece
   },
   menuVista(e, v) {
     const V = this.def.vistas, on = v.id === this.def.vistaAtual;
@@ -1152,7 +1132,8 @@ const Atelie = {
   /* ---------- ÍCONE e COR do personagem (hierarquia e timeline do editor) ---------- */
   pintaIcone() {
     const b = $('#at-icone'); if (!b || !this.def) return; const def = this.def, auto = (def.iconeModo || 'auto') === 'auto', cAuto = (def.corModo || 'auto') === 'auto';
-    if ((auto || cAuto) && this._icAuto?.de !== def.id + def.vistaAtual) { const m = this._icAuto = { de: def.id + def.vistaAtual }; Icone.cabeca(def).then(i => { m.img = i; if (this._icAuto === m) this.pintaIcone(); }).catch(() => { }); Icone.corAuto(def).then(c => { m.cor = c; if (this._icAuto === m) this.pintaIcone(); }).catch(() => { }); }
+    const deIc = def.id + ':' + (def.vistas?.[0]?.id || ''); // UM ícone para o personagem todo (feito da vista principal): trocar de vista não muda nem apaga a foto
+    if ((auto || cAuto) && this._icAuto?.de !== deIc) { const ant = this._icAuto?.de?.startsWith(def.id + ':') ? this._icAuto : null, m = this._icAuto = { de: deIc, img: ant?.img, cor: ant?.cor }; Icone.cabeca(def).then(i => { m.img = i; if (this._icAuto === m) this.pintaIcone(); }).catch(() => { }); Icone.corAuto(def).then(c => { m.cor = c; if (this._icAuto === m) this.pintaIcone(); }).catch(() => { }); }
     const img = def.iconeModo === 'nenhum' ? null : auto ? this._icAuto?.img : def.icone, cor = cAuto ? this._icAuto?.cor : def.cor;
     b.style.setProperty('--cp', cor || '#888'); b.innerHTML = img ? `<img src="${img}" alt="">` : ic('layers', 16); b.onclick = () => this.configIcone();
   },
@@ -1250,7 +1231,6 @@ const Atelie = {
 
   /* ---------- (o antigo painel TESTAR saiu: a timeline embaixo do palco — js/linha.js — e a aba Poses fazem o papel dele) ---------- */
   testar(on) { Animacoes.parar(true); Animacoes.passoSel = null; Animacoes.poseFixa = null; this.editPasso = null; if (!on) this.edit = null; this.teste = on ? { sessoes: {}, partes: {} } : null; this.pinta(); },
-  painelTeste(abrir) { this.testar(!!abrir); },
   pintaTesteLeve() { Linha.leve(); },
   // problemas de um preset: vazio, parte que não existe mais, imagem que não existe mais
   problemas(pr) {

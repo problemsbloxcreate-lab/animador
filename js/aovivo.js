@@ -120,12 +120,13 @@ const AoVivo = {
     else { this.base = JSON.stringify(ad.get()); this.ate = ''; await t.setSnap(this.sala, { j: this.base, ate: '', t: Date.now() }); await this.subirArqs(ad.chaves(ad.get()), true); st.ops = []; }
     this.log = (st.ops || []).map(op => ({ k: op.k, ops: JSON.parse(op.j || '[]') }));
     this.confirmado = JSON.stringify(Difs.aplica(JSON.parse(this.base), this.log.flatMap(x => x.ops)));
+    if (ad.canon) { const c = JSON.stringify(ad.canon(JSON.parse(this.confirmado))); if (c !== this.confirmado) { this.confirmado = this.base = c; this.log = []; } } // sala de antes com outra vista ativa: passa para a forma de sempre
     if (st.snap && !o.novo) { const d = JSON.parse(this.confirmado); await this.garanteArqs(ad.chaves(d)); ad.set(d); }
     this.local = JSON.stringify(ad.get()); this.ativo = true; this.desde = Date.now();
     t.ouvirOps(this.sala, this.log.length ? this.log[this.log.length - 1].k : this.ate, op => this.recebe(op));
-    t.ouvirGente(this.sala, g => { this.gente = g; this.pintaBarra(); this.ad?.redesenha(); });
+    t.ouvirGente(this.sala, g => { this.gente = g; this.pintaBarra(); this.ad?.gente?.(); this.ad?.redesenha(); });
     t.ouvirMeta?.(this.sala, m => this.meta(m));
-    await t.presenca(this.sala, eu.id, { nome: eu.nome, foto: eu.foto, cor: eu.cor, onde: ad.ctx, fazendo: '', afk: false, conta: eu.conta, u: Date.now() }, true); this._afk = false; this._mexeu = Date.now();
+    await t.presenca(this.sala, eu.id, { nome: eu.nome, foto: eu.foto, cor: eu.cor, onde: ad.ctx, fazendo: '', afk: false, conta: eu.conta, vista: ad.vista?.() || '', u: Date.now() }, true); this._afk = false; this._mexeu = Date.now();
     if (o.meta) await t.setMeta(this.sala, o.meta);
     this.liga(); this.pintaBarra(); clearInterval(this._iv); this._iv = setInterval(() => this.talvezSnap(), 20000);
     return true;
@@ -234,7 +235,8 @@ const AoVivo = {
     const cv = ctx?.canvas; if (!this.ativo) { lay.innerHTML = ''; return; }
     if (cv && this.ad && cv !== (this.ad.ctx === 'atelie' ? Atelie.cv : App.palco?.cv)) return; // o palco do outro programa (escondido) não mexe nos cursores
     const r = cv?.getBoundingClientRect?.(), k = r && cv.width ? r.width / cv.width : 0; if (!k || !(r.width > 0)) return;
-    for (const g of this.outros()) { if (g.x == null || g.afk) continue; vivos.add(g.id); // ausente (1 min parado ou aba escondida): o cursor some
+    const minhaV = this.ad?.vista?.(); // Ateliê: só aparece o cursor de quem está na MESMA vista
+    for (const g of this.outros()) { if (g.x == null || g.afk || (minhaV && g.vista && g.vista !== minhaV)) continue; vivos.add(g.id); // ausente (1 min parado ou aba escondida): o cursor some
       const q = V.transformPoint(new DOMPoint(g.x, g.y)), x = clamp(r.left + q.x * k, 0, innerWidth - 14), y = clamp(r.top + q.y * k, 0, innerHeight - 22), c = g.cor || '#19d3f0';
       let el = lay.querySelector(`[data-id="${CSS.escape(g.id)}"]`);
       if (!el) { el = h(`<div class="av-cur" data-id="${esc(g.id)}"><svg width="16" height="22" viewBox="0 0 16 22"><path d="M1 1 L1 18 L5.5 14 L9 21 L11.5 20 L8.2 13.3 L14 13 Z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg><span></span></div>`); lay.appendChild(el); }
@@ -305,11 +307,21 @@ const AoVivo = {
     addEventListener('pagehide', () => { if (this.ativo) try { this.t.sair(this.sala, this.eu.id); } catch { } });
   },
   // ---------- adaptadores ----------
+  // VISTA DE CADA UM: na sala o personagem fica sempre com a MESMA vista ativa (a de menor id, não muda quando a ordem muda) e cada pessoa põe
+  // a sua por cima ao receber. Assim trocar de vista não vira mudança para os outros (antes trocava as partes de todo mundo e misturava as vistas).
+  canonVista(d) { if (!d?.vistas?.length) return d; const id = d.vistas.map(v => v.id).sort()[0]; if (d.vistaAtual !== id) Modelo.ativaVista(d, id); return d; },
   adAtelie() {
     const def = Atelie.def; return { ctx: 'atelie', sala: 'at-' + def.id, nome: def.nome,
-      get: () => Atelie.def, set: d => { Atelie.def = d; Atelie.ultimo = JSON.stringify(d); Atelie.sujo = true; Atelie.rascunho(); Atelie.pinta(); },
+      get: () => this.canonVista(JSON.parse(JSON.stringify(Atelie.def))), canon: d => this.canonVista(d),
+      set: d => { const v = Atelie.def?.vistaAtual; Modelo.garanteVistas(d); if (v && d.vistaAtual !== v && d.vistas.some(x => x.id === v)) Modelo.ativaVista(d, v);
+        if (Atelie.sel && !d.partes.some(p => p.id === Atelie.sel)) Atelie.sel = null; Atelie.def = d; Atelie.ultimo = JSON.stringify(d); Atelie.sujo = true; Atelie.rascunho(); Atelie.pinta(); },
+      vista: () => Atelie.def?.vistaAtual || '', gente: () => Atelie.pintaVistas?.(),
       chaves: d => [...new Set((JSON.stringify(d).match(/personagens\/[a-z0-9-]+\/(?:img|aud)\/[^"\\]+/g) || []))], redesenha: () => Atelie.desenha() };
   },
+  // troquei de vista: os outros ficam sabendo (o meu cursor só aparece para quem está na mesma vista; a vista ganha a minha foto pequena)
+  minhaVista(id) { if (!this.ativo || this.ad?.ctx !== 'atelie') return; try { this.t.presenca(this.sala, this.eu.id, { vista: id || '', u: Date.now() }); } catch { } Atelie.desenha?.(); },
+  // quem (dos outros) está em cada vista
+  naVista(id) { return this.ativo && this.ad?.ctx === 'atelie' ? this.outros().filter(g => g.vista === id) : []; },
   adAnimador(dono) {
     const P = App.P; return { ctx: 'animador', sala: 'an-' + P.id, nome: P.nome, dono,
       get: () => App.P, set: d => { App.troca(d); App.ultimo = JSON.stringify(App.P); }, chaves: d => Toon.ids(d), redesenha: () => App.pinta(), salvar: () => App.salvarJa?.() };

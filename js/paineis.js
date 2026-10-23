@@ -34,12 +34,12 @@ const Paineis = {
   grava() { try { localStorage.setItem(this.CHAVE, JSON.stringify(this.st)); } catch { } this.pintaBotao(); },
   mudou() {
     const t = window.Divisores ? Divisores.le() : null;
-    let barra = false; try { barra = !!localStorage.getItem('animador-ferr-lugar'); } catch { }
+    let barra = false; try { barra = !!localStorage.getItem('animador-ferr-lugar') || !!localStorage.getItem(this.CH_ALT); } catch { }
     return JSON.stringify(this.st) !== JSON.stringify(this.padraoSt()) || (t && t.tl) || barra;
   },
   pintaBotao() { const b = $('#at-layout-padrao'); if (b) b.hidden = !this.mudou(); },
   padrao() {
-    this.st = this.padraoSt(); this.grava();
+    this.st = this.padraoSt(); this.alt = {}; try { localStorage.removeItem(this.CH_ALT); } catch { } this.grava();
     if (window.Divisores) { Divisores.t = { ...Divisores.PADRAO }; Divisores.grava(); Divisores.aplica(); }
     if (typeof Pintura !== 'undefined') { Pintura._lugar = null; try { localStorage.removeItem('animador-ferr-lugar'); } catch { } } // a barra de ferramentas também volta ao lugar de sempre
     this.aplica(); if (typeof Pintura !== 'undefined') Pintura.posBarra(); UI.toast('Voltou ao design padrão do Ateliê.', { kind: 'ok' });
@@ -87,7 +87,30 @@ const Paineis = {
       for (const id of j.p) if (this.sec[id]) w.appendChild(this.sec[id]);
       this.moveJanela(j, $('.dock-jbar', w), w); $('.dock-jbar', w).oncontextmenu = e => Ima.menu(e, j.preso, v => { j.preso = v; this.grava(); this.aplica(); }); this.soltos.appendChild(w); this.ro.observe(w);
     }
-    this.cabe(); this.pintaBotao(); Linha?.altura?.(); requestAnimationFrame(() => { Atelie.tamanho?.(); Linha?.altura?.(); Ima.arruma(); });
+    this.alturas(); this.cabe(); this.pintaBotao(); Linha?.altura?.(); requestAnimationFrame(() => { Atelie.tamanho?.(); Linha?.altura?.(); Ima.arruma(); });
+  },
+  // ALTURA dos painéis empilhados (numa coluna ou janela): borda arrastável entre um e outro (dois cliques = volta ao normal)
+  CH_ALT: 'animador-atelie-alturas',
+  leAlt() { if (!this.alt) { try { this.alt = JSON.parse(localStorage.getItem(this.CH_ALT) || '{}') || {}; } catch { this.alt = {}; } } return this.alt; },
+  gravaAlt() { try { if (Object.keys(this.alt).length) localStorage.setItem(this.CH_ALT, JSON.stringify(this.alt)); else localStorage.removeItem(this.CH_ALT); } catch { } this.pintaBotao(); },
+  alturas() {
+    const A = this.leAlt(), fixo = id => id === 'vistas'; // as Vistas têm a altura do conteúdo: arrastando, ganham altura em px
+    for (const box of $$('#atelie .dock-col, .dock-janela')) {
+      const ds = $$(':scope > .dock', box).filter(d => d.dataset.dock !== 'linha');
+      ds.forEach((d, i) => { const id = d.dataset.dock, v = A[id]; $(':scope > .dock-hb', d)?.remove();
+        d.style.flex = v ? (fixo(id) ? `0 0 ${v}px` : `${v} 1 0`) : ''; if (v && fixo(id)) d.style.overflow = 'auto'; else d.style.overflow = '';
+        if (!i) return; const hb = h('<div class="dock-hb" title="Arraste para mudar a altura · dois cliques: volta ao normal"></div>'); d.appendChild(hb); this.bordaAlt(hb, ds[i - 1], d, ds); });
+    }
+  },
+  bordaAlt(hb, a, b, ds) {
+    hb.ondblclick = () => { for (const d of ds) delete this.alt[d.dataset.dock]; this.gravaAlt(); this.alturas(); };
+    hb.onpointerdown = e => { e.preventDefault(); hb.setPointerCapture(e.pointerId); hb.classList.add('on');
+      for (const d of ds) this.alt[d.dataset.dock] = d.offsetHeight; // tudo em px a partir daqui (senão os pesos misturam)
+      const y0 = e.clientY, ha = a.offsetHeight, hbb = b.offsetHeight, MIN = 44;
+      const mv = ev => { let dy = ev.clientY - y0; dy = clamp(dy, MIN - ha, hbb - MIN); this.alt[a.dataset.dock] = Math.round(ha + dy); this.alt[b.dataset.dock] = Math.round(hbb - dy);
+        for (const d of [a, b]) { const id = d.dataset.dock, v = this.alt[id]; d.style.flex = id === 'vistas' ? `0 0 ${v}px` : `${v} 1 0`; if (id === 'vistas') d.style.overflow = 'auto'; } };
+      const up = () => { hb.classList.remove('on'); hb.removeEventListener('pointermove', mv); hb.removeEventListener('pointerup', up); hb.removeEventListener('pointercancel', up); this.gravaAlt(); Atelie.tamanho?.(); Ima.arruma(); };
+      hb.addEventListener('pointermove', mv); hb.addEventListener('pointerup', up); hb.addEventListener('pointercancel', up); };
   },
   // janelas GRUDADAS em outra coisa (js/ima.js): ficam no lugar dela (e andam junto quando ela anda)
   posPresos() {

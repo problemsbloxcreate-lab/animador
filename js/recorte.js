@@ -9,7 +9,6 @@ Object.assign(Pintura, {
   // máscara da seleção, se ela for desta imagem
   mascara(a = this.alvo()) { const s = this.selecao; return a && s && s.pid === a.p.id && s.iid === a.img.id && s.w === a.bm.width && s.h === a.bm.height ? s.mask : null; },
   temSelecao() { return !!this.mascara(); },
-  novaMascara(w, h) { return new OffscreenCanvas(w, h); },
   // pixels parecidos com o do ponto (encostados nele; com "todos", na imagem toda)
   areaParecida(c, W, H, x, y, tol, todos) {
     if (x < 0 || y < 0 || x >= W || y >= H) return null; const D = c.getImageData(0, 0, W, H).data, i0 = (y * W + x) * 4, al = [D[i0], D[i0 + 1], D[i0 + 2], D[i0 + 3]];

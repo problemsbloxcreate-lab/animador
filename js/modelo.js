@@ -100,7 +100,17 @@ const Modelo = {
   CAMPOS_VISTA: ['partes', 'sessoes', 'animacoes', 'raiz', 'vis'],
   // garante que o personagem tem a lista de vistas (personagens antigos: a vista que já existe vira a 1ª)
   garanteVistas(def) {
-    if (def.vistas?.length && def.vistas.some(v => v.id === def.vistaAtual)) return def;
+    // conserta o que já chegou estragado (listas que viraram objeto, duas vistas com o mesmo id, a ativa sumida) SEM jogar fora nenhuma parte/preset
+    const lista = x => Array.isArray(x) ? x : x && typeof x === 'object' ? Object.values(x) : x;
+    if (def.vistas && !Array.isArray(def.vistas)) def.vistas = lista(def.vistas);
+    for (const c of ['partes', 'sessoes', 'animacoes']) if (def[c] && !Array.isArray(def[c])) def[c] = lista(def[c]);
+    if (def.vistas?.length) {
+      const vistos = new Set(); def.vistas = def.vistas.filter(v => v && typeof v === 'object');
+      for (const v of def.vistas) { if (!v.id || vistos.has(v.id)) v.id = uid('vi'); vistos.add(v.id); for (const c of ['partes', 'sessoes', 'animacoes']) if (v[c] && !Array.isArray(v[c])) v[c] = lista(v[c]); }
+      if (!def.vistas.some(v => v.id === def.vistaAtual)) { // a ativa sumiu: é a entrada sem partes (a da ativa só tem id/nome/tipo); se não houver, vira uma vista nova
+        const vazia = def.vistas.find(v => !v.partes); if (vazia) def.vistaAtual = vazia.id; else { const id = uid('vi'); def.vistas.unshift({ id, nome: 'Vista', tipo: 'frente' }); def.vistaAtual = id; } }
+      return def;
+    }
     const t = /tr[eê]s.?quartos|3\/4/i.test(def.nome || '') ? 'tres-quartos' : /\blado\b|perfil/i.test(def.nome || '') ? 'lado' : /costas/i.test(def.nome || '') ? 'costas' : 'frente';
     const id = uid('vi'); def.vistas = [{ id, nome: Modelo.nomeTipo(t), tipo: t }]; def.vistaAtual = id; return def;
   },
