@@ -150,9 +150,11 @@ const AoVivo = {
     if (x.estado === 'trocando') {
       this._trocaFim?.(); this._trocaFim = Ocupado.inicio({ tipo: 'arquivo', icone: 'layers', titulo: `${x.nome ? (x.nome || '').split(' ')[0] : 'Alguém'} está substituindo ${Atelie.def?.nome || 'o personagem'}`, subtitulo: 'Guardando a cópia de antes neste computador…', aviso: 'Aguarde: a versão nova vem do arquivo que a outra pessoa soltou. Não feche esta aba.' });
       clearTimeout(this._trocaTo); this._trocaTo = setTimeout(() => { this._trocaFim?.(); this._trocaFim = null; }, 180000);
-      try { const d = Atelie.def; await Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(d)), d.thumb, `${d.nome} (anterior)`); Ocupado.passo('Esperando a versão nova chegar…'); } catch { Ocupado.passo('Esperando a versão nova chegar…'); }
+      const d = Atelie.def; this._backup = Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(d)), d.thumb, `${d.nome} (anterior)`).catch(() => null); // as mudanças de fora esperam a cópia ficar pronta
+      try { await this._backup; } catch { } Ocupado.passo('Esperando a versão nova chegar…');
       return;
     }
+    if (x.estado === 'feito' && this._trocaFim) { Ocupado.passo('Pondo a versão nova…'); await Promise.race([this._fila.catch(() => { }), new Promise(r => setTimeout(r, 90000))]); } // fica na espera até a versão nova estar na tela
     this._trocaFim?.(); this._trocaFim = null; clearTimeout(this._trocaTo);
     if (x.estado === 'feito') UI.toast(`<b>${quem}</b> trocou <b>${nome}</b> pelo arquivo <b>${esc(x.arquivo || '')}</b>. A versão de antes ficou em <b>${nome} (anterior)</b>, neste computador.`, { kind: 'ok', time: 9000 });
     else if (x.estado === 'cancelado') UI.toast(`<b>${quem}</b> não trocou o personagem pelo arquivo.`, { time: 3500 });
@@ -184,12 +186,12 @@ const AoVivo = {
     if (i >= 0 && op.k >= ultima) return this._contaSnap();
     // de outra pessoa: o que está confirmado + as minhas que ainda não voltaram
     const novo = Difs.aplica(JSON.parse(this.confirmado), this.pend.flatMap(x => x.ops));
-    this._fila = this._fila.then(async () => { await this.garanteArqs(this.ad.chaves(novo)); await this.livre(); if (!this.ativo) return; this._aplicando = true; try { this.ad.set(novo); this.local = JSON.stringify(this.ad.get()); } finally { this._aplicando = false; } });
+    this._fila = this._fila.then(async () => { await this.garanteArqs(this.ad.chaves(novo)); try { await this._backup; } catch { } await this.livre(); if (!this.ativo) return; this._aplicando = true; try { this.ad.set(novo); this.local = JSON.stringify(this.ad.get()); } finally { this._aplicando = false; } }).catch(e => console.warn('ao vivo', e)); // um erro não pode travar a fila (as próximas mudanças pararam de chegar)
     if (op.por !== this.eu.id && op.r) { this.atividade(op.nome, op.r); this.anota(op.por, op.nome, op.r); }
     this._contaSnap();
   },
   // no meio de um arrasto/traço (ou com a IA trabalhando) a mudança de fora espera: senão o traço iria para um objeto que já foi trocado
-  async livre() { let n = 0; while ((this._gesto || (window.Ocupado && Ocupado.n > 0)) && n++ < 1200) await new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => setTimeout(r, 40); c.port2.postMessage(0); }); },
+  async livre() { let n = 0; while ((this._gesto || (window.Ocupado && Ocupado.n > (this._trocaFim ? 1 : 0))) && n++ < 1200) await new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => setTimeout(r, 40); c.port2.postMessage(0); }); },
   _contaSnap() { this._n = (this._n || 0) + 1; if (this._n >= 30) this.talvezSnap(); },
   // quem entrou primeiro (que ainda está) guarda o estado de tempos em tempos: quem chega depois carrega rápido
   async talvezSnap() {
@@ -203,15 +205,19 @@ const AoVivo = {
   // ---------- arquivos (imagens, áudios) ----------
   async b64(blob) { const u8 = new Uint8Array(await blob.arrayBuffer()); let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode(...u8.subarray(i, i + 8192)); return (blob.type || 'application/octet-stream') + '|' + btoa(s); },
   doB64(s) { const i = s.indexOf('|'), tipo = s.slice(0, i), bin = atob(s.slice(i + 1)), u8 = new Uint8Array(bin.length); for (let j = 0; j < bin.length; j++) u8[j] = bin.charCodeAt(j); return new Blob([u8], { type: tipo }); },
+  // várias de uma vez (6 ao mesmo tempo): mandar/baixar um personagem inteiro fica bem mais rápido
+  async emLote(lista, fn, n = 6) { let i = 0; await Promise.all(Array.from({ length: Math.min(n, lista.length) }, async () => { while (i < lista.length) { const x = lista[i++]; try { await fn(x); } catch (e) { console.warn('ao vivo', e); } } })); },
   async subirArqs(chaves, todas) {
-    const novas = [...new Set(chaves)].filter(k => k && !this.subidas.has(k)); let n = 0;
-    for (const k of novas) { this.subidas.add(k); const b = await Arq.pegaBlob(k).catch(() => null); if (!b) continue; if (!todas && /^personagens\//.test(k) && this.ad?.ctx === 'atelie' && this._naNuvem?.has(k)) continue; try { await this.t.putArq(this.sala, k, await this.b64(b)); n++; } catch (e) { console.warn('arq', k, e); } }
+    const novas = [...new Set(chaves)].filter(k => k && !this.subidas.has(k)); let n = 0; novas.forEach(k => this.subidas.add(k));
+    await this.emLote(novas, async k => { const b = await Arq.pegaBlob(k).catch(() => null); if (!b) return; if (!todas && /^personagens\//.test(k) && this.ad?.ctx === 'atelie' && this._naNuvem?.has(k)) return; await this.t.putArq(this.sala, k, await this.b64(b)); n++; if (novas.length > 3 && window.Ocupado && Ocupado.n) Ocupado.parte(n, novas.length); });
     return n;
   },
   async garanteArqs(chaves) {
-    for (const k of [...new Set(chaves)].filter(Boolean)) { this.subidas.add(k); if (await Arq.pegaBlob(k).catch(() => null)) continue;
+    const faltam = []; for (const k of [...new Set(chaves)].filter(Boolean)) { this.subidas.add(k); if (!(await Arq.pegaBlob(k).catch(() => null))) faltam.push(k); }
+    let feitas = 0; const conta = () => { if (faltam.length > 3 && this._trocaFim) { Ocupado.passo('Baixando as imagens da versão nova…'); Ocupado.parte(feitas, faltam.length); } };
+    conta(); await this.emLote(faltam, async k => {
       let b = null; try { const s = await this.t.getArq(this.sala, k); if (s) b = this.doB64(s); } catch { } if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null);
-      if (b) { await Arq.guardar(b, k); if (/^image\//.test(b.type) || /\.(png|webp|jpe?g|gif)$/i.test(k)) Arq.img.set(k, await createImageBitmap(b).catch(() => null)); } }
+      if (b) { await Arq.guardar(b, k); if (/^image\//.test(b.type) || /\.(png|webp|jpe?g|gif)$/i.test(k)) Arq.img.set(k, await createImageBitmap(b).catch(() => null)); } feitas++; conta(); });
   },
   // ---------- cursores e quem está junto ----------
   // os outros: UMA entrada por conta (a mesma pessoa em duas abas ou uma sobra de quando recarregou = a que mexeu por último), e a minha própria conta em outra aba não aparece

@@ -34,13 +34,15 @@ const Paineis = {
   grava() { try { localStorage.setItem(this.CHAVE, JSON.stringify(this.st)); } catch { } this.pintaBotao(); },
   mudou() {
     const t = window.Divisores ? Divisores.le() : null;
-    return JSON.stringify(this.st) !== JSON.stringify(this.padraoSt()) || (t && t.tl);
+    let barra = false; try { barra = !!localStorage.getItem('animador-ferr-lugar'); } catch { }
+    return JSON.stringify(this.st) !== JSON.stringify(this.padraoSt()) || (t && t.tl) || barra;
   },
   pintaBotao() { const b = $('#at-layout-padrao'); if (b) b.hidden = !this.mudou(); },
   padrao() {
     this.st = this.padraoSt(); this.grava();
     if (window.Divisores) { Divisores.t = { ...Divisores.PADRAO }; Divisores.grava(); Divisores.aplica(); }
-    this.aplica(); UI.toast('Voltou ao design padrão do Ateliê.', { kind: 'ok' });
+    if (typeof Pintura !== 'undefined') { Pintura._lugar = null; try { localStorage.removeItem('animador-ferr-lugar'); } catch { } } // a barra de ferramentas também volta ao lugar de sempre
+    this.aplica(); if (typeof Pintura !== 'undefined') Pintura.posBarra(); UI.toast('Voltou ao design padrão do Ateliê.', { kind: 'ok' });
   },
   // ---------- montar (uma vez) ----------
   liga() {

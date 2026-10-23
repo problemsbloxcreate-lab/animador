@@ -131,7 +131,7 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
   // lugar da barra (fixa na TELA): SOLTA { x, y } em px — nasce solta, move para qualquer lugar como as janelas — ou GRUDADA
   // { preso } numa janela solta, numa coluna ou na borda de dentro do palco (js/ima.js; anda junto com a janela de baixo)
   lugar() { if (!this._lugar) { try { this._lugar = JSON.parse(localStorage.getItem('animador-ferr-lugar') || 'null'); } catch { } if (this._lugar && !('x' in this._lugar) && !this._lugar.preso) this._lugar = null; } return this._lugar; },
-  guardaLugar() { try { localStorage.setItem('animador-ferr-lugar', JSON.stringify(this._lugar)); } catch { } },
+  guardaLugar() { try { localStorage.setItem('animador-ferr-lugar', JSON.stringify(this._lugar)); } catch { } if (typeof Paineis !== 'undefined') Paineis.pintaBotao(); }, // mexeu na barra = aparece o "Design padrão"
   lugarBarra(el) { this.posBarra(el); },
   posBarra(el = $('#at-ferr')) {
     if (!el || el.hidden) return; let L = this.lugar();
@@ -153,7 +153,7 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
       const up = () => { pega.onpointermove = null; pega.onpointerup = null; el.classList.remove('arrastando'); this.guardaLugar(); };
       pega.onpointermove = mov; pega.onpointerup = up; pega.onpointercancel = up; };
     pega.oncontextmenu = e => Ima.menu(e, this.lugar()?.preso, v => { const L = this.lugar(); this._lugar = v ? { ...L, preso: v } : { x: L.x, y: L.y }; this.guardaLugar(); this.posBarra(el); });
-    pega.ondblclick = () => { this._lugar = null; try { localStorage.removeItem('animador-ferr-lugar'); } catch { } this.posBarra(el); };
+    pega.ondblclick = () => { this._lugar = null; try { localStorage.removeItem('animador-ferr-lugar'); } catch { } this.posBarra(el); if (typeof Paineis !== 'undefined') Paineis.pintaBotao(); };
   },
   /* ---------- barra de ferramentas no canto esquerdo do palco (como no Photoshop) ---------- */
   pintaBarra() {
