@@ -53,6 +53,7 @@ const Arvore = {
       n.tipo === 'personagem' && { label: `Editar no Ateliê (pose do quadro ${App.q + 1})`, icon: 'edit', action: () => Animacoes.editarNoAtelie(n) },
       n.tipo === 'personagem' && { label: 'Abrir no Ateliê como pose nova…', icon: 'plus', action: () => Animacoes.poseNova(n) },
       n.tipo === 'personagem' && { label: (Modelo.transf(n, App.q).sx || 1) < 0 ? 'Desespelhar (voltar para o lado de antes)' : 'Espelhar (virar para o outro lado)', icon: 'transition', action: () => Animacoes.espelhar(n) }, n.tipo === 'personagem' && '-',
+      { label: 'Citar na IA', icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'camada', id: n.id, nome: n.nome }) },
       { label: 'Renomear', icon: 'edit', action: () => this.renomear(n, $(`.no[data-id="${n.id}"]`)) },
       { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
       { label: 'Pôr numa pasta nova', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },

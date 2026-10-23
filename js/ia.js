@@ -81,11 +81,11 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
   // faz o pedido na animação aberta (o mesmo do botão IA) e devolve o texto do que fez
   async executar(txt, foco, mostra, o = {}) {
     const P = App.P, tr = (o.trechos || []).filter(t => t && t.ate >= t.de);
-    const texto = `PROJETO:\n${JSON.stringify(this.contexto(P))}\n\n${tr.length ? Trechos.texto(P, tr) + '\n\n' : ''}PEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`;
+    const texto = `${o.antes || ''}PROJETO:\n${JSON.stringify(this.contexto(P))}\n\n${tr.length ? Trechos.texto(P, tr) + '\n\n' : ''}PEDIDO: ${txt}${foco ? `\n(Camada em foco: "${foco.nome}")` : ''}`;
     // no ANIMADOR os vídeos de referência (test drive da equipe + os desta animação) vão em todo pedido: a IA copia o estilo de animação e de edição
     const refC = await RefsAnim.conteudo(P.refsAnim, { modo: 'editor' }).catch(() => []);
     const trC = tr.length ? await Trechos.quadros(P, tr).catch(() => []) : [];
-    const content = refC.length || trC.length ? [...refC, ...trC, { type: 'text', text: texto }] : texto;
+    const imgs = o.imgs || [], content = refC.length || trC.length || imgs.length ? [...refC, ...trC, ...imgs, { type: 'text', text: texto }] : texto;
     const foto = tr.length ? Trechos.foto(P) : null;
     const out = await this.chama(this.SIS_CENA, content, t => mostra?.(t.slice(-600)));
     this.trechos = tr.length ? tr : null;
@@ -94,23 +94,8 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
     const cr = this.criadas || 0; this.criadas = 0;
     return (j.explica || 'Pronto.') + (tr.length ? `\n\nSó mexi ${tr.length > 1 ? 'nos trechos' : 'no trecho'} ${tr.map(t => Trechos.rotulo(t, P)).join(', ')}; o resto ficou igual.` : '') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (cr ? `\n${cr} animação(ões) nova(s) no personagem desta animação: para guardar no personagem da equipe, botão direito nele › Editar no Ateliê e salve lá.` : '') + (this.cenariosPedidos.length ? '\nO cenário entrou como uma pasta com uma camada por peça (só nesta animação). Para mudar: botão direito › Editar cenário; para guardar na equipe: Salvar na nuvem.' : '');
   },
-  async abrir(foco, o = {}) {
-    const P = App.P, trechos = (o.trechos || []).map(t => ({ ...t }));
-    const body = h(`<div><p>Peça em português. A IA usa os personagens, as sessões e presets deles${P.legendas.length ? ', e a <b>fala</b> (legendas)' : ''}.</p>
-      <label class="field">O que fazer?<textarea rows="4" placeholder="Ex.: anima o ${esc(foco?.nome || 'Problems')} pela fala: olhos assustados quando ele grita, pisca de vez em quando, e um tremor de tela no fim. Ou: de 0:15 a 1:12 o andar ficou ruim e o áudio está alto"></textarea></label>
-      <div class="ia-res" hidden></div></div>`);
-    const res = $('.ia-res', body), ta = $('textarea', body);
-    res.before(Trechos.campo(P, { lista: trechos, texto: ta }));
-    res.before(RefsAnim.campo({ modo: 'editor', quadros: 24, lista: () => (P.refsAnim ||= []), chave: () => uid('a'), mudou: () => App.commit('Vídeos de referência', { semArvore: true }) }));
-    if (o.texto) ta.value = o.texto;
-    await UI.modal({ title: 'Animar com a IA', icon: 'sparkles', kind: 'ia', width: 660, body, buttons: [{ label: 'Fechar', value: null }, { label: 'Pedir', icon: 'sparkles', kind: 'primary ia', onClick: async api => {
-      const txt = ta.value.trim(); if (!txt) return false; Trechos._sinc?.();
-      const bt = api.foot.querySelector('.btn.primary'); bt.disabled = true; res.hidden = false; res.textContent = 'Pensando…';
-      try { res.textContent = await this.executar(txt, foco, t => { res.textContent = t; }, { trechos });
-      } catch (e) { res.textContent = 'Não deu: ' + e.message; }
-      bt.disabled = false; return false;
-    } }] });
-  },
+  // a janela do Assistente (js/assistente.js): fica aberta, guarda a conversa e aceita citações
+  abrir(foco, o = {}) { return Assistente.abrir({ ...o, foco: foco || null }); },
   cenariosPedidos: [],
   aplicar(acoes, foto) {
     const P = App.P, todos = Modelo.todos(P), tr = this.trechos; let n = 0; this.cenariosPedidos = [];

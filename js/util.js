@@ -8,6 +8,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const clone = o => o === undefined ? undefined : JSON.parse(JSON.stringify(o));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// deixa a tela respirar SEM setTimeout (não estica com a aba escondida)
+const cede = () => new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); });
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 const round = (v, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
 

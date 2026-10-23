@@ -187,6 +187,7 @@ const Toon = {
     try { await Autores.marca(P); if (App.P === P) App.salvarJa?.(); else await DB.put('projetos', JSON.parse(JSON.stringify(P))); } catch { }
     const eu = await Autores.eu().catch(() => null);
     const t = UI.toast('<span class="spin-dot"></span> Montando o .animador…', { time: 120000 }), enc = new TextEncoder(), files = [{ name: 'projeto.json', data: enc.encode(JSON.stringify({ ...P, thumb: undefined })) }, { name: 'info.json', data: enc.encode(JSON.stringify({ tipo: 'animador', v: 1, por: eu, em: Date.now() })) }];
+    try { const cv = await DB.get('arquivos', 'ia-conversa:' + P.id); if (cv?.msgs?.length) files.push({ name: 'conversa-ia.json', data: enc.encode(JSON.stringify(cv)) }); } catch { } // conversa com o Assistente
     for (const id of this.ids(P)) { let b = await Arq.pegaBlob(id); if (!b && /^personagens\//.test(id)) b = await Nuvem.baixar(id).catch(() => null); if (b) files.push({ name: 'arq/' + encodeURIComponent(id), data: new Uint8Array(await b.arrayBuffer()) }); }
     t.remove(); return Zip.create(files);
   },
@@ -195,6 +196,7 @@ const Toon = {
     const m = Zip.read(await f.arrayBuffer()), pj = m.get('projeto.json'); if (!pj) throw new Error(m.get('personagem.json') ? 'Isto é um personagem do Ateliê (.atelieanimador), não uma animação.' : 'Não é um arquivo .animador.');
     const P = JSON.parse(new TextDecoder().decode(pj)); if (P.v !== 2) throw new Error('Este arquivo é do Animador antigo.');
     for (const [nome, d] of m) if (nome.startsWith('arq/')) await Arq.guardar(new Blob([d]), decodeURIComponent(nome.slice(4)));
+    try { const cv = m.get('conversa-ia.json'); if (cv && P.id) { const j = JSON.parse(new TextDecoder().decode(cv)), ja = await DB.get('arquivos', 'ia-conversa:' + P.id).catch(() => null); if (!(ja?.msgs?.length > (j.msgs?.length || 0))) await DB.put('arquivos', j, 'ia-conversa:' + P.id); } } catch { }
     let info = null; try { info = JSON.parse(new TextDecoder().decode(m.get('info.json'))); } catch { }
     P.id = uid('p'); P.modificado = Date.now(); await Autores.limpa(P); return { P, info };
   },

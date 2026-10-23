@@ -187,9 +187,10 @@ const Folha = {
       const tr = this.trecho && q >= this.trecho.de && q <= this.trecho.ate ? this.trecho : null, P = App.P;
       return UI.ctx(e.clientX, e.clientY, [
         tr ? { head: `Trecho ${Trechos.rotulo(tr, P)} (quadros ${tr.de + 1} a ${tr.ate + 1})` } : { head: `Quadro ${q + 1}` },
-        tr && { label: 'Pedir para a IA mudar só este trecho…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco?.() || null, { trechos: [{ de: tr.de, ate: tr.ate, nota: '' }] }) },
+        tr && { label: 'Citar este trecho na IA (ela muda só ele)', icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'trecho', de: tr.de, ate: tr.ate }) },
         tr && { label: 'Tirar a marcação do trecho', icon: 'x', action: () => { this.trecho = null; this.desenha(); } },
-        !tr && { label: 'Pedir para a IA mudar um trecho daqui…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco?.() || null, { trechos: [Trechos.novo(P, q / P.fps, q / P.fps + 2)] }) },
+        !tr && { label: `Citar o quadro ${q + 1} na IA`, icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'quadro', q }) },
+        !tr && { label: 'Citar um trecho daqui na IA (2 s)', icon: 'cut', action: () => { const t = Trechos.novo(P, q / P.fps, q / P.fps + 2); Assistente.citar({ tipo: 'trecho', de: t.de, ate: t.ate }); } },
         !tr && { label: 'Marcar um trecho: Shift + arrastar na régua', icon: 'cut', disabled: true },
         '-', { label: `Citar o quadro ${q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, q, App.sel) }].filter(Boolean));
     }
@@ -206,7 +207,8 @@ const Folha = {
       l.tipo === 'no' && { label: 'Começar aqui', icon: 'start', action: () => { l.no.de = p.q; App.commit('Começo'); } },
       l.tipo === 'no' && { label: 'Terminar aqui', icon: 'end', action: () => { l.no.ate = Math.max(l.no.de || 0, p.q); App.commit('Fim'); } },
       l.tipo === 'no' && { label: l.no.interp ? 'Movimento: segurar até a próxima chave' : 'Movimento: intercalar entre as chaves', icon: 'transition', action: () => { l.no.interp = !l.no.interp; App.commit('Movimento'); } },
-      '-', { label: `Citar o quadro ${p.q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, p.q, l.tipo === 'no' ? l.no.id : 'camera') },
+      '-', { label: `Citar na IA: ${l.nome} no quadro ${p.q + 1}`, icon: 'sparkles', ai: true, action: () => Assistente.citar(l.tipo === 'no' ? { tipo: 'camada', id: l.no.id, nome: l.no.nome, q: p.q } : { tipo: 'camera', q: p.q }) },
+      { label: `Citar o quadro ${p.q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, p.q, l.tipo === 'no' ? l.no.id : 'camera') },
     ].filter(Boolean));
   },
 };

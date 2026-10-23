@@ -134,7 +134,7 @@ const Cenarios = {
     const ctx = cv.getContext('2d'); ctx.translate(-rg.x, -rg.y);
     if (opac) { ctx.fillStyle = '#fff'; ctx.fillRect(rg.x, rg.y, rg.w, rg.h); }
     for (let i = 0; i < camadas.length; i++) {
-      if (i % 15 === 14) { prog?.(i / camadas.length); await sleep(0); }
+      if (i % 15 === 14) { prog?.(i / camadas.length); await cede(); } // cede sem setTimeout: com a aba escondida o setTimeout estica para 1 s/1 min
       try { this.camada(ctx, camadas[i], idx[i], semente, rg, opac); } catch (e) { console.warn('camada do cenário', e); }
     }
     prog?.(1); return cv;

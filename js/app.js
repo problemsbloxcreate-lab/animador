@@ -309,7 +309,8 @@ const App = {
         s && s.tipo !== 'efeito' && App.menuTremulo(s),
         s && { label: 'Apagar', icon: 'trash', danger: true, key: 'Del', action: () => App.apagarSel() },
         '-', { label: 'Enquadrar a câmera', icon: 'crop', key: 'F', action: () => App.enquadrar() },
-        '-', { label: `Citar o quadro ${App.q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, App.q, App.sel) },
+        '-', s ? { label: `Citar na IA: ${s.nome} no quadro ${App.q + 1}`, icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'camada', id: s.id, nome: s.nome, q: App.q }) } : { label: `Citar o quadro ${App.q + 1} na IA`, icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'quadro', q: App.q }) },
+        { label: `Citar o quadro ${App.q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, App.q, App.sel) },
       ].filter(Boolean));
     },
   },
