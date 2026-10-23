@@ -950,8 +950,8 @@ const Atelie = {
       for (const pr of s.presets) { const b = h(`<button class="${aberta && this.edit.p === pr.id ? 'on' : ''} ${mk.presets.has(pr.id) ? 'mod' : this.local().presets.has(pr.id) ? 'loc' : ''} ${daParte?.has(pr.id) ? (this.moverTodos ? 'todos' : 'mesma') : ''}" title="Clique para editar · botão direito: opções${mk.presets.has(pr.id) ? ' · mudou desde a última vez na nuvem' : ''}">${esc(pr.nome)}</button>`);
         ordenavel(b, 'preset-' + s.id, pr.id, (id, antes) => { const i = s.presets.findIndex(x => x.id === id), j = s.presets.indexOf(pr); if (i >= 0) { moveNaLista(s.presets, i, j, antes); this.commit(); } }, true); // arrastar muda a ordem
         if (st) b.classList.toggle('on', noPasso === pr.id);
-        b.onclick = () => { if (st) return Animacoes.usarPose(s, pr); this.edit = aberta && this.edit.p === pr.id ? null : { s: s.id, p: pr.id }; this.pinta(); }; // no passo: usa a pose nele · fora: abre para arrumar (de novo desmarca)
-        b.ondblclick = () => { if (st) { Linha.parar(); this.edit = { s: s.id, p: pr.id }; this.pinta(); } }; // no passo, dois cliques: arrumar a pose
+        b.onclick = ev => { if (ev.detail > 1) return; /* o 2º clique do duplo não conta */ if (st) return Animacoes.usarPose(s, pr); this.edit = aberta && this.edit.p === pr.id ? null : { s: s.id, p: pr.id }; this.pinta(); }; // no passo: usa a pose nele · fora: abre para arrumar (de novo desmarca)
+        b.ondblclick = () => { Linha.parar?.(); this.trocarImagemPreset(s, pr); }; // dois cliques: sai do frame e troca a imagem DESTE preset
         b.oncontextmenu = ev => { ev.preventDefault(); this.menuPreset(ev, s, pr); }; this.previaPreset(b, s, pr); l.appendChild(b); }
       const add = h(`<button title="Preset novo com o que está na tela">+ preset</button>`); add.onclick = () => this.novoPreset(s); l.appendChild(add);
       $('[data-ia]', c).onclick = () => this.presetIA(s); $('[data-m]', c).onclick = ev => this.menuSessao(ev, s);
@@ -1036,7 +1036,45 @@ const Atelie = {
     nome = nome || await UI.prompt({ title: `Preset novo em "${s.nome}"`, label: 'Nome (ex.: assustado, chutando)', ok: 'Criar' }); if (!nome) return;
     const est = this.estado(), partes = s.partes?.length ? s.partes : this.def.partes.map(p => p.id), estado = {};
     for (const pid of partes) { const p = this.parte(pid); if (!p) continue; const e = est[pid], b = p.base, d = {}; for (const c of ['img', 'x', 'y', 'r', 's', 'sx', 'vis']) if (e[c] !== b[c] && e[c] !== undefined) d[c] = e[c]; if (Object.keys(d).length) estado[pid] = d; }
-    const pr = { id: uid('pr'), nome, estado }; s.presets.push(pr); this.edit = { s: s.id, p: pr.id }; this.aba = 'sessoes'; this.commit();
+    const pr = { id: uid('pr'), nome, estado }; s.presets.push(pr);
+    // o preset novo fica separado do frame: para a animação de teste, sai do frame e já escolhe a parte da sessão (ex.: Boca)
+    this.sairDoFrame(); this.edit = { s: s.id, p: pr.id }; this.aba = 'sessoes';
+    const foco = this.parteDaSessao(s); if (foco) this.escolhe(foco.id);
+    this.commit();
+    UI.toast(`Preset <b>${esc(nome)}</b> criado${foco ? ` com a parte <b>${esc(foco.nome)}</b> escolhida` : ''}. O que você mexer agora vale só para ele. Dois cliques no preset trocam a imagem dele.`, { kind: 'ok', time: 5000 });
+  },
+  // sai de qualquer frame/animação de teste (parada ou tocando): o que mexer depois vale para o preset ou a base
+  sairDoFrame() { try { Animacoes.parar(true); } catch { } Animacoes.poseFixa = null; this.editPasso = null; this.teste = null; },
+  // a parte "responsável" da sessão: a que tem o mesmo nome (sessão Boca → parte Boca); senão a 1ª da sessão
+  parteDaSessao(s) {
+    const n = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(), ns = n(s.nome);
+    const ps = (s.partes || []).map(id => this.parte(id)).filter(Boolean);
+    return ps.find(p => n(p.nome) === ns) || ps.find(p => n(p.nome).includes(ns) || ns.includes(n(p.nome))) || ps[0] || null;
+  },
+  // dois cliques no preset: escolher a imagem de cada parte só NESTE preset (fora de qualquer frame, para não confundir)
+  trocarImagemPreset(s, pr) {
+    this.sairDoFrame(); this.edit = { s: s.id, p: pr.id }; this.aba = 'sessoes';
+    const foco = this.parteDaSessao(s), ids = s.partes?.length ? s.partes : Object.keys(pr.estado || {});
+    const ps = ids.map(id => this.parte(id)).filter(p => p && p.imgs.length).sort((a, b) => (b === foco) - (a === foco));
+    if (foco) this.escolhe(foco.id); this.pinta();
+    if (!ps.length) return UI.toast('Esta sessão ainda não tem partes com imagens.', { kind: 'warn' });
+    const body = h(`<div class="pr-imgs"><div class="pr-imgs-nota">Vale só para o preset <b>${esc(s.nome)} › ${esc(pr.nome)}</b> (os frames das animações não mudam).</div></div>`);
+    const pinta = () => {
+      $$('.pr-imgs-p', body).forEach(x => x.remove()); const est = this.estado();
+      for (const p of ps) {
+        const sec = h(`<div class="pr-imgs-p"><div class="pr-imgs-t">${esc(p.nome)}${p === foco ? ' <small>(desta sessão)</small>' : ''}</div><div class="pr-imgs-g"></div></div>`), g = $('.pr-imgs-g', sec);
+        for (const img of p.imgs) {
+          const c = h(`<button type="button" class="pr-imgs-i ${est[p.id]?.img === img.id ? 'on' : ''}" title="${esc(img.nome || '')}"><span></span><small>${esc(img.nome || '')}</small></button>`);
+          const desenha = () => { const bm = Arq.bitmap(img.k, desenha); if (!bm) return; const cv = document.createElement('canvas'); cv.width = cv.height = 72; const k = Math.min(72 / bm.width, 72 / bm.height); cv.getContext('2d').drawImage(bm, (72 - bm.width * k) / 2, (72 - bm.height * k) / 2, bm.width * k, bm.height * k); $('span', c).style.backgroundImage = `url(${cv.toDataURL()})`; };
+          desenha();
+          c.onclick = () => { this.edit = { s: s.id, p: pr.id }; this.mudar(p.id, { img: img.id }); this.commit(); pinta(); };
+          g.appendChild(c);
+        }
+        body.appendChild(sec);
+      }
+    };
+    pinta();
+    UI.modal({ title: `Imagem do preset "${pr.nome}"`, icon: 'image', width: 520, body, buttons: [{ label: 'Pronto', kind: 'primary', value: true }] });
   },
   async presetIA(s) {
     const pedido = await UI.prompt({ title: `Preset com a IA em "${s.nome}"`, label: 'Descreva (ex.: "olhos de susto, bem abertos", "chutando para a frente")', ok: 'Criar', icon: 'sparkles', ia: true }); if (!pedido) return;

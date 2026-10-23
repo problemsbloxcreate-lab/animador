@@ -898,3 +898,12 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .ctx-prev canvas{width:180px;height:180px;border-radius:8px;background:repeating-conic-gradient(#262626 0 25%,#1e1e1e 0 50%) 0 0/14px 14px}
 .ctx-prev span{font-size:11.5px;color:var(--tx2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @keyframes ctxPrev{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+/* dois cliques no preset: escolher a imagem de cada parte só nele */
+.pr-imgs{display:grid;gap:12px;max-height:60vh;overflow:auto}
+.pr-imgs-nota{font-size:12.5px;color:var(--tx2)}
+.pr-imgs-t{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--tx2);margin-bottom:6px}.pr-imgs-t small{text-transform:none;letter-spacing:0;font-weight:500;color:var(--tx3)}
+.pr-imgs-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+.pr-imgs-i{display:grid;justify-items:center;gap:4px;padding:6px;border-radius:10px;border:1px solid var(--bd2,#444);background:var(--bg2,#2a2a2a);color:inherit;cursor:pointer;font:inherit}
+.pr-imgs-i span{width:72px;height:72px;border-radius:6px;background:repeating-conic-gradient(rgba(255,255,255,.06) 0 25%,transparent 0 50%) 0 0/12px 12px;background-size:contain;background-position:center;background-repeat:no-repeat}
+.pr-imgs-i small{font-size:11px;max-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx2)}
+.pr-imgs-i:hover{border-color:var(--ac,#3d8bff)}.pr-imgs-i.on{border-color:var(--ac,#3d8bff);box-shadow:0 0 0 2px rgba(61,139,255,.35);background:rgba(61,139,255,.12)}
