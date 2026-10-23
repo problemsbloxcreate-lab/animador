@@ -96,6 +96,12 @@ const Vetor = {
             for (const i of px) { const x = i % W; for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i - W, i + W]) if (j >= 0 && j < N && !dent.has(j) && lab[j] >= 0) { const t = troca.get(lab[j]); if (t !== undefined) lab[j] = t; } } } }
         nc++; } }
 
+    // BORDA DE FORA = LINHA: neste estilo o desenho sempre termina no traço; o pixel claro/meio transparente do recorte na beira
+    // (o pontilhado do PNG) vira traço, senão a cor da área aparece como um fio em volta do contorno
+    let b1 = null; if (o.bordaLinha !== false) { const fora = i => A[i] < 40, viz = (i, f) => { const x = i % W; if (x > 0) f(i - 1); if (x < W - 1) f(i + 1); if (i >= W) f(i - W); if (i + W < N) f(i + W); };
+      b1 = new Uint8Array(N); for (let i = 0; i < N; i++) { if (fora(i)) continue; let t = false; viz(i, j => { if (fora(j)) t = true; }); if (t) { b1[i] = 1; cob[i] = 0; } }
+      for (let i = 0; i < N; i++) { if (b1[i] || fora(i) || reg[i] >= 0 && A[i] > 230) continue; let t = false; viz(i, j => { if (b1[j]) t = true; }); if (t && A[i] < 235) cob[i] = 0; }
+      const b2 = Uint8Array.from(b1); for (let i = 0; i < N; i++) if (b1[i]) viz(i, j => { if (!fora(j)) b2[j] = 1; }); b1 = b2; } // a cor fica 2 px para dentro da beira
     // ---- 5) CAMADAS: Cor (embaixo) e Linha (em cima), separadas ----
     // cada pixel opaco ganha a cor da área mais perto (por baixo do traço também): apagar a linha mostra a cor, não um buraco
     const tudo = Int32Array.from(lab); { let fr = []; for (let i = 0; i < N; i++) if (tudo[i] >= 0) fr.push(i);
@@ -105,7 +111,7 @@ const Vetor = {
     const g = new Float32Array(N); for (let i = 0; i < N; i++) g[i] = A[i] / 255 * (lab[i] >= 0 ? 1 - cob[i] : 1);
     const cores = [], ordem = pal.map((p, j) => j).sort((a, b) => pal[b].n - pal[a].n), naFrente = new Uint8Array(pal.length).fill(1);
     for (const c of ordem) { // cada cor cobre também as áreas das que vêm depois (nunca fica fresta entre duas cores)
-      const f = new Float32Array(N); for (let i = 0; i < N; i++) { const l = tudo[i]; if (l >= 0 && naFrente[l]) f[i] = A[i] / 255; }
+      const f = new Float32Array(N); for (let i = 0; i < N; i++) { const l = tudo[i]; if (l >= 0 && naFrente[l] && !(b1 && b1[i])) f[i] = A[i] / 255; } // a cor para 1 px antes da borda de fora (lá é só traço)
       const d = this.caminho(this.contornos(f, W, H, .62), { ...o, zonaSo: true }); if (d) cores.push({ d, c: hex(pal[c].c), r: 1 });
       naFrente[c] = 0; }
     const dl = this.caminho(this.contornos(g, W, H, .5), o);
