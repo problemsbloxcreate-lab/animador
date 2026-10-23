@@ -258,6 +258,7 @@ const App = {
       if (e.button === 1 || e.button === 0 && (this.espaco || App.ferr === 'mao' || e.altKey)) return this.arrastaVista(e);
       if (e.button !== 0) return;
       if (App.ferr === 'camera' || App.sel === 'camera') return this.arrastaCamera(e);
+      if (Deformar.ativo && Deformar.desce(e, this.cv, this.dpr)) return; // deformar: arrastar um ponto
       const al = this.alcas(), perto = (a, b, r = 10) => a && Math.hypot(a.x - b.x, a.y - b.y) < r;
       const s = App.noSel();
       if (al && s && !s.trava && perto(al.girar, tela, 11)) return this.arrastaGiro(e, s, al);
@@ -303,6 +304,7 @@ const App = {
         s?.tipo === 'personagem' && { label: `Editar no Ateliê (pose do quadro ${App.q + 1})`, icon: 'edit', action: () => Animacoes.editarNoAtelie(s) },
         s?.tipo === 'personagem' && { label: 'Abrir no Ateliê como pose nova…', icon: 'plus', action: () => Animacoes.poseNova(s) },
         s?.tipo === 'personagem' && { label: (Modelo.transf(s, App.q).sx || 1) < 0 ? 'Desespelhar (voltar para o lado de antes)' : 'Espelhar (virar para o outro lado)', icon: 'transition', action: () => Animacoes.espelhar(s) },
+        Deformar.pode(s) && { label: Deformar.ativo ? 'Parar de deformar' : 'Deformar (cantos ou malha)…', icon: 'transition', key: 'T', action: () => Deformar.alterna(s) },
         s && { label: 'Chave neste quadro', icon: 'diamond', key: 'K', action: () => App.chaveAqui() },
         s && { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
         s && { label: 'Pôr numa pasta', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },
@@ -335,6 +337,7 @@ const App = {
     ctx.strokeStyle = this.sel === 'camera' ? '#9fc3ff' : 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5 * pc.dpr; ctx.beginPath(); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = `${11 * pc.dpr}px Segoe UI`; ctx.fillText(`Câmera · ${P.w}×${P.h}`, ct[0].x + 6 * pc.dpr, ct[0].y - 6 * pc.dpr);
     this.desenhaRegua(ctx, V, W, H, pc.dpr); AoVivo.desenha(ctx, V, pc.dpr);
+    if (Deformar.ativo && Deformar.desenhaAlcas(ctx, V, pc.dpr)) return; // deformando: os pontos no lugar das alças
     // seleção com alças (girar em cima, tamanho no canto)
     const al = this.palco.alcas();
     if (al) {
@@ -367,6 +370,7 @@ const App = {
     const k = e.key, ctrl = e.ctrlKey || e.metaKey, s = this.noSel();
     if (ctrl && (k === 'z' || k === 'Z')) { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
     if (ctrl && k === 'y') { e.preventDefault(); return this.redo(); }
+    if (ctrl && (k === 't' || k === 'T')) { e.preventDefault(); return Deformar.alterna(s); }
     if (ctrl && k === 'd') { e.preventDefault(); return this.duplicar(); }
     if (ctrl && k === 'g') { e.preventDefault(); return this.addPasta(); }
     if (ctrl && k === 's') { e.preventDefault(); this.salvarJa(); return UI.toast('Salvo neste computador', { kind: 'ok' }); }
@@ -382,6 +386,8 @@ const App = {
       Modelo.poeTransf(s, this.q, { x: t.x + d[0], y: t.y + d[1] }); clearTimeout(this._tSeta); this.pinta(); this._tSeta = setTimeout(() => this.commit('Mover', { semArvore: true }), 350); return;
     }
     const kk = k.toLowerCase();
+    if (kk === 't') return Deformar.alterna(s); // deformar (o Ctrl+T o navegador não deixa)
+    if (Deformar.ativo && (k === 'Enter' || k === 'Escape')) { e.preventDefault(); return Deformar.sair(); }
     if (kk === 'k') return e.shiftKey ? this.tiraChave() : this.chaveAqui();
     if (kk === 'r') return this.trocaRegua();
     if (kk === 'o') { this.onion = !this.onion; $('#b-onion').classList.toggle('on', this.onion); return this.pinta(); }

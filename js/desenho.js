@@ -72,6 +72,7 @@ const Render = {
     const t = Modelo.transf(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
     if (n.filhos) { this.lista(ctx, P, q, base, n.filhos, mm, a, fr, nivel + 1); return true; }
     ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a));
+    const df = n.chaves && Deformar.em(n, q); if (df && Deformar.desenha(ctx, P, q, base, n, mm, df)) { ctx.restore(); return true; } // deformada (js/deformar.js)
     if (n.tipo === 'personagem') {
       for (const it of this.pecasPersonagem(P, n, q, mm)) {
         if (!it.img) continue; const bm = Arq.comAp(this.bm(it.img.k), it, () => Render.aoChegarImagem?.()); if (!bm) continue;
