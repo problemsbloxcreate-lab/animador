@@ -241,24 +241,33 @@ const AoVivo = {
   ausente(v) { this._afk = v; if (this.ativo) try { this.t.presenca(this.sala, this.eu.id, { afk: v }); } catch { } },
   // o que cada um fez nesta sessão (para a lista ao passar o mouse no "ao vivo")
   anota(id, nome, r) {
-    if (!id || !r) return; const f = (this.feitos ||= {})[id] ||= { nome, L: [] }; f.nome = nome || f.nome;
-    const u = f.L[0]; if (u && u.r === r && Date.now() - u.t < 20000) { u.t = Date.now(); u.n = (u.n || 1) + 1; } else f.L.unshift({ r, t: Date.now() }); f.L.length = Math.min(f.L.length, 6);
+    if (!id || !r) return; id = this.contaDe(id); const f = (this.feitos ||= {})[id] ||= { nome, L: [] }; // por CONTA: duas abas da mesma pessoa somam f.nome = nome || f.nome;
+    const u = f.L[0]; if (u && u.r === r && Date.now() - u.t < 20000) { u.t = Date.now(); u.n = (u.n || 1) + 1; } else f.L.unshift({ r, t: Date.now() }); f.L.length = Math.min(f.L.length, 300);
     if (this._pop?.isConnected) this.pintaPop();
   },
+  contaDe(id) { return id === this.eu?.id ? this.eu.conta || id : this.gente?.[id]?.conta || String(id).replace(/-[a-z0-9]{6}$/, ''); },
   quando(t) { const s = Math.round((Date.now() - t) / 1000); return s < 10 ? 'agora' : s < 60 ? `há ${s} s` : s < 3600 ? `há ${Math.round(s / 60)} min` : `há ${Math.round(s / 3600)} h`; },
-  pintaPop() {
-    const pop = this._pop; if (!pop) return; const eu = this.eu, pessoas = [{ id: eu?.id, nome: eu?.nome, foto: eu?.foto, cor: eu?.cor, eu: true, fazendo: '' }, ...this.outros()];
-    for (const [id, f] of Object.entries(this.feitos || {})) if (!pessoas.some(p => p.id === id)) pessoas.push({ id, nome: f.nome, saiu: true });
-    pop.innerHTML = `<div class="aut-t" style="border:0;margin:0">Trabalhando junto agora</div>` + pessoas.map(p => { const f = this.feitos?.[p.id]?.L || [];
+  // lista de quem está junto; max = quantas mudanças de cada um (a janelinha mostra poucas, o clique abre todas)
+  htmlPessoas(max) {
+    const eu = this.eu, pessoas = [{ id: eu?.id, conta: eu?.conta, nome: eu?.nome, foto: eu?.foto, cor: eu?.cor, eu: true, fazendo: '' }, ...this.outros()], cDe = p => p.conta || this.contaDe(p.id);
+    for (const [c, f] of Object.entries(this.feitos || {})) if (!pessoas.some(p => cDe(p) === c)) pessoas.push({ id: c, conta: c, nome: f.nome, saiu: true });
+    return pessoas.map(p => { const L = this.feitos?.[cDe(p)]?.L || [], f = L.slice(0, max), mais = L.length - f.length;
       return `<div class="avp-p"><div class="aut-l"><span class="avp-av${p.afk || p.saiu ? ' afk' : ''}" style="--c:${p.cor || '#888'}">${p.foto ? `<img src="${esc(p.foto)}" alt="" referrerpolicy="no-referrer">` : esc((p.nome || '?')[0])}</span><div><b>${esc(p.nome || 'Alguém')}${p.eu ? ' <small>(você)</small>' : ''}</b><small>${p.saiu ? 'saiu' : p.afk ? 'ausente' : p.fazendo ? 'agora: ' + esc(p.fazendo) : 'na sala'}</small></div></div>`
-        + (f.length ? `<ul class="avp-l">${f.map(x => `<li><span>${esc(x.r)}${x.n > 1 ? ` <small>×${x.n}</small>` : ''}</span><small>${this.quando(x.t)}</small></li>`).join('')}</ul>` : '<div class="avp-nada">nenhuma mudança ainda</div>') + '</div>'; }).join('');
+        + (f.length ? `<ul class="avp-l">${f.map(x => `<li><span>${esc(x.r)}${x.n > 1 ? ` <small>×${x.n}</small>` : ''}</span><small>${this.quando(x.t)}</small></li>`).join('')}${mais > 0 ? `<li class="avp-mais"><span>+ ${mais} mudança${mais > 1 ? 's' : ''}</span></li>` : ''}</ul>` : '<div class="avp-nada">nenhuma mudança ainda</div>') + '</div>'; }).join('');
   },
+  pintaPop() { const pop = this._pop; if (!pop) return; pop.innerHTML = `<div class="aut-t" style="border:0;margin:0">Trabalhando junto agora</div>${this.htmlPessoas(3)}<div class="avp-dica">${ic('chat', 11)} Clique para ver todas as mudanças de cada um</div>`; },
+  historico() {
+    this._pop?.remove(); this._pop = null; const body = h(`<div class="avp-hist">${this.htmlPessoas(Infinity)}</div>`);
+    UI.modal({ title: 'Quem está junto e o que cada um mudou', icon: 'users', width: 480, body, buttons: [{ label: 'Fechar', kind: 'primary', value: true }] });
+  },
+
   ligaPop(el) {
     if (el._pop) return; el._pop = true;
     el.addEventListener('mouseenter', () => { this._pop?.remove(); const pop = this._pop = h('<div class="aut-pop avp-pop"></div>'); document.body.appendChild(pop); this.pintaPop();
       const r = el.getBoundingClientRect(), pr = pop.getBoundingClientRect(); pop.style.left = Math.max(6, Math.min(r.left, innerWidth - pr.width - 6)) + 'px'; pop.style.top = r.bottom + 6 + 'px';
       clearInterval(this._popIv); this._popIv = setInterval(() => this._pop?.isConnected ? this.pintaPop() : clearInterval(this._popIv), 5000); });
     el.addEventListener('mouseleave', () => { this._pop?.remove(); this._pop = null; clearInterval(this._popIv); });
+    el.addEventListener('click', ev => { if (ev.target.closest('button')) return; this.historico(); }); el.style.cursor = 'pointer';
   },
   pintaBarra() {
     for (const el of $$('[data-aovivo]')) { const outros = this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx ? this.outros() : [];

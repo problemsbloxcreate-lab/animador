@@ -825,3 +825,7 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .vt-card>b{color:var(--tx);font-size:16px}.vt-card small{color:var(--tx3);font-size:11.5px}.vt-card .btn{margin-top:6px}
 .vt-ic{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#3d8bff,#19d3f0);color:#fff}
 .dock-janela.vai-grudar{opacity:.55;outline:2px dashed #5aa9e8;outline-offset:2px}
+.avp-l .avp-mais span{color:var(--tx3);font-style:italic}
+.avp-dica{border-top:1px solid var(--bd);margin-top:6px;padding:6px 2px 0;color:var(--tx3);font-size:10.5px;display:flex;gap:5px;align-items:center}
+.avp-hist{max-height:60vh;overflow:auto;font-size:12px}.avp-hist .aut-l{display:flex;align-items:center;gap:8px;padding:4px 2px}.avp-hist b{display:block}.avp-hist small{color:var(--tx3);font-size:11px}
+.avp-hist .avp-p+.avp-p{border-top:1px solid var(--bd);margin-top:6px;padding-top:4px}
