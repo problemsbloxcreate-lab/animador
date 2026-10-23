@@ -814,3 +814,8 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .sp-pronta .sp-l span{display:flex;flex-direction:column;gap:2px;min-width:0}.sp-pronta .sp-l small{color:var(--tx3);font-size:11px}
 .sp-pronta .sp-av{font-style:normal;font-size:11px;color:#ffcf8a;display:flex;gap:5px;align-items:flex-start}.sp-pronta .sp-av svg{flex:none;margin-top:2px}
 .sp-pronta .sp-ja{margin-top:10px;font-size:11.5px;color:var(--tx3);display:flex;gap:6px;align-items:center}
+/* ao vivo: outra pessoa soltou um .atelieanimador e está decidindo se troca o personagem */
+.troca-av{position:fixed;inset:0;z-index:9000;display:grid;place-items:center;background:rgba(8,10,14,.55);pointer-events:auto}
+.troca-card{width:min(420px,calc(100vw - 32px));background:#1f2228;border:1px solid #3a6f9e;border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);color:var(--tx2);font-size:12.5px}
+.troca-card b{color:var(--tx)}.troca-card>b{font-size:15px}.troca-card small{color:var(--tx3);font-size:11.5px}
+.troca-ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,#3d8bff,#19d3f0);color:#fff}

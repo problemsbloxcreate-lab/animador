@@ -39,9 +39,12 @@ const AtelieArq = {
     const tela = o => Ocupado.inicio({ tipo: 'arquivo', icone: 'layers', aviso: 'Aguarde: não dá para mexer enquanto isso. Não feche esta aba.', ...o });
     let r, fim = tela({ titulo: 'Abrindo o arquivo', subtitulo: `Lendo ${f.name}…` }); try { r = await this.ler(f); } catch (e) { fim(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); } fim();
     const novo = r.def, np = Modelo.todasPartes ? Modelo.todasPartes(novo).length : novo.partes.length, nps = (novo.sessoes || []).reduce((n, s) => n + (s.presets?.length || 0), 0) + (novo.vistas || []).reduce((n, v) => n + (v.sessoes || []).reduce((m, s) => m + (s.presets?.length || 0), 0), 0);
+    AoVivo.avisaTroca?.({ estado: 'pergunta', arquivo: f.name, resumo: `${np} parte${np === 1 ? '' : 's'}, ${nps} preset${nps === 1 ? '' : 's'}` }); // trabalhando junto: os outros veem que está sendo decidido
     const op = await UI.modal({ title: 'Substituir este personagem?', icon: 'layers', width: 480, body: `<div>Trocar tudo de <b>${esc(atual.nome)}</b> — partes, imagens, poses e presets, animações de teste e vistas — pelo que está no arquivo <b>${esc(f.name)}</b> (${esc(novo.nome || '')}: ${np} parte${np === 1 ? '' : 's'}, ${nps} preset${nps === 1 ? '' : 's'}).<br><br>Antes, uma cópia de como ele está agora fica guardada <b>neste computador</b> ("${esc(atual.nome)} (anterior)", em Só neste computador).${Atelie.naNuvem ? '<br><br>Ele está na nuvem: a nuvem da equipe também passa a ter a versão do arquivo.' : ''}</div>`,
       buttons: [{ label: 'Cancelar', value: null }, { label: 'Abrir como outro personagem', value: 'abrir' }, { label: 'Substituir', kind: 'primary', value: 'sub' }] });
+    if (op !== 'sub') AoVivo.avisaTroca?.({ estado: 'cancelado', arquivo: f.name });
     if (op === 'abrir') return this.abrir(f); if (op !== 'sub') return;
+    AoVivo.avisaTroca?.({ estado: 'trocando', arquivo: f.name });
     fim = tela({ titulo: `Substituindo ${atual.nome}`, subtitulo: 'Guardando a cópia de antes neste computador…' }); const t = { remove: () => fim() };
     try {
       await Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(atual)), atual.thumb, `${atual.nome} (anterior)`);
@@ -52,9 +55,11 @@ const AtelieArq = {
       Object.assign(d, { id, nome: atual.nome, pasta: atual.pasta, autor: atual.autor, edicoes: atual.edicoes, modificado: Date.now() }); for (const c of ['autor', 'edicoes']) if (d[c] === undefined) delete d[c];
       Modelo.garanteVistas?.(d); await Arq.garantir(Modelo.chavesImgs(d)).catch(() => { });
       Atelie.def = d; Atelie.sel = d.raiz || d.partes[0]?.id || null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = null; if (Atelie.edImg) Atelie.fecharEditor(); Atelie.multi?.clear();
-      Atelie.commit(); Atelie.enquadrar?.(); t.remove();
+      Atelie.commit(); Atelie.enquadrar?.();
+      if (AoVivo.ativo) { Ocupado.passo('Mandando para quem está junto…'); try { await AoVivo._fila; } catch { } AoVivo.avisaTroca({ estado: 'feito', arquivo: f.name }); }
+      t.remove();
       UI.toast(`<b>${esc(atual.nome)}</b> agora é a versão do arquivo.${Atelie.naNuvem ? ' A nuvem está sendo atualizada.' : ''} A de antes ficou em <b>${esc(atual.nome)} (anterior)</b>, só neste computador (Ctrl+Z também volta).`, { kind: 'ok', time: 8000 });
-    } catch (e) { t.remove(); UI.toast('Não consegui substituir: ' + esc(e.message), { kind: 'err', time: 7000 }); }
+    } catch (e) { t.remove(); AoVivo.avisaTroca?.({ estado: 'cancelado', arquivo: f.name }); UI.toast('Não consegui substituir: ' + esc(e.message), { kind: 'err', time: 7000 }); }
   },
   // errado = soltou/abriu no lugar de animação: abre no Ateliê do mesmo jeito, mas avisa que projeto do Animador é .animador
   async abrir(f, o = {}) {

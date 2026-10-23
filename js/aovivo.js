@@ -135,7 +135,28 @@ const AoVivo = {
     try { await this._fila; } catch { } try { if (o.encerrar) await t.setMeta(sala, { fim: true }); await t.sair(sala, eu.id); if (o.encerrar) await t.apagar(sala); } catch { }
     this.gente = {}; this.ad?.redesenha(); this.ad = null; this.sala = null; this.pintaBarra();
   },
-  meta(m) { if (m?.fim && this.ativo && this.ad?.ctx === 'animador' && !this._saindo) { this._saindo = true; this.ad.salvar?.(); this.sair().then(() => { this._saindo = false; UI.toast('O trabalho em conjunto terminou. A cópia com as últimas mudanças ficou salva neste computador.', { kind: 'ok', time: 9000 }); }); } },
+  meta(m) { if (m?.troca) this.recebeTroca(m.troca); if (m?.fim && this.ativo && this.ad?.ctx === 'animador' && !this._saindo) { this._saindo = true; this.ad.salvar?.(); this.sair().then(() => { this._saindo = false; UI.toast('O trabalho em conjunto terminou. A cópia com as últimas mudanças ficou salva neste computador.', { kind: 'ok', time: 9000 }); }); } },
+  // ---------- TROCAR O PERSONAGEM PELO ARQUIVO (.atelieanimador) com gente junto ----------
+  // quem soltou o arquivo decide; os outros veem o aviso, a tela de espera, e cada um guarda a cópia de antes no próprio computador
+  avisaTroca(o) { if (!this.ativo || this.ad?.ctx !== 'atelie') return; try { return this.t.setMeta(this.sala, { troca: { ...o, por: this.eu.id, nome: this.eu.nome, t: Date.now() } }); } catch { } },
+  async recebeTroca(x) {
+    if (!x || !this.ativo || x.por === this.eu?.id || x.t === this._trocaT) return; this._trocaT = x.t;
+    if (['pergunta', 'trocando'].includes(x.estado) && Math.abs(Date.now() - x.t) > 120000) return; // sobra antiga na sala
+    const quem = esc((x.nome || 'Alguém').split(' ')[0]), nome = esc(Atelie.def?.nome || 'o personagem'); this._trocaEl?.remove(); this._trocaEl = null;
+    if (x.estado === 'pergunta') {
+      this._trocaEl = h(`<div class="troca-av"><div class="troca-card"><div class="troca-ic">${ic('layers', 22)}</div><b>${quem} soltou um arquivo</b><div>${quem} está decidindo se troca <b>${nome}</b> pelo arquivo <b>${esc(x.arquivo || '')}</b>${x.resumo ? ` (${esc(x.resumo)})` : ''}.</div><small>Só ${quem} decide. Se trocar, a versão de agora também fica guardada neste computador ("${nome} (anterior)").</small></div></div>`);
+      document.body.appendChild(this._trocaEl); return;
+    }
+    if (x.estado === 'trocando') {
+      this._trocaFim?.(); this._trocaFim = Ocupado.inicio({ tipo: 'arquivo', icone: 'layers', titulo: `${x.nome ? (x.nome || '').split(' ')[0] : 'Alguém'} está substituindo ${Atelie.def?.nome || 'o personagem'}`, subtitulo: 'Guardando a cópia de antes neste computador…', aviso: 'Aguarde: a versão nova vem do arquivo que a outra pessoa soltou. Não feche esta aba.' });
+      clearTimeout(this._trocaTo); this._trocaTo = setTimeout(() => { this._trocaFim?.(); this._trocaFim = null; }, 180000);
+      try { const d = Atelie.def; await Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(d)), d.thumb, `${d.nome} (anterior)`); Ocupado.passo('Esperando a versão nova chegar…'); } catch { Ocupado.passo('Esperando a versão nova chegar…'); }
+      return;
+    }
+    this._trocaFim?.(); this._trocaFim = null; clearTimeout(this._trocaTo);
+    if (x.estado === 'feito') UI.toast(`<b>${quem}</b> trocou <b>${nome}</b> pelo arquivo <b>${esc(x.arquivo || '')}</b>. A versão de antes ficou em <b>${nome} (anterior)</b>, neste computador.`, { kind: 'ok', time: 9000 });
+    else if (x.estado === 'cancelado') UI.toast(`<b>${quem}</b> não trocou o personagem pelo arquivo.`, { time: 3500 });
+  },
   // ---------- mudanças ----------
   // chamado depois de cada commit local (Atelie.commit / App.commit)
   mudouLocal(rotulo) {
