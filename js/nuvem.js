@@ -35,7 +35,8 @@ const Nuvem = {
     // lista PARCIAL (a principal não listou, sem foto nem cópia de segurança): só vieram os personagens salvos na reserva;
     // os outros que este computador tem aparecem separados como cópia local
     if (this.parcial) this.copiasPc = (await DB.all('personagens').catch(() => [])).filter(d => d?.id && d.nome && !d._local && !ids.has(d.id));
-    return out.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
+    const apag = this._apagados; if (apag) for (const [i, t] of [...apag]) if (Date.now() - t > 180e3) apag.delete(i);
+    return out.filter(it => !apag?.has(it.id)).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
   },
   // definição do personagem (da nuvem; se estiver sem internet, a cópia do navegador)
   // mod = marca da última gravação na nuvem: se a cópia deste computador é a mesma, não baixa de novo
@@ -128,7 +129,10 @@ const Nuvem = {
   },
   // aplica a troca de chaves num texto JSON do personagem
   remapear(txt, troca) { if (!txt) return txt; for (const [a, b] of Object.entries(troca || {})) txt = txt.split(JSON.stringify(a)).join(JSON.stringify(b)); return txt; },
-  async apagar(id) { this._lista = null; await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/`), { method: 'DELETE' }); await DB.del('personagens', id); this._ks.delete(id); this.avisaEspaco(); },
+  // apagado agora: some da lista na hora (a nuvem pode levar até ~1 min para a lista de todos os lugares mostrar que saiu)
+  async apagar(id) { this._lista = null; const t = UI.toast('<span class="spin-dot"></span> Apagando da nuvem…', { time: 120000 });
+    try { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/`), { method: 'DELETE' }); } finally { t.remove(); }
+    (this._apagados ||= new Map()).set(id, Date.now()); await DB.del('personagens', id); this._ks.delete(id); this._lista = null; this.avisaEspaco(); UI.toast('Apagado da nuvem da equipe.', { kind: 'ok' }); },
 
   /* ---------- cenários da equipe: só entram aqui quando alguém escolhe "Salvar na nuvem" (botão direito na camada) ---------- */
   async cenarios() { const j = await (await this.pede('/cenarios')).json(); return (j.itens || []).sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))); },
