@@ -99,6 +99,17 @@ const Modelo = {
   nomeTipo(t) { return (Modelo.TIPOS_VISTA.find(x => x[0] === t) || [, 'Vista'])[1]; },
   CAMPOS_VISTA: ['partes', 'sessoes', 'animacoes', 'raiz', 'vis'],
   // garante que o personagem tem a lista de vistas (personagens antigos: a vista que já existe vira a 1ª)
+  // FPS DO PERSONAGEM (def.fps, padrão 24 = o do Animador) e o tempo de cada frame das animações de teste em QUADROS (a.q, inteiro).
+  // a.vel (ms) continua existindo, sempre igual a q quadros nesse fps, para tudo que toca/mostra usar como antes.
+  FPS_PADRAO: 24,
+  fpsDe(def) { const f = +def?.fps; return f >= 1 && f <= 120 ? f : Modelo.FPS_PADRAO; },
+  todasAnims(def) { return [...(def?.animacoes || []), ...(def?.vistas || []).filter(v => v.id !== def.vistaAtual).flatMap(v => v.animacoes || [])]; },
+  // q faltando (animação antiga ou que a IA fez em ms) = o nº de quadros mais perto do tempo; depois a.vel = q quadros
+  sincAnims(def) { if (!def) return def; const fps = Modelo.fpsDe(def);
+    for (const a of Modelo.todasAnims(def)) { if (!(+a.q >= 1) || (a._fps && a._fps !== fps)) a.q = Math.max(1, Math.round((+a.vel || 250) / 1000 * fps)); a.q = Math.min(240, Math.round(+a.q)); a.vel = Math.round(a.q * 1000 / fps); delete a._fps; }
+    return def; },
+  // mudar o fps do personagem: o TEMPO de cada frame fica (o nº de quadros é recalculado)
+  trocaFps(def, fps) { fps = Math.round(clamp(+fps || Modelo.FPS_PADRAO, 1, 120)); for (const a of Modelo.todasAnims(def)) a.q = Math.max(1, Math.round((+a.vel || 250) / 1000 * fps)); def.fps = fps; return Modelo.sincAnims(def); },
   garanteVistas(def) {
     // conserta o que já chegou estragado (listas que viraram objeto, duas vistas com o mesmo id, a ativa sumida) SEM jogar fora nenhuma parte/preset
     const lista = x => Array.isArray(x) ? x : x && typeof x === 'object' ? Object.values(x) : x;

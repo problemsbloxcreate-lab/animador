@@ -191,9 +191,15 @@ const Animacoes = {
   /* ---------- no editor: escrever a animação como chaves a partir do quadro atual ---------- */
   async porNoQuadro(n, def, a) {
     const P = App.P, trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação não tem frames.', { kind: 'warn' });
-    const fppPadrao = Math.max(1, Math.round((+a.vel || 250) / 1000 * P.fps)), maior = Math.max(...trilhas.map(t => t.length));
-    const body = h(`<div><label class="field">Quadros por frame<input type="number" min="1" max="48" value="${fppPadrao}" data-f></label><label class="field">Quantas vezes repetir<input type="number" min="1" max="50" value="2" data-r></label>
+    Modelo.sincAnims(def); const fpsP = Modelo.fpsDe(def), qa = +a.q || 1, maior = Math.max(...trilhas.map(t => t.length));
+    // QUADROS POR FRAME no projeto = os quadros do Ateliê × (fps do projeto ÷ fps do personagem). Igual = sem arredondar nada.
+    const conta = f => qa * P.fps / f, fppPadrao = Math.max(1, Math.round(conta(fpsP)));
+    const body = h(`<div><div class="pq-fps">${ic('clock', 13)}<span>No Ateliê: <b>${qa} quadro${qa === 1 ? '' : 's'}</b> por frame a <b>${fpsP} fps</b> (${Linha.seg(a)}) · este projeto: <b>${P.fps} fps</b></span></div>
+      <label class="field">FPS do personagem nesta animação<select data-fp>${Linha.opcoesFps(fpsP).replace('<option value="outro">Outro…</option>', '')}</select></label>
+      <label class="field">Quadros por frame<input type="number" min="1" max="48" value="${fppPadrao}" data-f></label><div class="pq-aviso" data-av></div><label class="field">Quantas vezes repetir<input type="number" min="1" max="50" value="2" data-r></label>
       <div style="color:var(--tx3);font-size:12px">Começa no quadro ${App.q + 1}. No fim, as partes voltam ao normal.</div></div>`);
+    const av = () => { const f = +$('[data-fp]', body).value, c = conta(f), q = +$('[data-f]', body).value; $('[data-av]', body).innerHTML = Math.abs(c - Math.round(c)) > .01 ? `${ic('alert', 12)} ${qa} quadro(s) a ${f} fps = ${c.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} quadros a ${P.fps} fps: vai arredondar para ${Math.max(1, Math.round(c))}.` : q !== Math.round(c) ? `${ic('info', 12)} No Ateliê seriam ${Math.round(c)} quadros.` : ''; };
+    $('[data-fp]', body).onchange = () => { $('[data-f]', body).value = Math.max(1, Math.round(conta(+$('[data-fp]', body).value))); av(); }; $('[data-f]', body).oninput = av; av();
     const r = await UI.modal({ title: `Pôr "${a.nome}" na animação`, icon: 'film', body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Pôr', kind: 'primary', collect: x => ({ f: clamp(+$('[data-f]', x.body).value || 1, 1, 48), r: clamp(+$('[data-r]', x.body).value || 1, 1, 50) }) }] });
     if (!r) return; const vi = Modelo.vistaDaAnim(def, a.id); if (vi && def.vistas?.length > 1) Modelo.chave(n, App.q).vista = vi; // a animação é de uma vista: o personagem fica nela
     const fim = this.escreve(n, a, App.q, r.f, r.r); App.commit(`Animação "${a.nome}"`); UI.toast(`"${esc(a.nome)}" posta do quadro ${App.q + 1} ao ${fim}.`, { kind: 'ok' });

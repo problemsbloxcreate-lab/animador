@@ -43,12 +43,13 @@ const AtelieArq = {
     // COMO guardar a versão de agora: (a) as vistas antigas ficam NO MESMO personagem com "(antigo)" no nome; ou (b) uma cópia "(anterior)"
     // vai para "Só neste computador" de TODOS que estão junto e o personagem fica só com o que veio do arquivo
     const corpo = h(`<div>Trocar tudo de <b>${esc(atual.nome)}</b> — partes, imagens, poses e presets, animações de teste e vistas — pelo que está no arquivo <b>${esc(f.name)}</b> (${esc(novo.nome || '')}: ${np} parte${np === 1 ? '' : 's'}, ${nps} preset${nps === 1 ? '' : 's'}).${Atelie.naNuvem ? ' Ele está na nuvem: a nuvem da equipe também passa a ter a versão do arquivo.' : ''}
+      <label class="field sub-fps" title="Quadros por segundo das animações do personagem">FPS do personagem<select data-fps>${Linha.opcoesFps(Modelo.fpsDe(novo)).replace('<option value="outro">Outro…</option>', '')}</select><small>No arquivo: ${Modelo.fpsDe(novo)} fps${(+atual.fps || 24) !== Modelo.fpsDe(novo) ? ` · agora: ${Modelo.fpsDe(atual)} fps` : ''}. Mudar mantém o tempo de cada frame.</small></label>
       <div class="sub-esc"><b>E a versão de agora?</b>
         <label class="sub-op"><input type="radio" name="guarda" value="antigo" checked><span><b>Guardar as vistas de agora no mesmo personagem</b><small>Elas continuam nele com <b>(antigo)</b> no nome (ex.: "${esc((atual.vistas?.[0]?.nome) || 'Frente')} (antigo)"), para passar presets de uma para a outra ou apagar depois.</small></span></label>
         <label class="sub-op"><input type="radio" name="guarda" value="rascunho"><span><b>Guardar uma cópia como rascunho e trocar tudo</b><small>A versão de agora vira "${esc(atual.nome)} (anterior)" em <b>Só neste computador</b>${AoVivo.ativo ? ' de <b>todos que estão junto</b>' : ''}, e o personagem fica só com o que veio do arquivo.</small></span></label></div></div>`);
     const op = await UI.modal({ title: 'Substituir este personagem?', icon: 'layers', width: 520, body: corpo,
       buttons: [{ label: 'Cancelar', value: null }, { label: 'Abrir como outro personagem', value: 'abrir' }, { label: 'Substituir', kind: 'primary', value: 'sub' }] });
-    const guarda = $('input[name=guarda]:checked', corpo)?.value || 'antigo';
+    const guarda = $('input[name=guarda]:checked', corpo)?.value || 'antigo'; const fpsNovo = +$('[data-fps]', corpo)?.value || Modelo.fpsDe(novo);
     if (op !== 'sub') AoVivo.avisaTroca?.({ estado: 'cancelado', arquivo: f.name });
     if (op === 'abrir') return this.abrir(f); if (op !== 'sub') return;
     AoVivo.avisaTroca?.({ estado: 'trocando', arquivo: f.name, backup: guarda === 'rascunho' });
@@ -62,6 +63,7 @@ const AtelieArq = {
       Object.assign(d, { id, nome: atual.nome, pasta: atual.pasta, autor: atual.autor, edicoes: atual.edicoes, modificado: Date.now() }); for (const c of ['autor', 'edicoes']) if (d[c] === undefined) delete d[c];
       // as vistas de antes ficam no personagem como "(antigo)": dá para mandar presets de uma para a outra e apagar quando quiser
       const velhas = (atual.vistas?.length ? atual.vistas : [{ id: null, nome: 'Vista', tipo: 'frente' }]).map(v => { const dv = v.id ? Modelo.naVista(atual, v.id) : atual; return { id: uid('vi'), nome: `${v.nome} (antigo)`.slice(0, 40), tipo: v.tipo || 'outra', partes: clone(dv.partes || []), sessoes: clone(dv.sessoes || []), animacoes: clone(dv.animacoes || []), raiz: dv.raiz, ...(dv.vis ? { vis: clone(dv.vis) } : {}) }; });
+      Modelo.sincAnims(d); if (fpsNovo !== Modelo.fpsDe(d)) Modelo.trocaFps(d, fpsNovo); // fps escolhido na janela (o tempo de cada frame fica)
       Modelo.garanteVistas?.(d); if (guarda === 'antigo') d.vistas.push(...velhas); await Arq.garantir(Modelo.chavesImgs(d)).catch(() => { });
       Atelie.def = d; Atelie.sel = d.raiz || d.partes[0]?.id || null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = null; if (Atelie.edImg) Atelie.fecharEditor(); Atelie.multi?.clear();
       Atelie.commit(); Atelie.enquadrar?.();

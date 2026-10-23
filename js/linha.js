@@ -5,18 +5,11 @@
    Botão direito num passo: as opções de sempre (duplicar, mover, apagar…). Arrastar um passo muda a ordem. */
 'use strict';
 const Linha = {
-  // unidade do tempo do frame na tela (s, ms ou fps), lembrada neste computador
-  unid(u) { if (u) { this._u = u; try { localStorage.setItem('animador-tl-unid', u); } catch { } return u; } if (!this._u) { try { this._u = localStorage.getItem('animador-tl-unid'); } catch { } } return ['s', 'ms', 'fps'].includes(this._u) ? this._u : 's'; },
-  velEm(ms, u) { const r = (x, d) => Math.round(x * 10 ** d) / 10 ** d; return u === 'ms' ? Math.round(ms) : u === 'fps' ? r(1000 / ms, 2) : r(ms / 1000, 3); },
-  velDe(v, u) { const n = parseFloat(String(v).replace(',', '.')); if (!(n > 0)) return null; const ms = u === 'ms' ? n : u === 'fps' ? 1000 / n : n * 1000; return Math.round(clamp(ms, 20, 10000)); },
-  // tempo de cada frame: os prontos + o personalizado (se for outro) + "Personalizado…"
-  opcoesVel(v) { const seg = ms => (Math.round(ms) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) + ' s', L = VELOCIDADES.map(x => x[0]);
-    return (L.includes(v) || !v ? '' : `<option value="${v}" selected>${seg(v)} · personalizado</option>`) + VELOCIDADES.map(([x, t]) => `<option value="${x}" ${v === x ? 'selected' : ''}>${t}</option>`).join('') + '<option value="outro">Personalizado…</option>'; },
-  // aceita "0,15", "0.15 s", "150 ms", "12 fps"; devolve ms (20 ms a 10 s) ou null
-  async pedeVel(v) {
-    const r = await UI.prompt({ title: 'Tempo de cada frame', label: 'Em segundos (ex.: 0,15), em ms (ex.: 150 ms) ou em quadros por segundo (ex.: 12 fps)', value: String((v || 80) / 1000).replace('.', ','), ok: 'Usar', icon: 'clock' });
-    if (r == null) return null; const s = String(r).trim().toLowerCase().replace(',', '.'), n = parseFloat(s); if (!(n > 0)) { UI.toast('Não entendi esse tempo', { kind: 'warn' }); return null; }
-    const ms = /fps/.test(s) ? 1000 / n : /ms/.test(s) ? n : n > 20 ? n : n * 1000; return Math.round(clamp(ms, 20, 10000)); },
+  // FPS do personagem: os comuns + o atual (se for outro) + "Outro…"
+  FPS: [12, 15, 24, 25, 30, 48, 60],
+  opcoesFps(f) { return (this.FPS.includes(f) ? '' : `<option value="${f}" selected>${f} fps</option>`) + this.FPS.map(x => `<option value="${x}" ${x === f ? 'selected' : ''}>${x} fps${x === Modelo.FPS_PADRAO ? ' (padrão)' : ''}</option>`).join('') + '<option value="outro">Outro…</option>'; },
+  async pedeFps(f) { const r = await UI.prompt({ title: 'FPS do personagem', label: 'Quadros por segundo (1 a 120). O padrão do Animador é 24.', value: String(f || 24), ok: 'Usar', icon: 'clock' }); const n = Math.round(parseFloat(String(r ?? '').replace(',', '.'))); if (!(n >= 1 && n <= 120)) { if (r != null) UI.toast('Use de 1 a 120 fps', { kind: 'warn' }); return null; } return n; },
+  seg(a) { return ((+a.vel || 0) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) + ' s'; },
   pinta() {
     const el = $('#at-tl'); if (!el || !Atelie.def) return; const A = Animacoes; el.hidden = !!Atelie.edImg; if (el.hidden) return this.altura();
     const L = A.lista(); if (A.sel && !A.achar(A.sel)) A.sel = null; if (!A.sel && L.length) A.sel = L[0].id;
@@ -29,7 +22,7 @@ const Linha = {
       <button class="ibtn tl-play ${rodando ? 'on' : ''}" data-play title="${rodando ? 'Pausar' : 'Tocar'} (P)" ${a ? '' : 'disabled'}>${ic(rodando ? 'pause' : 'play', 15)}</button>
       <button class="ibtn tl-stop" data-stop title="Parar e voltar à pose padrão (Esc)" ${toca ? '' : 'disabled'}>${ic('stop', 13)}</button>
       <button class="ibtn" data-prox title="Próximo frame ( . )" ${a ? '' : 'disabled'}>${ic('right', 14)}</button>
-      ${a ? `<span class="tl-vel" title="Quanto tempo cada frame fica na tela"><input type="number" data-velv min="0" step="any" value="${Linha.velEm(+a.vel || 250, Linha.unid())}"><select data-velu title="Unidade">${[['s', 's'], ['ms', 'ms'], ['fps', 'fps']].map(([u, t]) => `<option value="${u}" ${Linha.unid() === u ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
+      ${a ? `<span class="tl-vel" title="Cada frame fica na tela este nº de QUADROS, no fps do personagem (${Modelo.fpsDe(Atelie.def)} fps): ${Linha.seg(a)} — o Animador usa igual"><input type="number" data-q min="1" max="240" step="1" value="${+a.q || 1}"><small>${(+a.q || 1) === 1 ? 'quadro' : 'quadros'}</small><select data-fps title="FPS do personagem (vale para todas as animações dele)">${Linha.opcoesFps(Modelo.fpsDe(Atelie.def))}</select></span>` : ''}
       <span class="tl-info">${st ? `Frame <b>${st.pi + 1}</b>` : ''}</span><span class="sp"></span>
       ${a ? `<button class="btn sm" data-passo title="Frame novo depois do escolhido (começa igual a ele)">${ic('plus', 12)} Frame</button><button class="ibtn" data-trilha title="Trilha nova: anda junto com as outras (ex.: boca falando enquanto as pernas andam)">${ic('layers', 14)}</button>` : ''}</div>`);
     $('[data-a]', cab).onchange = ev => { A.multi?.clear(); A.parar(true); A.passoSel = null; A.sel = ev.target.value || null; Atelie.teste = null; Atelie.pinta(); };
@@ -38,11 +31,12 @@ const Linha = {
       $('[data-play]', cab).onclick = () => this.tocaPausa();
       $('[data-ant]', cab).onclick = () => this.anda(-1); $('[data-prox]', cab).onclick = () => this.anda(1);
       $('[data-stop]', cab).onclick = () => this.parar();
-      // tempo do frame: número + unidade do lado (igual à timeline do Animador). Trocar a unidade só muda como aparece
-      const vv = $('[data-velv]', cab), vu = $('[data-velu]', cab);
-      vv.onchange = () => { const ms = Linha.velDe(vv.value, vu.value); if (!ms) { vv.value = Linha.velEm(+a.vel || 250, vu.value); return UI.toast('Tempo inválido', { kind: 'warn' }); } a.vel = ms; vv.value = Linha.velEm(ms, vu.value); Atelie.commit({ soDesenho: true }); if (rodando) A.tocar(a, A.i); };
-      vv.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); vv.blur(); } ev.stopPropagation(); };
-      vu.onchange = () => { Linha.unid(vu.value); vv.value = Linha.velEm(+a.vel || 250, vu.value); };
+      // tempo do frame em QUADROS (inteiro) no FPS DO PERSONAGEM — o mesmo que o Animador usa, sem arredondar
+      const vq = $('[data-q]', cab), vf = $('[data-fps]', cab);
+      vq.onchange = () => { const q = Math.round(+vq.value); if (!(q >= 1 && q <= 240)) { vq.value = +a.q || 1; return UI.toast('Use de 1 a 240 quadros', { kind: 'warn' }); } a.q = q; Modelo.sincAnims(Atelie.def); Atelie.commit({ soDesenho: true }); if (rodando) A.tocar(a, A.i); else this.pinta(); };
+      vq.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); vq.blur(); } ev.stopPropagation(); };
+      vf.onchange = async () => { let f = vf.value; if (f === 'outro') { f = await Linha.pedeFps(Modelo.fpsDe(Atelie.def)); if (!f) return this.pinta(); }
+        Modelo.trocaFps(Atelie.def, +f); Atelie.commit(); UI.toast(`Personagem a <b>${Modelo.fpsDe(Atelie.def)} fps</b>: cada frame manteve o tempo (os quadros foram recalculados).`, { time: 3500 }); if (rodando) A.tocar(a, A.i); else this.pinta(); };
       $('[data-passo]', cab).onclick = () => this.novoPasso(a); $('[data-trilha]', cab).onclick = () => { a.trilhas.push([{ s: {}, p: {} }]); Atelie.commit(); A.irPara(a, a.trilhas.length - 1, 0); };
     }
     el.appendChild(cab);

@@ -50,7 +50,7 @@ const IA = {
   contexto(P) {
     const pers = Object.values(P.personagens).map(d => ({ personagem: d.nome, sessoes: d.sessoes.map(s => ({ sessao: s.nome, presets: s.presets.map(p => p.nome) })),
       partes: d.partes.map(p => ({ parte: p.nome, imagens: p.imgs.slice(0, 14).map(i => i.nome) })), raiz: d.partes.find(p => p.id === d.raiz)?.nome,
-      animacoes: (d.animacoes || []).map(a => ({ animacao: a.nome, passos: Math.max(0, ...a.trilhas.map(t => t.length)), ms_por_passo: +a.vel || 250 })),
+      animacoes: (d.animacoes || []).map(a => ({ animacao: a.nome, passos: Math.max(0, ...a.trilhas.map(t => t.length)), ms_por_passo: +a.vel || 250, quadros_por_passo_aqui: Math.max(1, Math.round((+a.q || Math.max(1, Math.round((+a.vel || 250) / 1000 * Modelo.fpsDe(d)))) * P.fps / Modelo.fpsDe(d))) })), fps_personagem: Modelo.fpsDe(d),
       vistas: d.vistas?.length > 1 ? d.vistas.map(v => { const dv = Modelo.naVista(d, v.id); return { vista: v.nome, tipo: Modelo.nomeTipo(v.tipo), sessoes: (dv.sessoes || []).map(s => s.nome), animacoes: (dv.animacoes || []).map(a => a.nome) }; }) : undefined }));
     const camadas = Modelo.todos(P).map(n => ({ camada: n.nome, tipo: n.tipo, personagem: n.tipo === 'personagem' ? P.personagens[n.ref]?.nome : undefined, de: (n.de || 0) + 1, ate: Modelo.fimNo(P, n) + 1, posicao: (({ x, y, s }) => ({ x: Math.round(x), y: Math.round(y), s: round(s, 2) }))(Modelo.transf(n, App.q)) }));
     const fala = (P.legendas || []).map(g => `${g.de + 1}-${g.ate + 1}: ${g.texto}`).join('\n');
@@ -126,7 +126,7 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
         else if (a.tipo === 'vista') { const no = this.acha(todos, a.camada); const def = no?.tipo === 'personagem' && P.personagens[no.ref]; const v = def?.vistas && (this.acha(def.vistas, a.vista) || def.vistas.find(x => Modelo.nomeTipo(x.tipo).toLowerCase() === String(a.vista || '').toLowerCase())); if (!v) continue; Modelo.chave(no, q(a.quadro)).vista = v.id; n++; }
         else if (a.tipo === 'animacao') { const no = this.acha(todos, a.camada); const def0 = no?.tipo === 'personagem' && P.personagens[no.ref]; if (!def0) continue; const vq = Modelo.estadoPersonagem(no, q(a.quadro)).vista, def = Modelo.naVista(def0, vq);
           let an = this.acha(def.animacoes || [], a.animacao); if (!an) for (const v of def0.vistas || []) { an = this.acha(Modelo.naVista(def0, v.id).animacoes || [], a.animacao); if (an) { Modelo.chave(no, q(a.quadro)).vista = v.id; break; } } if (!an) continue;
-          Animacoes.escreve(no, an, q(a.quadro), clamp(Math.round(+a.quadros_por_passo || Math.max(1, Math.round((+an.vel || 250) / 1000 * P.fps))), 1, 48), clamp(Math.round(+a.repeticoes || 1), 1, 60)); n++; }
+          Animacoes.escreve(no, an, q(a.quadro), clamp(Math.round(+a.quadros_por_passo || Math.max(1, Math.round((+an.q || Math.max(1, Math.round((+an.vel || 250) / 1000 * Modelo.fpsDe(def0)))) * P.fps / Modelo.fpsDe(def0)))), 1, 48), clamp(Math.round(+a.repeticoes || 1), 1, 60)); n++; }
       } catch (e) { console.warn('ação da IA', a, e); }
     }
     if (tr && foto) Trechos.protege(P, tr, foto); // o que caiu fora dos trechos volta a ser como era

@@ -986,3 +986,8 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .df-barra .df-t{display:inline-flex;align-items:center;gap:6px;color:var(--tx)}.df-barra .df-t svg{color:#ffd36b}
 .df-seg{display:inline-flex;border:1px solid var(--bd2);border-radius:7px;overflow:hidden}.df-seg button{all:unset;padding:3px 9px;cursor:pointer;font-size:12px;color:var(--tx2)}.df-seg button.on{background:rgba(255,211,107,.16);color:#ffd36b}.df-seg button:hover{color:var(--tx)}
 .df-l{display:inline-flex;align-items:center;gap:5px}.df-l select{font-size:12px;padding:2px 4px}
+.sub-fps{margin-top:12px}.sub-fps select{max-width:160px}.sub-fps small{display:block;color:var(--tx3);font-size:11.5px;margin-top:3px}
+.at-tl .tl-vel input[data-q]{width:40px}.at-tl .tl-vel small{color:var(--tx3);font-size:11px;padding:0 6px 0 3px}.at-tl .tl-vel select{max-width:110px}
+.ld-fps{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx3);margin:-2px 0 6px}.ld-fps.dif{color:#ffcf6b}
+.pq-fps{display:flex;gap:6px;align-items:flex-start;font-size:12px;color:var(--tx2);background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;margin-bottom:10px}
+.pq-aviso{font-size:11.5px;color:#ffcf6b;margin:-4px 0 8px;display:flex;gap:5px;align-items:center}.pq-aviso:empty{display:none}

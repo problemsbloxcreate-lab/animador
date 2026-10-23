@@ -43,7 +43,7 @@ const Lado = {
       bt(null, 'Padrão'); s.presets.forEach(p => bt(p.id, p.nome)); el.appendChild(box);
     }
     // animações de teste do personagem (feitas no Ateliê): viram chaves a partir deste quadro
-    if (def.animacoes?.length) { const box = h(`<div class="sessao"><h4>Animações <small>pôr a partir do quadro ${q + 1}</small></h4><div class="presets"></div></div>`), pr = $('.presets', box);
+    if (def.animacoes?.length) { const box = h(`<div class="sessao"><h4>Animações <small>pôr a partir do quadro ${q + 1}</small></h4><div class="ld-fps${Modelo.fpsDe(def) !== App.P.fps ? ' dif' : ''}" title="As animações deste personagem foram feitas a este fps no Ateliê. Ao pôr, dá para escolher outro.">${ic('clock', 11)} Personagem a <b>${Modelo.fpsDe(def)} fps</b>${Modelo.fpsDe(def) !== App.P.fps ? ` · projeto a ${App.P.fps} fps` : ''}</div><div class="presets"></div></div>`), pr = $('.presets', box);
       for (const a of def.animacoes) { a._vista = est.vista || def0.vistaAtual || null; const b = h(`<button title="Escreve &quot;${esc(a.nome)}&quot; como chaves a partir deste quadro">${ic('play', 11)} ${esc(a.nome)}</button>`); b.onclick = () => Animacoes.porNoQuadro(f, def, a); pr.appendChild(b); }
       el.appendChild(box); }
     // ajustar uma parte só neste trecho (quando uma pose precisa de um retoque)
