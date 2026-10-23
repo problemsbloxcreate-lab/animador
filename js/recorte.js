@@ -39,7 +39,7 @@ Object.assign(Pintura, {
     const modo = e.altKey ? 'tira' : e.shiftKey ? 'soma' : 'nova', W = a.bm.width, H = a.bm.height;
     if (this.ferr === 'varinha' && Vetor.eh(a.img.k)) { (async () => { // SVG: a varinha pega a ÁREA inteira entre as linhas (com a borda de mistura junto, sem fio de fora)
         const m = await Vetor.modelo(a.img.k), ar = await Vetor.area(a, pt, m, { soArea: true }); if (!ar?.cv) return UI.toast(ar?.linha ? 'Isso é a linha (escolha uma área de cor).' : 'Clique numa área fechada pelas linhas.', { kind: 'warn' });
-        const mk = new OffscreenCanvas(W, H), x = mk.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(ar.cv, 0, 0, W, H); this.combina(a, mk, modo); })(); return; }
+        const mk = new OffscreenCanvas(W, H), x = mk.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(ar.cv, 0, 0, W, H); const ant = modo !== 'nova' && !!this.selecao?.vetArea; this.combina(a, mk, modo); if (this.selecao) this.selecao.vetArea = modo === 'nova' || ant; })(); return; } // vetArea: Delete apaga a COR dessa área (a linha fica)
     if (this.ferr === 'varinha') { const { c } = this.tela(a.bm), m = this.areaParecida(c, W, H, Math.floor(pt.x), Math.floor(pt.y), this.tol, false); if (m) this.combina(a, m, modo); return; }
     Atelie.cv.setPointerCapture(e.pointerId); const pts = [pt]; this._prev = { a, pts, ret: this.ferr === 'ret' };
     const mov = ev => { const p2 = a.para(Atelie.mundo(ev)); if (this.ferr === 'ret') pts[1] = p2; else pts.push(p2); Atelie.desenha(); };
@@ -47,7 +47,7 @@ Object.assign(Pintura, {
       let poly = pts; if (this.ferr === 'ret') { const b = pts[1] || pts[0]; poly = [pts[0], { x: b.x, y: pts[0].y }, b, { x: pts[0].x, y: b.y }]; }
       const area = Math.abs(poly.reduce((s, p, i) => { const q = poly[(i + 1) % poly.length]; return s + p.x * q.y - q.x * p.y; }, 0)) / 2;
       if (area < 4) { if (modo === 'nova') this.desmarcar(); else Atelie.desenha(); return; } // clique sem arrastar: desmarca
-      this.combina(a, this.poligono(W, H, poly), modo, poly); };
+      this.combina(a, this.poligono(W, H, poly), modo, poly); if (this.selecao) this.selecao.vetArea = false; };
     Atelie.cv.addEventListener('pointermove', mov); Atelie.cv.addEventListener('pointerup', up);
   },
   desenhaSelecao(ctx) {

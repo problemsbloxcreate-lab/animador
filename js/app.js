@@ -101,10 +101,11 @@ const App = {
     this.inserir(n, 'Personagem ' + def.nome); UI.toast(`<b>${esc(def.nome)}</b> entrou no quadro ${this.q + 1}. Os botões das sessões estão no painel da direita.`, { kind: 'ok' });
   },
   async addImagem() {
-    const fs = await pickFiles('image/*', true); for (const f of fs) {
-      const id = await Arq.guardar(f); const bm = await createImageBitmap(f).catch(() => null);
+    const fs = await pickFiles('image/*', true); for (const f0 of fs) {
+      const { blob: f, svg } = await Vetor.blobDeArquivo(f0); // .svg continua VETOR no Animador (desenhado sem perder qualidade no zoom e no MP4)
+      const id = await Arq.guardar(f); const bm = await Arq.deBlob(f, id);
       const s = bm ? Math.min(1, this.P.w * .8 / bm.width, this.P.h * .8 / bm.height) : 1;
-      const n = Modelo.novoNo('imagem', { arq: id, nome: f.name.replace(/\.[^.]+$/, '').slice(0, 40), s: round(s, 3) }); n.chaves[0].s = round(s, 3);
+      const n = Modelo.novoNo('imagem', { arq: id, nome: f0.name.replace(/\.[^.]+$/, '').slice(0, 40), s: round(s, 3) }); n.chaves[0].s = round(s, 3); if (svg) n.vetor = true;
       Arq.img.set(id, bm); this.inserir(n, 'Imagem');
     }
   },
@@ -192,8 +193,8 @@ const App = {
   },
   // trocar a imagem de uma camada de imagem: fica no mesmo lugar, do mesmo tamanho na tela (as chaves e a animação continuam)
   async trocarImagem(n) {
-    if (n?.tipo !== 'imagem') return; const [f] = await pickFiles('image/*', false); if (!f) return;
-    const velho = Arq.img.get(n.arq), id = await Arq.guardar(f), bm = await createImageBitmap(f).catch(() => null); if (!bm) return UI.toast('Não abri essa imagem.', { kind: 'err' }); Arq.img.set(id, bm);
+    if (n?.tipo !== 'imagem') return; const [f0] = await pickFiles('image/*', false); if (!f0) return; const { blob: f, svg } = await Vetor.blobDeArquivo(f0); if (svg) n.vetor = true; else delete n.vetor;
+    const velho = Arq.img.get(n.arq), id = await Arq.guardar(f), bm = await Arq.deBlob(f, id); if (!bm) return UI.toast('Não abri essa imagem.', { kind: 'err' }); Arq.img.set(id, bm);
     const k = velho ? Math.min(velho.width / bm.width, velho.height / bm.height) : 1;
     if (Math.abs(k - 1) > .001) for (const c of Object.values(n.chaves || {})) if (c.s != null) c.s = round(c.s * k, 4);
     n.arq = id;

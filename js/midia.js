@@ -7,7 +7,7 @@ const Midia = {
   lista() { try { const l = JSON.parse(localStorage.getItem(this.CHAVE) || '[]'); return Array.isArray(l) ? l : []; } catch { return []; } },
   salva(l) { try { localStorage.setItem(this.CHAVE, JSON.stringify(l)); } catch { UI.toast('Não consegui salvar a lista da Mídia (navegador sem espaço?).', { kind: 'err' }); } },
   async guardar(blob, nome, extra = {}) {
-    const arq = await Arq.guardar(blob, uid('midia_')), bm = await createImageBitmap(blob).catch(() => null);
+    const arq = await Arq.guardar(blob, uid('midia_')), bm = await Arq.deBlob(blob, arq);
     const it = { id: uid('m'), nome: String(nome || 'Imagem').slice(0, 60), arq, w: bm?.width || 0, h: bm?.height || 0, criado: Date.now(), ...extra };
     const l = this.lista(); l.unshift(it); this.salva(l); if (bm) Arq.img.set(arq, bm);
     window.EstudioConta?.espaco?.atualizar?.(); if (Lado.atual === 'midia') Lado.pinta();
@@ -18,16 +18,16 @@ const Midia = {
     const P = App.P, bm = await new Promise(ok => { const b = Arq.bitmap(it.arq, ok); if (b) ok(b); });
     if (!bm) return UI.toast('Essa imagem não está mais neste computador.', { kind: 'err' });
     const s = round(Math.min(1, P.w * .8 / bm.width, P.h * .8 / bm.height), 3);
-    const n = Modelo.novoNo('imagem', { arq: it.arq, nome: it.nome.slice(0, 40), s }); n.chaves[0].s = s; App.inserir(n, 'Imagem da Mídia');
+    const n = Modelo.novoNo('imagem', { arq: it.arq, nome: it.nome.slice(0, 40), s }); n.chaves[0].s = s; if (it.vetor || bm instanceof HTMLImageElement) n.vetor = true; App.inserir(n, 'Imagem da Mídia');
   },
-  async baixar(it) { const b = await Arq.pegaBlob(it.arq); if (!b) return UI.toast('Essa imagem não está mais neste computador.', { kind: 'err' }); downloadBlob(b, it.nome.replace(/[\\/:*?"<>|]+/g, '-') + '.png'); },
+  async baixar(it) { const b = await Arq.pegaBlob(it.arq); if (!b) return UI.toast('Essa imagem não está mais neste computador.', { kind: 'err' }); downloadBlob(b, it.nome.replace(/[\\/:*?"<>|]+/g, '-') + (b.type === 'image/svg+xml' ? '.svg' : '.png')); },
   async tirar(it) {
     if (!(await UI.confirm({ title: `Tirar "${esc(it.nome)}" da Mídia?`, msg: 'Se ela já está numa animação, continua lá.', ok: 'Tirar', danger: true }))) return;
     this.salva(this.lista().filter(x => x.id !== it.id));
     // só apaga o arquivo se nenhuma animação aberta usa (as salvas guardam a própria referência; o arquivo fica por segurança)
     Lado.pinta();
   },
-  async doComputador() { const fs = await pickFiles('image/*', true); for (const f of fs) await this.guardar(f, f.name.replace(/\.[^.]+$/, '')); },
+  async doComputador() { const fs = await pickFiles('image/*', true); for (const f of fs) { const { blob, svg } = await Vetor.blobDeArquivo(f); await this.guardar(blob, f.name.replace(/\.[^.]+$/, ''), svg ? { vetor: true } : {}); } },
   // pastas da Mídia (neste computador): [{ nome, cor }]
   pastas() { try { const l = JSON.parse(localStorage.getItem(this.CHAVE + '-pastas') || '[]'); return Array.isArray(l) ? l : []; } catch { return []; } },
   salvaPastas(l) { try { localStorage.setItem(this.CHAVE + '-pastas', JSON.stringify(l)); } catch { } },

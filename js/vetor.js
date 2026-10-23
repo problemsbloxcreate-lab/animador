@@ -311,6 +311,12 @@ const Vetor = {
     const raw = `<g transform="matrix(${+k.toFixed(6)} 0 0 ${+k.toFixed(6)} ${+dx.toFixed(3)} ${+dy.toFixed(3)})">${inner}</g>`;
     return { W, H, off: { x: 0, y: 0 }, cam: [{ id: 'cor', nome: 'Cor', papel: 'cor', f: [], m: [] }, { id: 'arte', nome: 'Arte', papel: 'linha', raw, f: [], m: [] }] };
   },
+  // arquivo escolhido/solto (o pickFiles devolve o PNG com o .svg original em _svg) → { blob, svg }: SVG continua vetor (sem scripts)
+  async blobDeArquivo(f) {
+    if (!f?._svg) return { blob: f, svg: false };
+    try { const bm = await createImageBitmap(f), m = await this.deArquivo(f._svg, bm.width, bm.height); return { blob: new Blob([this.svg(m)], { type: 'image/svg+xml' }), svg: true }; }
+    catch (e) { console.warn(e); return { blob: f, svg: false }; }
+  },
   chave(ext = 'svg') { return `personagens/${Atelie.def.id}/img/${uid('im').toLowerCase().replace(/[^a-z0-9]/g, '')}.${ext}`; },
   // grava o modelo como uma imagem NOVA (chave nova: o Ctrl+Z do Ateliê volta a de antes)
   async gravar(img, m, k = this.chave()) {
@@ -386,7 +392,10 @@ const Vetor = {
     const lin = (await this.raster(m, { escala: s, so: c => c.papel === 'linha' })).getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
     const tud = (await this.raster(m, { escala: s })).getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
     const N = W * H, bar = new Uint8Array(N), den = new Uint8Array(N); for (let i = 0; i < N; i++) { bar[i] = lin[i * 4 + 3] > 110 ? 1 : 0; den[i] = tud[i * 4 + 3] > 12 ? 1 : 0; }
-    const i0 = y0 * W + x0; if (bar[i0]) return { linha: true };
+    let i0 = y0 * W + x0;
+    if (bar[i0]) { // clicou na borda da linha: vale a área mais perto (até 3 px); bem no meio da linha = é a linha
+      let best = -1, bd = Infinity; const R = Math.round(3 * s); for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { const x = x0 + dx, y = y0 + dy; if (x < 0 || y < 0 || x >= W || y >= H) continue; const j = y * W + x, dd = dx * dx + dy * dy; if (!bar[j] && tud[j * 4 + 3] > 12 && dd < bd) { bd = dd; best = j; } }
+      if (best < 0) return { linha: true }; i0 = best; }
     const dentro = den[i0], reg = new Uint8Array(N), st = [i0]; reg[i0] = 1; let borda = false, n = 0;
     while (st.length) { const i = st.pop(), x = i % W; n++; if (x === 0 || x === W - 1 || i < W || i >= N - W) borda = true;
       for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i - W, i + W]) if (j >= 0 && j < N && !reg[j] && !bar[j] && (!dentro || den[j])) { reg[j] = 1; st.push(j); } }
@@ -408,15 +417,17 @@ const Vetor = {
     const img = a.img, m = await this.modelo(img.k), c = this.ativa(m, img), ar = await this.area(a, pt, m);
     if (!ar || ar.aberta || ar.linha) { UI.toast(ar?.linha ? 'Isso é a linha: escolha a camada Linha e use a borracha para apagar a linha.' : 'Clique numa área fechada pelas linhas.', { kind: 'warn' }); return false; }
     if (a.quadro) return this.apagaQuadro(a, this.dDe(this.laçosDe(ar.cv, ar.s)), 1, 0);
-    const d = this.dDe(this.laçosDe(ar.cv, ar.s), { mapa: this.mapa(m, c) }); if (!d) return false;
-    const cl = this.selD(mask, m, c); c.m.push({ d, r: 1, ...(cl ? { cl } : {}) }); await this.gravar(img, m); return true;
+    // a borracha mágica tira a COR da área (de todas as camadas de cor); as linhas ficam
+    let algum = false; for (const k of m.cam.filter(k => k.papel !== 'linha')) { const d = this.dDe(this.laçosDe(ar.cv, ar.s), { mapa: this.mapa(m, k) }); if (!d) continue; const cl = this.selD(mask, m, k); k.m.push({ d, r: 1, ...(cl ? { cl } : {}) }); algum = true; }
+    if (!algum) return false; await this.gravar(img, m); return true;
   },
   // seleção: apagar (só na camada escolhida) ou manter só ela
   async naSelecao(a, mask, modo) {
     const img = a.img, m = await this.modelo(img.k), c = this.ativa(m, img);
     if (modo === 'apagar' && a.quadro) return this.apagaQuadro(a, this.dDe(this.laçosDe(mask), { alisa: 0, eps: .3 }), 1, 0);
     const d = this.selD(mask, m, c); if (!d) return false;
-    if (modo === 'apagar') c.m.push({ d, r: 1 }); else if (modo === 'cortar') { for (const k of m.cam) k.m.push({ d: this.selD(mask, m, k), r: 1 }); } else for (const k of m.cam) { const mp = this.mapa(m, k), fora = this.dDe(this.laçosDe(mask), { mapa: mp, alisa: 0, eps: .3 }), q = [{ x: -1, y: -1 }, { x: m.W + 1, y: -1 }, { x: m.W + 1, y: m.H + 1 }, { x: -1, y: m.H + 1 }].map(mp); k.m.push({ d: `M${q.map(p => `${round(p.x)} ${round(p.y)}`).join('L')}Z` + fora, r: 1 }); }
+    if (modo === 'apagar' && Pintura.selecao?.vetArea) { for (const k of m.cam) if (k.papel !== 'linha') k.m.push({ d: this.selD(mask, m, k), r: 1 }); } // área da varinha: sai a COR inteira dela (as linhas ficam)
+    else if (modo === 'apagar') c.m.push({ d, r: 1 }); else if (modo === 'cortar') { for (const k of m.cam) k.m.push({ d: this.selD(mask, m, k), r: 1 }); } else for (const k of m.cam) { const mp = this.mapa(m, k), fora = this.dDe(this.laçosDe(mask), { mapa: mp, alisa: 0, eps: .3 }), q = [{ x: -1, y: -1 }, { x: m.W + 1, y: -1 }, { x: m.W + 1, y: m.H + 1 }, { x: -1, y: m.H + 1 }].map(mp); k.m.push({ d: `M${q.map(p => `${round(p.x)} ${round(p.y)}`).join('L')}Z` + fora, r: 1 }); }
     await this.gravar(img, m); return true;
   },
   // pedaço da seleção como SVG novo (copiar/recortar para parte nova): mesmas camadas, cortadas pela seleção e no tamanho do pedaço

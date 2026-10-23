@@ -257,7 +257,10 @@ const Arq = {
     return null;
   },
   // blob → imagem para desenhar (SVG vira <img> de vetor: o navegador desenha no tamanho da tela, sem perder qualidade)
-  async deBlob(b, k) { return typeof Vetor !== 'undefined' && (Vetor.eh(k) || b.type === 'image/svg+xml') ? Vetor.imagem(b) : createImageBitmap(b).catch(() => null); },
+  async deBlob(b, k) {
+    let svg = typeof Vetor !== 'undefined' && (Vetor.eh(k) || b.type === 'image/svg+xml');
+    if (!svg && typeof Vetor !== 'undefined' && (!b.type || b.type === 'application/octet-stream')) { try { svg = /<svg[\s>]/i.test(await b.slice(0, 600).text()); } catch { } } // veio de um .animador (zip): o arquivo não traz o tipo
+    return svg ? Vetor.imagem(b) : createImageBitmap(b).catch(() => null); },
   // a imagem com o APAGADO daquele keyframe (máscara recortada: só a área apagada, posição em pixels da imagem). Fica guardada em memória
   // (uma por imagem+máscara) e refaz sozinha se a imagem mudar (ex.: prévia do pincel). Sem máscara (ou carregando) = a imagem normal.
   apCache: new Map(),
