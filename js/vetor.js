@@ -18,7 +18,7 @@ const Vetor = {
     let s = [0, 0, 0], n = 0; for (let i = 0; i < N; i++) if (A[i] > 250 && L(i) < 45) { s[0] += D[i * 4]; s[1] += D[i * 4 + 1]; s[2] += D[i * 4 + 2]; n++; }
     const tinta = n ? s.map(v => v / n) : [17, 17, 17], tL = this.L(tinta);
     // ---- 2) REGIÕES: pedaços ligados de cor (o traço separa; mudança forte de cor também), cada uma com UMA cor ----
-    const claro = new Uint8Array(N); for (let i = 0; i < N; i++) claro[i] = A[i] > 128 && L(i) > tL + (o.limiar ?? 70) ? 1 : 0; // claramente não é traço
+    const claro = new Uint8Array(N); for (let i = 0; i < N; i++) { const r = D[i * 4], g = D[i * 4 + 1], b = D[i * 4 + 2], cr = Math.max(r, g, b) - Math.min(r, g, b); claro[i] = A[i] > 128 && (L(i) > tL + (o.limiar ?? 70) || (cr > 45 && L(i) > tL + 22)) ? 1 : 0; } // claramente não é traço
     const reg = new Int32Array(N).fill(-1), regs = [], tol = o.tol ?? 34, pilha = [];
     for (let s0 = 0; s0 < N; s0++) { if (!claro[s0] || reg[s0] >= 0) continue; const id = regs.length, px = []; reg[s0] = id; pilha.push(s0);
       while (pilha.length) { const i = pilha.pop(), x = i % W; px.push(i);
@@ -99,16 +99,18 @@ const Vetor = {
     // BORDA DE FORA = LINHA: neste estilo o desenho sempre termina no traço; o pixel claro/meio transparente do recorte na beira
     // (o pontilhado do PNG) vira traço, senão a cor da área aparece como um fio em volta do contorno
     let b1 = null; if (o.bordaLinha !== false) { const fora = i => A[i] < 40, viz = (i, f) => { const x = i % W; if (x > 0) f(i - 1); if (x < W - 1) f(i + 1); if (i >= W) f(i - W); if (i + W < N) f(i + W); };
-      b1 = new Uint8Array(N); for (let i = 0; i < N; i++) { if (fora(i)) continue; let t = false; viz(i, j => { if (fora(j)) t = true; }); if (t) { b1[i] = 1; cob[i] = 0; } }
-      for (let i = 0; i < N; i++) { if (b1[i] || fora(i) || reg[i] >= 0 && A[i] > 230) continue; let t = false; viz(i, j => { if (b1[j]) t = true; }); if (t && A[i] < 235) cob[i] = 0; }
-      const b2 = Uint8Array.from(b1); for (let i = 0; i < N; i++) if (b1[i]) viz(i, j => { if (!fora(j)) b2[j] = 1; }); b1 = b2; } // a cor fica 2 px para dentro da beira
+      // só onde a beira tem TRAÇO perto (até 3 px): beira cortada sem contorno (braço que entra embaixo do corpo, peça recortada) continua cor
+      const tin = new Uint8Array(N); for (let i = 0; i < N; i++) if (A[i] > 200 && L(i) < tL + 60) tin[i] = 1;
+      let perto = tin; for (let k = 0; k < 3; k++) { const nx = Uint8Array.from(perto); for (let i = 0; i < N; i++) if (perto[i]) viz(i, j => { nx[j] = 1; }); perto = nx; }
+      b1 = new Uint8Array(N); for (let i = 0; i < N; i++) { if (fora(i) || !perto[i]) continue; let t = false; viz(i, j => { if (fora(j)) t = true; }); if (t) b1[i] = 1; }
+      const b2 = Uint8Array.from(b1); for (let i = 0; i < N; i++) if (b1[i]) viz(i, j => { if (!fora(j) && perto[j]) b2[j] = 1; }); b1 = b2; } // a cor fica 2 px para dentro da beira
     // ---- 5) CAMADAS: Cor (embaixo) e Linha (em cima), separadas ----
     // cada pixel opaco ganha a cor da área mais perto (por baixo do traço também): apagar a linha mostra a cor, não um buraco
     const tudo = Int32Array.from(lab); { let fr = []; for (let i = 0; i < N; i++) if (tudo[i] >= 0) fr.push(i);
       while (fr.length) { const nv = []; for (const i of fr) { const x = i % W; for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i - W, i + W]) { if (j < 0 || j >= N || tudo[j] >= 0 || A[j] < 8) continue; tudo[j] = tudo[i]; nv.push(j); } } fr = nv; } }
     const hex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
     // a LINHA: onde o pixel é mais traço que cor (cobertura < meio), com a borda de meio-pixel
-    const g = new Float32Array(N); for (let i = 0; i < N; i++) g[i] = A[i] / 255 * (lab[i] >= 0 ? 1 - cob[i] : 1);
+    const g = new Float32Array(N); for (let i = 0; i < N; i++) g[i] = A[i] / 255 * (lab[i] >= 0 ? 1 - cob[i] : Math.max(0, Math.min(1, (215 - L(i)) / (215 - tL)))); // pixel sem área perto: é traço o quanto ele é escuro (o halo claro em volta de um traço solto não engrossa a linha)
     const cores = [], ordem = pal.map((p, j) => j).sort((a, b) => pal[b].n - pal[a].n), naFrente = new Uint8Array(pal.length).fill(1);
     for (const c of ordem) { // cada cor cobre também as áreas das que vêm depois (nunca fica fresta entre duas cores)
       const f = new Float32Array(N); for (let i = 0; i < N; i++) { const l = tudo[i]; if (l >= 0 && naFrente[l] && !(b1 && b1[i])) f[i] = A[i] / 255; } // a cor para 1 px antes da borda de fora (lá é só traço)
@@ -134,16 +136,23 @@ const Vetor = {
     const vis = new Uint8Array(N), tira = new Uint8Array(N);
     for (let s0 = 0; s0 < N; s0++) { if (!br[s0] || vis[s0]) continue; const px = [s0], pilha = [s0]; vis[s0] = 1; let dm = 0, toca = false;
       while (pilha.length) { const i = pilha.pop(); dm = Math.max(dm, ds[i]); viz4(i, j => { if (A(j) < 40) toca = true; if (br[j] && !vis[j]) { vis[j] = 1; px.push(j); pilha.push(j); } }); }
-      if ((dm <= 4 && px.length / (dm * dm) > 10) || (toca && dm <= 3)) for (const i of px) tira[i] = 1; }
+      if (!((dm <= 4 && px.length / (dm * dm) > 10) || (toca && dm <= 3))) continue;
+      // fresta de fundo só tem TRAÇO em volta; branco encostado (até 4 px) numa área de cor é parte do desenho (dente, brilho do olho)
+      let cor = false; for (const i of px) { const x0 = i % W, y0 = (i / W) | 0; for (let yy = Math.max(0, y0 - 4); yy <= Math.min(H - 1, y0 + 4) && !cor; yy++) for (let xx = Math.max(0, x0 - 4); xx <= Math.min(W - 1, x0 + 4); xx++) { const q = yy * W + xx; if (A(q) < 200 || br[q]) continue; const r = D[q * 4], g = D[q * 4 + 1], b2 = D[q * 4 + 2]; if (Lp(q) > tL + 50 && Math.max(r, g, b2) - Math.min(r, g, b2) > 30) { cor = true; break; } } if (cor) break; }
+      if (!cor) for (const i of px) tira[i] = 1; }
     // 2) pontinhas soltas: o que some ao "abrir" a silhuta (raio 2) e forma um fiapo de verdade
     const M = new Uint8Array(N); for (let i = 0; i < N; i++) M[i] = A(i) >= 128 && !tira[i] ? 1 : 0;
     const erode = (S, r) => { let a = S; for (let k = 0; k < r; k++) { const b = new Uint8Array(N); for (let i = 0; i < N; i++) { if (!a[i]) continue; const x = i % W; b[i] = x > 0 && x < W - 1 && i >= W && i + W < N && a[i - 1] && a[i + 1] && a[i - W] && a[i + W] && a[i - W - 1] && a[i - W + 1] && a[i + W - 1] && a[i + W + 1] ? 1 : 0; } a = b; } return a; };
     const dilata = (S, r) => { let a = S; for (let k = 0; k < r; k++) { const b = new Uint8Array(a); for (let i = 0; i < N; i++) { if (!a[i]) continue; const x = i % W; for (const j of [i - 1, i + 1, i - W, i + W, i - W - 1, i - W + 1, i + W - 1, i + W + 1]) if (j >= 0 && j < N && Math.abs((j % W) - x) <= 1) b[j] = 1; } a = b; } return a; };
     const r = o.fiapo ?? 4, ab = dilata(erode(M, r), r), sob = new Uint8Array(N); for (let i = 0; i < N; i++) sob[i] = M[i] && !ab[i] ? 1 : 0;
-    const vs = new Uint8Array(N); for (let s0 = 0; s0 < N; s0++) { if (!sob[s0] || vs[s0]) continue; const px = [s0], pilha = [s0]; vs[s0] = 1;
+    // tamanho do "corpo" grosso de cada pedaço (o fiapo só sai se estiver preso a um corpo bem maior: traço fino de olho fechado ou boca não é fiapo)
+    const corpoId = new Int32Array(N).fill(-1), corpoTam = []; for (let s0 = 0; s0 < N; s0++) { if (!ab[s0] || corpoId[s0] >= 0) continue; const id = corpoTam.length; let n = 0; const st = [s0]; corpoId[s0] = id; while (st.length) { const i = st.pop(); n++; viz4(i, j => { if (ab[j] && corpoId[j] < 0) { corpoId[j] = id; st.push(j); } }); } corpoTam.push(n); }
+    const cands = [], vs = new Uint8Array(N); for (let s0 = 0; s0 < N; s0++) { if (!sob[s0] || vs[s0]) continue; const px = [s0], pilha = [s0]; vs[s0] = 1;
       while (pilha.length) { const i = pilha.pop(); viz4(i, j => { if (sob[j] && !vs[j]) { vs[j] = 1; px.push(j); pilha.push(j); } }); }
-      let enc = 0; for (const i of px) { let t = false; viz4(i, j => { if (ab[j]) t = true; }); if (t) enc++; } // presa por uma base estreita = fiapo (canto arredondado não)
-      if (px.length >= (o.fiapoMin ?? 15) && px.length / Math.max(1, enc) >= 4) for (const i of px) tira[i] = 2; }
+      let enc = 0, corpo = 0; for (const i of px) { let t = false; viz4(i, j => { if (ab[j]) { t = true; corpo = Math.max(corpo, corpoTam[corpoId[j]] || 0); } }); if (t) enc++; } // presa por uma base estreita = fiapo (canto arredondado não)
+      if (enc > 0 && corpo >= Math.max(3000, px.length * 20) && px.length >= (o.fiapoMin ?? 15) && px.length <= (o.fiapoMax ?? 160) && px.length / enc >= 4 && px.length / enc <= 22) { let cx = 0, cy = 0; for (const i of px) { cx += i % W; cy += (i / W) | 0; } cands.push({ px, cx: cx / px.length, cy: cy / px.length }); } }
+    // fiapo é um risco SOZINHO; vários parecidos juntos (cílios, pontas de cabelo, dedos) são desenho e ficam
+    for (const c of cands) { const viz = cands.filter(d => d !== c && Math.hypot(d.cx - c.cx, d.cy - c.cy) < (o.fiapoGrupo ?? 60)).length; if (!viz) for (const i of c.px) tira[i] = 2; }
     // aplica: some, e a borda clara/meio-transparente em volta vira traço com a transparência certa
     for (let i = 0; i < N; i++) { if (tira[i] === 4) { D[i * 4] = tinta[0]; D[i * 4 + 1] = tinta[1]; D[i * 4 + 2] = tinta[2]; D[i * 4 + 3] = 255; } else if (tira[i]) D[i * 4 + 3] = 0; }
     for (let pass = 0; pass < (o.passosFresta ?? 12); pass++) for (let i = 0; i < N; i++) { if (tira[i] || !A(i)) continue; let perto = false, tr = false; viz4(i, j => { if (tira[j]) perto = true; if (tira[j] && tira[j] < 4) tr = true; }); if (!perto) continue;
