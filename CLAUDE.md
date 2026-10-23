@@ -5,6 +5,8 @@
 - Publicar = commit + `git pull --rebase` + push na `main` (o GitHub Pages publica a raiz), só quando o dono pedir.
 - Conferir antes do push: `for f in js/*.js; do node --check "$f"; done`.
 
+- REGRA DO DONO: ao criar arquivos/animações para o Ateliê (à mão, por script ou pela IA), os FRAMES usam os PRESETS (poses das sessões, `s: { sessao: preset }`), não imagens/posições soltas em cada frame. Falta uma pose? Crie o preset e use ele no frame. A pose padrão é a base; o que muda num frame fica só nele.
+
 ## Estrutura
 - `js/modelo.js` dados (projeto, camadas, personagem por partes) e o cálculo de cada quadro · `js/desenho.js` desenha · `js/app.js` editor e palco
 - `js/arvore.js` hierarquia · `js/folha.js` timeline · `js/lado.js` painel da direita · `js/atelie.js` ateliê de personagens · `js/pintura.js` pintar/apagar/balde/conta-gotas, cores base e trocar cores (à mão ou pela IA) no ateliê
