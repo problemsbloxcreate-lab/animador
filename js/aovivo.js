@@ -296,7 +296,10 @@ const AoVivo = {
     for (const el of $$('[data-aovivo]')) { const outros = this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx ? this.outros() : [];
       el.hidden = !(this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx); if (el.dataset.aovivo === 'atelie') { const au = document.getElementById('at-autores'); if (au) au.hidden = !el.hidden; } // ao vivo: some o "editado por…" (mais espaço)
       if (el.hidden) { el.innerHTML = ''; continue; }
-      el.innerHTML = `<span class="av-ao" title="Trabalhando junto ao vivo">${ic('users', 13)} ${outros.length ? 'ao vivo' : 'só você'}</span>` + [...outros].sort((a, b) => (a.afk ? 1 : 0) - (b.afk ? 1 : 0)).map((g, i, L) => `<span class="av-p${g.afk ? ' afk' : ''}" style="--c:${g.cor};z-index:${g.afk ? 0 : L.length - i}" title="${esc(g.nome)}${g.fazendo ? ' · ' + esc(g.fazendo) : ''}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(document.createTextNode('${esc((g.nome || '?')[0]).replace(/'/g, '')}'))">` : esc((g.nome || '?')[0])}</span>`).join('')
+      // 2+ pessoas: a foto de TODOS (eu primeiro, depois quem está ativo, ausentes no fim); cabem 3 ou 4 conforme a tela, o resto vira "+N" (clicar abre a lista toda)
+      const todos = outros.length ? [{ ...this.eu, eu: true }, ...[...outros].sort((a, b) => (a.afk ? 1 : 0) - (b.afk ? 1 : 0))] : [], max = innerWidth < 1250 ? 3 : 4, cabe = Math.min(max, todos.length), mais = todos.length - cabe;
+      const foto = (g, i) => `<span class="av-p${g.afk ? ' afk' : ''}${g.eu ? ' eu' : ''}" style="--c:${g.cor || '#888'};z-index:${g.afk ? 0 : 20 - i}" title="${esc(g.nome || 'Alguém')}${g.eu ? ' (você)' : ''}${g.fazendo ? ' · ' + esc(g.fazendo) : ''}${g.afk ? ' · ausente' : ''}">${g.foto ? `<img src="${esc(g.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(document.createTextNode('${esc((g.nome || '?')[0]).replace(/'/g, '')}'))">` : esc((g.nome || '?')[0])}</span>`;
+      el.innerHTML = `<span class="av-ao" title="Trabalhando junto ao vivo">${ic('users', 13)} ${outros.length ? 'ao vivo' : 'só você'}</span>` + todos.slice(0, cabe).map(foto).join('') + (mais > 0 ? `<span class="av-p av-mais" style="z-index:0" title="Mais ${mais}: ${esc(todos.slice(cabe).map(g => g.nome || 'Alguém').join(', '))} · clique para ver todos">+${mais}</span>` : '')
         + (this.ad.ctx === 'animador' ? `<button class="btn sm" data-sair>Sair</button>${this.ad.dono ? '<button class="btn sm" data-fim>Encerrar</button>' : ''}` : '');
       this.ligaPop(el); if ($('[data-sair]', el)) $('[data-sair]', el).onclick = () => App.sairJunto(false); if ($('[data-fim]', el)) $('[data-fim]', el).onclick = () => App.sairJunto(true); }
   },
@@ -321,7 +324,7 @@ const AoVivo = {
         c.addEventListener('pointerdown', () => { this._gesto = true; }, true); }
     };
     addEventListener('pointerup', () => { this._gesto = false; }, true); addEventListener('pointercancel', () => { this._gesto = false; }, true);
-    ligaPalcos(); setInterval(ligaPalcos, 1500);
+    ligaPalcos(); setInterval(ligaPalcos, 1500); addEventListener('resize', () => { clearTimeout(this._rz); this._rz = setTimeout(() => this.ativo && this.pintaBarra(), 150); }); // cabem 3 ou 4 fotos conforme a tela
     addEventListener('pagehide', () => { if (this.ativo) try { this.t.sair(this.sala, this.eu.id); } catch { } });
   },
   // ---------- adaptadores ----------
