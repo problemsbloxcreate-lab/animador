@@ -18,7 +18,14 @@ const Nuvem = {
     this._listaEm = Date.now(); return (this._lista = this._listaJa().catch(e => { this._lista = null; throw e; }));
   },
   async _listaJa() {
-    const j = await (await this.pede('/personagens')).json(), ids = new Set(), mods = {}; const tams = {}; for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\//); if (m) tams[m[1]] = (tams[m[1]] || 0) + (+it.tam || 0); }
+    let j; this.listaDoPc = false;
+    try { j = await (await this.pede('/personagens')).json(); }
+    catch (e) { // a nuvem não deixou listar (ex.: limite grátis do dia): mostra os personagens da nuvem que este computador já tem guardados
+      const locais = (await DB.all('personagens').catch(() => [])).filter(d => d?.id && d.nome && !d._local);
+      if (!locais.length) throw e; this.listaDoPc = true; setTimeout(() => this._listaPc?.(), 0);
+      return locais.map(d => ({ id: d.id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes })).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
+    }
+    const ids = new Set(), mods = {}; const tams = {}; for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\//); if (m) tams[m[1]] = (tams[m[1]] || 0) + (+it.tam || 0); }
     for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) { ids.add(m[1]); mods[m[1]] = it.mod || null; } }
     const out = [];
     await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true, mods[id]); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes, tam: tams[id] || 0 }); } catch { } }));
@@ -46,11 +53,13 @@ const Nuvem = {
   // a marca vem do /estudio-conta.js (EstudioLimite), que lê o que o servidor responde
   avisoReserva(el) {
     if (!el) return; const L = window.EstudioLimite;
-    const pinta = () => { if (!el.isConnected) { clearInterval(iv); return; } const t = L?.marcado?.() || 0; if (!t) { el.innerHTML = ''; return; }
+    const pinta = () => { if (!el.isConnected) { clearInterval(iv); return; } const t = L?.marcado?.() || 0;
+      const pc = this.listaDoPc ? `<div class="res-aviso lim">${ic('monitor', 14)}<span>A nuvem não deixou listar agora: aparecem os personagens da nuvem que <b>este computador</b> já tinha aberto. Os que outras pessoas criaram hoje podem não aparecer até a nuvem voltar.</span></div>` : '';
+      if (!t) { el.innerHTML = pc; return; }
       const m = Math.max(0, Math.ceil((t - Date.now()) / 6e4)), falta = m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}min` : `${m} min`;
       el.innerHTML = L.naReserva?.() ? `<div class="res-aviso">${ic('cloud', 14)}<span>A nuvem principal chegou ao limite grátis de hoje. O que a equipe salvar vai para a <b>nuvem reserva</b> e continua aparecendo aqui para todos; às 21h (em ${falta}) passa sozinho de volta para a principal.</span></div>`
-        : `<div class="res-aviso lim">${ic('cloud', 14)}<span>A nuvem da equipe chegou ao limite grátis de hoje da Cloudflare. Volta às 21h (em ${falta}); o que você fizer fica guardado neste computador.</span></div>`; };
-    const iv = setInterval(pinta, 30e3); addEventListener('storage', e => { if (e.key === 'estudio-limite-cf') pinta(); }); pinta(); this._resPinta = pinta;
+        : `<div class="res-aviso lim">${ic('cloud', 14)}<span>A nuvem da equipe chegou ao limite grátis de hoje da Cloudflare. Volta às 21h (em ${falta}); o que você fizer fica guardado neste computador.</span></div>`; el.innerHTML += pc; };
+    const iv = setInterval(pinta, 30e3); addEventListener('storage', e => { if (e.key === 'estudio-limite-cf') pinta(); }); pinta(); this._resPinta = this._listaPc = pinta;
   },
   avisaEspaco() { if (Date.now() - (this._espEm || 0) < 120e3) return; this._espEm = Date.now(); try { window.EstudioConta?.nuvem?.atualizar?.(); } catch { } },
   // o que já está na nuvem de cada personagem fica guardado aqui depois da 1ª vez (o "salvar" automático não lista a nuvem toda a cada mudança)
@@ -60,7 +69,7 @@ const Nuvem = {
   async salvar(def, aoAndar, o = {}) {
     this._lista = null;
     let existentes = this._ks.get(def.id);
-    if (!existentes) { existentes = new Set(); try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); } catch { } this._ks.set(def.id, existentes); }
+    if (!existentes) { existentes = new Set(); let listou = false; try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); listou = true; } catch { } if (listou) this._ks.set(def.id, existentes); }
     // PERSONAGENS VÃO EM PNG (sem perda nenhuma; decisão do dono). Imagens que chegaram a ir em webp voltam para a PNG original, se ela estiver neste computador.
     const troca = await this.voltaPng(def, aoAndar); this.ultimaTroca = troca;
     const auds = (def.audios || []).map(a => a.k).filter(Boolean); // áudios de teste do Ateliê
