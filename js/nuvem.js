@@ -204,12 +204,19 @@ const Autores = {
   desconhecido(a) { return !a || !/^u[0-9a-f]{16}$/.test(a.id || '') || !!a.ia; },
   async assumir(o) {
     if (!o || !this.desconhecido(o.autor)) return false; const eu = await this.eu(); if (!eu?.id || eu.id === 'anon') return false;
-    o.autorAntes = o.autor ? { nome: o.autor.nome || 'IA', ia: true } : null; o.autor = { ...eu, em: Date.now(), assumiu: true };
+    delete o.autorAntes; o.autor = { ...eu, em: Date.now(), assumiu: true };
     o.edicoes = [...(o.edicoes || []).filter(x => !this.desconhecido(x) && x.id !== eu.id), { ...eu, em: Date.now() }].slice(-12); return true;
   },
-  AVISO_DONO: 'O criador deste arquivo é <b>desconhecido</b> (ele foi gerado ou editado pela IA). Como você foi a primeira pessoa a abrir, <b>você passa a ser a dona/o dono dele</b>: seu nome e sua foto aparecem como quem criou.',
+  AVISO_DONO: 'O criador deste arquivo é <b>desconhecido</b>. Como você foi a primeira pessoa a abrir, <b>você passa a ser a dona/o dono dele</b>: seu nome e sua foto aparecem como quem criou.',
+  // criador desconhecido (IA ou sem registro): nada de nome da IA na tela; some das edições e do "arquivo feito por"
+  semIa(o) {
+    if (!o) return o; const r = { ...o, edicoes: (o.edicoes || []).filter(x => !this.desconhecido(x)) };
+    if (o.autor && this.desconhecido(o.autor)) r.autor = { nome: 'Desconhecido', em: o.autor.em, desc: true };
+    if (o.pacote?.por && this.desconhecido(o.pacote.por)) r.pacote = { ...o.pacote, por: null };
+    return r;
+  },
   // quem mexeu, sem contar quem subiu (mais recente primeiro)
-  editores(d) { return (d.edicoes || []).filter(x => x.id !== d.autor?.id).sort((a, b) => b.em - a.em); },
+  editores(d) { return (d.edicoes || []).filter(x => x.id !== d.autor?.id && !this.desconhecido(x)).sort((a, b) => b.em - a.em); },
   av(p, cls = '') { const ini = esc(String(p?.nome || '?').trim().charAt(0).toUpperCase() || '?'); return p?.foto ? `<img class="aut-av ${cls}" src="${esc(p.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=&quot;aut-av ${cls}&quot;>${ini}</span>'">` : `<span class="aut-av ${cls}">${ini}</span>`; },
   // selo do canto do cartão: a foto e o nome de quem subiu; se outra pessoa editou, a foto dela por cima e "editado por"
   // nome e foto de AGORA da pessoa (o que ela pôs na "Minha conta"), pelo código guardado no arquivo; se não achar, fica o que foi guardado
@@ -235,13 +242,13 @@ const Autores = {
   },
   async aoVivo(d) { const autor = await this.vivo(d.autor), edicoes = await Promise.all((d.edicoes || []).map(x => this.vivo(x))); return { ...d, autor, edicoes }; },
   selo(d0) {
-    if (!d0?.autor) return null; let d = d0, eds = this.editores(d), ult = eds[0];
+    if (!d0?.autor) return null; d0 = this.semIa(d0); let d = d0, eds = this.editores(d), ult = eds[0];
     const el = h(`<div class="autores" title=""></div>`);
     const pinta = () => { eds = this.editores(d); ult = eds[0]; el.innerHTML = `${this.av(d.autor)}${ult ? this.av(ult, 'sob') : ''}<span class="aut-nm">${esc(d.autor.nome)}${ult ? `<small> · editado por ${esc(ult.nome)}${eds.length > 1 ? ` +${eds.length - 1}` : ''}</small>` : ''}</span>`; };
-    pinta(); this.aoVivo(d0).then(x => { d = x; pinta(); }); // troca pelo nome e foto de agora assim que chegar
+    pinta(); this.aoVivo(d0).then(x => { d = this.semIa(x); pinta(); }); // troca pelo nome e foto de agora assim que chegar
     let pop = null; const fecha = () => { pop?.remove(); pop = null; };
     el.onmouseenter = () => { fecha();
-      pop = h(`<div class="aut-pop"><div class="aut-l">${this.av(d.autor)}<div><b>${esc(d.autor.nome)}</b><small>subiu para a nuvem · ${fmtDate(d.autor.em)}</small></div></div>
+      pop = h(`<div class="aut-pop"><div class="aut-l">${this.av(d.autor)}<div><b>${esc(d.autor.nome)}</b><small>${d.autor.desc ? 'criador desconhecido' : 'subiu para a nuvem · ' + fmtDate(d.autor.em)}</small></div></div>
         ${eds.length ? `<div class="aut-t">Editado por</div>${eds.map(x => `<div class="aut-l">${this.av(x)}<div><b>${esc(x.nome)}</b><small>última edição · ${fmtDate(x.em)}</small></div></div>`).join('')}` : '<div class="aut-t">Ninguém mais editou</div>'}
         ${d.modificado ? `<div class="aut-t">Salvo pela última vez ${fmtDate(d.modificado)}</div>` : ''}</div>`);
       document.body.appendChild(pop); const r = el.getBoundingClientRect(), pr = pop.getBoundingClientRect();
@@ -253,8 +260,8 @@ const Autores = {
 
 /* ---------- ficha de quem fez (aparece ao abrir um .animador ou .atelieanimador): foto, nome e datas, nunca o e-mail ---------- */
 Autores.ficha = function (o0) {
-  let o = o0;
-  const L = (p, txt) => `<div class="aut-l">${this.av(p)}<div><b>${esc(p.nome || 'Alguém')}</b><small>${txt}</small></div></div>`;
+  let o = this.semIa(o0);
+  const L = (p, txt) => `<div class="aut-l">${this.av(p)}<div><b>${esc(p.nome || 'Alguém')}</b><small>${p.desc ? 'criador desconhecido' : txt}</small></div></div>`;
   const eds = o.autor ? this.editores(o) : (o.edicoes || []).slice().sort((a, b) => b.em - a.em);
   const el = h(`<div class="ficha">
     <div class="ficha-top">${o.thumb ? `<div class="ficha-th" style="background-image:url('${o.thumb}')"></div>` : `<div class="ficha-th">${ic(o.ico || 'layers', 26)}</div>`}<div><small>${esc(o.tipo || '')}</small><b>${esc(o.nome || '')}</b>${o.resumo ? `<small>${o.resumo}</small>` : ''}</div></div>
@@ -267,7 +274,7 @@ Autores.ficha = function (o0) {
   // troca pelo nome e a foto de AGORA de cada pessoa (a foto guardada no arquivo pode ser antiga ou só valer para quem fez)
   (async () => { try {
     const [autor, edicoes, por] = await Promise.all([o.autor ? this.vivo(o.autor) : null, Promise.all((o.edicoes || []).map(x => this.vivo(x))), o.pacote?.por ? this.vivo(o.pacote.por) : null]);
-    o = { ...o, autor, edicoes, pacote: o.pacote ? { ...o.pacote, por } : o.pacote };
+    o = this.semIa({ ...o, autor, edicoes, pacote: o.pacote ? { ...o.pacote, por } : o.pacote });
     const pop = el.querySelector('.ficha-pop'); if (!pop) return;
     const eds2 = o.autor ? this.editores(o) : (o.edicoes || []).slice().sort((a, b) => b.em - a.em);
     pop.innerHTML = `${o.autor ? `<div class="aut-t" style="border:0;margin:0">Criado por</div>${L(o.autor, (o.verboAutor || 'criou') + ' · ' + fmtDate(o.autor.em))}` : '<div class="aut-t" style="border:0;margin:0">Quem criou não ficou registrado (arquivo de antes desta versão)</div>'}
