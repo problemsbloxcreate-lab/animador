@@ -435,6 +435,11 @@ const AoVivo = {
   },
   // Ateliê: personagem da nuvem → entra sozinho
   // logo depois do login o servidor ainda pode estar liberando a conta no tempo real: tenta de novo algumas vezes e, se não der, avisa o motivo
+  // quantas OUTRAS pessoas estão agora na sala (sem contar a minha conta: a aba de antes do F5 pode ainda aparecer por uns segundos)
+  async outrosNaSala(sala) {
+    if (!this.ligado()) return 0; try { const t = await this.transporte(), eu = await this.quem(), st = await t.estado(sala);
+      return Object.values(st.gente || {}).filter(g => g && g.conta !== eu.conta).length; } catch { return 0; }
+  },
   async entrarAtelie(n = 0) {
     if (!this.ligado() || !Atelie.def || !Atelie.naNuvem || (this.ativo && this.ad?.ctx === 'animador')) return; if (this.ativo && this.sala === 'at-' + Atelie.def.id) return;
     const id = Atelie.def.id; if (await this.entrar(this.adAtelie(), { meta: { tipo: 'atelie', nome: Atelie.def.nome } })) return;

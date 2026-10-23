@@ -41,6 +41,12 @@ const Atelie = {
           UI.toast(`A nuvem não respondeu agora (${esc(e.message)}). Abri <b>a cópia deste computador</b>${r?.def ? ' (o seu rascunho)' : ''}: o que você mudar fica só aqui até a nuvem voltar; aí é só clicar em <b>Salvar na nuvem</b>.`, { kind: 'warn', time: 9000 }); } } t.remove();
       if (!def && !r?.def && o.reserva) { def = o.reserva; doRascunho = true; } // só existe na animação (ex.: veio de um .animador): usa a cópia de lá
       if (r?.def && !def) { def = r.def; doRascunho = true; } // ainda não foi para a nuvem: só existe o rascunho deste computador
+      else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def) && r.nuvem && await AoVivo.outrosNaSala('at-' + id)) {
+        await this.apagarRascunho(id); // tem gente trabalhando nele agora (ex.: deu F5): segue na sala ao vivo, que tem a versão de todos
+      }
+      else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def) && r.nuvem && (!def.modificado || r.em >= def.modificado)) {
+        def = r.def; doRascunho = true; // o rascunho deste personagem da nuvem é o mais novo (ninguém salvou depois): continua dele, sem perguntar, e ele vai sozinho para a nuvem
+      }
       else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def)) {
         const usa = await UI.modal({ title: 'Tem um rascunho neste computador', icon: 'save', width: 460, body: `<div>As mudanças de <b>${esc(r.def.nome)}</b> feitas neste computador (guardadas ${fmtDate(r.em)}) <b>ainda não foram para a nuvem</b>.<br><br>A versão da nuvem é de ${def.modificado ? fmtDate(def.modificado) : 'antes'}.<div class="rasc-esc"><div class="rasc-op nuvem">${ic('cloud', 15)}<span><b>Seguir na nuvem</b>: abre a versão da equipe (e o ao vivo, com quem estiver junto). O rascunho é descartado.</span></div><div class="rasc-op">${ic('monitor', 15)}<span><b>Continuar o rascunho</b>: abre a versão deste computador, sem o ao vivo. Vai para a nuvem quando você clicar em Salvar na nuvem.</span></div></div></div>`,
           buttons: [{ label: 'Continuar o rascunho', icon: 'monitor', kind: 'rasc-local', value: 'rascunho' }, { label: 'Seguir na nuvem', icon: 'cloud', kind: 'nuvem-dest', value: 'nuvem' }] }); // em destaque: seguir na nuvem (com quem estiver junto)
