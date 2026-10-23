@@ -7,6 +7,8 @@
 
 - REGRA DO DONO: ao criar arquivos/animações para o Ateliê (à mão, por script ou pela IA), os FRAMES usam os PRESETS (poses das sessões, `s: { sessao: preset }`), não imagens/posições soltas em cada frame. Falta uma pose? Crie o preset e use ele no frame. A pose padrão é a base; o que muda num frame fica só nele.
 
+- LIMITE GRÁTIS DA CLOUDFLARE (KV da nuvem da equipe): 1000 gravações, 1000 apagadas e 1000 listas POR DIA na conta toda (volta às 00:00 UTC = 21h de Brasília). Passou = "Failed to fetch"/"O porteiro não conseguiu falar…". Por isso: o Ateliê manda para a nuvem 1 min depois da última mudança (`agendaNuvem`) e ao esconder a aba, o turma-ia guarda a lista do KV na memória por 5 min (`kvComLista`). Action `Diagnóstico da nuvem` (repo do menu, só à mão) mostra o gasto do dia. Não volte a mandar a cada poucos segundos.
+
 ## Estrutura
 - `js/modelo.js` dados (projeto, camadas, personagem por partes) e o cálculo de cada quadro · `js/desenho.js` desenha · `js/app.js` editor e palco
 - `js/arvore.js` hierarquia · `js/folha.js` timeline · `js/lado.js` painel da direita · `js/atelie.js` ateliê de personagens · `js/pintura.js` pintar/apagar/balde/conta-gotas, cores base e trocar cores (à mão ou pela IA) no ateliê
