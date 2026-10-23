@@ -938,7 +938,8 @@ const Atelie = {
     if (!def.sessoes.length) box.appendChild(h('<div class="vazio">Sessões são grupos de presets: <b>Olhos</b> (assustado, surpreso, triste, fechado…), <b>Boca</b>, <b>Perna direita</b> (chutando, inclinada…), <b>Pose</b> (corpo todo).<br><br>Na animação, cada sessão vira uma fila de botões: clicou, virou chave naquele quadro.</div>'));
     for (const s of def.sessoes) {
       const aberta = this.edit?.s === s.id, nomesPartes = (s.partes || []).map(id => this.parte(id)?.nome).filter(Boolean);
-      const c = h(`<div class="sess ${aberta ? 'aberta' : ''}"><div class="cab"><b>${esc(s.nome)}</b><small title="Partes que esta sessão mexe">${nomesPartes.length ? esc(nomesPartes.slice(0, 3).join(', ')) + (nomesPartes.length > 3 ? '…' : '') : 'todas as partes'}</small>
+      const daSel = !!this.sel && (s.partes || []).includes(this.sel); // a parte escolhida no palco está nesta sessão: leve destaque (para achar onde trocar/pôr presets dela)
+      const c = h(`<div class="sess ${aberta ? 'aberta' : ''}${daSel ? ' da-sel' : ''}"${daSel ? ` title="${esc(this.parte(this.sel)?.nome || '')} está nesta sessão"` : ''}><div class="cab"><b>${esc(s.nome)}</b>${daSel ? `<span class="sess-tag">${ic('cursor', 10)} ${esc(this.parte(this.sel)?.nome || '')}</span>` : ''}<small title="Partes que esta sessão mexe">${nomesPartes.length ? esc(nomesPartes.slice(0, 3).join(', ')) + (nomesPartes.length > 3 ? '…' : '') : 'todas as partes'}</small>
         <button class="ibtn ia" data-ia title="Criar um preset com a IA">${ic('sparkles', 13)}</button><button class="ibtn" data-m title="Mais">${ic('dots', 13)}</button></div><div class="lista presets"></div></div>`);
       const l = $('.lista', c);
       // "Padrão" = a base: clicar nele (ou de novo no preset marcado) volta a montar a pose padrão
@@ -957,7 +958,7 @@ const Atelie = {
       ordenavel($('.cab', c), 'sessao', s.id, (id, antes) => { const L = this.def.sessoes, i2 = L.findIndex(x => x.id === id), j2 = L.indexOf(s); if (i2 >= 0) { moveNaLista(L, i2, j2, antes); this.commit(); } }); // arrastar a sessão muda a ordem
       box.appendChild(c);
     }
-    el.appendChild(box);
+    el.appendChild(box); if (this.sel !== this._selPoses) { this._selPoses = this.sel; const ds = $('.sess.da-sel', box); if (ds) requestAnimationFrame(() => ds.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); } /* escolheu outra parte: a sessão dela aparece */
   },
   // passar o mouse num preset: janelinha em cima do mouse com o desenho daquela pose (zoom nas partes da sessão)
   // janelinha em cima do mouse com um desenho (gera = função que devolve o canvas, rotulo = texto de baixo)
@@ -998,9 +999,17 @@ const Atelie = {
     if (this._prevCache.size > 60) this._prevCache.clear(); this._prevCache.set(chave, cv); return copia(cv);
   },
   async novaSessao(nome) {
-    const def = this.def, body = h(`<div><label class="field">Nome da sessão<input type="text" value="${esc(nome || '')}" placeholder="Ex.: Olhos, Boca, Perna direita, Pose"></label>
-      <div class="field">Partes que ela mexe <small>(nenhuma marcada = todas, para poses do corpo todo)</small><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">${def.partes.map(p => `<label class="chk"><input type="checkbox" value="${p.id}" ${p.id === this.sel ? 'checked' : ''}> ${esc(p.nome)}</label>`).join('')}</div></div></div>`);
-    const r = await UI.modal({ title: 'Sessão nova', icon: 'layers', body, enterValue: true, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', collect: a => ({ nome: $('input[type=text]', a.body).value.trim(), partes: $$('input[type=checkbox]:checked', a.body).map(i => i.value) }) }] });
+    // escolher as partes: cartões com a miniatura de cada parte (passar o mouse aumenta), marcador redondo e "todas" quando nenhuma marcada
+    const def = this.def, est = this.estado(), body = h(`<div class="ns"><label class="field">Nome da sessão<input type="text" value="${esc(nome || '')}" placeholder="Ex.: Olhos, Boca, Perna direita, Pose"></label>
+      <div class="field">Partes que ela mexe <small data-res></small></div><div class="ns-grade">${def.partes.filter(p => !Referencia.ehRef(p)).map(p => `<label class="ns-p${p.id === this.sel ? ' on' : ''}" title="${esc(p.nome)}"><input type="checkbox" value="${p.id}" ${p.id === this.sel ? 'checked' : ''}><span class="ns-mini"><canvas width="96" height="96" data-p="${p.id}"></canvas></span><span class="ns-nome">${esc(p.nome)}</span><i class="ns-chk">${ic('check', 12)}</i></label>`).join('')}</div>
+      <div class="ns-acoes"><button class="btn sm" type="button" data-todas>Marcar todas</button><button class="btn sm" type="button" data-nenhuma>Limpar</button></div></div>`);
+    const res = () => { const n = $$('input[type=checkbox]:checked', body).length; $('[data-res]', body).textContent = n ? `${n} marcada${n === 1 ? '' : 's'}` : 'nenhuma marcada = todas (poses do corpo todo)'; $$('.ns-p', body).forEach(l => l.classList.toggle('on', $('input', l).checked)); };
+    $$('input[type=checkbox]', body).forEach(i => i.onchange = res); $('[data-todas]', body).onclick = () => { $$('input[type=checkbox]', body).forEach(i => i.checked = true); res(); }; $('[data-nenhuma]', body).onclick = () => { $$('input[type=checkbox]', body).forEach(i => i.checked = false); res(); }; res();
+    // miniatura: a imagem que a parte mostra agora (ou a 1ª dela)
+    for (const cv of $$('canvas[data-p]', body)) { const p = this.parte(cv.dataset.p), e = est[p?.id] || {}, img = p?.imgs.find(x => x.id === e.img) || p?.imgs[0]; if (!img) continue;
+      const pinta = bm => { if (!bm) return; const x = cv.getContext('2d'), k = Math.min(88 / bm.width, 88 / bm.height); x.clearRect(0, 0, 96, 96); x.drawImage(bm, (96 - bm.width * k) / 2, (96 - bm.height * k) / 2, bm.width * k, bm.height * k); };
+      pinta(Arq.bitmap(img.k, () => pinta(Arq.img.get(img.k)))); }
+    const r = await UI.modal({ title: 'Sessão nova', icon: 'layers', width: 560, body, enterValue: true, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', collect: a => ({ nome: $('input[type=text]', a.body).value.trim(), partes: $$('input[type=checkbox]:checked', a.body).map(i => i.value) }) }] });
     if (!r?.nome) return; const s = { id: uid('s'), nome: r.nome, partes: r.partes, presets: [] }; def.sessoes.push(s); this.aba = 'sessoes'; this.commit(); this.novoPreset(s, 'normal');
   },
   // SESSÕES PRONTAS: antes de criar, mostra o que vai ser feito (sessões novas, as que já existem e ficam como estão, e as que vão mexer nas mesmas partes de uma que já existe)

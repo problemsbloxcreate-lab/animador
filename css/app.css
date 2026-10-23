@@ -874,3 +874,20 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .rasc-op svg{flex:none;margin-top:1px}.rasc-op.nuvem{border-color:#3d8bf0;background:rgba(61,139,240,.1);color:#d6e7ff}.rasc-op.nuvem svg{color:#6aa8f5}
 .av-p.av-mais{background:#2a2a2a;color:#ddd;box-shadow:0 0 0 2px #444;font-size:10px;cursor:pointer}
 .at-tl .tl-grade>.tl-linha{flex:none}.at-tl .tl-c .tl-mini,.at-tl .tl-c .tl-nf{flex:none}.at-tl .tl-c .tl-mini{position:static;inset:auto}
+/* POSES: sessão da parte escolhida no palco com leve destaque */
+.sess.da-sel{border-color:rgba(90,169,232,.55);background:linear-gradient(rgba(90,169,232,.09),rgba(90,169,232,.03));box-shadow:inset 3px 0 0 #5aa9e8}
+.sess-tag{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#9cc7ee;background:rgba(90,169,232,.16);border-radius:999px;padding:1px 7px;margin-left:6px;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}
+/* Sessão nova: cartões de partes com miniatura */
+.ns-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;max-height:46vh;overflow:auto;padding:4px 2px 8px}
+.ns-p{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 6px 7px;border:1px solid var(--bd2);border-radius:10px;background:var(--bg2);cursor:pointer;transition:border-color .12s,background .12s}
+.ns-p:hover{border-color:#5a5a5a;background:var(--bg3);z-index:3}
+.ns-p input{position:absolute;opacity:0;pointer-events:none}
+.ns-mini{width:56px;height:56px;border-radius:8px;background:repeating-conic-gradient(#262626 0 25%,#1e1e1e 0 50%) 0 0/10px 10px;display:grid;place-items:center;transition:transform .16s ease,box-shadow .16s ease}
+.ns-mini canvas{width:52px;height:52px}
+.ns-p:hover .ns-mini{transform:scale(2.1) translateY(-8px);box-shadow:0 10px 30px rgba(0,0,0,.6);position:relative;z-index:4}
+.ns-nome{font-size:11.5px;line-height:1.2;text-align:center;color:var(--tx2);max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ns-chk{position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:50%;border:1.5px solid #666;background:#1a1a1a;display:grid;place-items:center;color:transparent;transition:all .12s}
+.ns-p.on{border-color:#5aa9e8;background:rgba(90,169,232,.12)}.ns-p.on .ns-nome{color:#e8f3ff}
+.ns-p.on .ns-chk{background:#3d8bf0;border-color:#3d8bf0;color:#fff}
+.ns-p:focus-within{outline:2px solid rgba(90,169,232,.5);outline-offset:1px}
+.ns-acoes{display:flex;gap:6px;justify-content:flex-end}
