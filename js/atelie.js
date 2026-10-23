@@ -176,14 +176,14 @@ const Atelie = {
      Guardado em arquivos["rascunho:<id do personagem>"] = { def, em, thumb }. As imagens novas já ficam no navegador (Arq). ---------- */
   chaveRascunho(id = this.def?.id) { return 'rascunho:' + id; },
   rascunho() {
-    if (!this.def) return; this.salvandoLocal = true; this.pintaEstado(); clearTimeout(this._tr);
-    this._tr = setTimeout(async () => { try { const def = JSON.parse(this.ultimo || JSON.stringify(this.def)); let thumb = null; try { thumb = this.miniatura(); } catch { }
+    if (!this.def || this._apagado === this.def.id) return; this.salvandoLocal = true; this.pintaEstado(); clearTimeout(this._tr);
+    this._tr = setTimeout(async () => { if (this._apagado === this.def?.id) return; try { const def = JSON.parse(this.ultimo || JSON.stringify(this.def)); let thumb = null; try { thumb = this.miniatura(); } catch { }
       await DB.put('arquivos', { tipo: 'rascunho-atelie', def, em: Date.now(), thumb, nuvem: !!this.naNuvem }, this.chaveRascunho(def.id)); this.rascunhoEm = Date.now(); } catch (e) { UI.toast('Não consegui guardar no navegador: ' + esc(e.message), { kind: 'err' }); }
       this.salvandoLocal = false; this.pintaEstado(); window.EstudioConta?.espaco?.atualizar?.(); if (this.naNuvem) this.agendaNuvem(); }, 500);
   },
   // guarda já (sem esperar) neste computador
   async guardarLocalJa() {
-    if (!this.def || (!this.sujo && !this.salvandoLocal)) return; clearTimeout(this._tr);
+    if (!this.def || this._apagado === this.def.id || (!this.sujo && !this.salvandoLocal)) return; clearTimeout(this._tr);
     try { const def = JSON.parse(this.ultimo || JSON.stringify(this.def)); let thumb = null; try { thumb = this.miniatura(); } catch { }
       await DB.put('arquivos', { tipo: 'rascunho-atelie', def, em: Date.now(), thumb, nuvem: !!this.naNuvem }, this.chaveRascunho(def.id)); this.rascunhoEm = Date.now(); return true; }
     catch (e) { UI.toast('Não consegui guardar no navegador: ' + esc(e.message), { kind: 'err' }); return false; }
@@ -265,7 +265,9 @@ const Atelie = {
     b.title = (this.naNuvem ? 'Este personagem está na nuvem da equipe: as mudanças vão sozinhas (clique para mandar agora).' : 'Salvar na nuvem da equipe (Ctrl+S guarda só neste computador)')
       + (res ? ' A nuvem principal chegou ao limite de hoje: por enquanto vai para a nuvem reserva (a equipe vê igual) e passa sozinho para a principal às 21h.' : '');
   },
-  async apagarRascunho(id = this.def?.id) { clearTimeout(this._tr); this.salvandoLocal = false; this.rascunhoEm = null; try { await DB.del('arquivos', this.chaveRascunho(id)); } catch { } },
+  // avisa = apagado pela pessoa na tela inicial: as outras abas com ele aberto param de guardar (senão o rascunho voltava)
+  async apagarRascunho(id = this.def?.id, avisa) { clearTimeout(this._tr); this.salvandoLocal = false; this.rascunhoEm = null; try { await DB.del('arquivos', this.chaveRascunho(id)); } catch { }
+    if (avisa) { try { (this._canal ||= new BroadcastChannel('animador')).postMessage({ tipo: 'apagou-local', id }); } catch { } } },
   async rascunhos() { try { const ks = (await DB.keys('arquivos')).filter(k => String(k).startsWith('rascunho:')); return (await Promise.all(ks.map(k => DB.get('arquivos', k)))).filter(r => r?.def).sort((a, b) => b.em - a.em); } catch { return []; } },
   // selo ao lado do Salvar: salvo na nuvem / só neste computador
   pintaEstado() {

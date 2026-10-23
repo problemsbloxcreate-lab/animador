@@ -173,12 +173,13 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
           { label: 'Continuar no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(r.def.id) }, { label: 'Baixar .atelieanimador', icon: 'download', action: () => AtelieArq.baixar(r.def) },
           { label: 'Duplicar (cópia só neste computador)', icon: 'dup', action: async () => { await Arquivos.duplicarPersonagem(r.def, r.thumb); this.pinta(); } },
           { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.personagem(r.def, { thumb: r.thumb }) },
-          '-', { label: 'Descartar o rascunho', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Descartar o rascunho de "${esc(r.def.nome)}"?`, msg: 'As mudanças que não foram para a nuvem somem deste computador.', ok: 'Descartar', danger: true })) { await Atelie.apagarRascunho(r.def.id); this.pinta(); } } }]); };
+          '-', r.nuvem ? { label: 'Descartar o rascunho', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Descartar o rascunho de "${esc(r.def.nome)}"?`, msg: 'As mudanças que não foram para a nuvem somem deste computador. O personagem da nuvem continua lá.', ok: 'Descartar', danger: true })) { await Atelie.apagarRascunho(r.def.id, true); this.pinta(); } } }
+            : { label: 'Apagar deste computador', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Apagar "${esc(r.def.nome)}"?`, msg: 'Ele só existe neste computador e some daqui (se estiver aberto em outra aba, ela fecha o personagem). <b>Não dá para desfazer.</b>', ok: 'Apagar', danger: true })) { await Atelie.apagarRascunho(r.def.id, true); this.pinta(); } } }]); };
         return card; };
       ({ todas } = await PastasBib.monta($('[data-pb]', sec), { esc: 'local', itens, cartao, aoMudar: pintaLocal }));
       $('[data-pnova]', sec).onclick = async () => { if (await PastasBib.nova('local')) pintaLocal(); };
       $('[data-apaga-todos]', sec).onclick = async () => { if (!(await UI.confirm({ title: `Apagar os ${rs.length} personagens só deste computador?`, msg: 'Somem os personagens locais e as mudanças que ainda não foram para a nuvem. Os que estão na nuvem continuam lá. <b>Não dá para desfazer.</b>', ok: 'Apagar todos', danger: true }))) return;
-        for (const r of rs) await Atelie.apagarRascunho(r.def.id); UI.toast(`${rs.length} apagado(s) deste computador.`, { kind: 'ok' }); this.pinta(); };
+        for (const r of rs) await Atelie.apagarRascunho(r.def.id, true); UI.toast(`${rs.length} apagado(s) deste computador.`, { kind: 'ok' }); this.pinta(); };
       box.innerHTML = ''; box.appendChild(sec); filtra(); });
     pintaLocal();
     try {
@@ -257,6 +258,10 @@ addEventListener('DOMContentLoaded', async () => {
   // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
   try { new BroadcastChannel('animador').onmessage = async ev => {
     const d = ev.data;
+    if (d?.tipo === 'apagou-local' && d.id) { // apagado na tela inicial de outra aba: esta aba para de guardar o rascunho dele (senão ele "voltava")
+      if (Atelie.def?.id === d.id) { Atelie._apagado = d.id; clearTimeout(Atelie._tr); clearTimeout(Atelie._tn); await UI.modal({ title: 'Este personagem foi apagado', icon: 'trash', width: 420, body: `<div><b>${esc(Atelie.def.nome || 'Ele')}</b> foi apagado deste computador em outra aba. Esta aba volta para a tela inicial.</div>`, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] }); location.replace(location.pathname); }
+      else if (!Atelie.def && typeof Home !== 'undefined') Home.pinta();
+      return; }
     if (d?.tipo === 'pose-pronta' && d.def && App.P?.id === d.projeto && App.P.personagens?.[d.def.id]) { // "Abrir no Ateliê como pose nova": o quadro passa a usar
       App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); const r = Modelo.achar(App.P, d.no), n = r?.no;
       if (n) { const k = Modelo.chave(n, d.quadro); if (d.vista) k.vista = d.vista; if (d.preset) k.sessoes = { ...(k.sessoes || {}), [d.sessao]: d.preset }; if (d.tiraEspelho) Modelo.poeTransf(n, d.quadro, { sx: Math.abs(Modelo.transf(n, d.quadro).sx || 1) }); if (d.tiraAjustes?.length) { k.partes = { ...(k.partes || {}) }; for (const pid of d.tiraAjustes) k.partes[pid] = null; } }
