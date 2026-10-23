@@ -65,9 +65,9 @@ const Nuvem = {
       const pc = false ? `<div class="res-aviso lim">${ic('cloud', 14)}<span>A nuvem não deixou listar tudo agora. Aparecem os personagens já conhecidos, cada um aberto <b>direto da nuvem</b> (a versão de sempre, não a cópia do computador). Algum criado hoje por outra pessoa pode faltar até a nuvem voltar.</span></div>` : '';
       if (!t) { el.innerHTML = pc; return; }
       const m = Math.max(0, Math.ceil((t - Date.now()) / 6e4)), falta = m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}min` : `${m} min`;
-      const usos = [...(this._usoRes || [])], diz = usos.length ? ` Agora ela está sendo usada para: <b>${usos.join(', ')}</b>.` : '';
-      el.innerHTML = L.naReserva?.() || usos.length || this.parcial ? `<div class="res-aviso">${ic('cloud', 14)}<span>A nuvem principal chegou ao limite de hoje, então a <b>nuvem reserva</b> (a conta antiga) entra no lugar dela em algumas coisas.${diz} Tudo continua igual para a equipe e às 21h (em ${falta}) passa sozinho de volta para a principal.</span></div>`
-        : `<div class="res-aviso lim">${ic('cloud', 14)}<span>A nuvem principal chegou ao limite de hoje e volta às 21h (em ${falta}). Enquanto isso, a <b>nuvem reserva</b> entra no lugar dela quando precisar (salvar, apagar, listar) e este aviso diz quando ela estiver em uso.</span></div>`; el.innerHTML += pc; };
+      const usos = [...(this._usoRes || [])], diz = usos.length ? ` (${usos.join(', ')})` : '';
+      el.innerHTML = L.naReserva?.() || usos.length || this.parcial ? `<div class="res-aviso">${ic('cloud', 14)}<span>Limite de hoje atingido: usando a <b>nuvem reserva</b>${diz}. Nada muda para a equipe; volta ao normal às 21h (em ${falta}).</span></div>`
+        : `<div class="res-aviso lim">${ic('cloud', 14)}<span>Limite de hoje atingido. Se precisar, a <b>nuvem reserva</b> entra no lugar; volta ao normal às 21h (em ${falta}).</span></div>`; el.innerHTML += pc; };
     const iv = setInterval(pinta, 30e3); addEventListener('storage', e => { if (e.key === 'estudio-limite-cf') pinta(); }); pinta(); this._resPinta = this._listaPc = pinta;
   },
   avisaEspaco() { if (Date.now() - (this._espEm || 0) < 120e3) return; this._espEm = Date.now(); try { window.EstudioConta?.nuvem?.atualizar?.(); } catch { } },
