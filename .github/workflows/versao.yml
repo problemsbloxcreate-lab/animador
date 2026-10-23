@@ -1,0 +1,26 @@
+name: Versão do site
+# A cada mudança publicada na main, grava versao.json com o código da versão. O Animador aberto confere esse arquivo
+# de tempos em tempos: se mudou, trava as mudanças e pede para atualizar a página (js/versao.js).
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["versao.json"]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: versao
+  cancel-in-progress: true
+jobs:
+  carimbo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gravar versao.json
+        run: |
+          printf '{"v":"%s","em":"%s"}\n' "${GITHUB_SHA::12}" "$(date -u +%FT%TZ)" > versao.json
+          git config user.name "github-actions"
+          git config user.email "github-actions"
+          git add versao.json
+          git commit -m "versão do site: ${GITHUB_SHA::12}" || exit 0
+          for i in 1 2 3 4 5; do git pull --rebase -q origin main && git push -q origin HEAD:main && break; sleep 4; done

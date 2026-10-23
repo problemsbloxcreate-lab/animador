@@ -819,3 +819,8 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .troca-card{width:min(420px,calc(100vw - 32px));background:#1f2228;border:1px solid #3a6f9e;border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);color:var(--tx2);font-size:12.5px}
 .troca-card b{color:var(--tx)}.troca-card>b{font-size:15px}.troca-card small{color:var(--tx3);font-size:11.5px}
 .troca-ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,#3d8bff,#19d3f0);color:#fff}
+/* versão nova do site: trava e pede para atualizar (js/versao.js) */
+.versao-trava{position:fixed;inset:0;z-index:2147483600;display:grid;place-items:center;background:rgba(8,10,14,.72);backdrop-filter:blur(2px)}
+.vt-card{width:min(420px,calc(100vw - 32px));background:#1f2228;border:1px solid #3a6f9e;border-radius:14px;padding:20px 22px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center;color:var(--tx2);font-size:12.5px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.vt-card>b{color:var(--tx);font-size:16px}.vt-card small{color:var(--tx3);font-size:11.5px}.vt-card .btn{margin-top:6px}
+.vt-ic{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#3d8bff,#19d3f0);color:#fff}

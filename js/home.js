@@ -198,6 +198,7 @@ try { navigator.serviceWorker?.getRegistrations?.().then(rs => rs.forEach(r => {
   self.caches?.keys?.().then(ks => ks.filter(k => k.startsWith('animador-')).forEach(k => caches.delete(k))).catch(() => { }); } catch { }
 addEventListener('DOMContentLoaded', async () => {
   const email = await TurmaAuth.gate(); if (!email || !TurmaAuth.passed) return;
+  Versao.liga(); // versão nova publicada = trava e pede para atualizar
   // ainda na tela de carregamento: a biblioteca da equipe, quem fez cada projeto (nome e foto de agora) e as miniaturas,
   // para nada "pipocar" depois na tela inicial, no Ateliê ou nas fichas
   window.EstudioProgresso?.tarefa((async () => {
