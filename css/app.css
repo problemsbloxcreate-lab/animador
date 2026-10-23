@@ -991,3 +991,11 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .ld-fps{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx3);margin:-2px 0 6px}.ld-fps.dif{color:#ffcf6b}
 .pq-fps{display:flex;gap:6px;align-items:flex-start;font-size:12px;color:var(--tx2);background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;margin-bottom:10px}
 .pq-aviso{font-size:11.5px;color:#ffcf6b;margin:-4px 0 8px;display:flex;gap:5px;align-items:center}.pq-aviso:empty{display:none}
+/* MOVER ESTA IMAGEM EM TUDO: barra no topo, por cima de tudo, com Concluído; parte e imagem marcadas em vermelho */
+.imgso-barra{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:100000;display:flex;align-items:center;gap:10px;padding:7px 8px 7px 12px;border-radius:12px;background:#3a1416;border:1px solid #ff6b6b;box-shadow:0 12px 34px rgba(0,0,0,.55),0 0 0 3px rgba(255,92,92,.18);color:#ffe3e3;font-size:12.5px;animation:ctxPrev .15s ease-out}
+.imgso-barra .imgso-ic{color:#ff8a8a;display:grid}.imgso-barra small{color:#e9a9a9}
+.imgso-barra .imgso-ok{background:#ff5c5c;border-color:#ff7b7b;color:#fff;font-weight:600}.imgso-barra .imgso-ok:hover{background:#ff7070}
+.imgso-barra.dorme{background:#2a1a1b;border-color:#8a4a4a;opacity:.92}
+#atelie .no.imgso{box-shadow:inset 3px 0 0 #ff5c5c;background:rgba(255,92,92,.12)}#atelie .no.imgso .nm{color:#ffd0d0}
+#atelie .no.imgso.dorme{box-shadow:inset 3px 0 0 rgba(255,92,92,.4);background:transparent}
+.imgs .im.imgso{border-color:#ff5c5c;box-shadow:0 0 0 2px rgba(255,92,92,.55)}
