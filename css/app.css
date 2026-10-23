@@ -843,3 +843,26 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .ferr-at.presa{box-shadow:0 0 0 1px rgba(90,169,232,.35),0 8px 24px rgba(0,0,0,.4)}
 .ferr-at.arrastando{opacity:.75;transition:none}
 .at-ed-resto input[type=range]{width:80px;margin-left:4px}.at-ed-resto output{min-width:32px;font-variant-numeric:tabular-nums;color:var(--tx3)}
+/* TIMELINE do Ateliê (parecida com a do Animador): régua de frames, uma linha por trilha com nome e cor, miniatura em cada frame */
+.at-tl .tl-grade{overflow:auto;gap:3px;padding-bottom:4px}
+.at-tl .tl-linha{display:flex;align-items:stretch;gap:0;min-width:max-content}
+.at-tl .tl-t{position:sticky;left:0;z-index:2;width:128px;flex:none;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:4px 8px;margin-right:4px;background:#191919;border-right:1px solid var(--bd);text-align:left;cursor:context-menu}
+.at-tl .tl-t b{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--tx)}.at-tl .tl-t b i{width:8px;height:8px;border-radius:50%;background:var(--cor,#888);flex:none}
+.at-tl .tl-t small{font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.at-tl .tl-cel{display:flex;gap:4px;overflow:visible;padding:0}
+.at-tl .tl-regua .tl-t{padding-top:0;padding-bottom:0}.at-tl .tl-regua .tl-cel{height:16px;align-items:center}
+.at-tl .tl-n{flex:none;width:92px;text-align:center;font-size:10px;color:var(--tx3);border-radius:4px;font-variant-numeric:tabular-nums}
+.at-tl .tl-n.agora{background:#e8e8e8;color:#151515;font-weight:700}
+.at-tl .tl-c{width:92px;height:auto;padding:3px;gap:2px;justify-content:flex-start;align-items:stretch;border-top:2px solid var(--cor,#888);background:var(--bg3)}
+.at-tl .tl-c .tl-mini{width:100%;height:44px;border-radius:5px;background:repeating-conic-gradient(#262626 0 25%,#202020 0 50%) 0 0/10px 10px;display:block}
+.at-tl .tl-c .tl-nf{display:flex;align-items:baseline;gap:4px;min-width:0;padding:0 2px}.at-tl .tl-c .tl-nf b{font-size:11px}.at-tl .tl-c .tl-nf small{font-size:9.5px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.at-tl .tl-c.fantasma{opacity:.38;border-style:dashed;cursor:pointer;background:transparent}.at-tl .tl-c.fantasma:hover{opacity:.7}
+.at-tl .tl-c .tl-volta{position:absolute;left:3px;top:3px;z-index:1;color:var(--cor,#888);background:#151515;border-radius:4px;padding:1px;display:grid;place-items:center}
+.at-tl .tl-c.agora{box-shadow:0 0 0 2px #e8e8e8;opacity:1}
+.at-tl .tl-c.fantasma.agora{opacity:.8}
+.at-tl .tl-c.sel{box-shadow:0 0 0 2px #19d3f0}
+.at-tl:not([style*="height"]){max-height:270px}
+.at-tl .tl-c{position:relative;padding:2px}.at-tl .tl-c .tl-mini{height:46px}
+.at-tl .tl-c .tl-nf{position:absolute;left:2px;right:2px;bottom:2px;padding:6px 4px 1px;border-radius:0 0 5px 5px;background:linear-gradient(transparent,rgba(0,0,0,.78));pointer-events:none}
+.at-tl .tl-c .tl-nf b{color:#fff;text-shadow:0 1px 2px #000}.at-tl .tl-c .tl-nf small{color:#ddd}
+.at-tl .tl-c .tl-pega{z-index:1}

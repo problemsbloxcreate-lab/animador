@@ -21,6 +21,7 @@ const Animacoes = {
   sel: null, passo: null, tocando: null, _t: null, passoSel: null, // passoSel = { t, i }: o passo escolhido na timeline (js/linha.js)
   // o passo parado na tela (timeline): { a, ti, pi, p } — aí clicar numa pose muda ESTE passo
   passoAtual() { if (!this.tocando || !this.pausado || !this.passoSel || this.poseFixa) return null; const a = this.achar(this.tocando), t = a?.trilhas?.[this.passoSel.t]; if (!t?.length) return null; const pi = ((this.passoSel.i % t.length) + t.length) % t.length; return { a, ti: this.passoSel.t, pi, p: t[pi] }; },
+  ciclo(a) { return Math.max(1, ...(a?.trilhas || []).map(t => t.length)); },
   irPara(a, ti, pi) { this.parar(true); this.poseFixa = null; this.passo = null; this.sel = a.id; this.tocando = a.id; this.pausado = true; this.i = pi; this.passoSel = { t: ti, i: pi }; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, pi); Atelie.pinta(); },
   // a pose (preset) da sessão s neste passo (null = Padrão). Vai para o passo que já manda nessa sessão agora (ou o da trilha escolhida)
   usarPose(s, pr) {
@@ -64,7 +65,7 @@ const Animacoes = {
   tocar(a, de = 0) {
     this.parar(true); window.Falas?.parar(); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem frames. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
     this.poseFixa = null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, de); this.tocando = a.id; this.sel = a.id; this.passo = null; this.passoSel = null; this.pausado = false; this.i = de;
-    const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = this.frame(a, this.i); Atelie.desenha(); Atelie.pintaTesteLeve(); this.i++; };
+    const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = this.frame(a, this.i); Atelie.desenha(); Atelie.pintaTesteLeve(); this.i = (this.i + 1) % this.ciclo(a); }; // tudo recomeça junto a cada volta da trilha mais comprida (igual à timeline)
     vai(); this._t = setInterval(vai, +a.vel || 250); Atelie.pinta();
   },
   // pausa no passo que está na tela (clicar numa peça arruma aquele passo/preset); continuar segue dali
