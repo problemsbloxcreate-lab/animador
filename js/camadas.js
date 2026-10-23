@@ -73,7 +73,7 @@ const Camadas = {
       const bar = h(`<div class="cam-bar"><button class="btn sm" data-n title="Camada vazia por cima">${ic('plus', 12)} Camada</button><button class="btn sm" data-f title="Uma imagem do computador vira camada">${ic('upload', 12)} Imagem…</button><button class="btn sm" data-o2 title="Outra imagem do personagem vira camada" ${outras.length ? '' : 'disabled'}>${ic('image', 12)} Do personagem</button></div>`);
       $('[data-n]', bar).onclick = async () => { await this.virar(img, true); await this.vazia(img); };
       $('[data-f]', bar).onclick = async () => { const fs = await pickFiles('image/*', true); if (!fs?.length) return; await this.virar(img, true); for (const f of fs) await this.deArquivo(img, f); };
-      $('[data-o2]', bar).onclick = ev => UI.ctx(ev.clientX, ev.clientY, [{ head: 'Pôr como camada' }, ...[...new Set(outras.map(o => o.p))].map(p => ({ label: p.nome, icon: 'layers', sub: outras.filter(o => o.p === p).map(o => ({ label: o.i.nome, action: async () => { await this.virar(img, true); await this.deImagem(img, o.i); } })) }))]);
+      $('[data-o2]', bar).onclick = ev => UI.ctx(ev.clientX, ev.clientY, [{ head: 'Pôr como camada' }, ...[...new Set(outras.map(o => o.p))].map(p => ({ label: p.nome, icon: 'layers', sub: outras.filter(o => o.p === p).map(o => ({ label: o.i.nome, img: o.i.k, action: async () => { await this.virar(img, true); await this.deImagem(img, o.i); } })) }))]);
       box.appendChild(bar); return;
     }
     const lista = h('<div class="cam-lista"></div>'); box.appendChild(lista);
@@ -100,7 +100,7 @@ const Camadas = {
     const bar = h(`<div class="cam-bar"><button class="btn sm" data-n title="Camada vazia">${ic('plus', 12)} Camada</button><button class="btn sm" data-f title="Uma imagem do computador vira camada">${ic('upload', 12)} Imagem…</button><button class="btn sm" data-o2 title="Outra imagem do personagem vira camada" ${outras.length ? '' : 'disabled'}>${ic('image', 12)} Do personagem</button><button class="btn sm" data-a title="Junta tudo: volta a ser uma imagem só">Juntar tudo</button></div>`);
     $('[data-n]', bar).onclick = () => this.vazia(img);
     $('[data-f]', bar).onclick = async () => { const fs = await pickFiles('image/*', true); for (const f of fs || []) await this.deArquivo(img, f); };
-    $('[data-o2]', bar).onclick = ev => UI.ctx(ev.clientX, ev.clientY, [{ head: 'Pôr como camada' }, ...[...new Set(outras.map(o => o.p))].map(p => ({ label: p.nome, icon: 'layers', sub: outras.filter(o => o.p === p).map(o => ({ label: o.i.nome, action: () => this.deImagem(img, o.i) })) }))]);
+    $('[data-o2]', bar).onclick = ev => UI.ctx(ev.clientX, ev.clientY, [{ head: 'Pôr como camada' }, ...[...new Set(outras.map(o => o.p))].map(p => ({ label: p.nome, icon: 'layers', sub: outras.filter(o => o.p === p).map(o => ({ label: o.i.nome, img: o.i.k, action: () => this.deImagem(img, o.i) })) }))]);
     $('[data-a]', bar).onclick = () => this.achatarTudo(img);
     box.appendChild(bar);
   },

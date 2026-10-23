@@ -233,6 +233,23 @@ const UI = {
     setTimeout(kill, o.time || (o.undo ? 6000 : 3500));
     return t;
   },
+  // item de menu com imagem ({ img: chave }): miniatura no lugar do ícone e, passando o mouse, a imagem grande AO LADO do menu
+  // (à direita se couber, senão à esquerda; nunca por cima do menu nem fora da tela)
+  ctxBm(it, cb) { try { if (typeof Arq === 'undefined') return null; return Arq.bitmap(it.img, () => cb(Arq.img.get(it.img))); } catch { return null; } },
+  ctxDesenha(cv, bm, pad = 2) { if (!bm || !cv) return; const x = cv.getContext('2d'), W = cv.width, H = cv.height, k = Math.min((W - pad * 2) / bm.width, (H - pad * 2) / bm.height); x.clearRect(0, 0, W, H); x.drawImage(bm, (W - bm.width * k) / 2, (H - bm.height * k) / 2, bm.width * k, bm.height * k); },
+  ctxImg(el, it) { const cv = $('.ctx-thumb', el); const bm = this.ctxBm(it, b => this.ctxDesenha(cv, b)); if (bm) this.ctxDesenha(cv, bm); },
+  ctxPrev(el, it, m) {
+    const root = $('#ctx-root'); $('.ctx-prev', root)?.remove();
+    const pv = h(`<div class="ctx-prev"><canvas width="360" height="360"></canvas><span>${esc(it.label)}</span></div>`), cv = $('canvas', pv); root.appendChild(pv);
+    const bm = this.ctxBm(it, b => { if (pv.isConnected) this.ctxDesenha(cv, b, 10); }); if (bm) this.ctxDesenha(cv, bm, 10);
+    const rm = m.getBoundingClientRect(), re = el.getBoundingClientRect(), rp = pv.getBoundingClientRect(), G = 8;
+    const y = clamp(re.top + re.height / 2 - rp.height / 2, 6, innerHeight - rp.height - 6), outros = $$('.ctx', root).filter(c => c !== m).map(c => c.getBoundingClientRect());
+    // lado: o que cabe na tela e NÃO cobre nenhum menu (o de cima fica de um lado do submenu: a imagem vai para o outro); senão o que cobre menos
+    const cobre = x => outros.reduce((s, o) => s + Math.max(0, Math.min(x + rp.width, o.right) - Math.max(x, o.left)) * Math.max(0, Math.min(y + rp.height, o.bottom) - Math.max(y, o.top)), 0);
+    const lados = [rm.right + G, rm.left - rp.width - G].map(x => ({ x, cabe: x >= 6 && x + rp.width <= innerWidth - 6, c: cobre(x) }));
+    let x = (lados.find(l => l.cabe && !l.c) || lados.filter(l => l.cabe).sort((a, b) => a.c - b.c)[0] || { x: clamp(rm.right + G, 6, innerWidth - rp.width - 6) }).x; pv.style.left = Math.round(x) + 'px'; pv.style.top = Math.round(y) + 'px';
+    el.addEventListener('mouseleave', () => pv.remove(), { once: true });
+  },
   ctx(x, y, items) {
     UI.closeCtx();
     const root = $('#ctx-root');
@@ -242,7 +259,8 @@ const UI = {
         if (!it) return;
         if (it === '-') return m.appendChild(h('<div class="ctx-sep"></div>'));
         if (it.head) return m.appendChild(h(`<div class="ctx-head">${esc(it.head)}</div>`));
-        const el = h(`<div class="ctx-item ${it.disabled ? 'dis' : ''} ${it.danger ? 'danger' : ''} ${it.ai ? 'ai' : ''} ${it.used ? 'used' : ''}"><span class="ctx-ic">${it.cor ? `<i class="ctx-cor" style="background:${it.cor}">${it.checked ? ic('check', 11) : ''}</i>` : it.icon ? ic(it.icon, 14) : (it.checked ? ic('check', 14) : '')}</span><span class="ctx-label">${esc(it.label)}</span>${it.key ? `<span class="ctx-key">${esc(it.key)}</span>` : ''}${it.sub ? ic('right', 13) : ''}</div>`);
+        const el = h(`<div class="ctx-item ${it.disabled ? 'dis' : ''} ${it.danger ? 'danger' : ''} ${it.ai ? 'ai' : ''} ${it.used ? 'used' : ''}"><span class="ctx-ic">${it.img ? '<canvas class="ctx-thumb" width="36" height="36"></canvas>' : it.cor ? `<i class="ctx-cor" style="background:${it.cor}">${it.checked ? ic('check', 11) : ''}</i>` : it.icon ? ic(it.icon, 14) : (it.checked ? ic('check', 14) : '')}</span><span class="ctx-label">${esc(it.label)}</span>${it.key ? `<span class="ctx-key">${esc(it.key)}</span>` : ''}${it.sub ? ic('right', 13) : ''}</div>`);
+        if (it.img) UI.ctxImg(el, it, m);
         if (it.sub) {
           el.onmouseenter = () => {
             $$('.ctx', root).forEach(c => { if (+c.dataset.lv > +m.dataset.lv) c.remove(); });
@@ -252,7 +270,7 @@ const UI = {
             const sm = build(it.sub, r.right + 2, r.top - 5, m); sm.dataset.lv = +m.dataset.lv + 1;
           };
         } else {
-          el.onmouseenter = () => { $$('.ctx', root).forEach(c => { if (+c.dataset.lv > +m.dataset.lv) c.remove(); }); $$('.ctx-item.open', m).forEach(e => e.classList.remove('open')); };
+          el.onmouseenter = () => { $$('.ctx', root).forEach(c => { if (+c.dataset.lv > +m.dataset.lv) c.remove(); }); $$('.ctx-item.open', m).forEach(e => e.classList.remove('open')); if (it.img) UI.ctxPrev(el, it, m); else $('.ctx-prev', root)?.remove(); };
           el.onclick = () => { UI.closeCtx(); it.action && it.action(); };
         }
         m.appendChild(el);
