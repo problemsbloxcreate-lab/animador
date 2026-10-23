@@ -200,12 +200,14 @@ const Atelie = {
     if (!this.naNuvem || !this.def || m.por === AoVivo.eu?.id || AoVivo.pend?.length) return; this.sujo = false; clearTimeout(this._tn); this.baseNuvem = this.ultimo; this.base0 = this.ultimo;
     DB.del('arquivos', this.chaveRascunho(this.def.id)).catch(() => { }); this.rascunhoEm = null; this.pintaEstado(); $('#at-salvar') && this.pintaBotaoNuvem(); },
   agendaNuvem() { clearTimeout(this._tn); this._tn = setTimeout(() => this.sincronizar(), this.aoVivoJunto() ? 600000 : 60000); this.pintaEstado();
-    if (!this._ligouEsconder) { this._ligouEsconder = true; document.addEventListener('visibilitychange', () => { if (document.hidden && this.naNuvem && this.sujo && !this.enviando) this.sincronizar(); }); } },
+    if (!this._ligouEsconder) { this._ligouEsconder = true; document.addEventListener('visibilitychange', () => { if (document.hidden && this.naNuvem && this.sujo && !this.enviando && Date.now() - (this._envioEm || 0) > 120000) this.sincronizar(); }); } },
   async sincronizar(agora) {
     clearTimeout(this._tn); if (!this.naNuvem || !this.def) return;
     if (!agora && !this.guardiao()) return; // ao vivo: quem manda é outra pessoa da sala (agora = botão / sair: manda mesmo)
     if (this.enviando) { this.denovo = true; if (agora) await this.enviando; return; }
     const snap = this.ultimo || JSON.stringify(this.def), def = JSON.parse(snap); if (!def.partes.length) return;
+    if (!agora && snap === this.baseNuvem) { this.sujo = false; this.pintaEstado(); return; } // voltou a ser igual ao que está na nuvem (ex.: Ctrl+Z): nada a gravar
+    this._envioEm = Date.now();
     this.erroNuvem = null; this.pintaEstado();
     this.enviando = (async () => {
       try { try { def.thumb = this.miniatura(); } catch { }
