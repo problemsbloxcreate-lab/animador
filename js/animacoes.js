@@ -25,7 +25,7 @@ const Animacoes = {
   multi: new Set(),
   outrosEscolhidos(ps) { const a = this.achar(this.tocando || this.sel); if (!a || this.multi.size < 2) return []; return [...this.multi].map(c => { const [t, i] = c.split(':').map(Number); return a.trilhas[t]?.[i]; }).filter(x => x && x !== ps); },
   ciclo(a) { return Math.max(1, ...(a?.trilhas || []).map(t => t.length)); },
-  irPara(a, ti, pi) { this.parar(true); this.poseFixa = null; this.passo = null; this.sel = a.id; this.tocando = a.id; this.pausado = true; this.i = pi; this.passoSel = { t: ti, i: pi }; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, pi); Atelie.pinta(); },
+  irPara(a, ti, pi, col = pi) { this.parar(true); this.poseFixa = null; this.passo = null; this.sel = a.id; this.tocando = a.id; this.pausado = true; this.i = col; this.passoSel = { t: ti, i: pi }; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, col); Atelie.pinta(); },
   // a pose (preset) da sessão s neste passo (null = Padrão). Vai para o passo que já manda nessa sessão agora (ou o da trilha escolhida)
   usarPose(s, pr) {
     const st = this.passoAtual(); if (!st) return; const L = this.passosAgora(st.a, this.i); let alvo = L.filter(x => x.p.s && s.id in x.p.s).pop()?.p || st.p;

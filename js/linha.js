@@ -69,7 +69,7 @@ const Linha = {
       // trilha mais curta: os frames dela de novo (apagadinhos) até o fim da mais comprida — é o que toca ali
       if (t.length) for (let col = t.length; col < max; col++) { const pi = col % t.length, p = t[pi];
         const f = h(`<div class="tl-c fantasma ${pi === 0 ? 'volta' : ''}" data-t="${ti}" data-i="${pi}" data-col="${col}" title="A trilha ${ti + 1} recomeçou: aqui toca o frame ${pi + 1} dela de novo (clique para ir nele)">${pi === 0 ? `<span class="tl-volta">${ic('redo', 10)}</span>` : ''}<canvas class="tl-mini" width="88" height="64"></canvas><span class="tl-nf"><b>${pi + 1}</b></span></div>`);
-        f.onclick = () => A.irPara(a, ti, pi); minis.push([$('canvas', f), p]); cel.appendChild(f); }
+        f.onclick = () => A.irPara(a, ti, pi, col); /* fica NESTA coluna (antes pulava para a 1ª volta e parecia que não clicava); mexer aqui muda o frame dela */ minis.push([$('canvas', f), p]); cel.appendChild(f); }
       if (!t.length) cel.appendChild(h('<span class="tl-vazio">trilha vazia: + Frame</span>'));
       g.appendChild(row);
     });
@@ -84,7 +84,7 @@ const Linha = {
   leve() {
     const el = $('#at-tl'), A = Animacoes, a = A.achar(A.sel); if (!el || !a) return; const toca = A.tocando === a.id, st = A.passoAtual();
     const max = A.ciclo(a), col = toca ? ((((A.pausado ? A.i : A.i - 1) % max) + max) % max) : -1; // a coluna que está na tela (o "cursor" da timeline)
-    for (const c of $$('.tl-c', el)) { const i = +c.dataset.i; c.classList.toggle('agora', +c.dataset.col === col); c.classList.toggle('sel', !!st && st.ti === +c.dataset.t && st.pi === i && !c.classList.contains('fantasma')); }
+    for (const c of $$('.tl-c', el)) { const i = +c.dataset.i; c.classList.toggle('agora', +c.dataset.col === col); c.classList.toggle('sel', !!st && st.ti === +c.dataset.t && st.pi === i && (!c.classList.contains('fantasma') || +c.dataset.col === col)); }
     for (const n of $$('.tl-n', el)) n.classList.toggle('agora', +n.dataset.col === col);
     const M = A.multi?.size > 1 ? A.multi : null; for (const c of $$('.tl-c:not(.fantasma)', el)) c.classList.toggle('multi', !!M && M.has(`${c.dataset.t}:${c.dataset.i}`));
     const inf = $('.tl-info', el); if (inf && st) inf.innerHTML = `Frame <b>${st.pi + 1}</b>${M ? ` · <b>${M.size}</b> frames escolhidos: o que mexer vale para todos` : ''}`;
