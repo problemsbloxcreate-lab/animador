@@ -328,7 +328,7 @@ const AoVivo = {
   ausente(v) { this._afk = v; if (this.ativo) try { this.t.presenca(this.sala, this.eu.id, { afk: v }); } catch { } },
   // o que cada um fez nesta sessão (para a lista ao passar o mouse no "ao vivo")
   anota(id, nome, r) {
-    if (!id || !r) return; id = this.contaDe(id); const f = (this.feitos ||= {})[id] ||= { nome, L: [] }; // por CONTA: duas abas da mesma pessoa somam f.nome = nome || f.nome;
+    if (!id || !r) return; id = this.contaDe(id); const f = (this.feitos ||= {})[id] ||= { nome, L: [] }; /* por CONTA: duas abas da mesma pessoa somam */ f.nome = nome || f.nome;
     const u = f.L[0]; if (u && u.r === r && Date.now() - u.t < 20000) { u.t = Date.now(); u.n = (u.n || 1) + 1; } else f.L.unshift({ r, t: Date.now() }); f.L.length = Math.min(f.L.length, 300);
     if (this._pop?.isConnected) this.pintaPop();
   },
