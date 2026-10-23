@@ -274,7 +274,7 @@ const Atelie = {
   liga() {
     if (this._ligado) return; this._ligado = true;
     this.cv = $('#at-cv'); this.ctx = this.cv.getContext('2d'); new ResizeObserver(() => this.tamanho()).observe(this.cv.parentElement); this.tamanho();
-    this.cv.addEventListener('pointerdown', e => this.desce(e)); this.cv.addEventListener('contextmenu', e => { e.preventDefault(); if (!this._panMexeu) { if (this.teste && Animacoes.rodando && this.acha(this.mundo(e))) Animacoes.pausar(true); this.menuPalco(e); } this._panMexeu = false; }); // botão direito sem arrastar (também com o Testar aberto; tocando, pausa naquele passo): menu da peça
+    this.cv.addEventListener('pointerdown', e => { const a = document.activeElement; if (a && a !== document.body && a.matches?.('select,button,input:not([type=text]):not([type=number]):not([type=search])')) a.blur(); this.desce(e); }); // clicar no palco tira o foco do que estava escolhido (os atalhos voltam a valer) this.cv.addEventListener('contextmenu', e => { e.preventDefault(); if (!this._panMexeu) { if (this.teste && Animacoes.rodando && this.acha(this.mundo(e))) Animacoes.pausar(true); this.menuPalco(e); } this._panMexeu = false; }); // botão direito sem arrastar (também com o Testar aberto; tocando, pausa naquele passo): menu da peça
     this.cv.addEventListener('wheel', e => this.roda(e), { passive: false }); // rodinha do mouse: zoom no ponto do mouse
     $('#at-voltar').onclick = () => this.sair(); $('#at-voltar').hidden = true; { const br = $('#atelie header .brand'); if (br) { br.style.cursor = 'pointer'; br.title = 'Sair do Ateliê (volta ao início)'; br.onclick = () => this.sair(); } } // sem o botão Voltar no topo (decisão do dono): o nome ATELIÊ leva de volta $('#at-salvar').onclick = () => this.naNuvem ? this.sincronizar(true) : this.salvar(); $('#at-undo').onclick = () => this.undo(); $('#at-redo').onclick = () => this.redo();
     $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); };
@@ -446,8 +446,11 @@ const Atelie = {
   },
   teclas(e) {
     if ($('#atelie').classList.contains('hidden') || $('#modal-root').children.length) return;
-    if (e.target.closest?.('input,textarea,select') && e.target.type !== 'range') return;
     const k = e.key, ctrl = e.ctrlKey || e.metaKey, p = this.parte();
+    // um <select> (animação da timeline, tipo de pincel…) ou botão com foco não pode engolir os atalhos (Ctrl+Z não desfazia depois de escolher a animação)
+    const campo = e.target.closest?.('input,textarea,select,[contenteditable]'), soEscolha = campo && (campo.tagName === 'SELECT' || ['range', 'checkbox', 'radio', 'button', 'color'].includes(campo.type));
+    if (campo && !(soEscolha && (ctrl || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Home', 'End', 'PageUp', 'PageDown'].includes(k)))) return;
+    if (soEscolha && e.type === 'keydown') campo.blur();
     if (k === ' ') { if (!e.repeat && !this.espaco) { this._espT = Date.now(); this._espUsou = false; } this.espaco = e.type === 'keydown'; e.preventDefault(); return; } // segurar = mover a tela; um toque = play/pause (no keyup)
     if (e.type === 'keydown' && (k === 'r' || k === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest?.('input,textarea,select,[contenteditable]')) { e.preventDefault(); return this.trocaRegua(); }
     if (ctrl && k.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
