@@ -388,6 +388,7 @@ const Atelie = {
   desce(e) {
     try { this.cv.setPointerCapture(e.pointerId); } catch { } const d = devicePixelRatio || 1;
     const fim = (mov, up) => { const m = ev => mov(ev), u = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', u); up?.(ev); }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', u); };
+    if (this.espaco) this._espUsou = true;
     if (e.button === 1 || e.button === 2 || this.espaco) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; let mexeu = false;
       this._panMexeu = false; return fim(ev => { if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 3) mexeu = this._panMexeu = true; v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); }
     // animação TOCANDO: clicar numa peça escolhe (sem parar); arrastar a peça ou pintar pausa sozinho naquele passo e segue como pausado
@@ -440,7 +441,7 @@ const Atelie = {
     if ($('#atelie').classList.contains('hidden') || $('#modal-root').children.length) return;
     if (e.target.closest?.('input,textarea,select') && e.target.type !== 'range') return;
     const k = e.key, ctrl = e.ctrlKey || e.metaKey, p = this.parte();
-    if (k === ' ') { this.espaco = e.type === 'keydown'; e.preventDefault(); return; }
+    if (k === ' ') { if (!e.repeat && !this.espaco) { this._espT = Date.now(); this._espUsou = false; } this.espaco = e.type === 'keydown'; e.preventDefault(); return; } // segurar = mover a tela; um toque = play/pause (no keyup)
     if (e.type === 'keydown' && (k === 'r' || k === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest?.('input,textarea,select,[contenteditable]')) { e.preventDefault(); return this.trocaRegua(); }
     if (ctrl && k.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
     if (ctrl && k.toLowerCase() === 's') { e.preventDefault(); return this.salvarLocal(); } // Ctrl+S = guardar neste computador
@@ -1322,7 +1323,9 @@ const Atelie = {
     const w = c.toDataURL('image/webp', .85); return w.startsWith('data:image/webp') ? w : c.toDataURL('image/png'); // miniatura menor
   },
 };
-addEventListener('keyup', e => { if (e.key === ' ') Atelie.espaco = false; if (e.key === 'Alt' && Atelie.alt) { Atelie.alt = false; Atelie.desenha(); } });
+addEventListener('keyup', e => { if (e.key === ' ') { const toque = Atelie.espaco && !Atelie._espUsou && Date.now() - (Atelie._espT || 0) < 450; Atelie.espaco = false;
+    // ESPAÇO: um toque (sem arrastar a tela) toca/pausa a animação da timeline, como o P
+    if (toque && !$('#atelie').classList.contains('hidden') && !$('#modal-root').children.length && !e.target.closest?.('input,textarea,select,[contenteditable]') && !Atelie.edImg && Animacoes.achar(Animacoes.sel)) { e.preventDefault(); Linha.tocaPausa(); } } if (e.key === 'Alt' && Atelie.alt) { Atelie.alt = false; Atelie.desenha(); } });
 addEventListener('keydown', e => { if (e.key === 'Alt' && !Atelie.alt && !$('#atelie').classList.contains('hidden')) { Atelie.alt = true; Atelie.desenha(); } });
 addEventListener('blur', () => { if (Atelie.alt) { Atelie.alt = false; Atelie.desenha(); } });
 
