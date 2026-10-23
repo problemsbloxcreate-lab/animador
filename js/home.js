@@ -124,7 +124,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       <div class="pers-abas"><div class="seg-pers"><button data-s="nuvem">${ic('cloud', 14)} Na nuvem da equipe <small data-cn>…</small></button><button data-s="local">${ic('save', 14)} Só neste computador <small data-cl>0</small></button></div>
         <span class="sp"></span><input type="search" data-busca placeholder="Buscar personagem" value="${esc(this.qp || '')}"></div>
       <div data-local hidden><section class="bloco-sec local"><div class="vazio">Nenhum personagem só neste computador: tudo já está na nuvem da equipe.</div></section></div>
-      <section class="bloco-sec" data-nuvem><div class="sec">${ic('cloud', 14)} Na nuvem da equipe <small class="sec-sub">a equipe toda vê e usa</small><span class="sp"></span><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div></section>`;
+      <section class="bloco-sec" data-nuvem><div class="sec">${ic('cloud', 14)} Na nuvem da equipe <small class="sec-sub">a equipe toda vê e usa</small><span class="sp"></span><button class="btn sm" data-pnova-n title="Pasta nova na nuvem da equipe (todos veem)">${ic('folder', 13)} Pasta nova</button><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div></section>`;
     $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-backup]', c).onclick = () => AtelieArq.escolher(); $('[data-atu]', c).onclick = () => { Nuvem.lista(true).catch(() => { }); this.pinta(); };
     const l = $('[data-l]', c);
     // as duas listas ficam em abas separadas (com quantos tem em cada): muitos personagens numa não empurram a outra
@@ -135,36 +135,44 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       $$('.grade', c).forEach(g => { const t = g.previousElementSibling; if (t?.classList.contains('pasta-t')) t.hidden = g.children.length && [...g.children].every(x => x.hidden); }); };
     $('[data-busca]', c).oninput = ev => { this.qp = ev.target.value; filtra(); };
     // rascunhos: mudanças guardadas só neste computador (ainda não foram para a nuvem)
-    Atelie.rascunhos().then(rs => { if (!rs.length) return; const sec = h(`<section class="bloco-sec local"><div class="sec">${ic('save', 14)} Só neste computador <small class="sec-sub">personagens locais e mudanças que ainda não foram para a nuvem (a equipe não vê)</small></div><div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div></section>`), g = $('.grade', sec);
-      for (const r of rs) { const card = h(`<div class="pc rasc" data-prev-rasc="${esc(r.def.id)}"><div class="th" style="aspect-ratio:1;${r.thumb ? `background-image:url('${r.thumb}')` : ''}">${r.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(r.def.nome)}</b><small>guardado ${fmtDate(r.em)}</small></div><span class="tag-local">${ic('save', 11)} ${r.nuvem ? 'falta enviar' : 'só aqui'}</span><button class="ibtn mn">${ic('dots', 15)}</button><span class="tam" hidden></span></div>`);
+    // rascunhos: mudanças guardadas só neste computador (ainda não foram para a nuvem), em PASTAS (js/pastasbib.js)
+    const pintaLocal = () => Atelie.rascunhos().then(async rs => { const box = $('[data-local]', c); $('[data-cl]', c).textContent = rs.length;
+      if (!rs.length) { box.innerHTML = '<section class="bloco-sec local"><div class="vazio">Nenhum personagem só neste computador: tudo já está na nuvem da equipe.</div></section>'; return; }
+      const sec = h(`<section class="bloco-sec local"><div class="sec">${ic('save', 14)} Só neste computador <small class="sec-sub">personagens locais e mudanças que ainda não foram para a nuvem (a equipe não vê)</small><span class="sp"></span><button class="btn sm" data-pnova>${ic('folder', 13)} Pasta nova</button><button class="btn sm danger-l" data-apaga-todos>${ic('trash', 13)} Apagar todos</button></div><div data-pb></div></section>`);
+      const itens = rs.map(r => ({ id: r.def.id, nome: r.def.nome, r })); let todas = [];
+      const cartao = it => { const r = it.r; const card = h(`<div class="pc rasc" data-prev-rasc="${esc(r.def.id)}"><div class="th" style="aspect-ratio:1;${r.thumb ? `background-image:url('${r.thumb}')` : ''}">${r.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(r.def.nome)}</b><small>guardado ${fmtDate(r.em)}</small></div><span class="tag-local">${ic('save', 11)} ${r.nuvem ? 'falta enviar' : 'só aqui'}</span><button class="ibtn mn">${ic('dots', 15)}</button><span class="tam" hidden></span></div>`);
         Arquivos.poe($('.tam', card), Arquivos.tamDef(r.def, r.em));
         card.onclick = e => { if (!e.target.closest('.mn')) Atelie.abrirAba(r.def.id); };
-        $('.mn', card).onclick = e => { e.stopPropagation(); const b = e.currentTarget.getBoundingClientRect(); UI.ctx(b.right - 200, b.bottom + 4, [
+        $('.mn', card).onclick = e => { e.stopPropagation(); const b = e.currentTarget.getBoundingClientRect(); UI.ctx(b.right - 200, b.bottom + 4, [PastasBib.menuMover('local', it, todas, pintaLocal), '-', 
           { label: 'Continuar no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(r.def.id) }, { label: 'Baixar .atelieanimador', icon: 'download', action: () => AtelieArq.baixar(r.def) },
           { label: 'Duplicar (cópia só neste computador)', icon: 'dup', action: async () => { await Arquivos.duplicarPersonagem(r.def, r.thumb); this.pinta(); } },
           { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.personagem(r.def, { thumb: r.thumb }) },
           '-', { label: 'Descartar o rascunho', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Descartar o rascunho de "${esc(r.def.nome)}"?`, msg: 'As mudanças que não foram para a nuvem somem deste computador.', ok: 'Descartar', danger: true })) { await Atelie.apagarRascunho(r.def.id); this.pinta(); } } }]); };
-        g.appendChild(card); }
-      $('[data-local]', c).innerHTML = ''; $('[data-local]', c).appendChild(sec); $('[data-cl]', c).textContent = rs.length; filtra(); });
+        return card; };
+      ({ todas } = await PastasBib.monta($('[data-pb]', sec), { esc: 'local', itens, cartao, aoMudar: pintaLocal }));
+      $('[data-pnova]', sec).onclick = async () => { if (await PastasBib.nova('local')) pintaLocal(); };
+      $('[data-apaga-todos]', sec).onclick = async () => { if (!(await UI.confirm({ title: `Apagar os ${rs.length} personagens só deste computador?`, msg: 'Somem os personagens locais e as mudanças que ainda não foram para a nuvem. Os que estão na nuvem continuam lá. <b>Não dá para desfazer.</b>', ok: 'Apagar todos', danger: true }))) return;
+        for (const r of rs) await Atelie.apagarRascunho(r.def.id); UI.toast(`${rs.length} apagado(s) deste computador.`, { kind: 'ok' }); this.pinta(); };
+      box.innerHTML = ''; box.appendChild(sec); filtra(); });
+    pintaLocal();
     try {
       const lista = await Nuvem.lista(); $('[data-cn]', c).textContent = lista.length; if (!lista.length) { l.innerHTML = '<div class="vazio">Ninguém criou personagens ainda. Clique em <b>Personagem novo</b>.</div>'; return; }
-      l.innerHTML = ''; for (const pa of [...new Set(lista.map(x => x.pasta))]) {
-        l.appendChild(this.tituloPasta(pa)); const g = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div>');
-        for (const it of lista.filter(x => x.pasta === pa)) {
+      // em PASTAS da equipe (personagens/pastas.json; js/pastasbib.js): abrir/fechar, arrastar entre pastas, criar/renomear/apagar
+      let todasN = [];
+      const cartaoN = it => {
           const card = h(`<div class="pc" data-prev-id="${esc(it.id)}"><div class="th" style="aspect-ratio:1;${it.thumb ? `background-image:url('${it.thumb}')` : ''}">${it.thumb ? '' : ic('layers', 26)}</div><div class="in"><b>${esc(it.nome)}</b><small>${it.modificado ? fmtDate(it.modificado) : ''}</small></div><button class="ibtn mn">${ic('dots', 15)}</button>${it.tam ? `<span class="tam">${Arquivos.fmt(it.tam)}</span>` : ''}</div>`);
           card.onclick = e => { if (!e.target.closest('.mn')) Atelie.abrirAba(it.id); };
           const selo = Autores.selo(it); if (selo) card.appendChild(selo);
-          $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
+          $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [PastasBib.menuMover('nuvem', it, todasN, pintaNuvem), '-', 
             { label: 'Abrir no Ateliê', icon: 'edit', action: () => Atelie.abrirAba(it.id) },
             { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.personagem({ id: it.id, nome: it.nome, thumb: it.thumb, partes: [] }, { nuvem: true }) },
             { label: 'Duplicar (cópia só neste computador)', icon: 'dup', action: async () => { try { await Arquivos.duplicarPersonagem(await Nuvem.abrir(it.id), it.thumb); this.pinta(); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } } },
             { label: 'Baixar .atelieanimador (backup)', icon: 'download', action: async () => { try { AtelieArq.baixar(await Nuvem.abrir(it.id)); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } } },
             '-', !Nuvem.adm ? { label: 'Apagar da nuvem (só ADM)', icon: 'lock', action: () => Nuvem.pedeAdm(it.nome) } : { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome); if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
           ]); };
-          g.appendChild(card);
-        }
-        l.appendChild(g);
-      }
+          return card; };
+      const pintaNuvem = async () => { try { ({ todas: todasN } = await PastasBib.monta(l, { esc: 'nuvem', itens: lista, cartao: cartaoN, aoMudar: pintaNuvem })); filtra(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
+      await pintaNuvem(); $('[data-pnova-n]', c).onclick = async () => { try { if (await PastasBib.nova('nuvem')) pintaNuvem(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
       filtra();
     } catch (e) { l.innerHTML = `<div class="vazio">Não consegui abrir a biblioteca: ${esc(e.message)}</div>`; }
   },

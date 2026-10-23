@@ -920,3 +920,15 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .avc-lista{margin:0 8px 8px 42px!important;max-height:180px;overflow:auto;padding-right:4px!important}
 .avc-tx b small{display:inline;font-weight:500}.avp-comp{gap:3px}.avc-l{padding:5px 8px}
 .modal-back .modal{max-width:calc(100vw - 20px)}
+/* PASTAS da biblioteca de personagens (abrir/fechar, arrastar entre pastas) */
+.pb-t{cursor:pointer;user-select:none;padding:5px 6px;margin:14px 0 6px;border-radius:8px;border:1px solid transparent;transition:background .12s,border-color .12s}
+.pb-t:hover{background:var(--bg2)}
+.pb-t .pb-seta{display:grid;place-items:center;transition:transform .15s;color:var(--tx3)}.pb-t.fechada .pb-seta{transform:rotate(-90deg)}
+.pb-t small{font-weight:500;color:var(--tx3);background:var(--bg3);border-radius:999px;padding:0 7px;font-size:10.5px}
+.pb-t .pb-mn{opacity:0;transition:opacity .12s}.pb-t:hover .pb-mn{opacity:1}
+.pb-t.pb-alvo{border-color:#5aa9e8;background:rgba(90,169,232,.12)}
+.pb-g{border-radius:10px;transition:box-shadow .12s,background .12s;min-height:24px}
+.pb-g.pb-alvo{box-shadow:0 0 0 2px #5aa9e8;background:rgba(90,169,232,.06)}
+.pb-vazia{grid-column:1/-1;padding:14px;border:1px dashed var(--bd2);border-radius:10px;color:var(--tx3);font-size:12px;text-align:center}
+.pc.pb-indo{opacity:.4}
+.btn.danger-l{color:#ff8a80}.btn.danger-l:hover{background:rgba(255,80,80,.12);border-color:rgba(255,80,80,.4)}

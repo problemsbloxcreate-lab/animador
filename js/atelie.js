@@ -281,7 +281,7 @@ const Atelie = {
     this.cv.addEventListener('wheel', e => this.roda(e), { passive: false }); // rodinha do mouse: zoom no ponto do mouse
     $('#at-voltar').onclick = () => this.sair(); $('#at-voltar').hidden = true; { const br = $('#atelie header .brand'); if (br) { br.style.cursor = 'pointer'; br.title = 'Sair do Ateliê (volta ao início)'; br.onclick = () => this.sair(); } } // sem o botão Voltar no topo (decisão do dono): o nome ATELIÊ leva de volta $('#at-salvar').onclick = () => this.naNuvem ? this.sincronizar(true) : this.salvar(); $('#at-undo').onclick = () => this.undo(); $('#at-redo').onclick = () => this.redo();
     $('#at-nome').onchange = e => { this.def.nome = e.target.value.trim() || this.def.nome; this.commit(); };
-    $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); };
+    $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); if (this.naNuvem) PastasBib.mover('nuvem', [this.def.id], this.def.pasta).catch(() => { }); }; // a pasta da biblioteca da equipe também (personagens/pastas.json)
     $('#at-add-parte').onclick = () => this.novaParte(); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
     // soltar imagens no palco do ateliê: entram na parte escolhida (sem parte escolhida, cada uma vira uma parte)
     const cvA = $('#at-cv'); cvA.ondragover = ev => { if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); }; cvA.ondrop = ev => { if (ev.dataTransfer.files?.length) { ev.preventDefault(); Pastas.deDrop(ev.dataTransfer).then(l => this.soltouNoPalco(l)); } }; // pastas viram partes; editando uma imagem, pergunta se vai DENTRO dela (camada)
@@ -492,7 +492,7 @@ const Atelie = {
 
   /* ---------- painéis ---------- */
   pinta() {
-    if (!this.def) return; $('#at-nome').value = this.def.nome; $('#at-pasta').value = this.def.pasta || 'Personagens';
+    if (!this.def) return; $('#at-nome').value = this.def.nome; $('#at-pasta').value = (this.naNuvem && PastasBib._nuvem?.de?.[this.def.id]) || this.def.pasta || 'Personagens';
     this.pintaBotaoNuvem(); this.pintaEstado();
     const au = $('#at-autores'); if (au && au._de !== this.def.autor?.em + '/' + (this.def.edicoes || []).length) { au._de = this.def.autor?.em + '/' + (this.def.edicoes || []).length; au.innerHTML = ''; const sl = Autores.selo(this.def); if (sl) au.appendChild(sl); }
     const pr = this.preset(), s = this.sessao(), st = Animacoes.passoAtual(), ed = this.edImg && this.itemEditor();
