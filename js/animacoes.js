@@ -21,6 +21,9 @@ const Animacoes = {
   sel: null, passo: null, tocando: null, _t: null, passoSel: null, // passoSel = { t, i }: o passo escolhido na timeline (js/linha.js)
   // o passo parado na tela (timeline): { a, ti, pi, p } — aí clicar numa pose muda ESTE passo
   passoAtual() { if (!this.tocando || !this.pausado || !this.passoSel || this.poseFixa) return null; const a = this.achar(this.tocando), t = a?.trilhas?.[this.passoSel.t]; if (!t?.length) return null; const pi = ((this.passoSel.i % t.length) + t.length) % t.length; return { a, ti: this.passoSel.t, pi, p: t[pi] }; },
+  // FRAMES ESCOLHIDOS JUNTOS (Shift/Ctrl+clique na timeline): mexer numa peça no frame da tela copia o mesmo valor para os outros
+  multi: new Set(),
+  outrosEscolhidos(ps) { const a = this.achar(this.tocando || this.sel); if (!a || this.multi.size < 2) return []; return [...this.multi].map(c => { const [t, i] = c.split(':').map(Number); return a.trilhas[t]?.[i]; }).filter(x => x && x !== ps); },
   ciclo(a) { return Math.max(1, ...(a?.trilhas || []).map(t => t.length)); },
   irPara(a, ti, pi) { this.parar(true); this.poseFixa = null; this.passo = null; this.sel = a.id; this.tocando = a.id; this.pausado = true; this.i = pi; this.passoSel = { t: ti, i: pi }; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, pi); Atelie.pinta(); },
   // a pose (preset) da sessão s neste passo (null = Padrão). Vai para o passo que já manda nessa sessão agora (ou o da trilha escolhida)

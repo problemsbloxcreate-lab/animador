@@ -866,3 +866,4 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .at-tl .tl-c .tl-nf{position:absolute;left:2px;right:2px;bottom:2px;padding:6px 4px 1px;border-radius:0 0 5px 5px;background:linear-gradient(transparent,rgba(0,0,0,.78));pointer-events:none}
 .at-tl .tl-c .tl-nf b{color:#fff;text-shadow:0 1px 2px #000}.at-tl .tl-c .tl-nf small{color:#ddd}
 .at-tl .tl-c .tl-pega{z-index:1}
+.at-tl .tl-c.multi{box-shadow:0 0 0 2px #19d3f0,0 0 0 4px rgba(25,211,240,.25)}

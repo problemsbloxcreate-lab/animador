@@ -256,7 +256,7 @@ const Atelie = {
   // muda um campo da parte no modo atual (base ou o preset em edição)
   mudar(pid, vals) {
     const p = this.parte(pid); if (!p) return; if (!this.editPasso && Animacoes.passoAtual()) Animacoes.alvoPausa(pid); // passo parado: vale só nele
-    const ps = this.editPasso && Animacoes.passoEditado(); if (ps) { ps.p = ps.p || {}; ps.p[pid] = { ...(ps.p[pid] || {}), ...vals }; return; } // passo de uma animação de teste (pausada)
+    const ps = this.editPasso && Animacoes.passoEditado(); if (ps) { for (const q of [ps, ...Animacoes.outrosEscolhidos(ps)]) { q.p = q.p || {}; q.p[pid] = { ...(q.p[pid] || {}), ...vals }; } return; } // passo de uma animação de teste (pausada); com vários frames escolhidos, vale em todos
     const pr = this.preset();
     if (pr) { const s = this.sessao(); if (s.partes?.length && !s.partes.includes(pid)) { s.partes.push(pid); } pr.estado[pid] = { ...(pr.estado[pid] || {}), ...vals }; }
     else Object.assign(p.base, vals);
@@ -549,7 +549,7 @@ const Atelie = {
     // Com um passo parado na timeline, a ordem mostrada (e mudada) é a daquele passo.
     // KEYFRAME: parado num passo da timeline (ou na pose de um quadro do editor) = aviso em cima dizendo qual, e as partes com profundidade/posição só deste keyframe ficam marcadas
     const kc = Quadro.ctx(), kp = kc ? (kc.tipo === 'editor' ? Animacoes.poseFixa?.partes : this.teste?.partes) || {} : null;
-    if (kc) el.appendChild(h(`<div class="kf-aviso">${ic('film', 13)}<span>No <b>${esc(Quadro.nome(kc))}</b>: profundidade e posição mudadas aqui valem só nele <i class="kf-t z">profundidade</i><i class="kf-t pos">posição</i></span></div>`));
+    if (kc) el.appendChild(h(`<div class="kf-aviso">${ic('film', 13)}<span>No <b>${esc(Quadro.nome(kc))}</b>${Animacoes.multi?.size > 1 ? ` <b>e mais ${Animacoes.multi.size - 1} frame(s) escolhidos</b>` : ''}: profundidade e posição mudadas aqui valem só ${Animacoes.multi?.size > 1 ? 'neles' : 'nele'} <i class="kf-t z">profundidade</i><i class="kf-t pos">posição</i></span></div>`));
     const raiz = this.def.raiz, est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas(), lista = this.listaArvore();
     const vai = () => { for (const p of lista) { ordem.push(p.id); const nivel = (() => { let n = 0, q = p; while (q?.pai && n < 6) { q = this.parte(q.pai); if (!q) break; n++; } return n; })(), nomePai = p.pai && this.parte(p.pai)?.nome;
     
@@ -635,7 +635,7 @@ const Atelie = {
   // posição desta imagem SÓ no preset que está na tela (ou só na base)
   poeD(p, img, v, onde = this.preset()) {
     if (arguments.length < 4 && !this.editPasso && Animacoes.passoAtual()) { Animacoes.alvoPausa(p.id); if (this.editPasso) onde = null; }
-    if (arguments.length < 4 && this.editPasso) { const ps = Animacoes.passoEditado(); if (ps) { const e = ps.p[p.id] = ps.p[p.id] || {}, d = { ...(e.d || {}) }; if (!v || (!v.x && !v.y)) delete d[img.id]; else d[img.id] = { x: v.x, y: v.y }; e.d = d; if (!Object.keys(d).length) delete e.d; return; } }
+    if (arguments.length < 4 && this.editPasso) { const ps0 = Animacoes.passoEditado(); if (ps0) { for (const ps of [ps0, ...Animacoes.outrosEscolhidos(ps0)]) { ps.p = ps.p || {}; const e = ps.p[p.id] = ps.p[p.id] || {}, d = { ...(e.d || {}) }; if (!v || (!v.x && !v.y)) delete d[img.id]; else d[img.id] = { x: v.x, y: v.y }; e.d = d; if (!Object.keys(d).length) delete e.d; } return; } }
     const st = onde ? (onde.estado[p.id] || {}) : p.base, d = { ...(st.d || {}) };
     if (!v || (!v.x && !v.y)) delete d[img.id]; else d[img.id] = { x: v.x, y: v.y };
     if (onde) { const s = this.sessao(); if (s?.partes?.length && !s.partes.includes(p.id)) s.partes.push(p.id); onde.estado[p.id] = { ...(onde.estado[p.id] || {}), d }; if (!Object.keys(d).length) delete onde.estado[p.id].d; }
