@@ -95,11 +95,34 @@ const Paineis = {
       b.addEventListener('pointermove', mov); b.addEventListener('pointerup', up); });
     b.addEventListener('dblclick', () => { c.w = c.lado === 'dir' ? 320 : 270; this.grava(); this.aplica(); });
   },
+  // mover a JANELA SOLTA pela barra de cima: solta numa coluna, na beira (coluna nova), noutra janela ou embaixo do palco = os painéis dela
+  // GRUDAM lá (linha azul mostra onde); solta no meio = continua solta, e encosta sozinha na beira da tela/das outras janelas (ímã)
   moveJanela(j, bar, w) {
-    bar.addEventListener('pointerdown', e => { if (e.button !== 0) return; e.preventDefault(); bar.setPointerCapture(e.pointerId); const dx = e.clientX - j.x, dy = e.clientY - j.y;
-      const mov = ev => { j.x = Math.round(ev.clientX - dx); j.y = Math.round(Math.max(46, ev.clientY - dy)); w.style.left = j.x + 'px'; w.style.top = j.y + 'px'; };
-      const up = () => { bar.removeEventListener('pointermove', mov); bar.removeEventListener('pointerup', up); this.cabe(); this.grava(); };
-      bar.addEventListener('pointermove', mov); bar.addEventListener('pointerup', up); });
+    bar.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return; e.preventDefault(); bar.setPointerCapture(e.pointerId); const dx = e.clientX - j.x, dy = e.clientY - j.y;
+      const linha = h('<div class="dock-linha"></div>'); document.body.appendChild(linha); document.body.classList.add('arrastando-dock'); let alvo = null;
+      const ima = (x, y) => { // encosta nas bordas da tela, das colunas e das outras janelas
+        const W = w.offsetWidth, H = w.offsetHeight, top = $('#atelie .at').getBoundingClientRect().top, D = 14, xs = [0, innerWidth], ys = [top, innerHeight];
+        for (const el of [...$$('.dock-col'), ...$$('.dock-janela', this.soltos).filter(o => o !== w)]) { const r = el.getBoundingClientRect(); if (!r.width) continue; xs.push(r.left, r.right); ys.push(r.top, r.bottom); }
+        let bx = x, by = y, mx = D, my = D; for (const v of xs) for (const [ed, off] of [[x, 0], [x + W, W]]) if (Math.abs(ed - v) < mx) { mx = Math.abs(ed - v); bx = v - off; }
+        for (const v of ys) for (const [ed, off] of [[y, 0], [y + H, H]]) if (Math.abs(ed - v) < my) { my = Math.abs(ed - v); by = v - off; } return [Math.round(bx), Math.round(Math.max(top, by))]; };
+      const mov = ev => {
+        alvo = this.acha(ev.clientX, ev.clientY, j.p[0], dx, dy, j.id);
+        if (alvo.solto) { [j.x, j.y] = ima(ev.clientX - dx, ev.clientY - dy); w.style.left = j.x + 'px'; w.style.top = j.y + 'px'; w.classList.remove('vai-grudar'); linha.style.display = 'none'; }
+        else { w.style.left = Math.round(ev.clientX - dx) + 'px'; w.style.top = Math.round(Math.max(46, ev.clientY - dy)) + 'px'; w.classList.add('vai-grudar'); Object.assign(linha.style, { display: 'block', left: alvo.linha.x + 'px', top: alvo.linha.y + 'px', width: alvo.linha.w + 'px', height: alvo.linha.h + 'px' }); }
+      };
+      const up = () => {
+        bar.removeEventListener('pointermove', mov); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up); linha.remove(); document.body.classList.remove('arrastando-dock'); w.classList.remove('vai-grudar');
+        if (alvo && !alvo.solto) { const ps = [...j.p], st = this.st; st.jan = st.jan.filter(x => x !== j);
+          if (alvo.novaCol) st.cols.splice(alvo.novaCol.k, 0, { id: uid('c'), lado: alvo.novaCol.lado, w: clamp(Math.round(j.w), 220, 460), p: ps });
+          else if (alvo.col) st.cols.find(c => c.id === alvo.col)?.p.splice(alvo.i, 0, ...ps);
+          else if (alvo.jan) st.jan.find(x => x.id === alvo.jan)?.p.splice(alvo.i, 0, ...ps);
+          else if (alvo.baixo) st.baixo.splice(alvo.i, 0, ...ps);
+          this.limpa(); this.grava(); this.aplica(); Atelie.enquadrar?.(); return; }
+        this.cabe(); this.grava();
+      };
+      bar.addEventListener('pointermove', mov); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+    });
   },
   // tira o painel de onde está (e some com coluna/janela que ficou vazia)
   tira(id) {
@@ -110,14 +133,14 @@ const Paineis = {
   },
   limpa() { this.st.cols = this.st.cols.filter(c => c.p.length); this.st.jan = this.st.jan.filter(j => j.p.length); },
   // ---------- onde o painel vai cair ----------
-  acha(x, y, id, dx, dy) {
+  acha(x, y, id, dx, dy, semJan) {
     const B = this.BEIRA, ignora = L => L.filter(i => i !== id && this.sec[i]), lugarNa = (L, el) => { // índice pela altura + a linha azul
       const r = el.getBoundingClientRect(), V = ignora(L); let i = V.length;
       for (let k = 0; k < V.length; k++) { const b = this.sec[V[k]].getBoundingClientRect(); if (y < b.top + b.height / 2) { i = k; break; } }
       const ly = !V.length ? r.top + 2 : i < V.length ? this.sec[V[i]].getBoundingClientRect().top : this.sec[V[V.length - 1]].getBoundingClientRect().bottom;
       return { i, linha: { x: r.left, y: ly - 2, w: r.width, h: 4 } };
     };
-    for (const j of this.st.jan) { const el = $(`.dock-janela[data-jan="${j.id}"]`, this.soltos); if (!el) continue; const r = el.getBoundingClientRect();
+    for (const j of this.st.jan) { if (j.id === semJan) continue; const el = $(`.dock-janela[data-jan="${j.id}"]`, this.soltos); if (!el) continue; const r = el.getBoundingClientRect();
       if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) { const l = lugarNa(j.p, el); return { jan: j.id, i: l.i, linha: l.linha, nome: 'nesta janela' }; } }
     for (const c of this.st.cols) { const el = $(`.dock-col[data-col="${c.id}"]`); if (!el || !el.offsetWidth) continue; const r = el.getBoundingClientRect();
       if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
