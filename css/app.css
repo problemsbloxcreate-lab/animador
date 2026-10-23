@@ -809,3 +809,8 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .at-partes .no.kf-mud{background:rgba(25,211,240,.08);box-shadow:inset 3px 0 0 #19d3f0}
 .at-partes .no.kf-mud.kf-z{background:rgba(192,139,255,.10);box-shadow:inset 3px 0 0 #c08bff}
 .at-partes .atras-pai{font-style:normal;font-size:9.5px;font-weight:700;color:#ffcf8a;background:rgba(255,159,67,.14);border:1px solid rgba(255,159,67,.45);border-radius:5px;padding:0 4px;line-height:14px;margin-left:4px;flex:none}
+/* janela "Criar sessões prontas?" */
+.sp-pronta .sp-l{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border:1px solid var(--bd);border-radius:8px;margin-top:6px;background:var(--bg2)}
+.sp-pronta .sp-l span{display:flex;flex-direction:column;gap:2px;min-width:0}.sp-pronta .sp-l small{color:var(--tx3);font-size:11px}
+.sp-pronta .sp-av{font-style:normal;font-size:11px;color:#ffcf8a;display:flex;gap:5px;align-items:flex-start}.sp-pronta .sp-av svg{flex:none;margin-top:2px}
+.sp-pronta .sp-ja{margin-top:10px;font-size:11.5px;color:var(--tx3);display:flex;gap:6px;align-items:center}

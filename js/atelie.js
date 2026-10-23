@@ -999,14 +999,24 @@ const Atelie = {
     const r = await UI.modal({ title: 'Sessão nova', icon: 'layers', body, enterValue: true, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', collect: a => ({ nome: $('input[type=text]', a.body).value.trim(), partes: $$('input[type=checkbox]:checked', a.body).map(i => i.value) }) }] });
     if (!r?.nome) return; const s = { id: uid('s'), nome: r.nome, partes: r.partes, presets: [] }; def.sessoes.push(s); this.aba = 'sessoes'; this.commit(); this.novoPreset(s, 'normal');
   },
-  sessoesProntas() {
-    const def = this.def; let n = 0;
+  // SESSÕES PRONTAS: antes de criar, mostra o que vai ser feito (sessões novas, as que já existem e ficam como estão, e as que vão mexer nas mesmas partes de uma que já existe)
+  async sessoesProntas() {
+    const def = this.def, plano = [], existem = [];
     for (const sp of SESSOES_PRONTAS) {
-      if (def.sessoes.some(s => s.nome.toLowerCase() === sp.nome.toLowerCase())) continue;
+      const ja = def.sessoes.find(s => s.nome.toLowerCase() === sp.nome.toLowerCase()); if (ja) { existem.push(ja.nome); continue; }
       const partes = sp.nome === 'Pose' ? [] : def.partes.filter(p => sp.acha.test(p.nome)).map(p => p.id); if (sp.nome !== 'Pose' && !partes.length) continue;
-      const s = { id: uid('s'), nome: sp.nome, partes, presets: sp.presets.map(nm => ({ id: uid('pr'), nome: nm, estado: {} })) }; def.sessoes.push(s); n++;
+      const choca = def.sessoes.filter(s => s.partes?.length && partes.some(id => s.partes.includes(id))).map(s => s.nome);
+      plano.push({ sp, partes, choca });
     }
-    this.aba = 'sessoes'; this.commit(); UI.toast(n ? `${n} sessões criadas pelos nomes das partes, com presets vazios: clique em cada preset e monte.` : 'Dê nomes às partes (ex.: "Olho direito", "Boca", "Perna direita") para eu achar as sessões.', { kind: n ? 'ok' : 'warn', time: 6000 });
+    if (!plano.length) return UI.toast(existem.length ? `As sessões prontas que dá para fazer com estas partes já existem (${esc(existem.join(', '))}).` : 'Dê nomes às partes (ex.: "Olho direito", "Boca", "Perna direita") para eu achar as sessões.', { kind: 'warn', time: 6000 });
+    const nomes = ids => ids.map(id => this.parte(id)?.nome).filter(Boolean), body = h(`<div class="sp-pronta">
+      <div style="color:var(--tx2);font-size:12.5px;margin-bottom:8px">Pelos nomes das partes, dá para criar estas sessões, cada uma com presets <b>vazios</b> para você montar. Nada que já existe é apagado ou mudado.</div>
+      ${plano.map((x, i) => `<label class="chk sp-l"><input type="checkbox" data-i="${i}" checked><span><b>${esc(x.sp.nome)}</b> <small>${x.partes.length ? 'mexe em ' + esc(nomes(x.partes).join(', ')) : 'o corpo todo'} · ${x.sp.presets.length} presets: ${esc(x.sp.presets.slice(0, 6).join(', '))}${x.sp.presets.length > 6 ? '…' : ''}</small>${x.choca.length ? `<em class="sp-av">${ic('alert', 12)} mexe nas mesmas partes de <b>${esc(x.choca.join(', '))}</b>: num quadro que use as duas, vale a que vier depois na lista</em>` : ''}</span></label>`).join('')}
+      ${existem.length ? `<div class="sp-ja">${ic('check', 12)} Já existem e ficam como estão: ${esc(existem.join(', '))}</div>` : ''}</div>`);
+    const r = await UI.modal({ title: 'Criar sessões prontas?', icon: 'layers', width: 520, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar as marcadas', kind: 'primary', collect: a => $$('input[data-i]:checked', a.body).map(c => +c.dataset.i) }] });
+    if (!r?.length) return;
+    for (const i of r) { const x = plano[i]; def.sessoes.push({ id: uid('s'), nome: x.sp.nome, partes: x.partes, presets: x.sp.presets.map(nm => ({ id: uid('pr'), nome: nm, estado: {} })) }); }
+    this.aba = 'sessoes'; this.commit(); UI.toast(`${r.length} sess${r.length === 1 ? 'ão criada' : 'ões criadas'} com presets vazios: clique em cada preset e monte. Ctrl+Z desfaz.`, { kind: 'ok', time: 6000 });
   },
   // preset novo = como as partes da sessão estão agora na tela
   async novoPreset(s, nome) {
