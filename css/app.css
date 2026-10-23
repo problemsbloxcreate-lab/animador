@@ -808,3 +808,4 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .kf-tags{display:flex;gap:3px;margin-left:auto;flex:none}
 .at-partes .no.kf-mud{background:rgba(25,211,240,.08);box-shadow:inset 3px 0 0 #19d3f0}
 .at-partes .no.kf-mud.kf-z{background:rgba(192,139,255,.10);box-shadow:inset 3px 0 0 #c08bff}
+.at-partes .atras-pai{font-style:normal;font-size:9.5px;font-weight:700;color:#ffcf8a;background:rgba(255,159,67,.14);border:1px solid rgba(255,159,67,.45);border-radius:5px;padding:0 4px;line-height:14px;margin-left:4px;flex:none}

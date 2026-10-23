@@ -525,12 +525,13 @@ const Atelie = {
     // KEYFRAME: parado num passo da timeline (ou na pose de um quadro do editor) = aviso em cima dizendo qual, e as partes com profundidade/posição só deste keyframe ficam marcadas
     const kc = Quadro.ctx(), kp = kc ? (kc.tipo === 'editor' ? Animacoes.poseFixa?.partes : this.teste?.partes) || {} : null;
     if (kc) el.appendChild(h(`<div class="kf-aviso">${ic('film', 13)}<span>No <b>${esc(Quadro.nome(kc))}</b>: profundidade e posição mudadas aqui valem só nele <i class="kf-t z">profundidade</i><i class="kf-t pos">posição</i></span></div>`));
-    const raiz = this.def.raiz, est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas(), lista = [...ps.filter(p => Referencia.ehRef(p)), ...this.ordemCamadas().reverse().filter(p => !Referencia.ehRef(p))];
+    const raiz = this.def.raiz, est = this.estado(), ordem = this._ordem = [], roxas = this.partesTodas(), lista = this.listaArvore(); const zDe = q => (q.z || 0) + (est[q.id]?.z || 0);
     const vai = () => { for (const p of lista) { ordem.push(p.id); const nivel = (() => { let n = 0, q = p; while (q?.pai && n < 6) { q = this.parte(q.pai); if (!q) break; n++; } return n; })(), nomePai = p.pai && this.parte(p.pai)?.nome;
     
       const ehRaiz = p.id === raiz, marc = p.id !== this.sel && this.multi.has(p.id), mk = this.marcas().partes.has(p.id);
       const r = h(`<div class="no ${p.id === this.sel ? 'sel' : ''} ${marc ? 'multi' : ''} ${ehRaiz ? 'raiz' : ''} ${Referencia.ehRef(p) ? 'ref' : ''} ${roxas.has(p.id) ? 'todos' : ''}" data-pid="${p.id}" data-niv="${Math.min(nivel, 4)}" style="padding-left:${8 + nivel * 14}px" draggable="true" title="${ehRaiz ? 'RAIZ — a parte principal do personagem · ' : ''}Segure e arraste: em cima/embaixo de outra muda a profundidade (em cima = na frente) · no meio vira filha · no vazio fica sem pai · para &quot;Imagens de…&quot; vira imagem · Ctrl/Shift+clique marcam várias"><span class="pega" aria-hidden="true">${ic('grip', 12)}</span><span class="ti">${ic(ehRaiz ? 'star' : p.imgs.length ? 'image' : 'shapes', 13)}</span><span class="nm">${esc(p.nome)} <small style="color:var(--tx3)">${p.imgs.length}</small>${nomePai ? `<small class="no-pai" title="Encaixa em ${esc(nomePai)}">em ${esc(nomePai)}</small>` : ''}</span>${mk ? '<i class="ponto-mod" title="Mudou e ainda não foi salvo"></i>' : this.local().partes.has(p.id) ? `<span class="so-local" title="Salvo só neste computador: ainda não está na nuvem">${ic('cloudOff', 12)}</span>` : ''}${ehRaiz ? '<span class="tag-raiz">raiz</span>' : ''}
         <button class="ibtn ${est[p.id]?.vis === false ? 'off' : ''}" title="Mostrar/esconder (H)">${ic(est[p.id]?.vis === false ? 'eyeOff' : 'eye', 13)}</button></div>`);
+      const pai = p.pai && this.parte(p.pai); if (pai && zDe(p) < zDe(pai)) { const tg = h(`<i class="atras-pai" title="Fica ATRÁS de ${esc(pai.nome)} (arraste para cima/baixo de outra parte para mudar)">atrás</i>`), b1 = r.querySelector(':scope > .ibtn, :scope > .kf-tags'); b1 ? b1.before(tg) : r.appendChild(tg); }
       const kv = kp?.[p.id]; if (kv) { const z = kv.z != null && kv.z !== 0, pos = !!(kv.x || kv.y || kv.r || (kv.d && Object.keys(kv.d).length)); if (z || pos) { r.classList.add('kf-mud'); if (z) r.classList.add('kf-z'); const tg = h(`<span class="kf-tags">${z ? '<i class="kf-t z" title="Profundidade diferente só neste keyframe">prof.</i>' : ''}${pos ? '<i class="kf-t pos" title="Posição/giro diferente só neste keyframe">pos.</i>' : ''}</span>`); const olho = r.querySelector(':scope > .ibtn:last-child'); olho ? olho.before(tg) : r.appendChild(tg); } }
       r.onclick = ev => { if (ev.target.closest('.ibtn')) { this.mudar(p.id, { vis: est[p.id]?.vis === false }); return this.commit(); } this.clicaParte(ev, p.id); };
       r.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
@@ -552,6 +553,16 @@ const Atelie = {
   },
   // muda a PROFUNDIDADE: põe a parte logo na frente (antes) ou atrás (depois) de "alvo" — quem encaixa em quem não muda.
   // Com um passo parado na timeline, vale só naquele passo (keyframe)
+  // ordem da lista: a referência em cima; depois cada pai SEMPRE em cima das suas filhas (a raiz no topo), e entre irmãs a da frente primeiro
+  listaArvore() {
+    const ps = this.def.partes, frente = this.ordemCamadas().reverse(), pos = new Map(frente.map((p, i) => [p.id, i])), ids = new Set(ps.map(p => p.id)), out = [], visto = new Set();
+    const filhas = id => ps.filter(p => p.pai === id && !Referencia.ehRef(p)).sort((a, b) => pos.get(a.id) - pos.get(b.id));
+    const vai = p => { if (visto.has(p.id)) return; visto.add(p.id); out.push(p); for (const f of filhas(p.id)) vai(f); };
+    ps.filter(p => Referencia.ehRef(p)).forEach(p => { visto.add(p.id); out.push(p); });
+    const raizes = ps.filter(p => !Referencia.ehRef(p) && (!p.pai || !ids.has(p.pai))).sort((a, b) => (b.id === this.def.raiz) - (a.id === this.def.raiz) || pos.get(a.id) - pos.get(b.id));
+    raizes.forEach(vai); ps.forEach(p => vai(p)); // sobra (laço de pais): no fim
+    return out;
+  },
   moverParte(id, alvo, onde) {
     const q = this.parte(id); if (!q || q === alvo || Referencia.ehRef(alvo)) return;
     const L = this.ordemCamadas().reverse().filter(x => x !== q && !Referencia.ehRef(x)); let i = L.indexOf(alvo); if (i < 0) i = 0; L.splice(onde === 'antes' ? i : i + 1, 0, q); this.reordenar(L);
