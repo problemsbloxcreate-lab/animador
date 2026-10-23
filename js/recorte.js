@@ -40,7 +40,7 @@ Object.assign(Pintura, {
     if (this.ferr === 'varinha' && Vetor.eh(a.img.k)) { (async () => { // SVG: a varinha pega a ÁREA inteira entre as linhas (com a borda de mistura junto, sem fio de fora)
         const m = await Vetor.modelo(a.img.k), ar = await Vetor.area(a, pt, m, { soArea: true }); if (!ar?.cv) return UI.toast(ar?.linha ? 'Isso é a linha (escolha uma área de cor).' : 'Clique numa área fechada pelas linhas.', { kind: 'warn' });
         const mk = new OffscreenCanvas(W, H), x = mk.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(ar.cv, 0, 0, W, H); const ant = modo !== 'nova' && !!this.selecao?.vetArea; this.combina(a, mk, modo); if (this.selecao) this.selecao.vetArea = modo === 'nova' || ant; })(); return; } // vetArea: Delete apaga a COR dessa área (a linha fica)
-    if (this.ferr === 'varinha') { const { c } = this.tela(a.bm), m = this.areaParecida(c, W, H, Math.floor(pt.x), Math.floor(pt.y), this.tol, false); if (m) this.combina(a, m, modo); return; }
+    if (this.ferr === 'varinha') { if (this.todasCam && a.cam) { const m = this.areaTodas(a, pt, false); if (m) this.combina(a, m, modo); return; } const { c } = this.tela(a.bm), m = this.areaParecida(c, W, H, Math.floor(pt.x), Math.floor(pt.y), this.tol, false); if (m) this.combina(a, m, modo); return; }
     Atelie.cv.setPointerCapture(e.pointerId); const pts = [pt]; this._prev = { a, pts, ret: this.ferr === 'ret' };
     const mov = ev => { const p2 = a.para(Atelie.mundo(ev)); if (this.ferr === 'ret') pts[1] = p2; else pts.push(p2); Atelie.desenha(); };
     const up = () => { Atelie.cv.removeEventListener('pointermove', mov); Atelie.cv.removeEventListener('pointerup', up); this._prev = null;

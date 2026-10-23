@@ -65,11 +65,22 @@ const Pintura = {
     const { cv, c } = this.tela(aq.bm), orig = aq.bm, k0 = a.img.k, mask = this.mascara(a);
     if (this.ferr === 'balde' || this.ferr === 'magica') { // balde pinta a área parecida; borracha mágica apaga a área parecida
       const antes = mask ? this.tela(aq.bm) : null;
-      if (this.ferr === 'balde') this.balde(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.cor, this.tol);
+      const todas = this.todasCam && a.cam && aq === a; // USAR TODAS AS CAMADAS: a área vem do desenho de todas as camadas visíveis; pinta/apaga só na escolhida
+      if (todas) { const m = this.areaTodas(a, pt, e.shiftKey); if (!m) return;
+        if (this.ferr === 'balde') { const t = new OffscreenCanvas(cv.width, cv.height), tx = t.getContext('2d'); tx.drawImage(this.engorda(m), 0, 0); tx.globalCompositeOperation = 'source-in'; tx.fillStyle = this.cor; tx.fillRect(0, 0, t.width, t.height); c.drawImage(t, 0, 0); }
+        else { c.globalCompositeOperation = 'destination-out'; c.drawImage(m, 0, 0); c.globalCompositeOperation = 'source-over'; } }
+      else if (this.ferr === 'balde') this.balde(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.cor, this.tol);
       else { const m = this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, e.shiftKey); if (!m) return; c.globalCompositeOperation = 'destination-out'; c.drawImage(m, 0, 0); c.globalCompositeOperation = 'source-over'; }
       if (mask) this.soNaSelecao(c, antes.cv, mask); if (aq !== a) { if (await Quadro.gravaApagado(a, aq.bm, cv)) Atelie.commit(); return; } await this.gravar(a.img, cv); Atelie.commit(); return; }
     return this.traco(e, a, pt, mask); // pincel / borracha (pinceis.js: pressão da caneta, dureza, fluxo, suavização…)
   },
+  // "Usar todas as camadas" (balde, varinha e borracha mágica em imagem com camadas): ligado por padrão, guardado neste computador
+  get todasCam() { try { return localStorage.getItem('animador-todas-camadas') !== '0'; } catch { return true; } },
+  set todasCam(v) { try { localStorage.setItem('animador-todas-camadas', v ? '1' : '0'); } catch { } },
+  // área parecida achada no desenho JUNTO (todas as camadas visíveis = a imagem final), do tamanho da camada
+  areaTodas(a, pt, todos) { const { c, cv } = this.tela(a.orig || a.bm); return this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, todos); },
+  // a máscara 1 px maior (a cor entra um pouquinho por baixo do traço da outra camada: sem fresta)
+  engorda(m) { const o = new OffscreenCanvas(m.width, m.height), x = o.getContext('2d'); for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) x.drawImage(m, dx, dy); return o; },
   balde(c, W, H, x, y, hex, tol) {
     if (x < 0 || y < 0 || x >= W || y >= H) return; const d = c.getImageData(0, 0, W, H), D = d.data, i0 = (y * W + x) * 4, alvo = [D[i0], D[i0 + 1], D[i0 + 2], D[i0 + 3]], [r, g, b] = rgbDe(hex);
     const perto = i => Math.abs(D[i] - alvo[0]) + Math.abs(D[i + 1] - alvo[1]) + Math.abs(D[i + 2] - alvo[2]) + Math.abs(D[i + 3] - alvo[3]) <= tol * 2;
@@ -176,7 +187,8 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
     if (['pincel', 'borracha'].includes(this.ferr)) { op.innerHTML = `<b>${this.ferr === 'borracha' ? 'Borracha' : 'Pincel'}</b>`; op.appendChild(this.controles(true)); return; }
     const nome = this.FERR.find(f => f[0] === this.ferr)?.[1] || '', campos = ['pincel', 'borracha'].includes(this.ferr) ? [['tam', 'Tamanho', 1, 300, 1], ['opac', 'Opacidade', .05, 1, .01]] : [['tol', 'Tolerância', 0, 160, 1]];
     op.innerHTML = `<b>${esc(nome)}</b>` + campos.map(([c, n, a, b, p]) => `<label title="${n}">${n}<input type="range" min="${a}" max="${b}" step="${p}" value="${this[c]}" data-c="${c}"><output>${c === 'opac' ? Math.round(this[c] * 100) + '%' : Math.round(this[c])}</output></label>`).join('');
-    $$('input', op).forEach(i => i.oninput = () => { const c = i.dataset.c; this[c] = c === 'opac' ? +i.value : Math.round(+i.value); i.nextElementSibling.textContent = c === 'opac' ? Math.round(this[c] * 100) + '%' : this[c]; Atelie.desenha(); });
+    if (['balde', 'varinha', 'magica'].includes(this.ferr) && aV?.cam) { const l = h(`<label class="pc-chk" title="Acha a área olhando o desenho de TODAS as camadas visíveis (ex.: o traço numa camada e a cor numa camada vazia); pinta/seleciona só na camada escolhida"><input type="checkbox" data-todas ${this.todasCam ? 'checked' : ''}> Usar todas as camadas</label>`); $('input', l).onchange = ev => { this.todasCam = ev.target.checked; }; op.appendChild(l); }
+    $$('input[data-c]', op).forEach(i => i.oninput = () => { const c = i.dataset.c; this[c] = c === 'opac' ? +i.value : Math.round(+i.value); i.nextElementSibling.textContent = c === 'opac' ? Math.round(this[c] * 100) + '%' : this[c]; Atelie.desenha(); });
   },
 
   /* ---------- aba "Pintar" do ateliê ---------- */
