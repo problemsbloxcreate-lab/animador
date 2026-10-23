@@ -187,8 +187,8 @@ const App = {
   },
   async salvarNaNuvem(n) {
     if (n?.tipo !== 'imagem' && !n?.cenaEd) return;
-    const t = UI.toast('<span class="spin-dot"></span> Salvando o cenário na nuvem da equipe…', { time: 60000 });
-    try { n.nuvem = await Nuvem.salvarCenario(n); this.commit('Salvar na nuvem', { semArvore: false }); t.remove(); UI.toast(`<b>${esc(n.nome)}</b> está nos cenários da equipe: todo mundo pode usar.`, { kind: 'ok' }); }
+    const t = { remove() { } }; // a tela de espera do Ocupado.nuvem mostra o andamento
+    try { n.nuvem = await Ocupado.nuvem('Salvando o cenário na nuvem', () => Nuvem.salvarCenario(n), { fimTxt: 'Cenário salvo na nuvem' }); this.commit('Salvar na nuvem', { semArvore: false }); t.remove(); UI.toast(`<b>${esc(n.nome)}</b> está nos cenários da equipe: todo mundo pode usar.`, { kind: 'ok' }); }
     catch (e) { t.remove(); UI.toast('Não salvou: ' + esc(e.message), { kind: 'err' }); }
   },
   // trocar a imagem de uma camada de imagem: fica no mesmo lugar, do mesmo tamanho na tela (as chaves e a animação continuam)

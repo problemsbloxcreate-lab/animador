@@ -150,8 +150,8 @@ const Nuvem = {
   // aplica a troca de chaves num texto JSON do personagem
   remapear(txt, troca) { if (!txt) return txt; for (const [a, b] of Object.entries(troca || {})) txt = txt.split(JSON.stringify(a)).join(JSON.stringify(b)); return txt; },
   // apagado agora: some da lista na hora (a nuvem pode levar até ~1 min para a lista de todos os lugares mostrar que saiu)
-  async apagar(id) { this._lista = null; const t = UI.toast('<span class="spin-dot"></span> Apagando da nuvem…', { time: 120000 });
-    try { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/`), { method: 'DELETE' }); } finally { t.remove(); }
+  async apagar(id) { this._lista = null;
+    await Ocupado.nuvem('Apagando da nuvem', () => this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/`), { method: 'DELETE' }), { icone: 'trash', subtitulo: 'Apagando o personagem e as imagens dele…', fimTxt: 'Apagado da nuvem' });
     (this._apagados ||= new Map()).set(id, Date.now()); await DB.del('personagens', id); this._ks.delete(id); this._lista = null; this.avisaEspaco(); UI.toast('Apagado da nuvem da equipe.', { kind: 'ok' }); },
 
   /* ---------- cenários da equipe: só entram aqui quando alguém escolhe "Salvar na nuvem" (botão direito na camada) ---------- */
@@ -189,7 +189,7 @@ const CenariosNuvem = {
           catch (er) { c.style.opacity = 1; UI.toast(esc(er.message), { kind: 'err' }); }
         };
         $('.mn', c).onclick = async e => { e.stopPropagation(); if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome || 'este cenário'); if (!(await UI.confirm({ title: 'Apagar da nuvem da equipe?', msg: `"<b>${esc(it.nome || 'Cenário')}</b>" some para todo mundo. As animações que já usam continuam com a cópia delas.`, ok: 'Apagar', danger: true }))) return;
-          try { await Nuvem.apagarCenario(it.k); pinta(); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } };
+          try { await Ocupado.nuvem('Apagando o cenário da nuvem', () => Nuvem.apagarCenario(it.k), { icone: 'trash', fimTxt: 'Apagado da nuvem' }); pinta(); } catch (er) { UI.toast(esc(er.message), { kind: 'err' }); } };
         g.appendChild(c);
       }
     };

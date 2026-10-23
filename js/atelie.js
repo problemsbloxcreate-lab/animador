@@ -157,7 +157,7 @@ const Atelie = {
     if (ficam && this.naNuvem) { this.sujo = false; clearTimeout(this._tn); }
     // nada se perde ao sair: guarda já neste computador e, se o personagem é da nuvem, manda o que falta
     await this.guardarLocalJa();
-    if (this.naNuvem && this.sujo) { const t = UI.toast('<span class="spin-dot"></span> Mandando as últimas mudanças para a nuvem…', { time: 60000 }); await this.sincronizar(true); t.remove();
+    if (this.naNuvem && this.sujo) { await Ocupado.nuvem('Mandando as últimas mudanças para a nuvem', () => this.sincronizar(true), { fimTxt: 'Enviado para a nuvem' });
       if (this.sujo && !(await UI.confirm({ title: 'Não foi para a nuvem', msg: 'As últimas mudanças ficaram guardadas <b>só neste computador</b> (' + esc(this.erroNuvem || 'sem conexão') + '). Ao abrir de novo aqui, elas vão para a nuvem.', ok: 'Sair mesmo assim', danger: true }))) return; }
     if (this.emAba) { this.sujo = false; window.close(); setTimeout(() => { if (!window.closed) { history.replaceState(null, '', location.pathname); this.emAba = false; Telas.mostra('home'); Home.aba('personagens'); } }, 300); return; }
     try { const u = new URL(location.href); if (u.searchParams.has('atelie')) { u.searchParams.delete('atelie'); history.replaceState(null, '', u.pathname + u.search); } } catch { } // saiu do Ateliê: o F5 não volta para ele
@@ -209,16 +209,16 @@ const Atelie = {
     if (!agora && snap === this.baseNuvem) { this.sujo = false; this.pintaEstado(); return; } // voltou a ser igual ao que está na nuvem (ex.: Ctrl+Z): nada a gravar
     this._envioEm = Date.now();
     this.erroNuvem = null; this.pintaEstado();
-    this.enviando = (async () => {
+    this.enviando = Ocupado.mantem(async () => { // com a aba escondida o navegador não congela no meio do envio
       try { try { def.thumb = this.miniatura(); } catch { }
         if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
-        await Icone.prepara(def); await Nuvem.salvar(def, null, { limpar: !!agora }); this.aplicaTroca(Nuvem.ultimaTroca); const snapR = Nuvem.remapear(snap, Nuvem.ultimaTroca);
+        await Icone.prepara(def); await Nuvem.salvar(def, agora && Ocupado.n ? txt => Ocupado.anda(txt) : null, { limpar: !!agora }); this.aplicaTroca(Nuvem.ultimaTroca); const snapR = Nuvem.remapear(snap, Nuvem.ultimaTroca);
         if ((this.ultimo || JSON.stringify(this.def)) === snapR) { this.sujo = false; await DB.del('arquivos', this.chaveRascunho(def.id)).catch(() => { }); this.rascunhoEm = null; }
         if (this.def?.id === def.id) { this.def.modificado = def.modificado; this.def.autor = def.autor; this.def.edicoes = def.edicoes; this.def.thumb = def.thumb; }
         this.baseNuvem = snapR; if (this.base0 === snapR || !this.sujo) this.base0 = snapR; this.avisaAnimador(def, false); this.pinta();
         if (this.aoVivoJunto()) try { AoVivo.t.setMeta(AoVivo.sala, { nuvemEm: { t: Date.now(), por: AoVivo.eu.id } }); } catch { }
       } catch (e) { this.erroNuvem = e.message || 'sem conexão'; }
-    })();
+    });
     await this.enviando; this.enviando = null; this.pintaEstado(); $('#at-salvar') && this.pintaBotaoNuvem();
     if (this.denovo) { this.denovo = false; if (this.sujo) return this.sincronizar(agora); }
   },
@@ -337,7 +337,7 @@ const Atelie = {
     this.cv.addEventListener('pointerdown', e => { const a = document.activeElement; if (a && a !== document.body && a.matches?.('select,button,input:not([type=text]):not([type=number]):not([type=search])')) a.blur(); this.desce(e); }); /* clicar no palco tira o foco do que estava escolhido (os atalhos voltam a valer) */ this.cv.addEventListener('contextmenu', e => { e.preventDefault(); if (!this._panMexeu) { if (this.teste && Animacoes.rodando && this.acha(this.mundo(e))) Animacoes.pausar(true); this.menuPalco(e); } this._panMexeu = false; }); // botão direito sem arrastar (também com o Testar aberto; tocando, pausa naquele passo): menu da peça
     this.cv.addEventListener('wheel', e => this.roda(e), { passive: false }); // rodinha do mouse: zoom no ponto do mouse
     $('#at-voltar').onclick = () => this.sair(); $('#at-voltar').hidden = true; { const br = $('#atelie header .brand'); if (br) { br.style.cursor = 'pointer'; br.title = 'Abrir o Animador numa aba nova (o Ateliê continua aberto aqui)'; br.onclick = () => window.open(location.pathname, '_blank'); } } // o nome ATELIÊ abre o ANIMADOR numa ABA NOVA (decisão do dono: esta aba não sai do Ateliê)
-    $('#at-salvar').onclick = () => this.naNuvem ? this.sincronizar(true) : this.salvar(); $('#at-undo').onclick = () => this.desfazJa(false); $('#at-redo').onclick = () => this.desfazJa(true);
+    $('#at-salvar').onclick = () => this.naNuvem ? this.salvarJa() : this.salvar(); $('#at-undo').onclick = () => this.desfazJa(false); $('#at-redo').onclick = () => this.desfazJa(true);
     $('#at-nome').onchange = async e => { const n = e.target.value.trim(); if (n && n !== this.def.nome) { this.def.nome = await Arquivos.nomePersonagem(n, this.def.id); e.target.value = this.def.nome; } this.commit(); Telas.marca('atelie'); };
     $('#at-pasta').onchange = e => { this.def.pasta = e.target.value.trim() || 'Personagens'; this.commit(); if (this.naNuvem) PastasBib.mover('nuvem', [this.def.id], this.def.pasta).catch(() => { }); }; // a pasta da biblioteca da equipe também (personagens/pastas.json)
     $('#at-add-parte').onclick = () => this.novaParte(); $('#at-add-img').onclick = () => this.addImagens(); $('#at-add-pasta').onclick = () => { const p = this.parte(); if (p) this.novaPastaImg(p); else UI.toast('Escolha uma parte primeiro'); };
@@ -1472,19 +1472,22 @@ const Atelie = {
   /* ---------- salvar na nuvem da equipe ---------- */
   async salvar(o = {}) {
     const def = this.def; if (!def.partes.length) return UI.toast('Ponha pelo menos uma parte antes de salvar.', { kind: 'warn' });
-    if (this.naNuvem) return this.sincronizar(true);
+    if (this.naNuvem) return this.salvarJa();
     { const n = await Arquivos.nomePersonagem(def.nome, def.id); if (n !== def.nome) { def.nome = n; $('#at-nome') && ($('#at-nome').value = n); } } // já tem um com esse nome na nuvem: o mais novo ganha (1), (2)…
     def.thumb = this.miniatura();
     // aprendizado: o que a equipe corrigiu depois da IA organizar vai junto (a IA lê isso nos próximos personagens)
     if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
-    const t = UI.toast('<span class="spin-dot"></span> <span data-p>Salvando na nuvem…</span>', { time: 600000 });
-    try { await Icone.prepara(def); await Nuvem.salvar(def, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = txt; }); t.remove(); this.aplicaTroca(Nuvem.ultimaTroca); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.base0 = this.baseNuvem = this.ultimo; this.pinta();
+    const fimOc = Ocupado.inicio({ tipo: 'nuvem', icone: 'cloud', titulo: 'Salvando na nuvem', subtitulo: 'Preparando o personagem…', aba: 'Salvando na nuvem', fimTxt: 'Salvo na nuvem', aviso: 'Aguarde: enquanto salva não dá para mexer (para nada ficar pela metade). Pode ir para outra aba ou minimizar: continua salvando. Só não feche esta aba.' }), t = { remove: () => { if (t.ok) return; t.ok = 1; fimOc(); } };
+    try { await Icone.prepara(def); await Nuvem.salvar(def, txt => Ocupado.anda(txt)); t.remove(); this.aplicaTroca(Nuvem.ultimaTroca); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.base0 = this.baseNuvem = this.ultimo; this.pinta();
       this.avisaAnimador(def, false); // a animação aberta (aqui ou na outra aba) atualiza o personagem e tira o "não está na nuvem"
       this.naNuvem = true; this.pintaBotaoNuvem(); this.pintaEstado(); AoVivo.entrarAtelie().catch(() => { });
       UI.toast(`<b>${esc(def.nome)}</b> salvo na nuvem da equipe (pasta "${esc(def.pasta)}"). Agora as mudanças vão sozinhas para a nuvem.`, { kind: 'ok', time: 5000 });
       if (!o.semAviso) await this.avisoLocais(); }
     catch (e) { t.remove(); UI.toast('Não salvou: ' + esc(e.message), { kind: 'err', time: 7000 }); }
   },
+  // botão "Salvar na nuvem" (personagem que já está nela): trava a tela até terminar e avisa se não foi
+  async salvarJa() { if (Ocupado.n) return; this.erroNuvem = null; await Ocupado.nuvem('Salvando na nuvem', () => this.sincronizar(true), { fimTxt: 'Salvo na nuvem' });
+    if (this.erroNuvem) UI.toast('Não foi para a nuvem: ' + esc(this.erroNuvem), { kind: 'err', time: 7000 }); else if (!this.sujo) UI.toast('Salvo na nuvem da equipe.', { kind: 'ok', time: 2500 }); },
   miniatura() {
     const est = Modelo.partesNoEstado(this.def, {}), b = Modelo.caixaPersonagem(this.def, est), S = 160, k = Math.min(S / b.w, S / b.h) * .92, c = document.createElement('canvas'); c.width = c.height = S;
     const x = c.getContext('2d'), base = new DOMMatrix().translate(S / 2, S / 2).scale(k).translate(-(b.x + b.w / 2), -(b.y + b.h / 2));
