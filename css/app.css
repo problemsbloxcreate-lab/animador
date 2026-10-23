@@ -731,7 +731,7 @@ body.arrastando-div{user-select:none;cursor:col-resize}
 #atelie.ed-img .ferr-op{left:0!important;right:0;top:41px!important;max-width:none!important;border-radius:0;border:0;border-bottom:1px solid var(--bd);padding:4px 10px;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;background:var(--bg1)}
 #atelie.ed-img .ferr-op>b{width:auto!important;flex:0 0 auto}
 #atelie.ed-img .ferr-op>*{flex:0 0 auto}
-#atelie.ed-img .ferr-at.lado-esq{left:0!important;top:84px;transform:none;border-radius:0 10px 10px 0;border-left:0}
+#atelie.ed-img .ferr-at.lado-cima{top:84px!important}
 
 /* cursores de quem está junto ao vivo: por cima de tudo (painéis e janelas), sem pegar o mouse */
 .av-cursores{position:fixed;inset:0;pointer-events:none;z-index:2147483000;overflow:hidden}
@@ -836,10 +836,12 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 /* editor de imagem: Voltar (sem guardar) e Salvar */
 .btn.ed-voltar{background:rgba(255,90,90,.12);border-color:rgba(255,110,110,.55);color:#ffb3b3}.btn.ed-voltar:hover{background:rgba(255,90,90,.24);color:#ffd0d0}
 .btn.ed-salvar{background:#2f9e5b!important;border-color:#3fbf72!important;color:#fff!important}.btn.ed-salvar:hover{background:#38b46a!important}
-/* barra de ferramentas: alça para mudar de lugar; gruda numa das bordas do palco (em cima/embaixo fica deitada) */
+/* barra de ferramentas: SOLTA como uma janelinha (padrão) ou GRUDADA numa borda do palco (vira um pedaço dela; em cima/embaixo fica deitada) */
 .ferr-at .fb-pega{height:12px;display:grid;place-items:center;color:var(--tx3);cursor:grab;touch-action:none;opacity:.7}.ferr-at .fb-pega:hover{opacity:1;color:var(--tx)}
-.ferr-at.lado-dir{left:auto!important;right:8px}
-.ferr-at.lado-cima,.ferr-at.lado-baixo{flex-direction:row;top:auto;transform:translateX(-50%)}.ferr-at.lado-cima{top:52px!important}.ferr-at.lado-baixo{bottom:calc(var(--tl,0px) + 10px)}
+.ferr-at.lado-solto{transform:none}
+.ferr-at.lado-esq{left:0!important;transform:translateY(-50%);border-left:0;border-radius:0 10px 10px 0}
+.ferr-at.lado-dir{left:auto!important;right:0;transform:translateY(-50%);border-right:0;border-radius:10px 0 0 10px}
+.ferr-at.lado-cima,.ferr-at.lado-baixo{flex-direction:row;transform:translateX(-50%)}.ferr-at.lado-cima{top:0!important;border-top:0;border-radius:0 0 10px 10px}.ferr-at.lado-baixo{top:auto!important;bottom:var(--tl,0px);border-bottom:0;border-radius:10px 10px 0 0}
 .ferr-at.lado-cima>i,.ferr-at.lado-baixo>i{width:1px;height:auto;margin:4px 3px}
 .ferr-at.lado-cima .fb-pega,.ferr-at.lado-baixo .fb-pega{height:auto;width:12px}
 .ferr-at.arrastando{opacity:.75;transition:none}
