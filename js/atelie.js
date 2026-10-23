@@ -243,6 +243,8 @@ const Atelie = {
     const b = $('#at-salvar'); if (!b) return;
     const res = !!window.EstudioLimite?.naReserva?.(); // principal no limite: o que vai agora fica na nuvem reserva (volta sozinho às 21h)
     const txt = !this.naNuvem ? 'Salvar na nuvem' : this.enviando ? 'Enviando…' : this.sujo ? 'Enviar agora' : res ? 'Salvo na reserva' : 'Salvo na nuvem'; // salvo: o selo do lado some e o botão já diz
+    // cópia local (a nuvem não carregou): selo vermelho para não parecer que é o personagem da nuvem
+    let cl = $('#at-copia-local'); if (this.def?.copiaLocal && !this.naNuvem) { if (!cl) { cl = h(`<span id="at-copia-local" class="at-copia-local" title="Este é uma cópia que estava neste computador: o personagem da nuvem não muda. Fica em Só neste computador.">${ic('monitor', 13)} Cópia local · só neste computador</span>`); b.before(cl); } } else cl?.remove();
     b.innerHTML = `${ic('cloud', 15)} ${txt}`; b.classList.toggle('primary', !this.naNuvem || !!this.sujo); b.classList.toggle('salvo-nuvem', !!this.naNuvem && !this.sujo && !this.enviando);
     b.title = (this.naNuvem ? 'Este personagem está na nuvem da equipe: as mudanças vão sozinhas (clique para mandar agora).' : 'Salvar na nuvem da equipe (Ctrl+S guarda só neste computador)')
       + (res ? ' A nuvem principal chegou ao limite de hoje: por enquanto vai para a nuvem reserva (a equipe vê igual) e passa sozinho para a principal às 21h.' : '');

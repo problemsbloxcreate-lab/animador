@@ -22,18 +22,12 @@ const Nuvem = {
   async _listaJa() {
     let j; this.listaDoPc = false;
     try { j = await (await this.pede('/personagens')).json(); }
-    catch (e) { // a nuvem não deixou listar (limite do dia e a reserva ainda sem a lista): acha os personagens que já conhecemos
-      // (abertos neste computador ou com pasta na nuvem) e abre CADA UM DA NUVEM — nunca a cópia do computador, a versão é sempre a da nuvem
-      const ids = new Set((await DB.all('personagens').catch(() => [])).map(d => d?.id).filter(Boolean));
-      try { const pj = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent('personagens/pastas.json'))).json(); for (const id of Object.keys(pj?.de || {})) ids.add(id); } catch { }
-      const out = [];
-      await Promise.all([...ids].map(async id => { try {
-        const d = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/personagem.json`))).json(); if (!d?.id) return;
-        await DB.put('personagens', d); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes });
-      } catch { } })); // não está na nuvem (só local, ou apagado): fica de fora
-      if (!out.length) throw e; this.listaDoPc = true; setTimeout(() => this._listaPc?.(), 0);
-      return out.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
+    catch (e) { // nem a nuvem nem a reserva deixaram listar: a parte da nuvem fica VAZIA (nada do computador no lugar dela);
+      // as cópias que este computador tem ficam separadas, marcadas como cópia local (Home mostra em vermelho, abrir = cópia só daqui)
+      this.copiasPc = (await DB.all('personagens').catch(() => [])).filter(d => d?.id && d.nome && !d._local);
+      if (!this.copiasPc.length) throw e; this.semLista = e.message || 'sem lista'; return [];
     }
+    this.semLista = null; this.copiasPc = null;
     const ids = new Set(), mods = {}; const tams = {}, exts = {}; for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\//); if (m) { tams[m[1]] = (tams[m[1]] || 0) + (+it.tam || 0); if (/\/img\/(?!ap)[^/]+$/.test(it.k)) (exts[m[1]] ||= []).push(it.k); } }
     for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) { ids.add(m[1]); mods[m[1]] = it.mod || null; } }
     const out = [];
@@ -63,7 +57,7 @@ const Nuvem = {
   avisoReserva(el) {
     if (!el) return; const L = window.EstudioLimite;
     const pinta = () => { if (!el.isConnected) { clearInterval(iv); return; } const t = L?.marcado?.() || 0;
-      const pc = this.listaDoPc ? `<div class="res-aviso lim">${ic('cloud', 14)}<span>A nuvem não deixou listar tudo agora. Aparecem os personagens já conhecidos, cada um aberto <b>direto da nuvem</b> (a versão de sempre, não a cópia do computador). Algum criado hoje por outra pessoa pode faltar até a nuvem voltar.</span></div>` : '';
+      const pc = false ? `<div class="res-aviso lim">${ic('cloud', 14)}<span>A nuvem não deixou listar tudo agora. Aparecem os personagens já conhecidos, cada um aberto <b>direto da nuvem</b> (a versão de sempre, não a cópia do computador). Algum criado hoje por outra pessoa pode faltar até a nuvem voltar.</span></div>` : '';
       if (!t) { el.innerHTML = pc; return; }
       const m = Math.max(0, Math.ceil((t - Date.now()) / 6e4)), falta = m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}min` : `${m} min`;
       const usos = [...(this._usoRes || [])], diz = usos.length ? ` Agora ela está sendo usada para: <b>${usos.join(', ')}</b>.` : '';

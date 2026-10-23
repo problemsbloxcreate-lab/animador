@@ -5,6 +5,21 @@ const FORMATOS = [
   { id: 'quad', nome: 'Quadrado', w: 1080, h: 1080, fps: 24 }, { id: 'yt12', nome: 'Animação em 12 fps', w: 1920, h: 1080, fps: 12 },
 ];
 const Home = {
+  // a nuvem (e a reserva) não deixaram listar: a parte da nuvem fica vazia e, separadas, as CÓPIAS LOCAIS (borda vermelha).
+  // Abrir uma delas cria uma cópia só neste computador (vai para "Só neste computador"): nunca mexe no personagem da nuvem.
+  copiasLocais(l, defs) {
+    l.innerHTML = `<div class="vazio">A lista da nuvem não carregou agora (nem pela nuvem reserva). Os personagens da nuvem voltam a aparecer aqui quando ela voltar.</div>
+      <div class="copias-pc"><div class="copias-pc-t">${ic('monitor', 14)}<b>Cópias guardadas neste computador</b><small>não são a nuvem: podem estar desatualizadas, e o que você mudar fica só aqui</small></div><div class="grade" data-cpc></div></div>`;
+    const g = $('[data-cpc]', l);
+    for (const d of defs.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'))) {
+      const card = h(`<div class="pc pc-local" title="Cópia deste computador — não é a versão da nuvem"><div class="th" style="${d.thumb ? `background-image:url('${d.thumb}')` : ''}">${d.thumb ? '' : ic('layers', 20)}<span class="pc-local-selo">cópia local</span></div><div class="in"><b>${esc(d.nome)}</b><small>${d.modificado ? fmtDate(d.modificado) : ''}</small></div></div>`);
+      card.onclick = async () => {
+        if (!(await UI.confirm({ title: 'Abrir uma cópia local?', msg: `A nuvem não carregou, então esta é a cópia de <b>${esc(d.nome)}</b> que estava neste computador (pode estar desatualizada).<br><br>Vou criar <b>${esc(d.nome)} (cópia local)</b> em "Só neste computador": o que você mudar fica só aqui e o personagem da nuvem não muda.`, ok: 'Criar a cópia local' }))) return;
+        const nd = await Arquivos.duplicarPersonagem(d, d.thumb, (d.nome || 'Personagem') + ' (cópia local)', { copiaLocal: true }); if (nd) Atelie.abrirAba(nd.id);
+      };
+      g.appendChild(card);
+    }
+  },
   atual: 'animacoes', q: '',
   aba(a) { this.atual = a; this.pinta(); },
   async pinta() {
@@ -157,7 +172,9 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       box.innerHTML = ''; box.appendChild(sec); filtra(); });
     pintaLocal();
     try {
-      const lista = await Nuvem.lista(); $('[data-cn]', c).textContent = lista.length; if (!lista.length) { l.innerHTML = '<div class="vazio">Ninguém criou personagens ainda. Clique em <b>Personagem novo</b>.</div>'; return; }
+      const lista = await Nuvem.lista(); $('[data-cn]', c).textContent = lista.length;
+      if (Nuvem.semLista) { this.copiasLocais(l, Nuvem.copiasPc); return; }
+      if (!lista.length) { l.innerHTML = '<div class="vazio">Ninguém criou personagens ainda. Clique em <b>Personagem novo</b>.</div>'; return; }
       // em PASTAS da equipe (personagens/pastas.json; js/pastasbib.js): abrir/fechar, arrastar entre pastas, criar/renomear/apagar
       let todasN = [];
       const cartaoN = it => {
