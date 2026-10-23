@@ -21,17 +21,20 @@ const Nuvem = {
   },
   async _listaJa() {
     let j; this.listaDoPc = false;
-    try { j = await (await this.pede('/personagens')).json(); }
+    let r0; try { r0 = await this.pede('/personagens'); j = await r0.json(); }
     catch (e) { // nem a nuvem nem a reserva deixaram listar: a parte da nuvem fica VAZIA (nada do computador no lugar dela);
       // as cópias que este computador tem ficam separadas, marcadas como cópia local (Home mostra em vermelho, abrir = cópia só daqui)
       this.copiasPc = (await DB.all('personagens').catch(() => [])).filter(d => d?.id && d.nome && !d._local);
       if (!this.copiasPc.length) throw e; this.semLista = e.message || 'sem lista'; return [];
     }
-    this.semLista = null; this.copiasPc = null;
+    this.semLista = null; this.copiasPc = null; this.parcial = r0.headers.get('x-nuvem-parcial') === '1';
     const ids = new Set(), mods = {}; const tams = {}, exts = {}; for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\//); if (m) { tams[m[1]] = (tams[m[1]] || 0) + (+it.tam || 0); if (/\/img\/(?!ap)[^/]+$/.test(it.k)) (exts[m[1]] ||= []).push(it.k); } }
     for (const it of j.itens || []) { const m = it.k.match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) { ids.add(m[1]); mods[m[1]] = it.mod || null; } }
     const out = [];
     await Promise.all([...ids].map(async id => { try { const d = await this.abrir(id, true, mods[id]); out.push({ id, nome: d.nome, pasta: d.pasta || 'Personagens', thumb: d.thumb, modificado: d.modificado, por: d.por, autor: d.autor, edicoes: d.edicoes, tam: tams[id] || 0, tipos: Vetor.tiposDef(d).length ? Vetor.tiposDef(d) : Vetor.tipos(exts[id] || []) }); } catch { } }));
+    // lista PARCIAL (a principal não listou, sem foto nem cópia de segurança): só vieram os personagens salvos na reserva;
+    // os outros que este computador tem aparecem separados como cópia local
+    if (this.parcial) this.copiasPc = (await DB.all('personagens').catch(() => [])).filter(d => d?.id && d.nome && !d._local && !ids.has(d.id));
     return out.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
   },
   // definição do personagem (da nuvem; se estiver sem internet, a cópia do navegador)

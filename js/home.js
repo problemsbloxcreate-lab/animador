@@ -7,9 +7,11 @@ const FORMATOS = [
 const Home = {
   // a nuvem (e a reserva) não deixaram listar: a parte da nuvem fica vazia e, separadas, as CÓPIAS LOCAIS (borda vermelha).
   // Abrir uma delas cria uma cópia só neste computador (vai para "Só neste computador"): nunca mexe no personagem da nuvem.
-  copiasLocais(l, defs) {
-    l.innerHTML = `<div class="vazio">A lista da nuvem não carregou agora (nem pela nuvem reserva). Os personagens da nuvem voltam a aparecer aqui quando ela voltar.</div>
-      <div class="copias-pc"><div class="copias-pc-t">${ic('monitor', 14)}<b>Cópias guardadas neste computador</b><small>não são a nuvem: podem estar desatualizadas, e o que você mudar fica só aqui</small></div><div class="grade" data-cpc></div></div>`;
+  copiasLocais(l, defs, parcial) {
+    const html = `<div class="copias-pc"><div class="copias-pc-t">${ic('monitor', 14)}<b>Cópias guardadas neste computador</b><small>não são a nuvem: podem estar desatualizadas, e o que você mudar fica só aqui</small></div><div class="grade" data-cpc></div></div>`;
+    if (parcial) { // a lista veio só com o que foi salvo na reserva: o resto aparece aqui embaixo, separado
+      $('.copias-pc-parcial', l)?.remove(); const box = h(`<div class="copias-pc-parcial"><div class="vazio" style="padding:10px 0 4px">Acima estão os personagens salvos na <b>nuvem reserva</b> hoje. A lista completa da nuvem volta às 21h; até lá, os outros aparecem só como cópia deste computador.</div>${html}</div>`); l.appendChild(box); l = box; }
+    else l.innerHTML = `<div class="vazio">A lista da nuvem não carregou agora (nem pela nuvem reserva). Os personagens da nuvem voltam a aparecer aqui quando ela voltar.</div>${html}`;
     const g = $('[data-cpc]', l);
     for (const d of defs.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'))) {
       const card = h(`<div class="pc pc-local" title="Cópia deste computador — não é a versão da nuvem"><div class="th" style="${d.thumb ? `background-image:url('${d.thumb}')` : ''}">${d.thumb ? '' : ic('layers', 20)}<span class="pc-local-selo">cópia local</span></div><div class="in"><b>${esc(d.nome)}</b><small>${d.modificado ? fmtDate(d.modificado) : ''}</small></div></div>`);
@@ -197,7 +199,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
             '-', !Nuvem.adm ? { label: 'Apagar da nuvem (só ADM)', icon: 'lock', action: () => Nuvem.pedeAdm(it.nome) } : { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome); if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
           ]); };
           return card; };
-      const pintaNuvem = async () => { try { ({ todas: todasN } = await PastasBib.monta(l, { esc: 'nuvem', itens: lista, cartao: cartaoN, aoMudar: pintaNuvem })); filtra(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
+      const pintaNuvem = async () => { try { ({ todas: todasN } = await PastasBib.monta(l, { esc: 'nuvem', itens: lista, cartao: cartaoN, aoMudar: pintaNuvem })); if (Nuvem.parcial && Nuvem.copiasPc?.length) this.copiasLocais(l, Nuvem.copiasPc, true); filtra(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
       await pintaNuvem(); $('[data-pnova-n]', c).onclick = async () => { try { if (await PastasBib.nova('nuvem')) pintaNuvem(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
       filtra();
     } catch (e) { l.innerHTML = `<div class="vazio">Não consegui abrir a biblioteca: ${esc(e.message)}</div>`; }
