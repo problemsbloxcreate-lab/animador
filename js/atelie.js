@@ -1272,6 +1272,8 @@ const Atelie = {
   },
   menuPreset(e, s, pr) {
     UI.ctx(e.clientX, e.clientY, [
+      { label: 'Mudar a imagem…', icon: 'image', key: '2 cliques', action: () => { Linha.parar?.(); this.trocarImagemPreset(s, pr); } }, // o mesmo que dois cliques no preset
+      '-',
       { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome do preset', value: pr.nome }); if (n) { pr.nome = n; this.commit(); } } },
       { label: 'Duplicar', icon: 'dup', action: () => { const c = clone(pr); c.id = uid('pr'); c.nome += ' 2'; s.presets.splice(s.presets.indexOf(pr) + 1, 0, c); this.edit = { s: s.id, p: c.id }; this.commit(); } },
       { label: 'Voltar à base (limpar)', icon: 'undo', action: () => { pr.estado = {}; this.commit(); } },
