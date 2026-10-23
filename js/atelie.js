@@ -49,6 +49,7 @@ const Atelie = {
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
     if (this.naNuvem && this.sujo) this.agendaNuvem(); // mudanças guardadas aqui que ainda não foram: vão agora
     if (novo?.fs.length) await this.montarNovo(novo); document.title = def.nome + ' — Ateliê · ANIMADOR · Estúdio Problems';
+    Nuvem.souAdm?.(); // ADM: só eles apagam vistas (o menu já sai certo)
     AoVivo.entrarAtelie().catch(() => { }); // personagem da nuvem: quem mais estiver nele aparece (cursor, nome, mudanças)
   },
   // tela do personagem novo (qualquer personagem): nome, as imagens (camadas do desenho ou peças soltas) e, se quiser, a IA organiza tudo
@@ -1074,7 +1075,9 @@ const Atelie = {
       { label: 'Espelhar (criar o outro lado)', icon: 'transition', action: () => this.criaVista({ nome: v.tipo === 'lado' ? 'Lado (espelhado)' : v.nome + ' (espelhado)', tipo: v.tipo, de: v.id, como: 'espelho' }) },
       on && { label: 'Usar os mesmos nomes das outras vistas (alinhar)', icon: 'layers', action: () => { const n = Modelo.alinhaIds(this.def); this.commit(); UI.toast(n ? `${n} item(ns) agora batem com as outras vistas: no editor, trocar de vista mantém as poses escolhidas.` : 'Nada para alinhar (nenhum nome igual ao das outras vistas).', { kind: n ? 'ok' : 'warn', time: 6000 }); } },
       { label: 'Citar esta vista em mensagens…', icon: 'chat', action: () => Citacao.atelie({ vista: v.id }) },
-      '-', { label: 'Apagar a vista', icon: 'trash', danger: true, disabled: V.length < 2, action: async () => {
+      { label: 'Salvar esta vista como .vistasatelie', icon: 'download', action: () => VistaArq.exportar(v.id) },
+      '-', !Nuvem.adm ? { label: 'Apagar a vista (só ADM)', icon: 'lock', disabled: V.length < 2, action: () => UI.toast('Só um ADM pode apagar uma vista. Peça para um ADM da equipe.', { kind: 'warn', time: 5000 }) } : { label: 'Apagar a vista', icon: 'trash', danger: true, disabled: V.length < 2, action: async () => {
+        if (!(await Nuvem.souAdm())) return UI.toast('Só um ADM pode apagar uma vista.', { kind: 'warn' }); // só os ADMs apagam vistas
         if (!(await UI.confirm({ title: `Apagar a vista "${esc(v.nome)}"?`, msg: 'As partes, poses e animações de teste desta vista saem do personagem. Ctrl+Z desfaz.', ok: 'Apagar', danger: true }))) return;
         if (on) { const outra = V.find(x => x !== v); await this.trocaVista(outra.id); } this.def.vistas = this.def.vistas.filter(x => x !== v); this.commit(); } },
     ].filter(Boolean));
@@ -1217,8 +1220,9 @@ const Atelie = {
       { label: 'Voltar à base (limpar)', icon: 'undo', action: () => { pr.estado = {}; this.commit(); } },
       { label: 'Usar como pose padrão (a base fica assim)', icon: 'home', action: () => this.virarPadrao(s, pr) },
       { label: 'Exportar como .presetatelie', icon: 'download', action: () => PresetArq.exportar(s, pr) },
+      (this.def.vistas || []).length > 1 && { label: 'Enviar para a vista…', icon: 'eye', sub: this.def.vistas.filter(v => v.id !== this.def.vistaAtual).map(v => ({ label: v.nome, action: () => PresetArq.enviar(s, pr, v.id) })) },
       '-', { label: 'Apagar', icon: 'trash', danger: true, action: () => { s.presets = s.presets.filter(x => x !== pr); if (this.edit?.p === pr.id) this.edit = null; this.commit(); } },
-    ]);
+    ].filter(Boolean));
   },
 
   /* ---------- (o antigo painel TESTAR saiu: a timeline embaixo do palco — js/linha.js — e a aba Poses fazem o papel dele) ---------- */
