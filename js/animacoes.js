@@ -62,13 +62,13 @@ const Animacoes = {
   get rodando() { return !!(this.tocando && !this.pausado); },
   frameAtual() { if (this.poseFixa) return this.poseFixa; const a = this.achar(this.tocando); return a ? this.frame(a, this.i) : Atelie.teste || null; },
   tocar(a, de = 0) {
-    this.parar(true); window.Falas?.parar(); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem passos. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
+    this.parar(true); window.Falas?.parar(); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem frames. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
     this.poseFixa = null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, de); this.tocando = a.id; this.sel = a.id; this.passo = null; this.passoSel = null; this.pausado = false; this.i = de;
     const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = this.frame(a, this.i); Atelie.desenha(); Atelie.pintaTesteLeve(); this.i++; };
     vai(); this._t = setInterval(vai, +a.vel || 250); Atelie.pinta();
   },
   // pausa no passo que está na tela (clicar numa peça arruma aquele passo/preset); continuar segue dali
-  pausar(quieto) { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; this.pausado = true; this.i = Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); if (!quieto) UI.toast('Pausado. Clique numa peça para arrumar <b>este passo</b> (ou o preset que ele usa).', { time: 4000 }); },
+  pausar(quieto) { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; this.pausado = true; this.i = Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); if (!quieto) UI.toast('Pausado. Clique numa peça para arrumar <b>este frame</b> (ou o preset que ele usa).', { time: 4000 }); },
   continuar() { const a = this.achar(this.tocando); if (!a) return; Atelie.edit = null; Atelie.editPasso = null; this.tocar(a, this.i + 1); },
   passoMais(d) { const a = this.achar(this.tocando); if (!a) return; if (!this.pausado) this.pausar(true); this.i = this.i + d; this.passoSel = { t: this.passoSel?.t ?? 0, i: this.i }; Atelie.teste = this.frame(a, this.i); Atelie.edit = null; Atelie.editPasso = null; Atelie.pinta(); },
   parar(quieto) { clearInterval(this._t); this._t = null; const tinha = this.tocando; this.tocando = null; this.pausado = false; if (Atelie.editPasso) Atelie.editPasso = null; if (tinha && !quieto) Atelie.pinta(); },
@@ -83,7 +83,7 @@ const Animacoes = {
     if (achou) Atelie.edit = achou;
   },
   passoEditado() { const e = Atelie.editPasso, a = e && this.achar(e.a); return a?.trilhas?.[e.ti]?.[e.pi] || null; },
-  textoAlvo() { const st = this.passoAtual(); if (st) return `passo ${st.pi + 1}`; // para o selo "editando: …"
+  textoAlvo() { const st = this.passoAtual(); if (st) return `frame ${st.pi + 1}`; // para o selo "editando: …"
     const p = this.passoEditado(); if (p) { const a = this.achar(Atelie.editPasso.a); return `passo ${Atelie.editPasso.pi + 1} de "${a.nome}"`; }
     const s = Atelie.sessao(), pr = Atelie.preset(); return pr ? `${s.nome} › ${pr.nome}` : 'a base';
   },
@@ -97,7 +97,7 @@ const Animacoes = {
   async nova() {
     const nome = await UI.prompt({ title: 'Animação de teste nova', label: 'Nome (ex.: Andar, Falar, Piscar, Acenar)', ok: 'Criar' }); if (!nome) return;
     const a = { id: uid('an'), nome, vel: 250, trilhas: [[]] }; this.lista().push(a); this.sel = a.id; Atelie.commit();
-    a.trilhas = [[{ s: {}, p: {} }]]; Atelie.commit(); this.irPara(a, 0, 0); UI.toast('Animação criada com 1 passo. Na timeline embaixo: clique num passo e escolha as <b>poses</b> dele (aba Poses); <b>+ Passo</b> cria o próximo.', { kind: 'ok', time: 8000 });
+    a.trilhas = [[{ s: {}, p: {} }]]; Atelie.commit(); this.irPara(a, 0, 0); UI.toast('Animação criada com 1 frame. Na timeline embaixo: clique num frame e escolha as <b>poses</b> dele (aba Poses); <b>+ Frame</b> cria o próximo.', { kind: 'ok', time: 8000 });
   },
   menu(ev, a) {
     UI.ctx(ev.clientX, ev.clientY, [
@@ -110,11 +110,11 @@ const Animacoes = {
   },
   menuPasso(ev, a, ti, pi) {
     const t = a.trilhas[ti], p = t[pi], itens = [
-      ...Object.keys(p.s || {}).map(sid => ({ label: `Tirar "${this.def.sessoes.find(x => x.id === sid)?.nome || '?'}" deste passo`, icon: 'x', action: () => { delete p.s[sid]; Atelie.commit(); } })),
-      ...Object.keys(p.p || {}).map(pid => ({ label: `Tirar "${Atelie.parte(pid)?.nome || '?'}" deste passo`, icon: 'x', action: () => { delete p.p[pid]; Atelie.commit(); } })),
+      ...Object.keys(p.s || {}).map(sid => ({ label: `Tirar "${this.def.sessoes.find(x => x.id === sid)?.nome || '?'}" deste frame`, icon: 'x', action: () => { delete p.s[sid]; Atelie.commit(); } })),
+      ...Object.keys(p.p || {}).map(pid => ({ label: `Tirar "${Atelie.parte(pid)?.nome || '?'}" deste frame`, icon: 'x', action: () => { delete p.p[pid]; Atelie.commit(); } })),
     ];
     UI.ctx(ev.clientX, ev.clientY, [
-      { label: 'Mostrar este passo', icon: 'eye', action: () => this.mostrarPasso(a, ti, pi) },
+      { label: 'Mostrar este frame', icon: 'eye', action: () => this.mostrarPasso(a, ti, pi) },
       { label: 'Trocar pelo que está no Testar', icon: 'redo', action: () => { t[pi] = this.passoDaTela(); Atelie.commit(); } },
       { label: 'Duplicar', icon: 'dup', action: () => { t.splice(pi + 1, 0, clone(p)); Atelie.commit(); } },
       { label: 'Para a esquerda', icon: 'left', disabled: !pi, action: () => { [t[pi - 1], t[pi]] = [t[pi], t[pi - 1]]; Atelie.commit(); } },
@@ -122,9 +122,9 @@ const Animacoes = {
       { label: 'Mover para a posição', icon: 'move', disabled: t.length < 2, sub: t.map((_, j) => ({ label: `${j + 1}º${j === pi ? ' (aqui)' : ''}`, checked: j === pi, disabled: j === pi, action: () => { const [x] = t.splice(pi, 1); t.splice(j, 0, x); this.passo = { t: ti, i: j }; Atelie.commit(); } })) },
       a.trilhas.length > 1 && { label: 'Mover para a trilha', icon: 'layers', sub: a.trilhas.map((tt, j) => ({ label: `Trilha ${j + 1}${j === ti ? ' (esta)' : ''}`, disabled: j === ti, action: () => { const [x] = t.splice(pi, 1); tt.push(x); this.passo = { t: j, i: tt.length - 1 }; Atelie.commit(); } })) },
       ...(itens.length ? ['-', ...itens] : []),
-      '-', { label: 'Citar este passo em mensagens…', icon: 'chat', action: () => Citacao.atelie({ anim: a.id, passo: pi, trilha: ti }) },
-      { label: 'Pedir para a IA mudar este passo…', icon: 'sparkles', action: () => Atelie.ia('animacoes', `Mude SÓ o passo ${pi + 1}${a.trilhas.length > 1 ? ` da trilha ${ti + 1}` : ''} da animação de teste "${a.nome}" (devolva ela inteira com o mesmo nome, o resto igual). Hoje ele tem: ${this.detalhe(p).replace(/\n/g, '; ')}. Quero: `) },
-      '-', { label: 'Apagar o passo', icon: 'trash', danger: true, action: () => { t.splice(pi, 1); this.passo = null; Atelie.commit(); } },
+      '-', { label: 'Citar este frame em mensagens…', icon: 'chat', action: () => Citacao.atelie({ anim: a.id, passo: pi, trilha: ti }) },
+      { label: 'Pedir para a IA mudar este frame…', icon: 'sparkles', action: () => Atelie.ia('animacoes', `Mude SÓ o frame ${pi + 1}${a.trilhas.length > 1 ? ` da trilha ${ti + 1}` : ''} da animação de teste "${a.nome}" (devolva ela inteira com o mesmo nome, o resto igual). Hoje ele tem: ${this.detalhe(p).replace(/\n/g, '; ')}. Quero: `) },
+      '-', { label: 'Apagar o frame', icon: 'trash', danger: true, action: () => { t.splice(pi, 1); this.passo = null; Atelie.commit(); } },
     ].filter(Boolean));
   },
 
@@ -137,7 +137,7 @@ const Animacoes = {
     if (!L.length) box.appendChild(h('<div class="vazio">Nenhuma animação de teste ainda (andar, falar, piscar, acenar…).</div>'));
     for (const a of L) {
       const on = this.sel === a.id, toca = this.tocando === a.id && !this.pausado, nP = a.trilhas.reduce((n, t) => Math.max(n, t.length), 0);
-      const c = h(`<div class="ab-item ${on ? 'on' : ''}"><button class="ibtn" data-p title="${toca ? 'Pausar' : 'Tocar'}">${ic(toca ? 'pause' : 'play', 13)}</button><span class="ab-nome">${esc(a.nome)}</span><small>${nP} passo${nP === 1 ? '' : 's'}${a.trilhas.length > 1 ? ` · ${a.trilhas.length} trilhas` : ''}</small><button class="ibtn" data-m title="Mais">${ic('dots', 13)}</button></div>`);
+      const c = h(`<div class="ab-item ${on ? 'on' : ''}"><button class="ibtn" data-p title="${toca ? 'Pausar' : 'Tocar'}">${ic(toca ? 'pause' : 'play', 13)}</button><span class="ab-nome">${esc(a.nome)}</span><small>${nP} frame${nP === 1 ? '' : 's'}${a.trilhas.length > 1 ? ` · ${a.trilhas.length} trilhas` : ''}</small><button class="ibtn" data-m title="Mais">${ic('dots', 13)}</button></div>`);
       c.onclick = ev => { if (ev.target.closest('button')) return; this.parar(true); this.passoSel = null; this.sel = a.id; Atelie.teste = null; Atelie.pinta(); };
       $('[data-p]', c).onclick = () => { this.sel = a.id; Linha.tocaPausa(); };
       $('[data-m]', c).onclick = ev => this.menu(ev, a); c.oncontextmenu = ev => { ev.preventDefault(); this.menu(ev, a); };
@@ -187,9 +187,9 @@ const Animacoes = {
 
   /* ---------- no editor: escrever a animação como chaves a partir do quadro atual ---------- */
   async porNoQuadro(n, def, a) {
-    const P = App.P, trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação não tem passos.', { kind: 'warn' });
+    const P = App.P, trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação não tem frames.', { kind: 'warn' });
     const fppPadrao = Math.max(1, Math.round((+a.vel || 250) / 1000 * P.fps)), maior = Math.max(...trilhas.map(t => t.length));
-    const body = h(`<div><label class="field">Quadros por passo<input type="number" min="1" max="48" value="${fppPadrao}" data-f></label><label class="field">Quantas vezes repetir<input type="number" min="1" max="50" value="2" data-r></label>
+    const body = h(`<div><label class="field">Quadros por frame<input type="number" min="1" max="48" value="${fppPadrao}" data-f></label><label class="field">Quantas vezes repetir<input type="number" min="1" max="50" value="2" data-r></label>
       <div style="color:var(--tx3);font-size:12px">Começa no quadro ${App.q + 1}. No fim, as partes voltam ao normal.</div></div>`);
     const r = await UI.modal({ title: `Pôr "${a.nome}" na animação`, icon: 'film', body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Pôr', kind: 'primary', collect: x => ({ f: clamp(+$('[data-f]', x.body).value || 1, 1, 48), r: clamp(+$('[data-r]', x.body).value || 1, 1, 50) }) }] });
     if (!r) return; const vi = Modelo.vistaDaAnim(def, a.id); if (vi && def.vistas?.length > 1) Modelo.chave(n, App.q).vista = vi; // a animação é de uma vista: o personagem fica nela

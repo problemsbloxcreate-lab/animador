@@ -487,7 +487,7 @@ const Atelie = {
     $('#atelie').classList.toggle('ed-img', !!ed); // EDITOR DE IMAGEM: some o que não é da imagem (lista de partes, timeline, botões de mexer nas peças)
     // o que está sendo mexido agora, numa frase só
     $('#at-modo').innerHTML = ed ? `${ic('brush', 13)} Editando <b>${esc(ed.img.nome)}</b> <small>${esc(ed.parte.nome)}</small>` : Animacoes.poseFixa ? `Pose do quadro ${Animacoes.poseFixa.quadro + 1} · arrumando <b>${esc(Animacoes.textoAlvo())}</b>`
-      : st ? `${ic('film', 13)} Passo <b>${st.pi + 1}</b> de <b>${esc(st.a.nome)}</b>` : Animacoes.tocando && !Animacoes.pausado ? `${ic('play', 12)} Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : pr ? `Editando a pose <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : `Pose <b>padrão</b>`;
+      : st ? `${ic('film', 13)} Frame <b>${st.pi + 1}</b> de <b>${esc(st.a.nome)}</b>` : Animacoes.tocando && !Animacoes.pausado ? `${ic('play', 12)} Tocando <b>${esc(Animacoes.achar(Animacoes.tocando)?.nome || '')}</b>` : pr ? `Editando a pose <b>${esc(s.nome)} › ${esc(pr.nome)}</b>` : `Pose <b>padrão</b>`;
     $('#at-base').hidden = !pr || !!ed; $('#at-ed-ok').hidden = !ed; $('#at-mover').value = this.modoMover;
     for (const x of ['#at-mover', '#at-regua', '#at-ref']) { const e = $(x); if (e) e.hidden = !!ed; }
     Pintura.pintaBarra(); Linha.pinta();
@@ -857,7 +857,7 @@ const Atelie = {
       if (bm) { const cv = document.createElement('canvas'); cv.width = 96; cv.height = 96; const k = Math.min(96 / bm.width, 96 / bm.height); cv.getContext('2d').drawImage(bm, (96 - bm.width * k) / 2, (96 - bm.height * k) / 2, bm.width * k, bm.height * k); c.style.backgroundImage = `url(${cv.toDataURL()})`; }
       c.onclick = ev => { if (ev.target.closest('.x')) return; this.focoImg = { p: p.id, img: img.id };
         // parado num passo da animação: trocar a imagem NÃO muda a animação (ela só guarda poses) — só escolhe a imagem
-        if (Animacoes.passoAtual()) { Animacoes.alvoPausa(p.id); this.mudar(p.id, { img: img.id }); this.commit(); if (!this._avisouImg) { this._avisouImg = true; UI.toast('Imagem trocada <b>só neste passo</b>.', { time: 3500 }); } return; } // passo parado: a imagem muda só nele (keyframe)
+        if (Animacoes.passoAtual()) { Animacoes.alvoPausa(p.id); this.mudar(p.id, { img: img.id }); this.commit(); if (!this._avisouImg) { this._avisouImg = true; UI.toast('Imagem trocada <b>só neste frame</b>.', { time: 3500 }); } return; } // passo parado: a imagem muda só nele (keyframe)
         if (this.edImg) { this.edImg = { pid: p.id, iid: img.id }; return this.pinta(); }
         this.mudar(p.id, { img: img.id }); this.commit(); this.pintaImgs(); };
       c.ondblclick = ev => { if (ev.target.closest('.x')) return; this.abrirEditor(p, img); }; // EDITOR DE IMAGEM (estilo Photoshop)
@@ -931,7 +931,7 @@ const Atelie = {
     $('[data-nova]', box).onclick = () => this.novaSessao(); $('[data-prontas]', box).onclick = () => this.sessoesProntas();
     // PASSO DA TIMELINE: clicar numa pose faz este passo usar ela (a animação só guarda poses). Fora disso: clicar numa pose abre ela para arrumar
     const st = Animacoes.passoAtual(), T = this.teste || { sessoes: {} };
-    if (st) box.appendChild(h(`<div class="ps-aviso passo">${ic('film', 13)}<span>Passo <b>${st.pi + 1}</b>: clique nas poses dele</span></div>`));
+    if (st) box.appendChild(h(`<div class="ps-aviso passo">${ic('film', 13)}<span>Frame <b>${st.pi + 1}</b>: clique nas poses dele</span></div>`));
     if (!def.sessoes.length) box.appendChild(h('<div class="vazio">Sessões são grupos de presets: <b>Olhos</b> (assustado, surpreso, triste, fechado…), <b>Boca</b>, <b>Perna direita</b> (chutando, inclinada…), <b>Pose</b> (corpo todo).<br><br>Na animação, cada sessão vira uma fila de botões: clicou, virou chave naquele quadro.</div>'));
     for (const s of def.sessoes) {
       const aberta = this.edit?.s === s.id, nomesPartes = (s.partes || []).map(id => this.parte(id)?.nome).filter(Boolean);
@@ -940,7 +940,7 @@ const Atelie = {
       const l = $('.lista', c);
       // "Padrão" = a base: clicar nele (ou de novo no preset marcado) volta a montar a pose padrão
       const noPasso = st ? (T.sessoes?.[s.id] || null) : undefined;
-      const bP = h(`<button class="padrao ${st ? (!noPasso ? 'on' : '') : !aberta ? 'on' : ''}" title="${st ? 'Este passo sem pose desta sessão (fica a pose padrão)' : 'Pose padrão (a base): clique para ver e mudar a pose padrão'}">${ic('home', 11)} Padrão</button>`);
+      const bP = h(`<button class="padrao ${st ? (!noPasso ? 'on' : '') : !aberta ? 'on' : ''}" title="${st ? 'Este frame sem pose desta sessão (fica a pose padrão)' : 'Pose padrão (a base): clique para ver e mudar a pose padrão'}">${ic('home', 11)} Padrão</button>`);
       bP.onclick = () => { if (st) return Animacoes.usarPose(s, null); this.edit = null; this.editPasso = null; this.pinta(); }; l.appendChild(bP);
       const mk = this.marcas(), pS = this.parte(), imS = pS && pS.imgs.find(i => i.id === this.estado()[pS.id]?.img), daParte = this.moverTodos && this.sel ? this.presetsDaParte(this.sel) : this.modoMover === 'imagem' && imS ? new Set(this.ondeAparece(pS, imS).map(o => o.pr?.id).filter(Boolean)) : null;
       for (const pr of s.presets) { const b = h(`<button class="${aberta && this.edit.p === pr.id ? 'on' : ''} ${mk.presets.has(pr.id) ? 'mod' : this.local().presets.has(pr.id) ? 'loc' : ''} ${daParte?.has(pr.id) ? (this.moverTodos ? 'todos' : 'mesma') : ''}" title="Clique para editar · botão direito: opções${mk.presets.has(pr.id) ? ' · mudou desde a última vez na nuvem' : ''}">${esc(pr.nome)}</button>`);

@@ -13,8 +13,8 @@ const Quadro = {
     const A = Animacoes;
     if (A.poseFixa) return A.poseFixa.no && A.poseFixa.projeto ? { tipo: 'editor', sig: 'ed' + A.poseFixa.quadro } : null;
     if (A.tocando && A.pausado) { const a = A.achar(A.tocando); if (!a) return null; const L = A.passosAgora(a, A.i); if (!L.length) return null;
-      const x = (pid && L.filter(y => y.p.p?.[pid]).pop()) || L[L.length - 1]; return { tipo: 'passo', p: x.p, sig: `${a.id}:${x.ti}:${x.pi}`, nome: `passo ${x.pi + 1} de "${a.nome}"` }; }
-    if (A.passo && A.sel && Atelie.teste && !A.tocando) { const a = A.achar(A.sel), p = a?.trilhas?.[A.passo.t]?.[A.passo.i]; if (p) return { tipo: 'passo', p, sig: `${a.id}:${A.passo.t}:${A.passo.i}`, nome: `passo ${A.passo.i + 1} de "${a.nome}"` }; }
+      const x = (pid && L.filter(y => y.p.p?.[pid]).pop()) || L[L.length - 1]; return { tipo: 'passo', p: x.p, sig: `${a.id}:${x.ti}:${x.pi}`, nome: `frame ${x.pi + 1} de "${a.nome}"` }; }
+    if (A.passo && A.sel && Atelie.teste && !A.tocando) { const a = A.achar(A.sel), p = a?.trilhas?.[A.passo.t]?.[A.passo.i]; if (p) return { tipo: 'passo', p, sig: `${a.id}:${A.passo.t}:${A.passo.i}`, nome: `frame ${A.passo.i + 1} de "${a.nome}"` }; }
     return null;
   },
   nome(c) { return c?.tipo === 'editor' ? `quadro ${Animacoes.poseFixa.quadro + 1} da animação` : c?.nome || 'este keyframe'; },

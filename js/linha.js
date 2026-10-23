@@ -13,13 +13,13 @@ const Linha = {
     const cab = h(`<div class="tl-cab">${ic('film', 14)}
       <select data-a title="Animação de teste">${L.length ? L.map(x => `<option value="${x.id}" ${a && x.id === a.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('') : '<option value="">Nenhuma animação</option>'}</select>
       <button class="ibtn" data-nova title="Animação nova">${ic('plus', 14)}</button><i class="tl-sep"></i>
-      <button class="ibtn" data-ant title="Passo anterior ( , )" ${a ? '' : 'disabled'}>${ic('left', 14)}</button>
+      <button class="ibtn" data-ant title="Frame anterior ( , )" ${a ? '' : 'disabled'}>${ic('left', 14)}</button>
       <button class="ibtn tl-play ${rodando ? 'on' : ''}" data-play title="${rodando ? 'Pausar' : 'Tocar'} (P)" ${a ? '' : 'disabled'}>${ic(rodando ? 'pause' : 'play', 15)}</button>
-      <button class="ibtn" data-prox title="Próximo passo ( . )" ${a ? '' : 'disabled'}>${ic('right', 14)}</button>
+      <button class="ibtn" data-prox title="Próximo frame ( . )" ${a ? '' : 'disabled'}>${ic('right', 14)}</button>
       <button class="ibtn" data-stop title="Parar e voltar à pose padrão (Esc)" ${toca ? '' : 'disabled'}>${ic('stop', 13)}</button>
-      ${a ? `<select data-vel title="Cada passo dura">${VELOCIDADES.map(([v, t]) => `<option value="${v}" ${+a.vel === v ? 'selected' : ''}>${t}</option>`).join('')}</select>` : ''}
-      <span class="tl-info">${st ? `Passo <b>${st.pi + 1}</b>` : ''}</span><span class="sp"></span>
-      ${a ? `<button class="btn sm" data-passo title="Passo novo depois do escolhido (começa igual a ele)">${ic('plus', 12)} Passo</button><button class="ibtn" data-trilha title="Trilha nova: anda junto com as outras (ex.: boca falando enquanto as pernas andam)">${ic('layers', 14)}</button>` : ''}</div>`);
+      ${a ? `<select data-vel title="Cada frame dura">${VELOCIDADES.map(([v, t]) => `<option value="${v}" ${+a.vel === v ? 'selected' : ''}>${t}</option>`).join('')}</select>` : ''}
+      <span class="tl-info">${st ? `Frame <b>${st.pi + 1}</b>` : ''}</span><span class="sp"></span>
+      ${a ? `<button class="btn sm" data-passo title="Frame novo depois do escolhido (começa igual a ele)">${ic('plus', 12)} Frame</button><button class="ibtn" data-trilha title="Trilha nova: anda junto com as outras (ex.: boca falando enquanto as pernas andam)">${ic('layers', 14)}</button>` : ''}</div>`);
     $('[data-a]', cab).onchange = ev => { A.parar(true); A.passoSel = null; A.sel = ev.target.value || null; Atelie.teste = null; Atelie.pinta(); };
     $('[data-nova]', cab).onclick = () => A.nova();
     if (a) {
@@ -36,13 +36,13 @@ const Linha = {
       const row = h(`<div class="tl-linha"><span class="tl-t" title="Trilha ${ti + 1}: botão direito para opções">${a.trilhas.length > 1 ? 'T' + (ti + 1) : ''}</span><div class="tl-cel"></div></div>`), cel = $('.tl-cel', row);
       $('.tl-t', row).oncontextmenu = ev => { ev.preventDefault(); UI.ctx(ev.clientX, ev.clientY, [{ head: `Trilha ${ti + 1}` }, { label: 'Subir', icon: 'up', disabled: !ti, action: () => { moveNaLista(a.trilhas, ti, ti - 1, true); A.passoSel = null; Atelie.commit(); } }, { label: 'Descer', icon: 'down', disabled: ti >= a.trilhas.length - 1, action: () => { moveNaLista(a.trilhas, ti, ti + 1, false); A.passoSel = null; Atelie.commit(); } }, '-', { label: 'Apagar a trilha', icon: 'trash', danger: true, disabled: a.trilhas.length < 2, action: () => { a.trilhas.splice(ti, 1); A.passoSel = null; Atelie.commit(); } }]); };
       t.forEach((p, pi) => {
-        const b = h(`<div class="tl-c" data-t="${ti}" data-i="${pi}" role="button" tabindex="0" title="${esc(A.detalhe(p))}\n\nClique: parar neste passo · arrastar: muda a ordem · botão direito: opções"><span class="tl-pega" aria-hidden="true">${ic('grip', 11)}</span><b>${pi + 1}</b><small>${esc(A.rotulo(p))}</small></div>`);
+        const b = h(`<div class="tl-c" data-t="${ti}" data-i="${pi}" role="button" tabindex="0" title="${esc(A.detalhe(p))}\n\nClique: parar neste frame · arrastar: muda a ordem · botão direito: opções"><span class="tl-pega" aria-hidden="true">${ic('grip', 11)}</span><b>${pi + 1}</b><small>${esc(A.rotulo(p))}</small></div>`);
         b.onclick = () => A.irPara(a, ti, pi); b.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); A.irPara(a, ti, pi); } }; // espaço = play/pause (Atelie)
         b.oncontextmenu = ev => { ev.preventDefault(); A.menuPasso(ev, a, ti, pi); };
-        Atelie.previaHover(b, () => Atelie.desenhoEstado({ sessoes: { ...(p.s || {}) }, partes: JSON.parse(JSON.stringify(p.p || {})) }, A.partesDoPasso(p), false), `${esc(a.nome)} › <b>passo ${pi + 1}</b>${a.trilhas.length > 1 ? ` <small>(trilha ${ti + 1})</small>` : ''}`); // passar o mouse: o desenho deste passo (o que ele mexe em destaque)
+        Atelie.previaHover(b, () => Atelie.desenhoEstado({ sessoes: { ...(p.s || {}) }, partes: JSON.parse(JSON.stringify(p.p || {})) }, A.partesDoPasso(p), false), `${esc(a.nome)} › <b>frame ${pi + 1}</b>${a.trilhas.length > 1 ? ` <small>(trilha ${ti + 1})</small>` : ''}`); // passar o mouse: o desenho deste passo (o que ele mexe em destaque)
         ordenavel(b, 'passo-' + a.id, [ti, pi], ([t0, p0], antes) => { const de = a.trilhas[t0]; if (!de?.[p0]) return; if (t0 === ti) moveNaLista(t, p0, pi, antes); else { const [x] = de.splice(p0, 1); t.splice(antes ? pi : pi + 1, 0, x); } A.passoSel = null; Atelie.commit(); }, true);
         cel.appendChild(b); });
-      if (!t.length) cel.appendChild(h('<span class="tl-vazio">trilha vazia: + Passo</span>'));
+      if (!t.length) cel.appendChild(h('<span class="tl-vazio">trilha vazia: + Frame</span>'));
       g.appendChild(row);
     });
     this.leve(); this.altura();
