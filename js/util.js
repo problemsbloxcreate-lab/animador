@@ -253,6 +253,17 @@ const UI = {
     let x = (lados.find(l => l.cabe && !l.c) || lados.filter(l => l.cabe).sort((a, b) => a.c - b.c)[0] || { x: clamp(rm.right + G, 6, innerWidth - rp.width - 6) }).x; pv.style.left = Math.round(x) + 'px'; pv.style.top = Math.round(y) + 'px';
     el.addEventListener('mouseleave', () => pv.remove(), { once: true });
   },
+  // PRÉVIA GRANDE ao passar o mouse num item de lista (ex.: camadas): fica do lado que tem mais espaço; desenha(cv) pinta no canvas (pode ser assíncrono)
+  prevLado(el, desenha, label, L = 300) {
+    const root = $('#ctx-root'); if (!root) return; $('.ctx-prev.lado', root)?.remove();
+    const pv = h(`<div class="ctx-prev lado"><canvas width="${L}" height="${L}"></canvas><span>${esc(label || '')}</span></div>`), cv = $('canvas', pv); root.appendChild(pv);
+    const re = (el.closest('.dock, aside, .sessao') || el).getBoundingClientRect(), ri = el.getBoundingClientRect(), rp = pv.getBoundingClientRect(), G = 10;
+    const dir = innerWidth - re.right, esq = re.left, x = dir >= rp.width + G || dir >= esq ? Math.min(re.right + G, innerWidth - rp.width - 6) : Math.max(6, re.left - rp.width - G);
+    pv.style.left = Math.round(x) + 'px'; pv.style.top = Math.round(clamp(ri.top + ri.height / 2 - rp.height / 2, 6, innerHeight - rp.height - 6)) + 'px';
+    const sai = () => { pv.remove(); el.removeEventListener('mouseleave', sai); el.removeEventListener('pointerdown', sai); }; el.addEventListener('mouseleave', sai); el.addEventListener('pointerdown', sai);
+    try { const r = desenha(cv); if (r?.catch) r.catch(() => { }); } catch { }
+    return pv;
+  },
   ctx(x, y, items) {
     UI.closeCtx();
     const root = $('#ctx-root');

@@ -81,8 +81,11 @@ const Camadas = {
       const at = c.id === img.camAtiva, r = h(`<div class="cam-l ${at ? 'on' : ''}" draggable="true" title="Clique: pintar nesta camada · duplo clique: renomear · arraste para mudar a ordem"><button class="ibtn" data-v title="Mostrar/esconder">${ic(c.vis === false ? 'eyeOff' : 'eye', 13)}</button><canvas width="40" height="40"></canvas><span class="nm">${esc(c.nome)}</span><small>${Math.round((c.op ?? 1) * 100)}%${c.modo && c.modo !== 'source-over' ? ' · ' + (this.MODOS.find(m => m[0] === c.modo)?.[1] || '') : ''}</small></div>`);
       const bm = Arq.img.get(c.k); if (bm) { const x = $('canvas', r).getContext('2d'), k = Math.min(40 / bm.width, 40 / bm.height); x.drawImage(bm, (40 - bm.width * k) / 2, (40 - bm.height * k) / 2, bm.width * k, bm.height * k); }
       r.onclick = ev => { if (ev.target.closest('[data-v]')) { c.vis = c.vis === false; return this.mudou(img); } img.camAtiva = c.id; Atelie.commit(); };
-      r.ondblclick = async () => { const n = (await UI.prompt({ title: 'Nome da camada', value: c.nome }))?.trim(); if (n) { c.nome = n.slice(0, 40); Atelie.commit(); } };
-      r.oncontextmenu = ev => { ev.preventDefault(); img.camAtiva = c.id; UI.ctx(ev.clientX, ev.clientY, [{ head: c.nome },
+      const renomear = async () => { const n = (await UI.prompt({ title: 'Nome da camada', value: c.nome }))?.trim(); if (n) { c.nome = n.slice(0, 40); Atelie.commit(); } };
+      r.ondblclick = ev => { if (!ev.target.closest('[data-v]')) renomear(); };
+      r.onmouseenter = () => UI.prevLado(r, cv => { const b = Arq.img.get(c.k), tudo = Arq.img.get(img.k); if (!b) return; const o = document.createElement('canvas'); o.width = b.width; o.height = b.height; const x = o.getContext('2d');
+        if (tudo && tudo !== b) { x.globalAlpha = .22; x.drawImage(tudo, 0, 0, b.width, b.height); x.globalAlpha = 1; } x.drawImage(b, 0, 0); UI.ctxDesenha(cv, o, 4); }, `${c.nome} · ${Math.round((c.op ?? 1) * 100)}%`);
+      r.oncontextmenu = ev => { ev.preventDefault(); img.camAtiva = c.id; UI.ctx(ev.clientX, ev.clientY, [{ head: c.nome }, { label: 'Renomear…', icon: 'edit', action: renomear }, '-',
         { label: 'Duplicar camada', icon: 'dup', action: () => this.duplicar(img, c) }, { label: 'Mesclar com a de baixo', icon: 'down', disabled: img.camadas.indexOf(c) < 1, action: () => this.mesclarAbaixo(img, c) },
         { label: 'Subir', icon: 'up', action: () => this.ordem(img, c, 1) }, { label: 'Descer', icon: 'down', action: () => this.ordem(img, c, -1) },
         { label: 'Transformar (tamanho, giro, espelhar)…', icon: 'move', action: () => Ajustes.transformar() }, { label: 'Ajustes de cor…', icon: 'palette', action: () => Ajustes.abrir() },

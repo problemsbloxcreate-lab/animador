@@ -43,16 +43,38 @@ const VetorUI = {
   tudo() { const d = Atelie.def; if (!d) return; this.converter(d.partes.filter(p => !Referencia.ehRef(p)).flatMap(p => p.imgs.map(img => ({ p, img })))); },
 
   /* ---------- painel das camadas do vetor ---------- */
+  // desenho de UMA camada do vetor num canvas: miniatura = só ela; prévia (destaque) = a imagem inteira apagadinha + ela por cima
+  _camCache: new Map(),
+  async camDesenho(img, m, c, cv, destaque) {
+    const L = cv.width, s = Math.min(1, (L - 8) / Math.max(m.W, m.H)), ch = `${img.k}|${c.id}|${L}|${destaque ? 1 : 0}`;
+    let pr = this._camCache.get(ch);
+    if (!pr) { pr = (async () => { const so = { ...m, cam: m.cam.map(x => x.id === c.id ? { ...x, vis: undefined } : x) }, ela = await Vetor.raster(so, { escala: s, so: x => x.id === c.id, comRaw: false });
+        if (!destaque) return ela; const tudo = await Vetor.raster(m, { escala: s }), o = new OffscreenCanvas(ela.width, ela.height), x = o.getContext('2d'); x.globalAlpha = .22; x.drawImage(tudo, 0, 0); x.globalAlpha = 1; x.drawImage(ela, 0, 0); return o; })();
+      this._camCache.set(ch, pr); if (this._camCache.size > 80) this._camCache.delete(this._camCache.keys().next().value); }
+    const bm = await pr.catch(() => null); if (bm && cv.isConnected !== false) UI.ctxDesenha(cv, bm, 3);
+  },
+  // o número ao lado de cada camada: quantas FORMAS ela tem (cor = áreas de cor; linha = o contorno, que costuma ser uma forma só)
+  contaTxt(c) { const n = c.f.length, cores = new Set(c.f.map(f => (f.c || '#000').toLowerCase())).size, ap = c.m.length ? ` · ${c.m.length} apag.` : '';
+    return (!n ? 'vazia' : c.papel === 'linha' ? `${n} ${n === 1 ? 'forma' : 'formas'}` : `${cores} ${cores === 1 ? 'cor' : 'cores'}`) + ap; },
+  contaDica(c) { const n = c.f.length, cores = new Set(c.f.map(f => (f.c || '#000').toLowerCase())).size;
+    const base = c.papel === 'linha' ? `${n} ${n === 1 ? 'forma' : 'formas'} de linha. O contorno convertido vira uma forma só; cada traço novo do pincel soma mais uma.`
+      : `${n} ${n === 1 ? 'forma' : 'formas'} de cor, em ${cores} ${cores === 1 ? 'cor diferente' : 'cores diferentes'} (cada área pintada é uma forma; o balde soma mais uma).`;
+    return base + ' A ferramenta Pontos (A) mexe nelas.' + (c.m.length ? ` ${c.m.length} ${c.m.length === 1 ? 'parte apagada' : 'partes apagadas'} com a borracha (botão direito › Desfazer o que a borracha apagou).` : ''); },
   async painel(el, a) {
     const img = a.img, box = h(`<div class="sessao cam-sec vt-cam"><h4>${ic('layers', 13)} Camadas <span class="selo-tipo svg" title="Imagem em vetor">SVG</span></h4><div class="cam-lista"><div class="vazio"><span class="spin-dot"></span></div></div></div>`); el.appendChild(box);
     let m; try { m = await Vetor.modelo(img.k); } catch (e) { $('.cam-lista', box).innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
     const at = Vetor.ativa(m, img), lista = $('.cam-lista', box); lista.innerHTML = '';
     const grava = async muda => { const mm = await Vetor.modelo(img.k); if (muda(mm) === false) return; await Vetor.gravar(img, mm); Atelie.commit(); };
     [...m.cam].reverse().forEach(c => {
-      const r = h(`<div class="cam-l ${c === at ? 'on' : ''}" title="Clique: pincel e borracha mexem nesta camada · duplo clique: renomear · botão direito: mais"><button class="ibtn" data-v title="Mostrar/esconder">${ic(c.vis === false ? 'eyeOff' : 'eye', 13)}</button><span class="vt-papel ${c.papel}" title="${c.papel === 'linha' ? 'Camada de LINHA (o balde não pinta aqui; ela separa as áreas)' : 'Camada de COR (o balde pinta aqui)'}">${ic(c.papel === 'linha' ? 'pencil' : 'bucket', 13)}</span><span class="nm">${esc(c.nome)}</span><small>${c.f.length}${c.m.length ? ` · ${c.m.length} apag.` : ''}</small></div>`);
+      const r = h(`<div class="cam-l ${c === at ? 'on' : ''}" draggable="true" title="Clique: pincel e borracha mexem nesta camada · duplo clique: renomear · arraste para mudar a ordem · botão direito: mais"><button class="ibtn" data-v title="Mostrar/esconder">${ic(c.vis === false ? 'eyeOff' : 'eye', 13)}</button><canvas width="80" height="80"></canvas><span class="vt-papel ${c.papel}" title="${c.papel === 'linha' ? 'Camada de LINHA (o balde não pinta aqui; ela separa as áreas)' : 'Camada de COR (o balde pinta aqui)'}">${ic(c.papel === 'linha' ? 'pencil' : 'bucket', 13)}</span><span class="nm">${esc(c.nome)}</span><small title="${esc(VetorUI.contaDica(c))}">${esc(VetorUI.contaTxt(c))}</small></div>`);
       r.onclick = ev => { if (ev.target.closest('[data-v]')) return grava(mm => { const k = mm.cam.find(x => x.id === c.id); k.vis = k.vis === false ? undefined : false; }); img.vCam = c.id; Atelie.commit(); };
-      r.ondblclick = async () => { const n = (await UI.prompt({ title: 'Nome da camada', value: c.nome }))?.trim(); if (n) grava(mm => { mm.cam.find(x => x.id === c.id).nome = n.slice(0, 40); }); };
-      r.oncontextmenu = ev => { ev.preventDefault(); const i = m.cam.indexOf(c); UI.ctx(ev.clientX, ev.clientY, [{ head: c.nome },
+      const renomear = async () => { const n = (await UI.prompt({ title: 'Nome da camada', value: c.nome }))?.trim(); if (n && n !== c.nome) grava(mm => { mm.cam.find(x => x.id === c.id).nome = n.slice(0, 40); }); };
+      r.ondblclick = ev => { if (!ev.target.closest('[data-v]')) renomear(); };
+      this.camDesenho(img, m, c, $('canvas', r), false);
+      r.onmouseenter = () => UI.prevLado(r, cv => this.camDesenho(img, m, c, cv, true), `${c.nome} · ${this.contaTxt(c)}`);
+      r.ondragstart = ev => { ev.dataTransfer.setData('text/vcamada', c.id); }; r.ondragover = ev => { if (ev.dataTransfer.types.includes('text/vcamada')) { ev.preventDefault(); r.classList.add('drop-dentro'); } }; r.ondragleave = () => r.classList.remove('drop-dentro');
+      r.ondrop = ev => { ev.preventDefault(); r.classList.remove('drop-dentro'); const de = ev.dataTransfer.getData('text/vcamada'); if (de && de !== c.id) grava(mm => { const j = mm.cam.findIndex(x => x.id === de), t = mm.cam.findIndex(x => x.id === c.id); if (j < 0 || t < 0) return false; const [k] = mm.cam.splice(j, 1); mm.cam.splice(t, 0, k); }); };
+      r.oncontextmenu = ev => { ev.preventDefault(); const i = m.cam.indexOf(c); UI.ctx(ev.clientX, ev.clientY, [{ head: c.nome }, { label: 'Renomear…', icon: 'edit', action: renomear }, '-',
         { label: 'É camada de linha', icon: 'pencil', checked: c.papel === 'linha', action: () => grava(mm => { mm.cam.find(x => x.id === c.id).papel = 'linha'; }) },
         { label: 'É camada de cor (balde)', icon: 'bucket', checked: c.papel !== 'linha', action: () => grava(mm => { mm.cam.find(x => x.id === c.id).papel = 'cor'; }) }, '-',
         { label: 'Subir', icon: 'up', disabled: i >= m.cam.length - 1, action: () => grava(mm => { const j = mm.cam.findIndex(x => x.id === c.id); mm.cam.splice(j + 1, 0, ...mm.cam.splice(j, 1)); }) },
@@ -65,8 +87,10 @@ const VetorUI = {
     const op = h(`<div class="cam-op"><span style="color:var(--tx3);font-size:11.5px">Opacidade</span><input type="range" min="0" max="100" value="${Math.round((at.op ?? 1) * 100)}" data-o><output>${Math.round((at.op ?? 1) * 100)}%</output></div>`);
     $('[data-o]', op).oninput = ev => { $('output', op).textContent = ev.target.value + '%'; }; $('[data-o]', op).onchange = ev => grava(mm => { const k = mm.cam.find(x => x.id === at.id); k.op = +ev.target.value / 100; if (k.op >= 1) delete k.op; });
     box.appendChild(op);
-    const bar = h(`<div class="cam-bar"><button class="btn sm" data-n title="Camada vazia por cima da escolhida">${ic('plus', 12)} Camada</button><button class="btn sm" data-png title="Volta a ser imagem de pixels">${ic('image', 12)} Converter para PNG</button></div>`);
-    $('[data-n]', bar).onclick = () => grava(mm => { const id = uid('c'); mm.cam.splice(mm.cam.findIndex(x => x.id === at.id) + 1, 0, { id, nome: 'Camada ' + (mm.cam.length + 1), papel: 'linha', f: [], m: [] }); img.vCam = id; });
+    const bar = h(`<div class="cam-bar"><button class="btn sm" data-n="cor" title="Camada de COR vazia por cima da escolhida (o balde pinta nela)">${ic('bucket', 12)} Cor</button><button class="btn sm" data-n="linha" title="Camada de LINHA vazia por cima da escolhida (ela separa as áreas do balde)">${ic('pencil', 12)} Linha</button><button class="btn sm" data-png title="Volta a ser imagem de pixels">${ic('image', 12)} Converter para PNG</button></div>`);
+    $$('[data-n]', bar).forEach(b => b.onclick = async () => { const papel = b.dataset.n, base = papel === 'cor' ? 'Cor' : 'Linha', n = m.cam.filter(x => (x.nome || '').startsWith(base)).length;
+      const nome = (await UI.prompt({ title: papel === 'cor' ? 'Nova camada de cor' : 'Nova camada de linha', value: n ? `${base} ${n + 1}` : base }))?.trim(); if (!nome) return;
+      grava(mm => { const id = uid('c'); mm.cam.splice(mm.cam.findIndex(x => x.id === at.id) + 1, 0, { id, nome: nome.slice(0, 40), papel, f: [], m: [] }); img.vCam = id; }); });
     $('[data-png]', bar).onclick = () => this.paraPng(img);
     box.appendChild(bar);
     box.appendChild(h(`<div class="vt-dica">Pincel e borracha mexem só na camada escolhida: apagar a <b>Linha</b> deixa a <b>Cor</b> por baixo. O balde pinta a área fechada pelas linhas. <b>A</b> = mexer nos pontos.</div>`));
