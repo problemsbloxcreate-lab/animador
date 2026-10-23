@@ -250,7 +250,7 @@ const AoVivo = {
       const v = por.get(c), t = g.afk ? -1 : (g.u || g.t || 0); if (!v || t > v._t) por.set(c, { id, ...g, _t: t }); }
     return [...por.values()];
   },
-  cursor(x, y, extra = {}) { if (!this.ativo) return; const t = performance.now(); this._cur = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, ...extra }; if (t - (this._curT || 0) < 70) { clearTimeout(this._curTo); this._curTo = setTimeout(() => this.cursor(this._cur.x, this._cur.y, extra), 80); return; } this._curT = t; this.t.presenca(this.sala, this.eu.id, { ...this._cur, u: Date.now() }); },
+  cursor(x, y, extra = {}) { if (!this.ativo) return; const t = performance.now(); this._curX = extra; this._cur = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, ui: null, ...extra }; if (t - (this._curT || 0) < 70) { clearTimeout(this._curTo); this._curTo = setTimeout(() => this.cursor(this._cur.x, this._cur.y, this._curX), 80); this._curX = extra; return; } this._curT = t; this.t.presenca(this.sala, this.eu.id, { ...this._cur, u: Date.now() }); },
   // cursores dos outros: numa camada por cima de TUDO (painéis, janelas), na posição do palco
   desenha(ctx, V) {
     const lay = this._lay || (this._lay = document.body.appendChild(h('<div class="av-cursores" aria-hidden="true"></div>'))), vivos = new Set();
@@ -259,10 +259,14 @@ const AoVivo = {
     const r = cv?.getBoundingClientRect?.(), k = r && cv.width ? r.width / cv.width : 0; if (!k || !(r.width > 0)) return;
     const minhaV = this.ad?.vista?.(); // Ateliê: só aparece o cursor de quem está na MESMA vista
     for (const g of this.outros()) { if (g.x == null || g.afk || (minhaV && g.vista && g.vista !== minhaV)) continue; vivos.add(g.id); // ausente (1 min parado, ou ~35 s com a aba escondida/sem foco): o cursor some
-      const q = V.transformPoint(new DOMPoint(g.x, g.y)), x = clamp(r.left + q.x * k, 0, innerWidth - 14), y = clamp(r.top + q.y * k, 0, innerHeight - 22), c = g.cor || '#19d3f0';
+      let x, y, fora = false;
+      if (g.ui) { const a = document.getElementById(g.ui), ra = a?.getBoundingClientRect(); if (!ra || !(ra.width > 0 && ra.height > 0) || !a.offsetParent && getComputedStyle(a).position !== 'fixed') { vivos.delete(g.id); continue; } // o painel não está aberto aqui: não inventa lugar
+        x = ra.left + clamp(+g.rx || 0, 0, 1) * ra.width; y = ra.top + clamp(+g.ry || 0, 0, 1) * ra.height; }
+      else { const q = V.transformPoint(new DOMPoint(g.x, g.y)), px = r.left + q.x * k, py = r.top + q.y * k; x = clamp(px, r.left, r.right - 14); y = clamp(py, r.top, r.bottom - 22); fora = x !== px || y !== py; }
+      x = clamp(x, 0, innerWidth - 14); y = clamp(y, 0, innerHeight - 22); const c = g.cor || '#19d3f0';
       let el = lay.querySelector(`[data-id="${CSS.escape(g.id)}"]`);
       if (!el) { el = h(`<div class="av-cur" data-id="${esc(g.id)}"><svg width="16" height="22" viewBox="0 0 16 22"><path d="M1 1 L1 18 L5.5 14 L9 21 L11.5 20 L8.2 13.3 L14 13 Z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg><span></span></div>`); lay.appendChild(el); }
-      el.classList.toggle('esq', x > innerWidth - 180); el.style.setProperty('--c', c); el.style.transform = `translate(${Math.round(x)}px,${Math.round(y)}px)`; $('path', el).setAttribute('fill', c);
+      el.classList.toggle('esq', x > innerWidth - 180); el.classList.toggle('fora', fora); el.title = fora ? 'Fora da parte que você está vendo' : ''; el.style.setProperty('--c', c); el.style.transform = `translate(${Math.round(x)}px,${Math.round(y)}px)`; $('path', el).setAttribute('fill', c);
       const txt = (g.nome || 'Alguém').split(' ')[0] + (g.fazendo ? ' · ' + g.fazendo : ''), sp = $('span', el); if (sp.textContent !== txt) sp.textContent = txt; sp.style.color = this.claro(c) ? '#111' : '#fff'; }
     for (const el of [...lay.children]) if (!vivos.has(el.dataset.id)) el.remove();
   },
@@ -287,7 +291,20 @@ const AoVivo = {
   },
   pintaPop() { const pop = this._pop; if (!pop) return; pop.innerHTML = `<div class="aut-t" style="border:0;margin:0">Trabalhando junto agora</div>${this.htmlPessoas(3)}<div class="avp-dica">${ic('chat', 11)} Clique para ver todas as mudanças de cada um</div>`; },
   historico() {
-    this._pop?.remove(); this._pop = null; const body = h(`<div class="avp-hist">${this.htmlPessoas(Infinity)}</div>`);
+    this._pop?.remove(); this._pop = null; const body = h(`<div class="avp-hist avp-comp"></div>`), abertos = new Set();
+    // compacto: uma linha por pessoa (foto, nome, quantas mudanças e a última); clicar abre as mudanças dela (com rolagem própria)
+    const pinta = () => {
+      const eu = this.eu, pessoas = [{ id: eu?.id, conta: eu?.conta, nome: eu?.nome, foto: eu?.foto, cor: eu?.cor, eu: true }, ...this.outros()], cDe = p => p.conta || this.contaDe(p.id);
+      for (const [c, f] of Object.entries(this.feitos || {})) if (!pessoas.some(p => cDe(p) === c)) pessoas.push({ id: c, conta: c, nome: f.nome, saiu: true });
+      const tot = L => L.reduce((a, x) => a + (x.n || 1), 0);
+      body.innerHTML = `<div class="avc-cab">${pessoas.length} pessoa${pessoas.length > 1 ? 's' : ''} · clique numa pessoa para ver o que ela mudou</div>` + pessoas.map((p, i) => { const L = this.feitos?.[cDe(p)]?.L || [], n = tot(L), u = L[0], ab = abertos.has(cDe(p));
+        return `<div class="avc-p${ab ? ' aberto' : ''}" data-i="${i}"><button type="button" class="avc-l" ${L.length ? '' : 'disabled'}><span class="avp-av${p.afk || p.saiu ? ' afk' : ''}" style="--c:${p.cor || '#888'}">${p.foto ? `<img src="${esc(p.foto)}" alt="" referrerpolicy="no-referrer">` : esc((p.nome || '?')[0])}</span>
+          <span class="avc-tx"><b>${esc(p.nome || 'Alguém')}${p.eu ? ' <small>(você)</small>' : ''}</b><small>${p.saiu ? 'saiu' : p.afk ? 'ausente' : p.fazendo ? 'agora: ' + esc(p.fazendo) : 'na sala'}${u ? ` · última: ${esc(u.r)} ${this.quando(u.t)}` : ''}</small></span>
+          <span class="avc-n${n ? '' : ' zero'}">${n || '0'}</span>${L.length ? `<span class="avc-seta">${ic('down', 12)}</span>` : ''}</button>
+          ${ab ? `<ul class="avp-l avc-lista">${L.map(x => `<li><span>${esc(x.r)}${x.n > 1 ? ` <small>×${x.n}</small>` : ''}</span><small>${this.quando(x.t)}</small></li>`).join('')}</ul>` : ''}</div>`; }).join('');
+      body.querySelectorAll('.avc-p').forEach(el => el.querySelector('.avc-l').onclick = () => { const p = pessoas[+el.dataset.i], c = cDe(p); abertos.has(c) ? abertos.delete(c) : abertos.add(c); const st = body.scrollTop; pinta(); body.scrollTop = st; });
+    };
+    pinta(); const iv = setInterval(() => body.isConnected ? pinta() : clearInterval(iv), 5000);
     UI.modal({ title: 'Quem está junto e o que cada um mudou', icon: 'users', width: 480, body, buttons: [{ label: 'Fechar', kind: 'primary', value: true }] });
   },
 
@@ -327,9 +344,15 @@ const AoVivo = {
     for (const [obj, ctx] of [[Atelie, 'atelie'], [App, 'animador']]) for (const [n, f] of [['undo', 'desfazer'], ['redo', 'refazer']]) { const orig = obj[n]; obj[n] = function (...a) { if (AoVivo.ativo && AoVivo.ad?.ctx === ctx) return AoVivo[f](); return orig.apply(this, a); }; }
     const ligaPalcos = () => {
       for (const [c, ctx, mundo] of [[Atelie.cv, 'atelie', e => Atelie.mundo(e)], [App.palco?.cv, 'animador', e => App.palco.paraMundo(e)]]) { if (!c || c._aovivo) continue; c._aovivo = true;
-        c.addEventListener('pointermove', e => { if (this.ativo && this.ad?.ctx === ctx) { const w = mundo(e); this.cursor(w.x, w.y); } });
+        c.addEventListener('pointermove', e => { if (this.ativo && this.ad?.ctx === ctx) { const w = mundo(e); this.cursor(w.x, w.y, { ui: null }); } });
         c.addEventListener('pointerdown', () => { this._gesto = true; this._gestoT = Date.now(); }, true); }
     };
+    addEventListener('pointermove', e => {
+      if (!this.ativo || e.target === Atelie.cv || e.target === App.palco?.cv) return;
+      const a = e.target.closest?.('[id]'); if (!a || a === document.body || a === document.documentElement || a.closest('.av-cursores')) return;
+      const r = a.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return;
+      this.cursor(this._cur?.x ?? 0, this._cur?.y ?? 0, { ui: a.id, rx: Math.round((e.clientX - r.left) / r.width * 1000) / 1000, ry: Math.round((e.clientY - r.top) / r.height * 1000) / 1000 });
+    }, { passive: true, capture: true });
     addEventListener('pointerup', () => { this._gesto = false; }, true); addEventListener('pointercancel', () => { this._gesto = false; }, true);
     ligaPalcos(); setInterval(ligaPalcos, 1500); addEventListener('resize', () => { clearTimeout(this._rz); this._rz = setTimeout(() => this.ativo && this.pintaBarra(), 150); }); // cabem 3 ou 4 fotos conforme a tela
     addEventListener('pagehide', () => { if (this.ativo) try { this.t.sair(this.sala, this.eu.id); } catch { } });

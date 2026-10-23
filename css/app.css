@@ -907,3 +907,16 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .pr-imgs-i span{width:72px;height:72px;border-radius:6px;background:repeating-conic-gradient(rgba(255,255,255,.06) 0 25%,transparent 0 50%) 0 0/12px 12px;background-size:contain;background-position:center;background-repeat:no-repeat}
 .pr-imgs-i small{font-size:11px;max-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx2)}
 .pr-imgs-i:hover{border-color:var(--ac,#3d8bff)}.pr-imgs-i.on{border-color:var(--ac,#3d8bff);box-shadow:0 0 0 2px rgba(61,139,255,.35);background:rgba(61,139,255,.12)}
+/* quem está junto (janela): compacto, uma linha por pessoa; as mudanças abrem ao clicar, com rolagem */
+.av-cur.fora{opacity:.45}
+.avp-comp{max-height:min(60vh,520px);overflow:auto;display:grid;gap:4px;padding-right:2px}
+.avc-cab{font-size:11.5px;color:var(--tx3);margin:0 2px 4px}
+.avc-p{border:1px solid var(--bd);border-radius:10px;background:var(--bg2,#2a2a2a)}
+.avc-l{width:100%;display:flex;align-items:center;gap:8px;padding:6px 8px;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:10px}.avc-l:hover:not([disabled]){background:var(--bg3,#333)}.avc-l[disabled]{cursor:default}
+.avc-l .avp-av{width:26px;height:26px}
+.avc-tx{flex:1;min-width:0}.avc-tx b{display:block;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.avc-tx small{display:block;font-size:11px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.avc-n{flex:none;min-width:22px;height:20px;padding:0 6px;border-radius:10px;background:rgba(61,139,255,.2);color:#9ec5ff;font-size:11px;font-weight:700;display:inline-grid;place-items:center}.avc-n.zero{background:none;color:var(--tx3)}
+.avc-seta{flex:none;color:var(--tx3);display:grid;transition:transform .15s}.avc-p.aberto .avc-seta{transform:rotate(180deg)}
+.avc-lista{margin:0 8px 8px 42px!important;max-height:180px;overflow:auto;padding-right:4px!important}
+.avc-tx b small{display:inline;font-weight:500}.avp-comp{gap:3px}.avc-l{padding:5px 8px}
+.modal-back .modal{max-width:calc(100vw - 20px)}
