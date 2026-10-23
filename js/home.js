@@ -32,11 +32,12 @@ const Home = {
     c.innerHTML = `<div class="novos">${FORMATOS.map(f => { const k = 34 / Math.max(f.w, f.h); return `<button class="novo" data-f="${f.id}"><span class="fm"><i style="width:${f.w * k}px;height:${f.h * k}px"></i></span><span><b>${f.nome}</b><small>${f.w}×${f.h} · ${f.fps} fps</small></span></button>`; }).join('')}
       <button class="novo" data-pers><span class="fm">${ic('gear', 24)}</span><span><b>Personalizado</b><small>do seu jeito ou com a IA</small></span></button>
       <button class="novo" data-abrir><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .animador</b><small>arquivo de animação</small></span></button></div>
-      <div class="sec">Animações <span class="sp"></span><input type="search" placeholder="Buscar" value="${esc(this.q)}"></div><div class="grade" data-g></div>`;
+      <div class="sec">Animações <span class="sp"></span><button class="btn sm" data-pnova-a title="Pasta nova para organizar as animações (só neste computador)">${ic('folder', 13)} Pasta nova</button><input type="search" placeholder="Buscar" value="${esc(this.q)}"></div><div data-g></div>`;
     $$('[data-f]', c).forEach(b => b.onclick = () => this.nova(FORMATOS.find(f => f.id === b.dataset.f)));
     $('[data-pers]', c).onclick = () => this.personalizada();
     $('[data-abrir]', c).onclick = async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) this.importar(f); };
     const busca = $('input[type=search]', c); busca.oninput = () => { this.q = busca.value; this.grade(c); };
+    $('[data-pnova-a]', c).onclick = async () => { try { if (await PastasBib.nova('anim')) this.grade(c); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
     this.grade(c);
     // AO VIVO AGORA: animações abertas para trabalhar junto
     this._offLista?.(); const av = h('<section class="aovivo-agora" hidden><div class="sec">' + ic('users', 14) + ' Ao vivo agora <small class="sec-sub">animações abertas para trabalhar junto · entre e veja quem está mexendo</small></div><div class="av-salas"></div></section>'); $('[data-g]', c).before(av);
@@ -52,8 +53,11 @@ const Home = {
   },
   async grade(c) {
     const g = $('[data-g]', c), todos = (await DB.all('projetos')).sort((a, b) => b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));
-    g.innerHTML = L.length ? '' : `<div class="vazio" style="grid-column:1/-1">${todos.length ? 'Nada com esse nome.' : 'Nenhuma animação ainda: escolha um formato aí em cima.'}</div>`;
-    for (const p of L) {
+    // em PASTAS (só neste computador, arquivos["pastas-anim"]; js/pastasbib.js): abrir/fechar, arrastar entre pastas, criar/renomear/apagar.
+    // Buscando: tudo junto numa grade só (sem pastas)
+    if (!L.length) { g.innerHTML = `<div class="vazio">${todos.length ? 'Nada com esse nome.' : 'Nenhuma animação ainda: escolha um formato aí em cima.'}</div>`; return; }
+    let todasP = [];
+    const cartao = p => {
       const card = h(`<div class="pc"><div class="th" style="${p.thumb ? `background-image:url('${p.thumb}')` : ''}">${p.thumb ? '' : ic('film', 26)}</div><div class="in"><b>${esc(p.nome)}</b><small>${fmtDate(p.modificado)} · ${p.duracao} quadros · ${p.w}×${p.h}</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span>${p.anterior ? '<span class="anterior" title="A versão de ANTES do trabalho em conjunto. Vira um arquivo comum quando você mudar algo nela.">anterior</span>' : ''}</div>`);
       Arquivos.poe($('.tam', card), Arquivos.tamProjeto(p));
       card.onclick = e => { if (!e.target.closest('.mn')) App.abrir(p); };
@@ -63,10 +67,14 @@ const Home = {
         { label: 'Baixar .animador', icon: 'download', action: () => Toon.baixar(p) },
         p.anterior && { label: 'Apagar este anterior', icon: 'trash', danger: true, action: () => this.apagar(p) },
         { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.animacao(p, 0) },
+        !q && PastasBib.menuMover('anim', p, todasP, () => this.grade(c)),
         '-', { label: 'Apagar', icon: 'trash', danger: true, action: () => this.apagar(p) },
       ].filter(Boolean)); };
-      g.appendChild(card);
-    }
+      return card;
+    };
+    if (q) { g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); return; }
+    try { ({ todas: todasP } = await PastasBib.monta(g, { esc: 'anim', min: 220, itens: L, cartao, aoMudar: () => this.grade(c) })); }
+    catch { g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); }
   },
   /* ---------- tela personalizada: tamanho, quadros por segundo, duração e fundo (à mão ou pedindo à IA) ---------- */
   TAMANHOS: [['1920×1080 (YouTube)', 1920, 1080], ['1080×1920 (Shorts/TikTok)', 1080, 1920], ['1080×1080 (quadrado)', 1080, 1080], ['1080×1350 (Instagram 4:5)', 1080, 1350], ['2560×1440 (2K)', 2560, 1440], ['3840×2160 (4K)', 3840, 2160], ['1280×720 (HD)', 1280, 720], ['2048×858 (cinema 2.39)', 2048, 858]],
