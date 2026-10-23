@@ -147,6 +147,9 @@ const Atelie = {
     if (this.volta && App.P) { Telas.mostra('editor'); App.titulo(); App.atualiza(); } else { Telas.mostra('home'); Home.aba('personagens'); }
   },
   commit(o = {}) { const s = JSON.stringify(this.def); if (s !== this.ultimo) { this.pilha.push(this.ultimo); if (this.pilha.length > 120) this.pilha.shift(); this.refazer = []; this.ultimo = s; this.sujo = true; this.rascunho(); } if (!o.soDesenho) this.pinta(); else this.desenha(); },
+  // Ctrl+Z logo depois de riscar: o traço ainda está sendo gravado (imagem grande demora). Espera ele entrar no histórico e SÓ DEPOIS desfaz —
+  // antes o Ctrl+Z desfazia a mudança de antes e o traço chegava depois (parecia que "voltava o risco" e não saía mais). Um de cada vez.
+  desfazJa(refaz) { const vez = (this._filaZ || Promise.resolve()).then(async () => { if (Pintura._gravando) await Pintura._gravando; await new Promise(r => setTimeout(r, 0)); refaz ? this.redo() : this.undo(); }).catch(() => { }); this._filaZ = vez; return vez; },
   undo() { if (!this.pilha.length) return; this.refazer.push(this.ultimo); this.ultimo = this.pilha.pop(); this.def = this.naMinhaVista(JSON.parse(this.ultimo)); this.ultimo = JSON.stringify(this.def); this.sujo = true; this.rascunho(); this.pinta(); },
   redo() { if (!this.refazer.length) return; this.pilha.push(this.ultimo); this.ultimo = this.refazer.pop(); this.def = this.naMinhaVista(JSON.parse(this.ultimo)); this.ultimo = JSON.stringify(this.def); this.sujo = true; this.rascunho(); this.pinta(); },
   // Ctrl+Z não troca a vista que está na tela (trocar de vista não é mudança): a de agora continua ativa se ainda existir
@@ -453,7 +456,7 @@ const Atelie = {
     if (soEscolha && e.type === 'keydown') campo.blur();
     if (k === ' ') { if (!e.repeat && !this.espaco) { this._espT = Date.now(); this._espUsou = false; } this.espaco = e.type === 'keydown'; e.preventDefault(); return; } // segurar = mover a tela; um toque = play/pause (no keyup)
     if (e.type === 'keydown' && (k === 'r' || k === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest?.('input,textarea,select,[contenteditable]')) { e.preventDefault(); return this.trocaRegua(); }
-    if (ctrl && k.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
+    if (ctrl && (k.toLowerCase() === 'z' || k.toLowerCase() === 'y')) { e.preventDefault(); if (e.repeat) return; return this.desfazJa(e.shiftKey || k.toLowerCase() === 'y'); }
     if (ctrl && k.toLowerCase() === 's') { e.preventDefault(); return this.salvarLocal(); } // Ctrl+S = guardar neste computador
     if (ctrl) { Pintura.teclaCtrl(e); return; }
     if (this.edImg) { // EDITOR DE IMAGEM: só as teclas de pintar; Esc sai (ou desmarca a seleção primeiro)

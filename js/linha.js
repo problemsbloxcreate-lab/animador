@@ -5,6 +5,14 @@
    Botão direito num passo: as opções de sempre (duplicar, mover, apagar…). Arrastar um passo muda a ordem. */
 'use strict';
 const Linha = {
+  // tempo de cada frame: os prontos + o personalizado (se for outro) + "Personalizado…"
+  opcoesVel(v) { const seg = ms => (Math.round(ms) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) + ' s', L = VELOCIDADES.map(x => x[0]);
+    return (L.includes(v) || !v ? '' : `<option value="${v}" selected>${seg(v)} · personalizado</option>`) + VELOCIDADES.map(([x, t]) => `<option value="${x}" ${v === x ? 'selected' : ''}>${t}</option>`).join('') + '<option value="outro">Personalizado…</option>'; },
+  // aceita "0,15", "0.15 s", "150 ms", "12 fps"; devolve ms (20 ms a 10 s) ou null
+  async pedeVel(v) {
+    const r = await UI.prompt({ title: 'Tempo de cada frame', label: 'Em segundos (ex.: 0,15), em ms (ex.: 150 ms) ou em quadros por segundo (ex.: 12 fps)', value: String((v || 80) / 1000).replace('.', ','), ok: 'Usar', icon: 'clock' });
+    if (r == null) return null; const s = String(r).trim().toLowerCase().replace(',', '.'), n = parseFloat(s); if (!(n > 0)) { UI.toast('Não entendi esse tempo', { kind: 'warn' }); return null; }
+    const ms = /fps/.test(s) ? 1000 / n : /ms/.test(s) ? n : n > 20 ? n : n * 1000; return Math.round(clamp(ms, 20, 10000)); },
   pinta() {
     const el = $('#at-tl'); if (!el || !Atelie.def) return; const A = Animacoes; el.hidden = !!Atelie.edImg; if (el.hidden) return this.altura();
     const L = A.lista(); if (A.sel && !A.achar(A.sel)) A.sel = null; if (!A.sel && L.length) A.sel = L[0].id;
@@ -17,7 +25,7 @@ const Linha = {
       <button class="ibtn tl-play ${rodando ? 'on' : ''}" data-play title="${rodando ? 'Pausar' : 'Tocar'} (P)" ${a ? '' : 'disabled'}>${ic(rodando ? 'pause' : 'play', 15)}</button>
       <button class="ibtn tl-stop" data-stop title="Parar e voltar à pose padrão (Esc)" ${toca ? '' : 'disabled'}>${ic('stop', 13)}</button>
       <button class="ibtn" data-prox title="Próximo frame ( . )" ${a ? '' : 'disabled'}>${ic('right', 14)}</button>
-      ${a ? `<select data-vel title="Cada frame dura">${VELOCIDADES.map(([v, t]) => `<option value="${v}" ${+a.vel === v ? 'selected' : ''}>${t}</option>`).join('')}</select>` : ''}
+      ${a ? `<select data-vel title="Cada frame dura (Personalizado… = o tempo que quiser)">${Linha.opcoesVel(+a.vel)}</select>` : ''}
       <span class="tl-info">${st ? `Frame <b>${st.pi + 1}</b>` : ''}</span><span class="sp"></span>
       ${a ? `<button class="btn sm" data-passo title="Frame novo depois do escolhido (começa igual a ele)">${ic('plus', 12)} Frame</button><button class="ibtn" data-trilha title="Trilha nova: anda junto com as outras (ex.: boca falando enquanto as pernas andam)">${ic('layers', 14)}</button>` : ''}</div>`);
     $('[data-a]', cab).onchange = ev => { A.multi?.clear(); A.parar(true); A.passoSel = null; A.sel = ev.target.value || null; Atelie.teste = null; Atelie.pinta(); };
@@ -26,7 +34,9 @@ const Linha = {
       $('[data-play]', cab).onclick = () => this.tocaPausa();
       $('[data-ant]', cab).onclick = () => this.anda(-1); $('[data-prox]', cab).onclick = () => this.anda(1);
       $('[data-stop]', cab).onclick = () => this.parar();
-      $('[data-vel]', cab).onchange = ev => { a.vel = +ev.target.value; Atelie.commit({ soDesenho: true }); if (rodando) A.tocar(a, A.i); };
+      $('[data-vel]', cab).onchange = async ev => { let v = ev.target.value;
+        if (v === 'outro') { v = await Linha.pedeVel(+a.vel); if (!v) { ev.target.innerHTML = Linha.opcoesVel(+a.vel); return; } }
+        a.vel = +v; Atelie.commit({ soDesenho: true }); if (rodando) A.tocar(a, A.i); else Linha.pinta?.(); };
       $('[data-passo]', cab).onclick = () => this.novoPasso(a); $('[data-trilha]', cab).onclick = () => { a.trilhas.push([{ s: {}, p: {} }]); Atelie.commit(); A.irPara(a, a.trilhas.length - 1, 0); };
     }
     el.appendChild(cab);
