@@ -35,7 +35,23 @@ const Quadro = {
   // a imagem como aparece neste keyframe (com o que já foi apagado aqui) — é dela que a borracha parte
   base(a) { return a.ap ? Arq.comAp(a.orig, { img: a.img, ap: a.ap }) : a.orig; },
   // antes = como estava na tela; depois = depois de apagar. A máscara é o quanto sumiu de cada pixel (só a área que mudou)
+  // APAGAR NUM FRAME: pergunta "na imagem toda" ou "só neste frame" (com "não perguntar de novo" — vale só para esta pessoa, neste personagem;
+  // fica no localStorage `animador-apagar-frame` { idDoPersonagem: 'tudo'|'frame' } e muda nas opções da borracha)
+  prefApagar(v) { let m = {}; try { m = JSON.parse(localStorage.getItem('animador-apagar-frame') || '{}') || {}; } catch { } const id = Atelie.def?.id; if (v === undefined) return m[id] || null; if (v) m[id] = v; else delete m[id]; try { localStorage.setItem('animador-apagar-frame', JSON.stringify(m)); } catch { } return v; },
+  async escolheApagar(a) {
+    const p = this.prefApagar(); if (p) return p;
+    const body = h(`<div>Você apagou com um <b>frame parado</b> (${esc(this.nome(a.quadro))}).<label class="pc-chk" style="margin-top:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" data-nao> Não perguntar de novo (só para você, neste personagem)</label><small style="display:block;color:var(--tx3);margin-top:4px">Dá para mudar depois nas opções da borracha.</small></div>`);
+    const r = await UI.modal({ title: 'Apagar onde?', icon: 'eraser', width: 460, body, cancelValue: null, buttons: [{ label: 'Cancelar', value: null }, { label: 'Só neste frame', collect: x => ({ v: 'frame', nao: $('[data-nao]', x.body).checked }) }, { label: 'Na imagem toda', kind: 'primary', collect: x => ({ v: 'tudo', nao: $('[data-nao]', x.body).checked }) }] });
+    if (!r) return null; if (r.nao) this.prefApagar(r.v); return r.v;
+  },
+  // "na imagem toda": o que sumiu na tela (antes − depois) sai da imagem de verdade (ou da camada ativa) — aparece em todo frame e preset
+  async apagaNoTodo(a, antes, depois) {
+    const W = antes.width, H = antes.height, m = document.createElement('canvas'); m.width = W; m.height = H; const mx = m.getContext('2d'); mx.drawImage(antes, 0, 0); mx.globalCompositeOperation = 'destination-out'; mx.drawImage(depois, 0, 0); // = só o que foi apagado
+    const g = new OffscreenCanvas(a.bm.width, a.bm.height), gx = g.getContext('2d'); gx.drawImage(a.bm, 0, 0); gx.globalCompositeOperation = 'destination-out'; gx.drawImage(m, 0, 0, a.bm.width, a.bm.height);
+    await Pintura.gravar(a.img, g); return true;
+  },
   async gravaApagado(a, antes, depois) {
+    const onde = await this.escolheApagar(a); if (!onde) return false; if (onde === 'tudo') return this.apagaNoTodo(a, antes, depois);
     const W = antes.width, H = antes.height, ca = document.createElement('canvas'); ca.width = W; ca.height = H; const xa = ca.getContext('2d', { willReadFrequently: true }); xa.drawImage(antes, 0, 0);
     const A = xa.getImageData(0, 0, W, H).data, cd = document.createElement('canvas'); cd.width = W; cd.height = H; const xd = cd.getContext('2d', { willReadFrequently: true }); xd.drawImage(depois, 0, 0); const D = xd.getImageData(0, 0, W, H).data;
     let x0 = W, y0 = H, x1 = -1, y1 = -1; const m = new Uint8ClampedArray(W * H);
