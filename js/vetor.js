@@ -369,7 +369,7 @@ const Vetor = {
     await this.gravar(img, m); return true;
   },
   // área entre as LINHAS no ponto (canvas na escala s): é a área que o balde pinta (e a borracha mágica apaga)
-  async area(a, pt, m) {
+  async area(a, pt, m, o = {}) {
     const s = clamp(1400 / Math.max(m.W, m.H), 1, 3), W = Math.round(m.W * s), H = Math.round(m.H * s), x0 = Math.floor(pt.x * s), y0 = Math.floor(pt.y * s); if (x0 < 0 || y0 < 0 || x0 >= W || y0 >= H) return null;
     const lin = (await this.raster(m, { escala: s, so: c => c.papel === 'linha' })).getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
     const tud = (await this.raster(m, { escala: s })).getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
@@ -381,7 +381,7 @@ const Vetor = {
     if (!dentro && borda) return { aberta: true };
     // a cor entra por baixo da linha (até o meio dela, ~3 px): sem fresta entre a cor e o traço
     let fr = []; for (let i = 0; i < N; i++) if (reg[i]) fr.push(i);
-    for (let k = 0; k < Math.round(3 * s); k++) { const nv = []; for (const i of fr) { const x = i % W; for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i - W, i + W]) if (j >= 0 && j < N && !reg[j] && bar[j]) { reg[j] = 1; nv.push(j); } } fr = nv; }
+    for (let k = 0; k < Math.round((o.soArea ? 1.5 : 3) * s); k++) { const nv = []; for (const i of fr) { const x = i % W; for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i - W, i + W]) if (j >= 0 && j < N && !reg[j] && bar[j]) { reg[j] = 1; nv.push(j); } } fr = nv; }
     const cv = new OffscreenCanvas(W, H), x = cv.getContext('2d'), id = x.createImageData(W, H); for (let i = 0; i < N; i++) if (reg[i]) id.data[i * 4 + 3] = 255; x.putImageData(id, 0, 0);
     return { cv, s, n };
   },
