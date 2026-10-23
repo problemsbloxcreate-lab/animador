@@ -145,11 +145,21 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
   // lugar da barra: { lado: esq|dir|cima|baixo, f: posição ao longo da borda (0..1) }, guardado neste computador
   // lugar da barra (fixa na TELA): SOLTA { x, y } em px — nasce solta, move para qualquer lugar como as janelas — ou GRUDADA
   // { preso } numa janela solta, numa coluna ou na borda de dentro do palco (js/ima.js; anda junto com a janela de baixo)
-  lugar() { if (!this._lugar) { try { this._lugar = JSON.parse(localStorage.getItem('animador-ferr-lugar') || 'null'); } catch { } if (this._lugar && !('x' in this._lugar) && !this._lugar.preso) this._lugar = null; } return this._lugar; },
-  guardaLugar() { try { localStorage.setItem('animador-ferr-lugar', JSON.stringify(this._lugar)); } catch { } if (typeof Paineis !== 'undefined') Paineis.pintaBotao(); }, // mexeu na barra = aparece o "Design padrão"
+  // o EDITOR DE IMAGEM (modo Photoshop) tem o lugar dele (padrão: grudada no canto de cima à esquerda da tela de pintar, ao lado das Partes)
+  chLugar() { return Atelie.edImg ? 'animador-ferr-lugar-ed' : 'animador-ferr-lugar'; },
+  lugar() { const ed = !!Atelie.edImg, c = ed ? '_lugarEd' : '_lugar'; if (!this[c]) { try { this[c] = JSON.parse(localStorage.getItem(this.chLugar()) || 'null'); } catch { } if (this[c] && !('x' in this[c]) && !this[c].preso) this[c] = null; } return this[c]; },
+  poeLugar(v) { this[Atelie.edImg ? '_lugarEd' : '_lugar'] = v; },
+  guardaLugar() { try { localStorage.setItem(this.chLugar(), JSON.stringify(this.lugar())); } catch { } if (typeof Paineis !== 'undefined') Paineis.pintaBotao(); }, // mexeu na barra = aparece o "Design padrão"
+  // padrão no editor: logo abaixo da barra de opções, encostada na borda esquerda da tela (não cobre a lista de Partes)
+  lugarPadraoEd() { const pal = $('#atelie .at-palco'), p = pal?.getBoundingClientRect(), o = $('#at-ferr-op')?.getBoundingClientRect(); if (!p?.width) return null; const R = Ima.comRegua(pal) ? 18 : 0, off = Math.max(8, Math.round((o?.height ? o.bottom : p.top + 76) - p.top - R + 8));
+    // uma janela solta (Partes/Imagens) no canto de cima à esquerda da tela: a barra gruda do lado direito dela (não fica por baixo)
+    const y = p.top + R + off, w = $('#at-ferr')?.offsetWidth || 44, jan = $$('.dock-janela').map(j => ({ j, r: j.getBoundingClientRect() })).filter(({ r }) => r.width && r.left < p.left + w + 30 && r.right > p.left && r.top < y + 200 && r.bottom > y).sort((a, b) => b.r.right - a.r.right)[0];
+    if (jan && jan.r.right + w < p.right - 100) return { x: Math.round(jan.r.right), y: Math.round(y), preso: { alvo: 'jan:' + jan.j.dataset.jan, lado: 'dir', off: Math.max(0, Math.round(y - jan.r.top)), esticar: false } };
+    return { x: Math.round(p.left), y: Math.round(p.top), preso: { alvo: 'palco', lado: 'esq', off, esticar: false } }; },
   lugarBarra(el) { this.posBarra(el); },
   posBarra(el = $('#at-ferr')) {
     if (!el || el.hidden) return; let L = this.lugar();
+    if (!L && Atelie.edImg) L = this.lugarPadraoEd(); // sem lugar guardado no editor: o padrão dele (calculado a cada vez: a barra de opções muda de altura)
     if (!L) { const p = $('#atelie .at-palco')?.getBoundingClientRect(); if (!p?.width) return; L = this._lugar = { x: Math.round(p.left + 10), y: Math.round(p.top + 110) }; }
     const deitada = !!L.preso && (L.preso.lado === 'cima' || L.preso.lado === 'baixo'); el.classList.toggle('deitada', deitada); el.classList.toggle('presa', !!L.preso); el.classList.toggle('esticada', !!L.preso?.esticar);
     el.style.width = el.style.height = ''; let x = L.x, y = L.y;
@@ -162,13 +172,13 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
       if (e.button !== 0) return; e.preventDefault(); pega.setPointerCapture(e.pointerId); el.classList.add('arrastando');
       const r0 = el.getBoundingClientRect(), gx = e.clientX - r0.left, gy = e.clientY - r0.top;
       const mov = ev => {
-        const solto = { x: Math.round(ev.clientX - gx), y: Math.round(ev.clientY - gy) }; this._lugar = solto; el.classList.remove('deitada', 'presa', 'esticada'); el.style.width = el.style.height = '';
+        const solto = { x: Math.round(ev.clientX - gx), y: Math.round(ev.clientY - gy) }; this.poeLugar(solto); el.classList.remove('deitada', 'presa', 'esticada'); el.style.width = el.style.height = '';
         const w = el.offsetWidth, hh = el.offsetHeight, preso = Ima.acha({ left: solto.x, top: solto.y, right: solto.x + w, bottom: solto.y + hh });
-        this._lugar = preso ? { ...solto, preso } : solto; this.posBarra(el); };
+        this.poeLugar(preso ? { ...solto, preso } : solto); this.posBarra(el); };
       const up = () => { pega.onpointermove = null; pega.onpointerup = null; el.classList.remove('arrastando'); this.guardaLugar(); };
       pega.onpointermove = mov; pega.onpointerup = up; pega.onpointercancel = up; };
-    pega.oncontextmenu = e => Ima.menu(e, this.lugar()?.preso, v => { const L = this.lugar(); this._lugar = v ? { ...L, preso: v } : { x: L.x, y: L.y }; this.guardaLugar(); this.posBarra(el); });
-    pega.ondblclick = () => { this._lugar = null; try { localStorage.removeItem('animador-ferr-lugar'); } catch { } this.posBarra(el); if (typeof Paineis !== 'undefined') Paineis.pintaBotao(); };
+    pega.oncontextmenu = e => Ima.menu(e, this.lugar()?.preso, v => { const L = this.lugar() || this.lugarPadraoEd() || { x: 20, y: 120 }; this.poeLugar(v ? { ...L, preso: v } : { x: L.x, y: L.y }); this.guardaLugar(); this.posBarra(el); });
+    pega.ondblclick = () => { this.poeLugar(null); try { localStorage.removeItem(this.chLugar()); } catch { } this.posBarra(el); if (typeof Paineis !== 'undefined') Paineis.pintaBotao(); };
   },
   /* ---------- barra de ferramentas no canto esquerdo do palco (como no Photoshop) ---------- */
   pintaBarra() {

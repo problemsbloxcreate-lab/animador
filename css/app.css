@@ -711,16 +711,21 @@ body.arrastando-div{user-select:none;cursor:col-resize}
 .at-tl:not([style*="height"]){max-height:190px}
 /* alça de pontinhos sempre à vista em todas as partes (indica que dá para arrastar) */
 .at-partes .no .pega{opacity:.4}
-/* EDITOR DE IMAGEM como janela: moldura, barra do título e opções da ferramenta grudadas em cima, ferramentas grudadas na esquerda */
-#atelie.ed-img .at{padding:10px 12px 12px;background:#07080a;gap:0}
-#atelie.ed-img .at-palco{border:1px solid #3a6f9e;border-right:0;border-radius:12px 0 0 12px;overflow:hidden;box-shadow:0 0 0 4px rgba(90,169,232,.12)}
-#atelie.ed-img .at>aside:last-child{border:1px solid #3a6f9e;border-radius:0 12px 12px 0}
-#atelie.ed-img .at-palco .modo-at{left:0!important;right:0!important;top:0!important;padding:6px 10px;background:#17273a;border-bottom:1px solid #3a6f9e;flex-wrap:nowrap}
+/* EDITOR DE IMAGEM (modo Photoshop): cada lugar vira um cartão com moldura e espaço entre eles; barra do título e opções da ferramenta em cima da tela */
+#atelie.ed-img .at{padding:8px;background:#07080a;gap:8px}
+#atelie.ed-img .at-palco{border:1px solid #3a6f9e;border-radius:10px;overflow:hidden;box-shadow:0 0 0 3px rgba(90,169,232,.10)}
+#atelie.ed-img .at>aside.dock-area{border:0!important;background:none;gap:8px}
+#atelie.ed-img .at>aside.dock-area>.dock-col{border:1px solid var(--bd2)!important;border-radius:10px;overflow:hidden}
+#atelie.ed-img .at-palco .modo-at{left:0!important;right:0!important;top:0!important;padding:6px 10px;background:#17273a;border-bottom:1px solid #3a6f9e;flex-wrap:nowrap;border-radius:0}
 #atelie.ed-img .at-palco .modo-at .at-status{background:none;border:0}
-#atelie.ed-img .ferr-op{left:0!important;right:0;top:41px!important;max-width:none!important;border-radius:0;border:0;border-bottom:1px solid var(--bd);padding:4px 10px;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;background:var(--bg1)}
+#atelie.ed-img .ferr-op{position:absolute;left:0!important;right:0;top:41px!important;max-width:none!important;border-radius:0;border:0;border-bottom:1px solid var(--bd);padding:4px 10px;flex-wrap:wrap;row-gap:4px;white-space:nowrap;background:var(--bg1);box-shadow:none}
 #atelie.ed-img .ferr-op>b{width:auto!important;flex:0 0 auto}
 #atelie.ed-img .ferr-op>*{flex:0 0 auto}
-
+#atelie.ed-img .dock-janela{border-color:#3a6f9e}
+#atelie.ed-img .ferr-op{flex-wrap:nowrap;align-items:center;gap:10px}
+#atelie.ed-img .ferr-op>.pc-ctl{flex:1 1 0;min-width:0}
+#atelie.ed-img .at-palco .modo-at,#atelie.ed-img .ferr-op{padding-left:calc(10px + var(--ed-esq,0px));padding-right:calc(10px + var(--ed-dir,0px))}
+#atelie.ed-img .dock[data-dock=lado] .ed-cab{padding-left:16px}
 /* cursores de quem está junto ao vivo: por cima de tudo (painéis e janelas), sem pegar o mouse */
 .av-cursores{position:fixed;inset:0;pointer-events:none;z-index:2147483000;overflow:hidden}
 .av-cur{position:absolute;left:0;top:0;will-change:transform;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
@@ -759,12 +764,9 @@ aside.dock-area>.dock-col+.dock-col{border-left:1px solid var(--bd)}
 .dock-fant small{font-weight:400;color:#9cc7ee}
 .dock-linha{position:fixed;z-index:9998;pointer-events:none;background:#5aa9e8;border-radius:3px;display:none;box-shadow:0 0 0 1px rgba(90,169,232,.35)}
 body.arrastando-dock{user-select:none;cursor:grabbing}
-/* no editor de imagem só aparece o painel da direita (onde ele estiver) */
-#atelie.ed-img .dock:not([data-dock=lado]),#atelie.ed-img .dock-col.sem-lado,#atelie.ed-img .dock-janela.sem-lado{display:none!important}
-#atelie.ed-img .dock-pega,#atelie.ed-img .dock-jbar{display:none}
-#atelie.ed-img .at>aside.dock-area{border:1px solid #3a6f9e}
-#atelie.ed-img .at>aside.dock-area:not(:has(.dock-col:not(.sem-lado))){border:0!important;width:0;overflow:hidden}
-#atelie.ed-img .at-palco{border-right:1px solid #3a6f9e}
+/* no editor de imagem ficam só Partes, Imagens e o painel da direita (cada um onde estiver: coluna, embaixo ou janela solta) */
+#atelie.ed-img .dock[data-dock=vistas],#atelie.ed-img .dock[data-dock=linha],#atelie.ed-img .dock-col.sem-ed,#atelie.ed-img .dock-janela.sem-ed,#atelie.ed-img .dock-baixo.sem-ed{display:none!important}
+#atelie.ed-img .at>aside.dock-area:not(:has(.dock-col:not(.sem-ed))){border:0!important;width:0;overflow:hidden}
 /* ao vivo: passar o mouse mostra quem está junto e o que cada um mudou */
 .avp-pop{min-width:250px;max-width:320px}
 .avp-p+.avp-p{border-top:1px solid var(--bd);margin-top:4px;padding-top:2px}

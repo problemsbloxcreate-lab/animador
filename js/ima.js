@@ -7,8 +7,9 @@
 'use strict';
 const Ima = {
   DIST: 22,
+  comRegua(p) { return p.classList.contains('com-regua') && !$('#atelie')?.classList.contains('ed-img'); }, // no editor de imagem a régua não aparece
   rectDe(alvo) {
-    if (alvo === 'palco') { const p = $('#atelie .at-palco'); if (!p) return null; const r = p.getBoundingClientRect(), tl = parseFloat(getComputedStyle(p).getPropertyValue('--tl')) || 0; const R = p.classList.contains('com-regua') ? 18 : 0; /* régua ligada: gruda do lado dela (a régua fica à vista, a barra não cobre) */ return r.width ? { left: r.left + R, top: r.top + R, right: r.right, bottom: r.bottom - tl, width: r.width - R, height: r.height - tl - R } : null; }
+    if (alvo === 'palco') { const p = $('#atelie .at-palco'); if (!p) return null; const r = p.getBoundingClientRect(), tl = parseFloat(getComputedStyle(p).getPropertyValue('--tl')) || 0; const R = this.comRegua(p) ? 18 : 0; /* régua ligada: gruda do lado dela (a régua fica à vista, a barra não cobre) */ return r.width ? { left: r.left + R, top: r.top + R, right: r.right, bottom: r.bottom - tl, width: r.width - R, height: r.height - tl - R } : null; }
     const [t, id] = String(alvo).split(':'), el = t === 'jan' ? $(`.dock-janela[data-jan="${id}"]`) : t === 'col' ? $(`.dock-col[data-col="${id}"]`) : null;
     if (!el || !el.offsetWidth) return null; return el.getBoundingClientRect();
   },
@@ -20,7 +21,7 @@ const Ima = {
     if (vert) { o.x = preso.lado === 'esq' ? (dentro ? r.left : r.left - o.w) : (dentro ? r.right - o.w : r.right); if (!preso.esticar) o.y = clamp(r.top + preso.off, r.top - o.h + 20, r.bottom - 20); }
     else { o.y = preso.lado === 'cima' ? (dentro ? r.top : r.top - o.h) : (dentro ? r.bottom - o.h : r.bottom); if (!preso.esticar) o.x = clamp(r.left + preso.off, r.left - o.w + 20, r.right - 20); }
     // régua ligada: o que cairia em cima da régua do palco (faixa de 18 px na esquerda e em cima) vai para o lado dela
-    const pal = $('#atelie .at-palco'); if (pal?.classList.contains('com-regua') && preso.alvo !== 'palco') { const p = pal.getBoundingClientRect(), R = 18;
+    const pal = $('#atelie .at-palco'); if (pal && this.comRegua(pal) && preso.alvo !== 'palco') { const p = pal.getBoundingClientRect(), R = 18;
       if (o.x >= p.left - 2 && o.x < p.left + R && o.y < p.bottom && o.y + o.h > p.top) { o.x = p.left + R; }
       if (o.y >= p.top - 2 && o.y < p.top + R && o.x < p.right && o.x + o.w > p.left) { if (preso.esticar && (preso.lado === 'esq' || preso.lado === 'dir')) o.h -= p.top + R - o.y; o.y = p.top + R; } }
     return o;
@@ -42,7 +43,16 @@ const Ima = {
   // tudo que está grudado em algo: põe no lugar (depois de mover/aumentar uma janela, mudar o layout, a tela…)
   arruma() {
     if (this._arr) return; this._arr = true; requestAnimationFrame(() => { this._arr = false;
-      for (let k = 0; k < 3; k++) { if (typeof Paineis !== 'undefined') Paineis.posPresos?.(); if (typeof Pintura !== 'undefined') Pintura.posBarra?.(); } }); // 3 voltas: presos em presos (const não fica em window)
+      for (let k = 0; k < 3; k++) { if (typeof Paineis !== 'undefined') Paineis.posPresos?.(); if (typeof Pintura !== 'undefined') Pintura.posBarra?.(); } this.ajustaEd(); }); // 3 voltas: presos em presos (const não fica em window)
+  },
+  // EDITOR DE IMAGEM com janelas soltas por cima da tela: a barra do título e as opções da ferramenta andam para o lado delas (não ficam escondidas)
+  ajustaEd() {
+    const pal = $('#atelie .at-palco'); if (!pal) return; let esq = 0, dir = 0;
+    if ($('#atelie')?.classList.contains('ed-img')) { const p = pal.getBoundingClientRect(), op = $('#at-ferr-op')?.getBoundingClientRect(), baixo = op?.height ? op.bottom : p.top + 80;
+      for (const j of $$('.dock-janela')) { const r = j.getBoundingClientRect(); if (!r.width || r.top >= baixo || r.bottom <= p.top || r.right <= p.left || r.left >= p.right) continue;
+        if (r.left - p.left < p.right - r.right) esq = Math.max(esq, r.right - p.left); else dir = Math.max(dir, p.right - r.left); }
+      if (esq + dir > p.width - 260) esq = dir = 0; } // não sobra lugar: fica como é (a janela cobre)
+    const e = Math.round(esq) + 'px', d = Math.round(dir) + 'px'; if (pal.style.getPropertyValue('--ed-esq') !== e) pal.style.setProperty('--ed-esq', e); if (pal.style.getPropertyValue('--ed-dir') !== d) pal.style.setProperty('--ed-dir', d);
   },
   menu(e, preso, muda) {
     e.preventDefault(); const vert = preso && (preso.lado === 'esq' || preso.lado === 'dir');

@@ -575,7 +575,7 @@ const Atelie = {
       $('[data-op]', cr).oninput = ev => { this.opResto = +ev.target.value; $('[data-opv]', cr).textContent = this.opResto + '%'; try { localStorage.setItem('animador-ed-resto-op', this.opResto); } catch { } this.desenha(); }; }
     cr.hidden = !ed; $('input', cr).checked = !!this.mostraResto; $('[data-op]', cr).value = this.opResto ?? 45; $('[data-op]', cr).hidden = $('[data-opv]', cr).hidden = !this.mostraResto; $('[data-opv]', cr).textContent = (this.opResto ?? 45) + '%'; $('#at-mover').value = this.modoMover;
     for (const x of ['#at-mover', '#at-regua', '#at-ref']) { const e = $(x); if (e) e.hidden = !!ed; }
-    Pintura.pintaBarra(); Linha.pinta();
+    Pintura.pintaBarra(); Linha.pinta(); Ima.arruma(); // a barra de ferramentas vai para o lugar dela (o editor tem o seu)
     let bp = $('#at-abas [data-aba="pintar"]'); if (!bp && $('#at-abas')) { bp = h(`<button data-aba="pintar" title="Camadas, cores e opções de pintar da parte escolhida">${ic('layers', 12)} Camadas</button>`); $('#at-abas').appendChild(bp); bp.onclick = () => { this.aba = 'pintar'; this.pinta(); }; }
     if (bp) bp.hidden = Pintura.ferr === 'mover' && this.aba !== 'pintar';
     if (this.imgSo) this.barraImgSo();
@@ -635,7 +635,7 @@ const Atelie = {
         <button class="ibtn ${est[p.id]?.vis === false ? 'off' : ''}" title="Mostrar/esconder (H)">${ic(est[p.id]?.vis === false ? 'eyeOff' : 'eye', 13)}</button></div>`);
       const kv = kp?.[p.id]; if (kv) { const z = kv.z != null && kv.z !== 0, pos = !!(kv.x || kv.y || kv.r || (kv.d && Object.keys(kv.d).length)); if (z || pos) { r.classList.add('kf-mud'); if (z) r.classList.add('kf-z'); const tg = h(`<span class="kf-tags">${z ? '<i class="kf-t z" title="Profundidade diferente só neste keyframe">prof.</i>' : ''}${pos ? '<i class="kf-t pos" title="Posição/giro diferente só neste keyframe">pos.</i>' : ''}</span>`); const olho = r.querySelector(':scope > .ibtn:last-child'); olho ? olho.before(tg) : r.appendChild(tg); } }
       r.onclick = ev => { if (ev.target.closest('.ibtn')) { this.mudar(p.id, { vis: est[p.id]?.vis === false }); return this.commit(); } this.clicaParte(ev, p.id); };
-      r.ondblclick = async () => { const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
+      r.ondblclick = async ev => { if (ev.target.closest('.ibtn')) return; if (this.edImg) { if (this.edImg.pid !== p.id && this.abrirEditor(p)) this.pinta(); return; } /* modo Photoshop: dois cliques noutra parte = edita a imagem dela */ const n = await UI.prompt({ title: 'Nome da parte', value: p.nome }); if (n) { p.nome = n; this.commit(); } };
       r.oncontextmenu = ev => { ev.preventDefault(); if (p.id !== this.sel && !this.multi.has(p.id)) this.escolhe(p.id); this.focoImg = null; this.pinta(); this.menuParte(ev, p); };
       // ARRASTAR NA LISTA: em cima de outra = atrás dela, embaixo = na frente dela (muda a ORDEM) e fica irmã dela; no meio = vira FILHA dela;
       // solta no vazio da lista (ou longe, fora dela) = fica SEM PAI. Substitui a antiga aba Profundidade.
@@ -921,7 +921,7 @@ const Atelie = {
     const el = $('#at-imgs'), p = this.parte(); $('#at-imgs-t').textContent = p ? `Imagens de "${p.nome}"` : 'Imagens'; $('#at-imgs-t').title = p ? 'Arraste partes da lista de cima para cá: elas viram imagens trocáveis desta parte' : ''; el.innerHTML = '';
     if (!p) { el.innerHTML = '<div class="vazio" style="grid-column:1/-1">Escolha uma parte.</div>'; return; }
     p.pastas = [...new Set([...(p.pastas || []), ...p.imgs.map(i => i.pasta).filter(Boolean)])];
-    const atual = this.estado()[p.id]?.img, fechadas = this.pastasFechadas || (this.pastasFechadas = new Set());
+    const atual = this.edImg?.pid === p.id ? this.edImg.iid : this.estado()[p.id]?.img, fechadas = this.pastasFechadas || (this.pastasFechadas = new Set());
     const solta = (alvo, pasta) => { // soltar arquivos do computador ou uma imagem arrastada daqui
       alvo.ondragover = ev => { const t = ev.dataTransfer.types; if (t.includes('Files') || t.includes('text/img') || t.includes('text/parte')) { ev.preventDefault(); ev.stopPropagation(); alvo.classList.add('drop-dentro'); } };
       alvo.ondragleave = ev => { if (!alvo.contains(ev.relatedTarget)) alvo.classList.remove('drop-dentro'); };
@@ -936,6 +936,7 @@ const Atelie = {
       let cEl = null; const bm = Arq.bitmap(img.k, () => fundo(cEl, Arq.img.get(img.k))), c = h(`<div data-iid="${img.id}" class="im ${img.id === atual ? 'on' : ''} ${this.focoImg?.img === img.id ? 'foco' : ''} ${this.imgSo?.p === p.id && this.imgSo.img === img.id ? 'imgso' : ''} ${this.marcas().imgs.has(img.id) ? 'mod' : ''} ${this.moverTodos ? 'todos' : this.modoMover === 'imagem' && img.id === atual ? 'mesma' : ''}" draggable="true" title="${esc(img.nome)} — clique para usar${this.edit ? ' neste preset' : ' na base'} · arraste para uma pasta"><span>${esc(img.nome)}</span><i class="im-tipo ${Vetor.eh(img.k) ? 'svg' : ''}">${esc(Vetor.tipo(img.k))}</i>${Camadas.tem(img) ? `<i class="im-cam" title="Imagem com ${img.camadas.length} camada${img.camadas.length > 1 ? 's' : ''} (Pintar e cores › Camadas)">${ic('layers', 11)}${img.camadas.length}</i>` : ''}<button class="ibtn x" title="Tirar a imagem">${ic('x', 12)}</button></div>`);
       cEl = c; fundo(c, bm);
       c.onclick = ev => { if (ev.target.closest('.x')) return; this.focoImg = { p: p.id, img: img.id };
+        if (this.edImg) { if (this.edImg.iid !== img.id) this.abrirEditor(p, img); return this.pinta(); } // modo Photoshop: clicar numa imagem só passa a editar ela (não muda pose nem frame)
         // parado num passo da animação: trocar a imagem NÃO muda a animação (ela só guarda poses) — só escolhe a imagem
         const stF = Animacoes.passoAtual();
         if (stF) { // passo parado: a imagem muda só nele (keyframe). Se ela é a imagem de um PRESET (ex.: Boca › "O"), o frame passa a usar o preset
@@ -944,7 +945,6 @@ const Atelie = {
             Animacoes.usarPose(ach.s, ach.pr); this.pinta(); UI.toast(`Este frame agora usa o preset <b>${esc(ach.s.nome)} › ${esc(ach.pr.nome)}</b>.`, { time: 2600 }); return; }
           Animacoes.alvoPausa(p.id); this.mudar(p.id, { img: img.id }); Atelie.teste = Animacoes.frame(stF.a, Animacoes.i); this.commit(); this.pinta();
           if (!this._avisouImg) { this._avisouImg = true; UI.toast('Imagem trocada <b>só neste frame</b>.', { time: 3500 }); } return; }
-        if (this.edImg) { this.edImg = { pid: p.id, iid: img.id }; return this.pinta(); }
         this.mudar(p.id, { img: img.id }); this.commit(); this.pintaImgs(); };
       c.ondblclick = ev => { if (ev.target.closest('.x')) return; this.abrirEditor(p, img); }; // EDITOR DE IMAGEM (estilo Photoshop)
       c.ondragstart = ev => { ev.dataTransfer.setData('text/img', img.id); ev.dataTransfer.effectAllowed = 'move'; };

@@ -34,14 +34,14 @@ const Paineis = {
   grava() { try { localStorage.setItem(this.CHAVE, JSON.stringify(this.st)); } catch { } this.pintaBotao(); },
   mudou() {
     const t = window.Divisores ? Divisores.le() : null;
-    let barra = false; try { barra = !!localStorage.getItem('animador-ferr-lugar') || !!localStorage.getItem(this.CH_ALT); } catch { }
+    let barra = false; try { barra = !!localStorage.getItem('animador-ferr-lugar') || !!localStorage.getItem('animador-ferr-lugar-ed') || !!localStorage.getItem(this.CH_ALT); } catch { }
     return JSON.stringify(this.st) !== JSON.stringify(this.padraoSt()) || (t && t.tl) || barra;
   },
   pintaBotao() { const b = $('#at-layout-padrao'); if (b) b.hidden = !this.mudou(); },
   padrao() {
     this.st = this.padraoSt(); this.alt = {}; try { localStorage.removeItem(this.CH_ALT); } catch { } this.grava();
     if (window.Divisores) { Divisores.t = { ...Divisores.PADRAO }; Divisores.grava(); Divisores.aplica(); }
-    if (typeof Pintura !== 'undefined') { Pintura._lugar = null; try { localStorage.removeItem('animador-ferr-lugar'); } catch { } } // a barra de ferramentas também volta ao lugar de sempre
+    if (typeof Pintura !== 'undefined') { Pintura._lugar = Pintura._lugarEd = null; try { localStorage.removeItem('animador-ferr-lugar'); localStorage.removeItem('animador-ferr-lugar-ed'); } catch { } } // a barra de ferramentas também volta ao lugar de sempre
     this.aplica(); if (typeof Pintura !== 'undefined') Pintura.posBarra(); UI.toast('Voltou ao design padrão do Ateliê.', { kind: 'ok' });
   },
   // ---------- montar (uma vez) ----------
@@ -62,13 +62,14 @@ const Paineis = {
     // a timeline pode sair de baixo do palco: o palco desconta só o que está na faixa de baixo
     if (window.Linha && !Linha._dock) { Linha._dock = true; Linha.altura = () => { const p = $('.at-palco'); if (!p) return; const hgt = this.baixoEl.offsetHeight; if (p._tl === hgt) return; const primeira = p._tl0 === undefined; p._tl = p._tl0 = hgt; p.style.setProperty('--tl', hgt + 'px'); Atelie.tamanho?.(); if (primeira) Atelie.enquadrar?.(); }; }
     new ResizeObserver(() => Linha?.altura?.()).observe(this.baixoEl);
-    this.ro = new ResizeObserver(ents => { let mud = false; for (const e of ents) { const j = this.st.jan.find(x => x.id === e.target.dataset.jan); if (!j || !e.target.isConnected) continue; const r = e.target.getBoundingClientRect(); if (!j.preso?.esticar && (Math.abs(r.width - j.w) > 2 || Math.abs(r.height - j.h) > 2)) { j.w = Math.round(r.width); j.h = Math.round(r.height); mud = true; } } Ima.arruma(); if (mud) { clearTimeout(this._tg); this._tg = setTimeout(() => this.grava(), 300); } });
+    this.ro = new ResizeObserver(ents => { let mud = false; for (const e of ents) { const j = this.st.jan.find(x => x.id === e.target.dataset.jan); if (!j || !e.target.isConnected) continue; const r = e.target.getBoundingClientRect(); if (!r.width || !r.height) continue; /* escondida (editor de imagem): não guarda tamanho 0 */ if (!j.preso?.esticar && (Math.abs(r.width - j.w) > 2 || Math.abs(r.height - j.h) > 2)) { j.w = Math.round(r.width); j.h = Math.round(r.height); mud = true; } } Ima.arruma(); if (mud) { clearTimeout(this._tg); this._tg = setTimeout(() => this.grava(), 300); } });
     addEventListener('resize', () => this.cabe()); new ResizeObserver(() => Ima.arruma()).observe($('#atelie .at'));
     this.le(); this.aplica();
   },
+  NO_ED: ['partes', 'imagens', 'lado'], // painéis que continuam no editor de imagem (o resto some; o lugar de cada um é o mesmo)
   // ---------- desenhar o layout guardado ----------
   aplica() {
-    if (!this._ok) return; const st = this.le(), ed = (c) => c.p.includes('lado') ? '' : ' sem-lado';
+    if (!this._ok) return; const st = this.le(), ed = (c) => c.p.some(i => this.NO_ED.includes(i)) ? '' : ' sem-ed'; // no EDITOR DE IMAGEM só ficam Partes, Imagens e o painel da direita
     for (const lado of ['esq', 'dir']) {
       const area = this.area[lado]; $$(':scope > .dock-col', area).forEach(c => c.remove());
       const div = $(':scope > .at-div', area);
@@ -80,7 +81,7 @@ const Paineis = {
       area.classList.toggle('vazia', !st.cols.some(x => x.lado === lado));
     }
     for (const id of st.baixo) if (this.sec[id]) this.baixoEl.appendChild(this.sec[id]);
-    this.baixoEl.classList.toggle('sem-lado', !st.baixo.includes('lado'));
+    this.baixoEl.classList.toggle('sem-ed', !st.baixo.some(i => this.NO_ED.includes(i)));
     $$('.dock-janela', this.soltos).forEach(j => { this.ro.unobserve(j); j.remove(); });
     for (const j of st.jan) {
       const w = h(`<div class="dock-janela${ed(j)}" data-jan="${j.id}" style="left:${j.x}px;top:${j.y}px;width:${j.w}px;height:${j.h}px"><div class="dock-jbar" title="Arraste para mover a janela · o canto de baixo muda o tamanho">${ic('grip', 12)}<span>${j.p.map(i => esc(this.NOMES[i])).join(' · ')}</span></div></div>`);
