@@ -72,7 +72,7 @@ const AoVivoFirebase = {
   presenca(sala, id, d, primeira) { const g = this.r(`salas/${sala}/gente/${id}`); if (primeira) { g.onDisconnect().remove(); return g.set({ ...d, t: this.agora() }); } return g.update(d); },
   ouvirGente(sala, cb) { const r = this.r(`salas/${sala}/gente`); r.on('value', s => cb(s.val() || {})); this.offs.push(() => r.off()); },
   chaveArq: k => k.replace(/[.#$\[\]\/%]/g, c => '%' + c.charCodeAt(0).toString(16)),
-  async putArq(sala, k, b64) { const n = Math.ceil(b64.length / 4e6), o = { n }; for (let i = 0; i < n; i++) o['c' + i] = b64.slice(i * 4e6, (i + 1) * 4e6); await this.r(`salas/${sala}/arq/${this.chaveArq(k)}`).set(o); },
+  async putArq(sala, k, b64) { const n = Math.ceil(b64.length / 4e6), o = { n }; for (let i = 0; i < n; i++) o['c' + i] = b64.slice(i * 4e6, (i + 1) * 4e6); await this.com(this.r(`salas/${sala}/arq/${this.chaveArq(k)}`).set(o), 90000); }, // com prazo: um envio travado não pode parar a fila (as mudanças deixavam de ir)
   async getArq(sala, k) { const o = (await this.com(this.r(`salas/${sala}/arq/${this.chaveArq(k)}`).once('value'), 30000)).val(); if (!o) return null; let s = ''; for (let i = 0; i < o.n; i++) s += o['c' + i] || ''; return s; },
   async sair(sala, id) { for (const f of this.offs.splice(0)) try { f(); } catch { } try { await this.r(`salas/${sala}/gente/${id}`).remove(); const g = (await this.r(`salas/${sala}/gente`).once('value')).val(); if (!g) await this.apagar(sala); } catch { } },
   async apagar(sala) { await this.r(`salas/${sala}`).remove(); await this.r(`lista/${sala}`).remove(); },
@@ -202,12 +202,12 @@ const AoVivo = {
     if (i >= 0 && op.k >= ultima) return this._contaSnap();
     // de outra pessoa: o que está confirmado + as minhas que ainda não voltaram
     const novo = Difs.aplica(JSON.parse(this.confirmado), this.pend.flatMap(x => x.ops));
-    this._fila = this._fila.then(async () => { await this.garanteArqs(this.ad.chaves(novo)); try { await this._backup; } catch { } await this.livre(); if (!this.ativo) return; this._aplicando = true; try { this.ad.set(novo); this.local = JSON.stringify(this.ad.get()); } finally { this._aplicando = false; } }).catch(e => console.warn('ao vivo', e)); // um erro não pode travar a fila (as próximas mudanças pararam de chegar)
+    this._fila = this._fila.then(async () => { await this.garanteArqs(this.ad.chaves(novo), this._trocaFim ? Infinity : 4000); try { await this._backup; } catch { } await this.livre(); if (!this.ativo) return; this._aplicando = true; try { this.ad.set(novo); this.local = JSON.stringify(this.ad.get()); } finally { this._aplicando = false; } }).catch(e => console.warn('ao vivo', e)); // um erro não pode travar a fila (as próximas mudanças pararam de chegar)
     if (op.por !== this.eu.id && op.r) { this.atividade(op.nome, op.r); this.anota(op.por, op.nome, op.r); }
     this._contaSnap();
   },
   // no meio de um arrasto/traço (ou com a IA trabalhando) a mudança de fora espera: senão o traço iria para um objeto que já foi trocado
-  async livre() { let n = 0; while ((this._gesto || (window.Ocupado && Ocupado.n > (this._trocaFim ? 1 : 0))) && n++ < 1200) await new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => setTimeout(r, 40); c.port2.postMessage(0); }); },
+  async livre() { let n = 0; while (((this._gesto && Date.now() - (this._gestoT || 0) < 20000) || (typeof Ocupado !== 'undefined' && Ocupado.n > (this._trocaFim ? 1 : 0) && n < 500)) && n++ < 1500) /* arrasto “preso” (soltou fora da janela) não segura as mudanças para sempre */ await new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => setTimeout(r, 40); c.port2.postMessage(0); }); },
   _contaSnap() { this._n = (this._n || 0) + 1; if (this._n >= 30) this.talvezSnap(); },
   // quem entrou primeiro (que ainda está) guarda o estado de tempos em tempos: quem chega depois carrega rápido
   async talvezSnap() {
@@ -225,15 +225,22 @@ const AoVivo = {
   async emLote(lista, fn, n = 6) { let i = 0; await Promise.all(Array.from({ length: Math.min(n, lista.length) }, async () => { while (i < lista.length) { const x = lista[i++]; try { await fn(x); } catch (e) { console.warn('ao vivo', e); } } })); },
   async subirArqs(chaves, todas) {
     const novas = [...new Set(chaves)].filter(k => k && !this.subidas.has(k)); let n = 0; novas.forEach(k => this.subidas.add(k));
-    await this.emLote(novas, async k => { const b = await Arq.pegaBlob(k).catch(() => null); if (!b) return; if (!todas && /^personagens\//.test(k) && this.ad?.ctx === 'atelie' && this._naNuvem?.has(k)) return; await this.t.putArq(this.sala, k, await this.b64(b)); n++; if (novas.length > 3 && window.Ocupado && Ocupado.n) Ocupado.parte(n, novas.length); });
+    await this.emLote(novas, async k => { const b = await Arq.pegaBlob(k).catch(() => null); if (!b) return; if (!todas && /^personagens\//.test(k) && this.ad?.ctx === 'atelie' && this._naNuvem?.has(k)) return; await this.t.putArq(this.sala, k, await this.b64(b)); n++; if (novas.length > 3 && typeof Ocupado !== 'undefined' && Ocupado.n) Ocupado.parte(n, novas.length); });
     return n;
   },
-  async garanteArqs(chaves) {
-    const faltam = []; for (const k of [...new Set(chaves)].filter(Boolean)) { this.subidas.add(k); if (!(await Arq.pegaBlob(k).catch(() => null))) faltam.push(k); }
+  // as imagens que faltam neste computador: baixa (6 de cada vez). RÁPIDO: o que já se sabe que está aqui não é conferido de novo (antes
+  // cada mudança relia TODAS as imagens do personagem no banco, uma por uma, e as mudanças de fora iam se acumulando atrasadas);
+  // o que não deu para baixar não é tentado de novo em cada mudança (só depois de 1 min); cada download tem prazo.
+  async garanteArqs(chaves, espera = Infinity) {
+    const tem = this._tem || (this._tem = new Set()), falhou = this._falhou || (this._falhou = new Map()), agora = Date.now(), faltam = [];
+    for (const k of [...new Set(chaves)].filter(Boolean)) { if (tem.has(k)) continue; this.subidas.add(k); if (Arq.img.get(k) || await Arq.pegaBlob(k).catch(() => null)) { tem.add(k); continue; } if (agora - (falhou.get(k) || 0) > 60000) faltam.push(k); }
+    if (!faltam.length) return;
     let feitas = 0; const conta = () => { if (faltam.length > 3 && this._trocaFim) { Ocupado.passo('Baixando as imagens da versão nova…'); Ocupado.parte(feitas, faltam.length); } };
-    conta(); await this.emLote(faltam, async k => {
-      let b = null; try { const s = await this.t.getArq(this.sala, k); if (s) b = this.doB64(s); } catch { } if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null);
-      if (b) { await Arq.guardar(b, k); if (/^image\//.test(b.type) || /\.(png|webp|jpe?g|gif)$/i.test(k)) Arq.img.set(k, await createImageBitmap(b).catch(() => null)); } feitas++; conta(); });
+    const prazo = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+    conta(); const tudo = this.emLote(faltam, async k => {
+      let b = null; try { const s = await prazo(this.t.getArq(this.sala, k), 30000); if (s) b = this.doB64(s); } catch { } if (!b && /^personagens\//.test(k)) b = await prazo(Nuvem.baixar(k).catch(() => null), 30000);
+      if (b) { await Arq.guardar(b, k); if (/^image\//.test(b.type) || /\.(png|webp|jpe?g|gif)$/i.test(k)) Arq.img.set(k, await createImageBitmap(b).catch(() => null)); tem.add(k); falhou.delete(k); this.ad?.redesenha?.(); } else falhou.set(k, Date.now()); feitas++; conta(); });
+    await (espera === Infinity ? tudo : Promise.race([tudo, new Promise(r => setTimeout(r, espera))])); // mudança de fora: espera as imagens no máximo uns segundos; o resto chega e aparece depois
   },
   // ---------- cursores e quem está junto ----------
   // os outros: UMA entrada por conta (a mesma pessoa em duas abas ou uma sobra de quando recarregou = a que mexeu por último), e a minha própria conta em outra aba não aparece
@@ -321,7 +328,7 @@ const AoVivo = {
     const ligaPalcos = () => {
       for (const [c, ctx, mundo] of [[Atelie.cv, 'atelie', e => Atelie.mundo(e)], [App.palco?.cv, 'animador', e => App.palco.paraMundo(e)]]) { if (!c || c._aovivo) continue; c._aovivo = true;
         c.addEventListener('pointermove', e => { if (this.ativo && this.ad?.ctx === ctx) { const w = mundo(e); this.cursor(w.x, w.y); } });
-        c.addEventListener('pointerdown', () => { this._gesto = true; }, true); }
+        c.addEventListener('pointerdown', () => { this._gesto = true; this._gestoT = Date.now(); }, true); }
     };
     addEventListener('pointerup', () => { this._gesto = false; }, true); addEventListener('pointercancel', () => { this._gesto = false; }, true);
     ligaPalcos(); setInterval(ligaPalcos, 1500); addEventListener('resize', () => { clearTimeout(this._rz); this._rz = setTimeout(() => this.ativo && this.pintaBarra(), 150); }); // cabem 3 ou 4 fotos conforme a tela
