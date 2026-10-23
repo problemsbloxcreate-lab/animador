@@ -58,7 +58,7 @@ const AtelieArq = {
       Modelo.garanteVistas?.(d); d.vistas.push(...velhas); await Arq.garantir(Modelo.chavesImgs(d)).catch(() => { });
       Atelie.def = d; Atelie.sel = d.raiz || d.partes[0]?.id || null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = null; if (Atelie.edImg) Atelie.fecharEditor(); Atelie.multi?.clear();
       Atelie.commit(); Atelie.enquadrar?.();
-      if (AoVivo.ativo) { Ocupado.passo('Mandando para quem está junto…'); try { await AoVivo._fila; } catch { } AoVivo.avisaTroca({ estado: 'feito', arquivo: f.name }); }
+      if (AoVivo.ativo) { Ocupado.passo('Mandando para quem está junto…'); try { await AoVivo._fila; } catch { } const snap = await AoVivo.fixaSala?.(); AoVivo.avisaTroca({ estado: 'feito', arquivo: f.name, snap: !!snap }); }
       t.remove();
       UI.toast(`<b>${esc(atual.nome)}</b> agora é a versão do arquivo.${Atelie.naNuvem ? ' A nuvem está sendo atualizada.' : ''} A de antes ficou em <b>${esc(atual.nome)} (anterior)</b>, só neste computador (Ctrl+Z também volta).`, { kind: 'ok', time: 8000 });
     } catch (e) { t.remove(); AoVivo.avisaTroca?.({ estado: 'cancelado', arquivo: f.name }); UI.toast('Não consegui substituir: ' + esc(e.message), { kind: 'err', time: 7000 }); }

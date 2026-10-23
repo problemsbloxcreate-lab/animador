@@ -106,9 +106,9 @@ const Modelo = {
     for (const c of ['partes', 'sessoes', 'animacoes']) if (def[c] && !Array.isArray(def[c])) def[c] = lista(def[c]);
     if (def.vistas?.length) {
       const vistos = new Set(); def.vistas = def.vistas.filter(v => v && typeof v === 'object');
-      for (const v of def.vistas) { if (!v.id || vistos.has(v.id)) v.id = uid('vi'); vistos.add(v.id); for (const c of ['partes', 'sessoes', 'animacoes']) if (v[c] && !Array.isArray(v[c])) v[c] = lista(v[c]); }
+      let n = 0; for (const v of def.vistas) { n++; if (!v.id || vistos.has(v.id)) { let id = (v.id || 'vi') + '-' + n; while (vistos.has(id)) id += 'x'; v.id = id; } vistos.add(v.id); /* id novo SEM sorteio: ao vivo todos consertam igual */ for (const c of ['partes', 'sessoes', 'animacoes']) if (v[c] && !Array.isArray(v[c])) v[c] = lista(v[c]); }
       if (!def.vistas.some(v => v.id === def.vistaAtual)) { // a ativa sumiu: é a entrada sem partes (a da ativa só tem id/nome/tipo); se não houver, vira uma vista nova
-        const vazia = def.vistas.find(v => !v.partes); if (vazia) def.vistaAtual = vazia.id; else { const id = uid('vi'); def.vistas.unshift({ id, nome: 'Vista', tipo: 'frente' }); def.vistaAtual = id; } }
+        const vazia = def.vistas.find(v => !v.partes); if (vazia) def.vistaAtual = vazia.id; else { let id = def.vistaAtual || 'vi-ativa'; while (vistos.has(id)) id += 'x'; def.vistas.unshift({ id, nome: 'Vista', tipo: 'frente' }); def.vistaAtual = id; } }
       return def;
     }
     const t = /tr[eê]s.?quartos|3\/4/i.test(def.nome || '') ? 'tres-quartos' : /\blado\b|perfil/i.test(def.nome || '') ? 'lado' : /costas/i.test(def.nome || '') ? 'costas' : 'frente';

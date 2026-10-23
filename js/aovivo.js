@@ -140,6 +140,20 @@ const AoVivo = {
   // ---------- TROCAR O PERSONAGEM PELO ARQUIVO (.atelieanimador) com gente junto ----------
   // quem soltou o arquivo decide; os outros veem o aviso, a tela de espera, e cada um guarda a cópia de antes no próprio computador
   avisaTroca(o) { if (!this.ativo || this.ad?.ctx !== 'atelie') return; try { return this.t.setMeta(this.sala, { troca: { ...o, por: this.eu.id, nome: this.eu.nome, t: Date.now() } }); } catch { } },
+  // depois de uma troca grande (arquivo inteiro): quem trocou grava o estado INTEIRO como foto da sala e os outros recarregam dela.
+  // Assim ninguém fica com uma versão diferente se o "antes" de alguém já estava diferente (era o que deixava quem soltou com a tela vazia).
+  async fixaSala() {
+    if (!this.ativo) return false; for (let n = 0; this.pend.length && n < 150; n++) await new Promise(r => setTimeout(r, 100)); // as minhas mudanças voltaram confirmadas
+    const ate = this.log.length ? this.log[this.log.length - 1].k : this.ate; this.local = JSON.stringify(this.ad.get());
+    try { await this.t.setSnap(this.sala, { j: this.local, ate: ate || '', t: Date.now() }); this.base = this.confirmado = this.local; this.ate = ate || ''; this.log = []; this._n = 0; return true; } catch (e) { console.warn('ao vivo', e); return false; }
+  },
+  async ressinc() {
+    if (!this.ativo) return; const st = await this.t.estado(this.sala); if (!st.snap) return;
+    this.base = st.snap.j; this.ate = st.snap.ate || ''; this.log = (st.ops || []).map(op => ({ k: op.k, ops: JSON.parse(op.j || '[]') })).filter(x => !this.ate || x.k > this.ate);
+    let c = Difs.aplica(JSON.parse(this.base), this.log.flatMap(x => x.ops)); if (this.ad.canon) c = this.ad.canon(c); this.confirmado = JSON.stringify(c);
+    const novo = Difs.aplica(JSON.parse(this.confirmado), this.pend.flatMap(x => x.ops)); await this.garanteArqs(this.ad.chaves(novo));
+    this._aplicando = true; try { this.ad.set(novo); this.local = JSON.stringify(this.ad.get()); } finally { this._aplicando = false; }
+  },
   async recebeTroca(x) {
     if (!x || !this.ativo || x.por === this.eu?.id || x.t === this._trocaT) return; this._trocaT = x.t;
     if (['pergunta', 'trocando'].includes(x.estado) && Math.abs(Date.now() - x.t) > 120000) return; // sobra antiga na sala
@@ -155,7 +169,8 @@ const AoVivo = {
       try { await this._backup; } catch { } Ocupado.passo('Esperando a versão nova chegar…');
       return;
     }
-    if (x.estado === 'feito' && this._trocaFim) { Ocupado.passo('Pondo a versão nova…'); await Promise.race([this._fila.catch(() => { }), new Promise(r => setTimeout(r, 90000))]); } // fica na espera até a versão nova estar na tela
+    if (x.estado === 'feito' && this._trocaFim) { Ocupado.passo('Pondo a versão nova…'); await Promise.race([this._fila.catch(() => { }), new Promise(r => setTimeout(r, 90000))]); }
+    if (x.estado === 'feito' && x.snap) { try { await this.ressinc(); } catch (e) { console.warn('ao vivo', e); } } // pega a versão inteira de quem trocou (igualzinha) // fica na espera até a versão nova estar na tela
     this._trocaFim?.(); this._trocaFim = null; clearTimeout(this._trocaTo);
     if (x.estado === 'feito') UI.toast(`<b>${quem}</b> trocou <b>${nome}</b> pelo arquivo <b>${esc(x.arquivo || '')}</b>. A versão de antes ficou em <b>${nome} (anterior)</b>, neste computador.`, { kind: 'ok', time: 9000 });
     else if (x.estado === 'cancelado') UI.toast(`<b>${quem}</b> não trocou o personagem pelo arquivo.`, { time: 3500 });
