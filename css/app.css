@@ -843,3 +843,4 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .ferr-at.lado-cima>i,.ferr-at.lado-baixo>i{width:1px;height:auto;margin:4px 3px}
 .ferr-at.lado-cima .fb-pega,.ferr-at.lado-baixo .fb-pega{height:auto;width:12px}
 .ferr-at.arrastando{opacity:.75;transition:none}
+.at-ed-resto input[type=range]{width:80px;margin-left:4px}.at-ed-resto output{min-width:32px;font-variant-numeric:tabular-nums;color:var(--tx3)}
