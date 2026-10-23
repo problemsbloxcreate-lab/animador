@@ -25,7 +25,7 @@ const Paineis = {
     const o = { cols: [], baixo: [], jan: [] };
     for (const c of s.cols || []) { const p = f(c.p); if (p.length) o.cols.push({ id: String(c.id || uid('c')), lado: c.lado === 'dir' ? 'dir' : 'esq', w: clamp(+c.w || 280, 190, 620), p }); }
     o.baixo = f(s.baixo);
-    for (const j of s.jan || []) { const p = f(j.p); if (p.length) o.jan.push({ id: String(j.id || uid('j')), x: +j.x || 80, y: +j.y || 80, w: +j.w || 300, h: +j.h || 360, p }); }
+    for (const j of s.jan || []) { const p = f(j.p); if (p.length) o.jan.push({ id: String(j.id || uid('j')), x: +j.x || 80, y: +j.y || 80, w: +j.w || 300, h: +j.h || 360, p, ...(j.preso?.alvo ? { preso: { alvo: String(j.preso.alvo), lado: j.preso.lado, off: +j.preso.off || 0, esticar: !!j.preso.esticar } } : {}) }); }
     // quem sumiu (painel novo numa versão nova) volta para o lugar de sempre
     const pad = this.padraoSt();
     for (const i of ids) if (!vistos.has(i)) { if (pad.baixo.includes(i)) { o.baixo.push(i); continue; } const pc = pad.cols.find(c => c.p.includes(i)); let c = o.cols.find(x => x.lado === pc.lado); if (!c) { c = { ...pc, p: [] }; pc.lado === 'esq' ? o.cols.unshift(c) : o.cols.push(c); } c.p.push(i); }
@@ -60,8 +60,8 @@ const Paineis = {
     // a timeline pode sair de baixo do palco: o palco desconta só o que está na faixa de baixo
     if (window.Linha && !Linha._dock) { Linha._dock = true; Linha.altura = () => { const p = $('.at-palco'); if (!p) return; const hgt = this.baixoEl.offsetHeight; if (p._tl === hgt) return; const primeira = p._tl0 === undefined; p._tl = p._tl0 = hgt; p.style.setProperty('--tl', hgt + 'px'); Atelie.tamanho?.(); if (primeira) Atelie.enquadrar?.(); }; }
     new ResizeObserver(() => Linha?.altura?.()).observe(this.baixoEl);
-    this.ro = new ResizeObserver(ents => { let mud = false; for (const e of ents) { const j = this.st.jan.find(x => x.id === e.target.dataset.jan); if (!j || !e.target.isConnected) continue; const r = e.target.getBoundingClientRect(); if (Math.abs(r.width - j.w) > 2 || Math.abs(r.height - j.h) > 2) { j.w = Math.round(r.width); j.h = Math.round(r.height); mud = true; } } if (mud) { clearTimeout(this._tg); this._tg = setTimeout(() => this.grava(), 300); } });
-    addEventListener('resize', () => this.cabe());
+    this.ro = new ResizeObserver(ents => { let mud = false; for (const e of ents) { const j = this.st.jan.find(x => x.id === e.target.dataset.jan); if (!j || !e.target.isConnected) continue; const r = e.target.getBoundingClientRect(); if (!j.preso?.esticar && (Math.abs(r.width - j.w) > 2 || Math.abs(r.height - j.h) > 2)) { j.w = Math.round(r.width); j.h = Math.round(r.height); mud = true; } } Ima.arruma(); if (mud) { clearTimeout(this._tg); this._tg = setTimeout(() => this.grava(), 300); } });
+    addEventListener('resize', () => this.cabe()); new ResizeObserver(() => Ima.arruma()).observe($('#atelie .at'));
     this.le(); this.aplica();
   },
   // ---------- desenhar o layout guardado ----------
@@ -83,9 +83,16 @@ const Paineis = {
     for (const j of st.jan) {
       const w = h(`<div class="dock-janela${ed(j)}" data-jan="${j.id}" style="left:${j.x}px;top:${j.y}px;width:${j.w}px;height:${j.h}px"><div class="dock-jbar" title="Arraste para mover a janela · o canto de baixo muda o tamanho">${ic('grip', 12)}<span>${j.p.map(i => esc(this.NOMES[i])).join(' · ')}</span></div></div>`);
       for (const id of j.p) if (this.sec[id]) w.appendChild(this.sec[id]);
-      this.moveJanela(j, $('.dock-jbar', w), w); this.soltos.appendChild(w); this.ro.observe(w);
+      this.moveJanela(j, $('.dock-jbar', w), w); $('.dock-jbar', w).oncontextmenu = e => Ima.menu(e, j.preso, v => { j.preso = v; this.grava(); this.aplica(); }); this.soltos.appendChild(w); this.ro.observe(w);
     }
-    this.cabe(); this.pintaBotao(); Linha?.altura?.(); requestAnimationFrame(() => { Atelie.tamanho?.(); Linha?.altura?.(); });
+    this.cabe(); this.pintaBotao(); Linha?.altura?.(); requestAnimationFrame(() => { Atelie.tamanho?.(); Linha?.altura?.(); Ima.arruma(); });
+  },
+  // janelas GRUDADAS em outra coisa (js/ima.js): ficam no lugar dela (e andam junto quando ela anda)
+  posPresos() {
+    for (const j of this.st?.jan || []) { if (!j.preso) continue; const w = $(`.dock-janela[data-jan="${j.id}"]`, this.soltos); if (!w) continue;
+      if (!j.preso.esticar) { w.style.height = j.h + 'px'; w.style.width = j.w + 'px'; }
+      const o = Ima.pos(j.preso, w.offsetWidth, w.offsetHeight); if (!o) continue; // onde grudou está escondido/sumiu: fica onde estava
+      j.x = Math.round(o.x); j.y = Math.round(o.y); w.style.left = j.x + 'px'; w.style.top = j.y + 'px'; if (j.preso.esticar) { if (j.preso.lado === 'esq' || j.preso.lado === 'dir') w.style.height = o.h + 'px'; else w.style.width = o.w + 'px'; } }
   },
   cabe() { for (const j of this.st?.jan || []) { const x = clamp(j.x, 0, Math.max(0, innerWidth - 120)), y = clamp(j.y, 46, Math.max(46, innerHeight - 60)); if (x !== j.x || y !== j.y) { j.x = x; j.y = y; const w = $(`.dock-janela[data-jan="${j.id}"]`, this.soltos); if (w) { w.style.left = x + 'px'; w.style.top = y + 'px'; } } } },
   bordaCol(c, b, lado) {
@@ -108,7 +115,11 @@ const Paineis = {
         for (const v of ys) for (const [ed, off] of [[y, 0], [y + H, H]]) if (Math.abs(ed - v) < my) { my = Math.abs(ed - v); by = v - off; } return [Math.round(bx), Math.round(Math.max(top, by))]; };
       const mov = ev => {
         alvo = this.acha(ev.clientX, ev.clientY, j.p[0], dx, dy, j.id);
-        if (alvo.solto) { [j.x, j.y] = ima(ev.clientX - dx, ev.clientY - dy); w.style.left = j.x + 'px'; w.style.top = j.y + 'px'; w.classList.remove('vai-grudar'); linha.style.display = 'none'; }
+        if (alvo.solto) { [j.x, j.y] = ima(ev.clientX - dx, ev.clientY - dy); j.preso = null; w.classList.remove('vai-grudar'); linha.style.display = 'none';
+          // perto da borda de outra janela/coluna/palco: GRUDA nela (e depois anda junto)
+          const exc = new Set(['jan:' + j.id, ...Ima.presos('jan:' + j.id, this.st.jan.map(x => ['jan:' + x.id, x.preso]))]), p = Ima.acha({ left: j.x, top: j.y, right: j.x + w.offsetWidth, bottom: j.y + w.offsetHeight }, exc);
+          if (p && p.alvo.startsWith('jan:')) { j.preso = p; this.posPresos(); } else { w.style.left = j.x + 'px'; w.style.top = j.y + 'px'; }
+          Ima.arruma(); }
         else { w.style.left = Math.round(ev.clientX - dx) + 'px'; w.style.top = Math.round(Math.max(46, ev.clientY - dy)) + 'px'; w.classList.add('vai-grudar'); Object.assign(linha.style, { display: 'block', left: alvo.linha.x + 'px', top: alvo.linha.y + 'px', width: alvo.linha.w + 'px', height: alvo.linha.h + 'px' }); }
       };
       const up = () => {
@@ -119,7 +130,7 @@ const Paineis = {
           else if (alvo.jan) st.jan.find(x => x.id === alvo.jan)?.p.splice(alvo.i, 0, ...ps);
           else if (alvo.baixo) st.baixo.splice(alvo.i, 0, ...ps);
           this.limpa(); this.grava(); this.aplica(); Atelie.enquadrar?.(); return; }
-        this.cabe(); this.grava();
+        this.cabe(); this.grava(); Ima.arruma();
       };
       bar.addEventListener('pointermove', mov); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
     });

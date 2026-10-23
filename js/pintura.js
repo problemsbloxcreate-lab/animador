@@ -128,28 +128,32 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
   },
 
   // lugar da barra: { lado: esq|dir|cima|baixo, f: posição ao longo da borda (0..1) }, guardado neste computador
-  // lugar da barra: SOLTA (padrão, como uma janelinha: { lado: 'solto', x, y } em frações do palco) ou GRUDADA numa borda
-  // ({ lado: esq|dir|cima|baixo, f: posição ao longo dela }) quando é solta perto da borda; guardado neste computador
-  lugar() { if (!this._lugar) { try { this._lugar = JSON.parse(localStorage.getItem('animador-ferr-lugar') || 'null'); } catch { } this._lugar ||= { lado: 'solto', x: .012, y: .2 }; } return this._lugar; },
-  lugarBarra(el) {
-    const L = this.lugar(); el.classList.remove('lado-esq', 'lado-dir', 'lado-cima', 'lado-baixo', 'lado-solto'); el.classList.add('lado-' + L.lado);
-    el.style.left = el.style.top = el.style.right = el.style.bottom = '';
-    if (L.lado === 'solto') { el.style.left = `${(L.x * 100).toFixed(2)}%`; el.style.top = `${(L.y * 100).toFixed(2)}%`; }
-    else if (L.lado === 'esq' || L.lado === 'dir') el.style.top = `${Math.round(L.f * 100)}%`;
-    else el.style.left = `${Math.round(L.f * 100)}%`;
+  // lugar da barra (fixa na TELA): SOLTA { x, y } em px — nasce solta, move para qualquer lugar como as janelas — ou GRUDADA
+  // { preso } numa janela solta, numa coluna ou na borda de dentro do palco (js/ima.js; anda junto com a janela de baixo)
+  lugar() { if (!this._lugar) { try { this._lugar = JSON.parse(localStorage.getItem('animador-ferr-lugar') || 'null'); } catch { } if (this._lugar && !('x' in this._lugar) && !this._lugar.preso) this._lugar = null; } return this._lugar; },
+  guardaLugar() { try { localStorage.setItem('animador-ferr-lugar', JSON.stringify(this._lugar)); } catch { } },
+  lugarBarra(el) { this.posBarra(el); },
+  posBarra(el = $('#at-ferr')) {
+    if (!el || el.hidden) return; let L = this.lugar();
+    if (!L) { const p = $('#atelie .at-palco')?.getBoundingClientRect(); if (!p?.width) return; L = this._lugar = { x: Math.round(p.left + 10), y: Math.round(p.top + 110) }; }
+    const deitada = !!L.preso && (L.preso.lado === 'cima' || L.preso.lado === 'baixo'); el.classList.toggle('deitada', deitada); el.classList.toggle('presa', !!L.preso); el.classList.toggle('esticada', !!L.preso?.esticar);
+    el.style.width = el.style.height = ''; let x = L.x, y = L.y;
+    if (L.preso) { const o = Ima.pos(L.preso, el.offsetWidth, el.offsetHeight); if (!o) { el.style.left = clamp(L.x ?? 20, 0, innerWidth - 30) + 'px'; el.style.top = clamp(L.y ?? 120, 0, innerHeight - 30) + 'px'; return; } /* onde grudou está escondido agora: fica onde estava e volta a grudar quando aparecer */ x = o.x; y = o.y; if (L.preso.esticar) { if (deitada) el.style.width = o.w + 'px'; else el.style.height = o.h + 'px'; } L.x = Math.round(x); L.y = Math.round(y); }
+    el.style.left = clamp(x, 0, innerWidth - 30) + 'px'; el.style.top = clamp(y, 0, innerHeight - 30) + 'px';
   },
   alcaBarra(el, pega) {
-    if (!pega) return; pega.onpointerdown = e => {
+    if (!pega) return;
+    pega.onpointerdown = e => {
       if (e.button !== 0) return; e.preventDefault(); pega.setPointerCapture(e.pointerId); el.classList.add('arrastando');
-      const pal = el.parentElement.getBoundingClientRect(), r0 = el.getBoundingClientRect(), gx = e.clientX - r0.left, gy = e.clientY - r0.top, BEIRA = 34;
+      const r0 = el.getBoundingClientRect(), gx = e.clientX - r0.left, gy = e.clientY - r0.top;
       const mov = ev => {
-        const px = ev.clientX - pal.left, py = ev.clientY - pal.top, d = { esq: px, dir: pal.width - px, cima: py, baixo: pal.height - py }, [lado, dist] = Object.entries(d).sort((a, b) => a[1] - b[1])[0];
-        if (dist < BEIRA) this._lugar = { lado, f: clamp(lado === 'esq' || lado === 'dir' ? py / pal.height : px / pal.width, .1, .9) }; // perto da borda: gruda e vira parte dela
-        else { const W = el.offsetWidth, H = el.offsetHeight; this._lugar = { lado: 'solto', x: clamp((px - gx) / pal.width, 0, Math.max(0, (pal.width - W) / pal.width)), y: clamp((py - gy) / pal.height, 0, Math.max(0, (pal.height - H) / pal.height)) }; }
-        this.lugarBarra(el); };
-      const up = () => { pega.onpointermove = null; pega.onpointerup = null; el.classList.remove('arrastando'); try { localStorage.setItem('animador-ferr-lugar', JSON.stringify(this._lugar)); } catch { } };
+        const solto = { x: Math.round(ev.clientX - gx), y: Math.round(ev.clientY - gy) }; this._lugar = solto; el.classList.remove('deitada', 'presa', 'esticada'); el.style.width = el.style.height = '';
+        const w = el.offsetWidth, hh = el.offsetHeight, preso = Ima.acha({ left: solto.x, top: solto.y, right: solto.x + w, bottom: solto.y + hh });
+        this._lugar = preso ? { ...solto, preso } : solto; this.posBarra(el); };
+      const up = () => { pega.onpointermove = null; pega.onpointerup = null; el.classList.remove('arrastando'); this.guardaLugar(); };
       pega.onpointermove = mov; pega.onpointerup = up; pega.onpointercancel = up; };
-    pega.ondblclick = () => { this._lugar = { lado: 'solto', x: .012, y: .2 }; this.lugarBarra(el); try { localStorage.removeItem('animador-ferr-lugar'); } catch { } };
+    pega.oncontextmenu = e => Ima.menu(e, this.lugar()?.preso, v => { const L = this.lugar(); this._lugar = v ? { ...L, preso: v } : { x: L.x, y: L.y }; this.guardaLugar(); this.posBarra(el); });
+    pega.ondblclick = () => { this._lugar = null; try { localStorage.removeItem('animador-ferr-lugar'); } catch { } this.posBarra(el); };
   },
   /* ---------- barra de ferramentas no canto esquerdo do palco (como no Photoshop) ---------- */
   pintaBarra() {
