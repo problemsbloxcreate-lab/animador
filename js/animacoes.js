@@ -37,6 +37,8 @@ const Animacoes = {
     for (const [pid, e] of Object.entries(p.p || {})) { const pt = Atelie.parte(pid); const im = pt?.imgs.find(i => i.id === e.img); out.push((im ? im.nome : pt?.nome || '?') + (e.r ? ` ${e.r > 0 ? '+' : ''}${e.r}°` : '') + (e.x || e.y ? ' ↕' : '')); }
     return out.join(' · ') || '(base)';
   },
+  // as partes que um passo mexe (direto ou pelas poses que ele usa)
+  partesDoPasso(p) { const d = this.def, ids = new Set(Object.keys(p.p || {})); for (const [sid, pid] of Object.entries(p.s || {})) { const s = d.sessoes.find(x => x.id === sid); if (s?.partes?.length) s.partes.forEach(i => ids.add(i)); else Object.keys(s?.presets.find(x => x.id === pid)?.estado || {}).forEach(i => ids.add(i)); } return [...ids]; },
   detalhe(p) {
     const d = this.def, l = [];
     for (const [sid, pid] of Object.entries(p.s || {})) { const s = d.sessoes.find(x => x.id === sid); l.push(`${s?.nome || '?'}: ${s?.presets.find(x => x.id === pid)?.nome || '?'}`); }
@@ -120,6 +122,8 @@ const Animacoes = {
       { label: 'Mover para a posição', icon: 'move', disabled: t.length < 2, sub: t.map((_, j) => ({ label: `${j + 1}º${j === pi ? ' (aqui)' : ''}`, checked: j === pi, disabled: j === pi, action: () => { const [x] = t.splice(pi, 1); t.splice(j, 0, x); this.passo = { t: ti, i: j }; Atelie.commit(); } })) },
       a.trilhas.length > 1 && { label: 'Mover para a trilha', icon: 'layers', sub: a.trilhas.map((tt, j) => ({ label: `Trilha ${j + 1}${j === ti ? ' (esta)' : ''}`, disabled: j === ti, action: () => { const [x] = t.splice(pi, 1); tt.push(x); this.passo = { t: j, i: tt.length - 1 }; Atelie.commit(); } })) },
       ...(itens.length ? ['-', ...itens] : []),
+      '-', { label: 'Citar este passo em mensagens…', icon: 'chat', action: () => Citacao.atelie({ anim: a.id, passo: pi, trilha: ti }) },
+      { label: 'Pedir para a IA mudar este passo…', icon: 'sparkles', action: () => Atelie.ia('animacoes', `Mude SÓ o passo ${pi + 1}${a.trilhas.length > 1 ? ` da trilha ${ti + 1}` : ''} da animação de teste "${a.nome}" (devolva ela inteira com o mesmo nome, o resto igual). Hoje ele tem: ${this.detalhe(p).replace(/\n/g, '; ')}. Quero: `) },
       '-', { label: 'Apagar o passo', icon: 'trash', danger: true, action: () => { t.splice(pi, 1); this.passo = null; Atelie.commit(); } },
     ].filter(Boolean));
   },

@@ -946,37 +946,42 @@ const Atelie = {
     el.appendChild(box);
   },
   // passar o mouse num preset: janelinha em cima do mouse com o desenho daquela pose (zoom nas partes da sessão)
-  previaPreset(b, s, pr) {
+  // janelinha em cima do mouse com um desenho (gera = função que devolve o canvas, rotulo = texto de baixo)
+  previaHover(b, gera, rotulo) {
     let to = null; const fecha = () => { clearTimeout(to); this._prevPr?.remove(); this._prevPr = null; };
-    b.addEventListener('mouseenter', ev => { fecha(); let mx = ev.clientX, my = ev.clientY; b.onmousemove = e => { mx = e.clientX; my = e.clientY; if (this._prevPr) this.posPrevia(this._prevPr, mx, my); };
-      to = setTimeout(async () => { const cv = await this.desenhoPreset(s, pr).catch(() => null); if (!cv || !b.isConnected || !b.matches(':hover')) return;
-        const pop = this._prevPr = h(`<div class="prev-pr"><div class="prev-pr-im"></div><small>${esc(s.nome)} › <b>${esc(pr.nome)}</b></small></div>`); $('.prev-pr-im', pop).appendChild(cv); document.body.appendChild(pop); this.posPrevia(pop, mx, my); }, 220); });
-    b.addEventListener('mouseleave', fecha); b.addEventListener('mousedown', fecha);
+    b.addEventListener('mouseenter', ev => { fecha(); let mx = ev.clientX, my = ev.clientY; b.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; if (this._prevPr) this.posPrevia(this._prevPr, mx, my); });
+      to = setTimeout(async () => { const cv = await gera().catch(() => null); if (!cv || !b.isConnected || !b.matches(':hover') || document.body.classList.contains('arrastando')) return;
+        const pop = this._prevPr = h(`<div class="prev-pr"><div class="prev-pr-im"></div><small>${rotulo}</small></div>`); $('.prev-pr-im', pop).appendChild(cv); document.body.appendChild(pop); this.posPrevia(pop, mx, my); }, 220); });
+    b.addEventListener('mouseleave', fecha); b.addEventListener('mousedown', fecha); b.addEventListener('dragstart', fecha);
   },
+  previaPreset(b, s, pr) { this.previaHover(b, () => this.desenhoPreset(s, pr), `${esc(s.nome)} › <b>${esc(pr.nome)}</b>`); },
   posPrevia(pop, x, y) { const r = pop.getBoundingClientRect(); pop.style.left = clamp(x - r.width / 2, 6, innerWidth - r.width - 6) + 'px'; pop.style.top = (y - r.height - 14 < 50 ? y + 18 : y - r.height - 14) + 'px'; },
-  async desenhoPreset(s, pr) {
-    const def = this.def, chave = JSON.stringify([def.vistaAtual, s.partes, pr.estado, this.ultimo?.length]); this._prevCache ||= new Map(); if (this._prevCache.has(chave)) return this._prevCache.get(chave).cloneNode ? (() => { const o = this._prevCache.get(chave), c = document.createElement('canvas'); c.width = o.width; c.height = o.height; c.getContext('2d').drawImage(o, 0, 0); return c; })() : null;
+  async desenhoPreset(s, pr) { return this.desenhoEstado({ sessoes: { [s.id]: pr.id } }, s.partes?.length ? s.partes : null, true); },
+  // desenho do personagem com estas escolhas ({ sessoes, partes }); destaque = ids das partes que ficam claras (o resto escurece); zoom = só em volta delas
+  async desenhoEstado(escolhas, destaque, zoom) {
+    const def = this.def, chave = JSON.stringify([def.vistaAtual, escolhas, destaque, zoom, this.ultimo?.length]); this._prevCache ||= new Map();
+    const copia = o => { const c = document.createElement('canvas'); c.width = o.width; c.height = o.height; c.getContext('2d').drawImage(o, 0, 0); return c; };
+    if (this._prevCache.has(chave)) return copia(this._prevCache.get(chave));
     await Arq.garantir(Modelo.chavesImgs(def)).catch(() => { });
-    const est = Modelo.partesNoEstado(def, { sessoes: { [s.id]: pr.id } }), itens = Modelo.montar(def, est).filter(it => it.img && Arq.img.get(it.img.k));
-    const caixa = ids => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const it of itens) { if (ids && !ids.has(it.parte.id)) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
+    const est = Modelo.partesNoEstado(def, escolhas), itens = Modelo.montar(def, est).filter(it => it.img && Arq.img.get(it.img.k));
+    const ids = destaque?.length ? new Set([...destaque, ...def.partes.filter(p => destaque.includes(p.pai)).map(p => p.id)]) : null;
+    const caixa = so => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const it of itens) { if (so && !so.has(it.parte.id)) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
       for (const [a, c] of [[0, 0], [it.img.w, 0], [0, it.img.h], [it.img.w, it.img.h]]) { const q = it.m.transformPoint(new DOMPoint(a - px + (it.img.ajuste?.x || 0), c - py + (it.img.ajuste?.y || 0))); x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); } }
       return x1 > x0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null; };
     const tudo = caixa(null); if (!tudo) return null;
-    // sessão de algumas partes: zoom nelas (com folga); sessão do corpo todo: o personagem inteiro
-    let b = s.partes?.length ? caixa(new Set([...s.partes, ...def.partes.filter(p => s.partes.includes(p.pai)).map(p => p.id)])) : null;
+    let b = zoom && ids ? caixa(ids) : null;
     if (b) { const m = Math.max(b.w, b.h) * .45 + 20, cx = b.x + b.w / 2, cy = b.y + b.h / 2, l = Math.max(b.w, b.h) + m * 2; b = { x: cx - l / 2, y: cy - l / 2, w: l, h: l }; } else b = tudo;
     const L = 190, k = Math.min(L / b.w, L / b.h), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(b.w * k)); cv.height = Math.max(1, Math.round(b.h * k));
     const x = cv.getContext('2d'), base = new DOMMatrix().scale(k).translate(-b.x, -b.y); x.imageSmoothingQuality = 'high';
     const poe = (ctx, it) => { ctx.setTransform(base.multiply(it.m)); ctx.drawImage(Arq.img.get(it.img.k), -(it.img.pivo?.x ?? it.img.w / 2) + (it.img.ajuste?.x || 0), -(it.img.pivo?.y ?? it.img.h / 2) + (it.img.ajuste?.y || 0), it.img.w, it.img.h); };
     for (const it of itens) poe(x, it);
-    // DESTAQUE: o resto do personagem fica escuro e as partes da sessão aparecem claras (só o que está à vista delas: o que fica na frente continua tapando)
-    if (s.partes?.length) {
-      const ids = new Set([...s.partes, ...def.partes.filter(p => s.partes.includes(p.pai)).map(p => p.id)]), hl = document.createElement('canvas'); hl.width = cv.width; hl.height = cv.height; const y = hl.getContext('2d'); y.imageSmoothingQuality = 'high';
+    // DESTAQUE: o resto do personagem fica escuro e as partes indicadas aparecem claras (só o que está à vista delas: o que fica na frente continua tapando)
+    if (ids) {
+      const hl = document.createElement('canvas'); hl.width = cv.width; hl.height = cv.height; const y = hl.getContext('2d'); y.imageSmoothingQuality = 'high';
       for (const it of itens) { y.globalCompositeOperation = ids.has(it.parte.id) ? 'source-over' : 'destination-out'; poe(y, it); }
       x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(0,0,0,.62)'; x.fillRect(0, 0, cv.width, cv.height); x.globalCompositeOperation = 'source-over'; x.drawImage(hl, 0, 0);
     }
-    if (this._prevCache.size > 60) this._prevCache.clear(); this._prevCache.set(chave, cv);
-    const c2 = document.createElement('canvas'); c2.width = cv.width; c2.height = cv.height; c2.getContext('2d').drawImage(cv, 0, 0); return c2;
+    if (this._prevCache.size > 60) this._prevCache.clear(); this._prevCache.set(chave, cv); return copia(cv);
   },
   async novaSessao(nome) {
     const def = this.def, body = h(`<div><label class="field">Nome da sessão<input type="text" value="${esc(nome || '')}" placeholder="Ex.: Olhos, Boca, Perna direita, Pose"></label>
@@ -1208,7 +1213,7 @@ const Atelie = {
   arrumar(s, pr) { Animacoes.parar(true); Animacoes.poseFixa = null; this.editPasso = null; this.teste = null; this.edit = { s: s.id, p: pr.id }; this.aba = 'sessoes'; const p1 = Object.keys(pr.estado || {}).find(id => this.parte(id)); if (p1) this.escolhe(p1); this.pinta(); UI.toast(`Arrumando <b>${esc(s.nome)} › ${esc(pr.nome)}</b>. O que você mexer vale só para este preset.`, { kind: 'ok' }); },
 
   /* ---------- IA no Ateliê: cria um preset novo numa sessão, ou preenche de uma vez os presets que estão vazios ---------- */
-  async ia(modoIni) {
+  async ia(modoIni, pedidoIni) {
     const def = this.def; if (!def.partes.length) return UI.toast('Ponha as partes do personagem antes de usar a IA.', { kind: 'warn' });
     const atual = this.edit?.s || def.sessoes[0]?.id || '';
     const body = h(`<div><label class="field">O que a IA deve fazer<select data-modo>
@@ -1221,7 +1226,7 @@ const Atelie = {
     const modo = $('[data-modo]', body), troca = () => { const m = modo.value; $('[data-so-s]', body).hidden = !['preset', 'vazios'].includes(m);
       $('[data-p]', body).placeholder = { organizar: 'Opcional. Ex.: "a raiz é o corpo", "as bocas são para falar"', animacoes: 'Opcional. Ex.: "andar, falar e acenar feliz"', preset: 'Ex.: olhos de susto, bem abertos · chutando para a frente', vazios: 'Opcional' }[m];
       $('[data-aviso]', body).innerHTML = m === 'organizar' ? 'A IA vê as peças e monta tudo de uma vez. Depois você só ajusta à mão o que precisar (um <b>Ctrl+Z</b> desfaz tudo).' : ''; };
-    modo.value = modoIni || (def.sessoes.length || def.animacoes?.length ? 'preset' : 'organizar'); modo.onchange = troca; troca();
+    modo.value = modoIni || (def.sessoes.length || def.animacoes?.length ? 'preset' : 'organizar'); modo.onchange = troca; troca(); if (pedidoIni) { const ta = $('[data-p]', body); ta.value = pedidoIni; setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 60); }
     const r = await UI.modal({ title: 'IA do Ateliê', icon: 'sparkles', kind: 'ia', width: 520, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Fazer', kind: 'primary ia', icon: 'sparkles', collect: a => ({ modo: modo.value, s: $('[data-s]', a.body).value, pedido: $('[data-p]', a.body).value.trim() }) }] });
     if (!r) return;
     if (r.modo === 'organizar' || r.modo === 'animacoes') return this.iaOrganizar(r.modo, r.pedido);

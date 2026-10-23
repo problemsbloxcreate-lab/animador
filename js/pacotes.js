@@ -166,7 +166,7 @@ const Citacao = {
     if (!def || !this.pode()) return;
     const vi = o.vista || (o.sel || o.anim ? def.vistaAtual : null), vNome = vi && def.vistas?.length > 1 ? Modelo.vistaDe(def, vi)?.nome : null, dv = vi ? Modelo.naVista(def, vi) : def;
     const parte = dv.partes?.find(p => p.id === o.sel), anim = (dv.animacoes || []).find(a => a.id === o.anim);
-    const sub = (anim ? 'Animação de teste: ' + anim.nome : parte ? 'Parte: ' + parte.nome : o.vista ? 'Vista inteira' : `Personagem inteiro · ${def.partes?.length || 0} partes${def.vistas?.length > 1 ? ` · ${def.vistas.length} vistas` : ''}`) + (vNome ? ` · vista ${vNome}` : '');
+    const sub = (anim ? 'Animação de teste: ' + anim.nome + (o.passo != null ? ` · passo ${o.passo + 1}${(anim.trilhas?.length || 0) > 1 ? ` (trilha ${(o.trilha || 0) + 1})` : ''}` : '') : parte ? 'Parte: ' + parte.nome : o.vista ? 'Vista inteira' : `Personagem inteiro · ${def.partes?.length || 0} partes${def.vistas?.length > 1 ? ` · ${def.vistas.length} vistas` : ''}`) + (vNome ? ` · vista ${vNome}` : '');
     const base = { prog: 'Animador · Ateliê', titulo: def.nome, sub, mini: def.thumb || o.thumb, parte: { tipo: 'personagem', sel: anim ? null : o.sel || null, anim: anim?.id || null, vista: vi || null } };
     if (o.nuvem) return EstudioConta.citar({ ...base, url: '/animador/?atelie=' + encodeURIComponent(def.id) });
     EstudioConta.citar({ ...base, abrir: '/animador/', nomeArquivo: safeName(def.nome) + AtelieArq.EXT,
