@@ -89,7 +89,7 @@ const AoVivo = {
   async quem() {
     if (this.eu) return this.eu; let aba; try { aba = sessionStorage.getItem('animador-aovivo-aba') || (sessionStorage.setItem('animador-aovivo-aba', aba = Math.random().toString(36).slice(2, 8)), aba); } catch { aba = Math.random().toString(36).slice(2, 8); }
     const p = await TurmaAuth.perfil?.().catch(() => null), base = TurmaAuth.fb?.currentUser?.uid || (await Autores.eu().catch(() => null))?.codigo || 'pessoa', h = [...base].reduce((s, c) => s * 31 + c.charCodeAt(0) >>> 0, 7);
-    return (this.eu = { id: (base + '-' + aba).replace(/[.#$\[\]\/]/g, ''), nome: p?.nome || 'Alguém', foto: await Autores.miniFoto(p?.foto).catch(() => null), cor: this.CORES[h % this.CORES.length] }); // foto própria (/conta/foto) só abre para a própria pessoa: vai pequena dentro (64 px)
+    return (this.eu = { id: (base + '-' + aba).replace(/[.#$\[\]\/]/g, ''), conta: String(base).replace(/[.#$\[\]\/]/g, ''), nome: p?.nome || 'Alguém', foto: await Autores.miniFoto(p?.foto).catch(() => null), cor: this.CORES[h % this.CORES.length] }); // foto própria (/conta/foto) só abre para a própria pessoa: vai pequena dentro (64 px)
   },
   // ---------- entrar numa sala ----------
   // ad (adaptador): { ctx:'atelie'|'animador', sala, get(), set(doc), chaves(doc), redesenha(), nome }
@@ -125,7 +125,7 @@ const AoVivo = {
     t.ouvirOps(this.sala, this.log.length ? this.log[this.log.length - 1].k : this.ate, op => this.recebe(op));
     t.ouvirGente(this.sala, g => { this.gente = g; this.pintaBarra(); this.ad?.redesenha(); });
     t.ouvirMeta?.(this.sala, m => this.meta(m));
-    await t.presenca(this.sala, eu.id, { nome: eu.nome, foto: eu.foto, cor: eu.cor, onde: ad.ctx, fazendo: '', afk: false }, true); this._afk = false; this._mexeu = Date.now();
+    await t.presenca(this.sala, eu.id, { nome: eu.nome, foto: eu.foto, cor: eu.cor, onde: ad.ctx, fazendo: '', afk: false, conta: eu.conta, u: Date.now() }, true); this._afk = false; this._mexeu = Date.now();
     if (o.meta) await t.setMeta(this.sala, o.meta);
     this.liga(); this.pintaBarra(); clearInterval(this._iv); this._iv = setInterval(() => this.talvezSnap(), 20000);
     return true;
@@ -193,8 +193,14 @@ const AoVivo = {
       if (b) { await Arq.guardar(b, k); if (/^image\//.test(b.type) || /\.(png|webp|jpe?g|gif)$/i.test(k)) Arq.img.set(k, await createImageBitmap(b).catch(() => null)); } }
   },
   // ---------- cursores e quem está junto ----------
-  outros() { return Object.entries(this.gente).filter(([id, g]) => id !== this.eu?.id && g && g.onde === this.ad?.ctx).map(([id, g]) => ({ id, ...g })); },
-  cursor(x, y, extra = {}) { if (!this.ativo) return; const t = performance.now(); this._cur = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, ...extra }; if (t - (this._curT || 0) < 70) { clearTimeout(this._curTo); this._curTo = setTimeout(() => this.cursor(this._cur.x, this._cur.y, extra), 80); return; } this._curT = t; this.t.presenca(this.sala, this.eu.id, this._cur); },
+  // os outros: UMA entrada por conta (a mesma pessoa em duas abas ou uma sobra de quando recarregou = a que mexeu por último), e a minha própria conta em outra aba não aparece
+  outros() {
+    const por = new Map();
+    for (const [id, g] of Object.entries(this.gente)) { if (id === this.eu?.id || !g || g.onde !== this.ad?.ctx) continue; const c = g.conta || id.replace(/-[a-z0-9]{6}$/, ''); if (c === this.eu?.conta) continue;
+      const v = por.get(c), t = g.afk ? -1 : (g.u || g.t || 0); if (!v || t > v._t) por.set(c, { id, ...g, _t: t }); }
+    return [...por.values()];
+  },
+  cursor(x, y, extra = {}) { if (!this.ativo) return; const t = performance.now(); this._cur = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, ...extra }; if (t - (this._curT || 0) < 70) { clearTimeout(this._curTo); this._curTo = setTimeout(() => this.cursor(this._cur.x, this._cur.y, extra), 80); return; } this._curT = t; this.t.presenca(this.sala, this.eu.id, { ...this._cur, u: Date.now() }); },
   // cursores dos outros: numa camada por cima de TUDO (painéis, janelas), na posição do palco
   desenha(ctx, V) {
     const lay = this._lay || (this._lay = document.body.appendChild(h('<div class="av-cursores" aria-hidden="true"></div>'))), vivos = new Set();

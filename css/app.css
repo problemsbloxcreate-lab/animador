@@ -799,3 +799,12 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .tl-c{position:relative;cursor:grab}.tl-c:active{cursor:grabbing}
 .tl-c .tl-pega{position:absolute;right:2px;top:3px;color:var(--tx3);opacity:.5;display:grid;place-items:center;pointer-events:none}
 .tl-c:hover .tl-pega{opacity:.9}
+/* lista de partes num keyframe: aviso de qual é e as partes mudadas só nele */
+.kf-aviso{display:flex;gap:7px;align-items:flex-start;margin:6px 8px;padding:6px 9px;border-radius:8px;background:#17273a;border:1px solid #2f5b86;color:#cfe5fb;font-size:11.5px;line-height:1.4}
+.kf-aviso svg{flex:none;margin-top:1px}.kf-aviso span{min-width:0}.kf-aviso .kf-t{margin-left:4px}
+.kf-t{display:inline-block;font-style:normal;font-size:9.5px;font-weight:700;padding:0 5px;border-radius:5px;line-height:15px;vertical-align:1px}
+.kf-t.z{background:rgba(192,139,255,.22);color:#d9bfff;border:1px solid rgba(192,139,255,.55)}
+.kf-t.pos{background:rgba(25,211,240,.15);color:#9ff0ff;border:1px solid rgba(25,211,240,.5)}
+.kf-tags{display:flex;gap:3px;margin-left:auto;flex:none}
+.at-partes .no.kf-mud{background:rgba(25,211,240,.08);box-shadow:inset 3px 0 0 #19d3f0}
+.at-partes .no.kf-mud.kf-z{background:rgba(192,139,255,.10);box-shadow:inset 3px 0 0 #c08bff}
