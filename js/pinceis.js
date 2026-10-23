@@ -92,7 +92,7 @@ Object.assign(Pintura, {
     const up = async ev => { if (acabou) return; acabou = true;
       for (const [t, f] of [['pointermove', mov], ['pointerup', up], ['pointercancel', up], ['lostpointercapture', up]]) Atelie.cv.removeEventListener(t, f);
       const raw = ev && ev.type === 'pointerup' ? a.para(Atelie.mundo(ev)) : null; if (raw) ponto(raw, pAnt); junta(); // fecha o traço onde a caneta saiu (a suavização não deixa ele curto)
-      this._ultimo = { k: a.img.id, pt: raw || liso }; Arq.img.set(k0, orig); let ok = false; try { ok = await grava(cv); } finally { Arq.img.set(k0, orig); } if (ok) Atelie.commit(); else Atelie.desenha(); };
+      this._ultimo = { k: a.img.id, pt: raw || liso }; vivo(cv); let ok = false; try { ok = await grava(cv); } finally { Arq.img.set(k0, orig); } if (ok) Atelie.commit(); else Atelie.desenha(); }; // enquanto grava, a prévia continua na tela (voltar a original antes piscava a imagem de antes); depois k0 volta a ser a original
     Atelie.cv.addEventListener('pointermove', mov); Atelie.cv.addEventListener('pointerup', up); Atelie.cv.addEventListener('pointercancel', up); Atelie.cv.addEventListener('lostpointercapture', up);
   },
 

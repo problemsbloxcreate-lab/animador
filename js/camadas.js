@@ -94,7 +94,7 @@ const Camadas = {
     $('[data-m]', op).onchange = ev => { c.modo = ev.target.value; this.mudou(img); };
     // prévia da opacidade por cima da imagem final; ao soltar, a de antes volta a ser a original (senão o Ctrl+Z mostraria a prévia)
     $('[data-o]', op).oninput = ev => { op._orig ??= [img.k, Arq.img.get(img.k)]; c.op = +ev.target.value / 100; $('output', op).textContent = ev.target.value + '%'; Arq.img.set(img.k, this.compoe(img)); Atelie.desenha(); };
-    $('[data-o]', op).onchange = () => { if (op._orig?.[1]) Arq.img.set(op._orig[0], op._orig[1]); op._orig = null; this.mudou(img); };
+    $('[data-o]', op).onchange = async () => { const o = op._orig; op._orig = null; try { await this.achata(img); } finally { if (o?.[1]) Arq.img.set(o[0], o[1]); } Atelie.commit(); }; // a prévia fica até a imagem nova estar pronta (sem piscar)
     box.appendChild(op);
     const outras = Atelie.def.partes.flatMap(p => p.imgs.filter(i => i !== img).map(i => ({ p, i })));
     const bar = h(`<div class="cam-bar"><button class="btn sm" data-n title="Camada vazia">${ic('plus', 12)} Camada</button><button class="btn sm" data-f title="Uma imagem do computador vira camada">${ic('upload', 12)} Imagem…</button><button class="btn sm" data-o2 title="Outra imagem do personagem vira camada" ${outras.length ? '' : 'disabled'}>${ic('image', 12)} Do personagem</button><button class="btn sm" data-a title="Junta tudo: volta a ser uma imagem só">Juntar tudo</button></div>`);

@@ -8,7 +8,7 @@ const Ajustes = {
   alvo() { const a = Pintura.alvo(); if (!a) { UI.toast('Escolha uma parte com imagem (aba Pintar e cores).', { kind: 'warn' }); return null; } return { ...a, mask: Pintura.mascara?.(a) || null }; },
   mostra(a, cv) { if (a.vivo) a.vivo(cv); else Arq.img.set(a.img.k, cv); Atelie.desenha(); },
   volta(a) { Arq.img.set(a.img.k, a.orig || a.bm); Atelie.desenha(); },
-  async grava(a, cv) { Arq.img.set(a.img.k, a.orig || a.bm); await Pintura.gravar(a.img, cv); Atelie.commit(); },
+  async grava(a, cv) { const k0 = a.img.k; try { await Pintura.gravar(a.img, cv); } finally { Arq.img.set(k0, a.orig || a.bm); } Atelie.commit(); }, // a prévia fica até a nova estar pronta (sem piscar)
   // aplica o desenho novo só dentro da seleção (fora fica o de antes)
   naSelecao(a, novo) { if (!a.mask) return novo; const W = a.bm.width, H = a.bm.height, cv = new OffscreenCanvas(W, H), x = cv.getContext('2d'), t = new OffscreenCanvas(W, H), tx = t.getContext('2d');
     tx.drawImage(novo, 0, 0); tx.globalCompositeOperation = 'destination-in'; tx.drawImage(a.mask, 0, 0); x.drawImage(a.bm, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(a.mask, 0, 0); x.globalCompositeOperation = 'source-over'; x.drawImage(t, 0, 0); return cv; },

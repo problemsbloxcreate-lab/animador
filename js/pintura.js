@@ -56,7 +56,7 @@ const Pintura = {
       const mov = ev => { if (acabou) return; const q = a.para(Atelie.mundo(ev)); d = { x: q.x - pt.x, y: q.y - pt.y }; if (ev.shiftKey) { if (Math.abs(d.x) > Math.abs(d.y)) d.y = 0; else d.x = 0; } a.vivo(Camadas.deslocado(a.bm, d.x, d.y)); Atelie.desenha(); };
       let acabou = false; const k0 = a.img.k; // igual ao pincel: a imagem de antes volta a ser a original (senão o Ctrl+Z mostra a camada movida)
       const up = async () => { if (acabou) return; acabou = true; for (const [t, f] of [['pointermove', mov], ['pointerup', up], ['pointercancel', up], ['lostpointercapture', up]]) cv0.removeEventListener(t, f);
-        Arq.img.set(k0, a.orig); if (Math.abs(d.x) + Math.abs(d.y) < .5) return Atelie.desenha(); try { await this.gravar(a.img, Camadas.deslocado(a.bm, d.x, d.y)); } finally { Arq.img.set(k0, a.orig); } Atelie.commit(); };
+        if (Math.abs(d.x) + Math.abs(d.y) < .5) { Arq.img.set(k0, a.orig); return Atelie.desenha(); } try { await this.gravar(a.img, Camadas.deslocado(a.bm, d.x, d.y)); } finally { Arq.img.set(k0, a.orig); } Atelie.commit(); };
       cv0.addEventListener('pointermove', mov); cv0.addEventListener('pointerup', up); cv0.addEventListener('pointercancel', up); cv0.addEventListener('lostpointercapture', up); return; }
     const aq = this.ferr === 'magica' && a.quadro ? Quadro.alvoApagar(a) : a; // borracha mágica num keyframe: apaga só nele
     const { cv, c } = this.tela(aq.bm), orig = aq.bm, k0 = a.img.k, mask = this.mascara(a);
