@@ -174,7 +174,10 @@ const Atelie = {
     finally { this.salvandoLocal = false; this.pintaEstado(); window.EstudioConta?.espaco?.atualizar?.(); }
   },
   /* ---------- ENVIO AUTOMÁTICO para a nuvem (só personagens que já foram para a nuvem uma vez) ---------- */
-  agendaNuvem() { clearTimeout(this._tn); this._tn = setTimeout(() => this.sincronizar(), 4000); this.pintaEstado(); },
+  // 1 minuto depois da última mudança (antes eram 4 s: cada traço do pincel virava imagem nova na nuvem e o plano grátis da Cloudflare só deixa 1000 gravações por dia na conta toda);
+  // sair da aba / esconder manda na hora; "Enviar agora" também
+  agendaNuvem() { clearTimeout(this._tn); this._tn = setTimeout(() => this.sincronizar(), 60000); this.pintaEstado();
+    if (!this._ligouEsconder) { this._ligouEsconder = true; document.addEventListener('visibilitychange', () => { if (document.hidden && this.naNuvem && this.sujo && !this.enviando) this.sincronizar(); }); } },
   async sincronizar(agora) {
     clearTimeout(this._tn); if (!this.naNuvem || !this.def) return;
     if (this.enviando) { this.denovo = true; if (agora) await this.enviando; return; }
@@ -239,7 +242,7 @@ const Atelie = {
     const [cls, ico, txt, dica] = this.naNuvem ? (
         this.enviando ? ['nuvem', 'cloud', 'Enviando para a nuvem…', 'As mudanças estão indo para a nuvem da equipe.']
       : this.erroNuvem && this.sujo ? ['local', 'alert', 'Não foi para a nuvem', 'Ficou guardado neste computador. Tenta de novo sozinho na próxima mudança, ou clique em "Enviar agora". (' + this.erroNuvem + ')']
-      : this.sujo ? ['nuvem', 'cloud', 'Mudanças indo para a nuvem…', 'Este personagem está na nuvem: as mudanças vão sozinhas em poucos segundos.']
+      : this.sujo ? ['nuvem', 'cloud', 'Mudanças indo para a nuvem…', 'Este personagem está na nuvem: as mudanças vão sozinhas em até 1 minuto (ou na hora em "Enviar agora" e ao sair da aba). Neste computador já estão guardadas.']
       : ['nuvem', 'cloud', 'Salvo na nuvem', 'Esta versão é a que está na nuvem da equipe; as próximas mudanças vão sozinhas.'])
       : this.salvandoLocal ? ['local', 'save', 'Guardando no computador…', 'Guardando neste navegador para não perder nada.']
       : ['local', 'save', 'Só neste computador' + (this.rascunhoEm ? ' · ' + hora(this.rascunhoEm) : ''), 'Personagem LOCAL: guardado neste navegador (Ctrl+S), a equipe ainda não vê. Clique na nuvem (Salvar na nuvem) para mandar; depois disso as mudanças vão sozinhas.'];
