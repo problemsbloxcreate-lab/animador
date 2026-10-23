@@ -50,12 +50,12 @@ const Vetor = {
     const min = o.min ?? 14;
     for (let it = 0; it < 3; it++) for (const [id, R] of regs.entries()) { if (!R.px || !R.n || R.n >= min) continue; const viz = new Map();
       for (const i of R.px) { const x = i % W; for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i - W, i + W]) { if (j < 0 || j >= N) continue; const v = reg[j]; if (v >= 0 && v !== id && regs[v].px && regs[v].n >= min) viz.set(v, (viz.get(v) || 0) + 1); } }
-      if (!viz.size) continue; let b = -1, bn = -1; for (const [v, c] of viz) if (c > bn) { bn = c; b = v; } for (const i of R.px) reg[i] = b; regs[b].px.push(...R.px); regs[b].n += R.n; R.px = null; R.n = 0; }
+      if (!viz.size) continue; let b = -1, bn = -1; for (const [v, c] of viz) if (c > bn) { bn = c; b = v; } for (const i of R.px) reg[i] = b; for (const i of R.px) regs[b].px.push(i); regs[b].n += R.n; R.px = null; R.n = 0; }
     // regiões ENCOSTADAS (sem traço no meio) de cor parecida são a mesma área com degradê do PNG: juntam (senão vira mancha)
     { const pai = regs.map((_, i) => i), raiz = i => { while (pai[i] !== i) i = pai[i] = pai[pai[i]]; return i; }, enc = new Map();
       for (let i = 0; i < N; i++) { const a = reg[i]; if (a < 0) continue; const x = i % W; for (const j of [x < W - 1 ? i + 1 : -1, i + W < N ? i + W : -1]) { if (j < 0) continue; const b = reg[j]; if (b < 0 || b === a) continue; const k = a < b ? a + ',' + b : b + ',' + a; enc.set(k, (enc.get(k) || 0) + 1); } }
       for (const [k, c] of enc) { if (c < 3) continue; const [a, b] = k.split(',').map(Number); if (!regs[a].px || !regs[b].px) continue; if (this.dist(regs[a].c, regs[b].c) < (o.juntaVizinha ?? 38)) pai[raiz(a)] = raiz(b); }
-      for (const [id, R] of regs.entries()) { if (!R.px) continue; const r = raiz(id); if (r === id) continue; const Q = regs[r]; if (!Q.px) continue; const t = Q.n + R.n; Q.c = Q.c.map((v, k) => (v * Q.n + R.c[k] * R.n) / t); Q.n = t; Q.px.push(...R.px); for (const i of R.px) reg[i] = r; R.px = null; R.n = 0; } }
+      for (const [id, R] of regs.entries()) { if (!R.px) continue; const r = raiz(id); if (r === id) continue; const Q = regs[r]; if (!Q.px) continue; const t = Q.n + R.n; Q.c = Q.c.map((v, k) => (v * Q.n + R.c[k] * R.n) / t); Q.n = t; for (const i of R.px) Q.px.push(i); for (const i of R.px) reg[i] = r; R.px = null; R.n = 0; } }
     // FIAPOS de região: a parte fina (≤ 4 px) de uma área, que escorreu pela borda do traço até outra (a pele contornando o
     // triângulo da manga): sai da região e vira pixel de borda, que depois pega a cor que melhor explica ele
     { const rr = o.fiapoReg ?? 2, M = new Uint8Array(N), E = new Int32Array(N).fill(-1);
@@ -226,7 +226,7 @@ const Vetor = {
     let cortes = qu.slice(); const quina = new Set(qu);
     if (cortes.length < 2) { const i0 = cortes[0] ?? 0; let far = i0, fd = -1; for (let i = 0; i < n; i++) { const v = Math.hypot(L[i].x - L[i0].x, L[i].y - L[i0].y); if (v > fd) { fd = v; far = i; } } cortes = [...new Set([i0, far])].sort((a, b) => a - b); if (cortes.length < 2) return ''; }
     const tan = (i, lado) => quina.has(i) ? nor(lado > 0 ? sub(P(i + Math.min(3, k)), P(i)) : sub(P(i - Math.min(3, k)), P(i))) : (lado > 0 ? nor(sub(P(i + 1), P(i - 1))) : nor(sub(P(i - 1), P(i + 1))));
-    const bez = []; for (let c = 0; c < cortes.length; c++) { const i0 = cortes[c], i1 = cortes[(c + 1) % cortes.length], m = ((i1 - i0) % n + n) % n || n, seg = []; for (let j = 0; j <= m; j++) seg.push(P(i0 + j)); bez.push(...this.fitCubic(seg, tan(i0, 1), tan(i1, -1), erro * erro)); }
+    const bez = []; for (let c = 0; c < cortes.length; c++) { const i0 = cortes[c], i1 = cortes[(c + 1) % cortes.length], m = ((i1 - i0) % n + n) % n || n, seg = []; for (let j = 0; j <= m; j++) seg.push(P(i0 + j)); for (const x of this.fitCubic(seg, tan(i0, 1), tan(i1, -1), erro * erro)) bez.push(x); }
     let d = `M${f(bez[0][0].x)} ${f(bez[0][0].y)}`; for (const b of bez) d += `C${f(b[1].x)} ${f(b[1].y)} ${f(b[2].x)} ${f(b[2].y)} ${f(b[3].x)} ${f(b[3].y)}`; return d + 'Z';
   },
   fitCubic(P, t1, t2, err, prof = 0) {
