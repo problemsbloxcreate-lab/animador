@@ -5,6 +5,10 @@
    Botão direito num passo: as opções de sempre (duplicar, mover, apagar…). Arrastar um passo muda a ordem. */
 'use strict';
 const Linha = {
+  // unidade do tempo do frame na tela (s, ms ou fps), lembrada neste computador
+  unid(u) { if (u) { this._u = u; try { localStorage.setItem('animador-tl-unid', u); } catch { } return u; } if (!this._u) { try { this._u = localStorage.getItem('animador-tl-unid'); } catch { } } return ['s', 'ms', 'fps'].includes(this._u) ? this._u : 's'; },
+  velEm(ms, u) { const r = (x, d) => Math.round(x * 10 ** d) / 10 ** d; return u === 'ms' ? Math.round(ms) : u === 'fps' ? r(1000 / ms, 2) : r(ms / 1000, 3); },
+  velDe(v, u) { const n = parseFloat(String(v).replace(',', '.')); if (!(n > 0)) return null; const ms = u === 'ms' ? n : u === 'fps' ? 1000 / n : n * 1000; return Math.round(clamp(ms, 20, 10000)); },
   // tempo de cada frame: os prontos + o personalizado (se for outro) + "Personalizado…"
   opcoesVel(v) { const seg = ms => (Math.round(ms) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) + ' s', L = VELOCIDADES.map(x => x[0]);
     return (L.includes(v) || !v ? '' : `<option value="${v}" selected>${seg(v)} · personalizado</option>`) + VELOCIDADES.map(([x, t]) => `<option value="${x}" ${v === x ? 'selected' : ''}>${t}</option>`).join('') + '<option value="outro">Personalizado…</option>'; },
@@ -25,7 +29,7 @@ const Linha = {
       <button class="ibtn tl-play ${rodando ? 'on' : ''}" data-play title="${rodando ? 'Pausar' : 'Tocar'} (P)" ${a ? '' : 'disabled'}>${ic(rodando ? 'pause' : 'play', 15)}</button>
       <button class="ibtn tl-stop" data-stop title="Parar e voltar à pose padrão (Esc)" ${toca ? '' : 'disabled'}>${ic('stop', 13)}</button>
       <button class="ibtn" data-prox title="Próximo frame ( . )" ${a ? '' : 'disabled'}>${ic('right', 14)}</button>
-      ${a ? `<select data-vel title="Cada frame dura (Personalizado… = o tempo que quiser)">${Linha.opcoesVel(+a.vel)}</select>` : ''}
+      ${a ? `<span class="tl-vel" title="Quanto tempo cada frame fica na tela"><input type="number" data-velv min="0" step="any" value="${Linha.velEm(+a.vel || 250, Linha.unid())}"><select data-velu title="Unidade">${[['s', 's'], ['ms', 'ms'], ['fps', 'fps']].map(([u, t]) => `<option value="${u}" ${Linha.unid() === u ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
       <span class="tl-info">${st ? `Frame <b>${st.pi + 1}</b>` : ''}</span><span class="sp"></span>
       ${a ? `<button class="btn sm" data-passo title="Frame novo depois do escolhido (começa igual a ele)">${ic('plus', 12)} Frame</button><button class="ibtn" data-trilha title="Trilha nova: anda junto com as outras (ex.: boca falando enquanto as pernas andam)">${ic('layers', 14)}</button>` : ''}</div>`);
     $('[data-a]', cab).onchange = ev => { A.multi?.clear(); A.parar(true); A.passoSel = null; A.sel = ev.target.value || null; Atelie.teste = null; Atelie.pinta(); };
@@ -34,9 +38,11 @@ const Linha = {
       $('[data-play]', cab).onclick = () => this.tocaPausa();
       $('[data-ant]', cab).onclick = () => this.anda(-1); $('[data-prox]', cab).onclick = () => this.anda(1);
       $('[data-stop]', cab).onclick = () => this.parar();
-      $('[data-vel]', cab).onchange = async ev => { let v = ev.target.value;
-        if (v === 'outro') { v = await Linha.pedeVel(+a.vel); if (!v) { ev.target.innerHTML = Linha.opcoesVel(+a.vel); return; } }
-        a.vel = +v; Atelie.commit({ soDesenho: true }); if (rodando) A.tocar(a, A.i); else Linha.pinta?.(); };
+      // tempo do frame: número + unidade do lado (igual à timeline do Animador). Trocar a unidade só muda como aparece
+      const vv = $('[data-velv]', cab), vu = $('[data-velu]', cab);
+      vv.onchange = () => { const ms = Linha.velDe(vv.value, vu.value); if (!ms) { vv.value = Linha.velEm(+a.vel || 250, vu.value); return UI.toast('Tempo inválido', { kind: 'warn' }); } a.vel = ms; vv.value = Linha.velEm(ms, vu.value); Atelie.commit({ soDesenho: true }); if (rodando) A.tocar(a, A.i); };
+      vv.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); vv.blur(); } ev.stopPropagation(); };
+      vu.onchange = () => { Linha.unid(vu.value); vv.value = Linha.velEm(+a.vel || 250, vu.value); };
       $('[data-passo]', cab).onclick = () => this.novoPasso(a); $('[data-trilha]', cab).onclick = () => { a.trilhas.push([{ s: {}, p: {} }]); Atelie.commit(); A.irPara(a, a.trilhas.length - 1, 0); };
     }
     el.appendChild(cab);

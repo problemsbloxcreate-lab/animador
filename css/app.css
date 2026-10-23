@@ -845,7 +845,7 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .at-tl .tl-c{width:92px;height:auto;padding:3px;gap:2px;justify-content:flex-start;align-items:stretch;border-top:2px solid var(--cor,#888);background:var(--bg3)}
 .at-tl .tl-c .tl-mini{width:100%;height:44px;border-radius:5px;background:repeating-conic-gradient(#262626 0 25%,#202020 0 50%) 0 0/10px 10px;display:block}
 .at-tl .tl-c .tl-nf{display:flex;align-items:baseline;gap:4px;min-width:0;padding:0 2px}.at-tl .tl-c .tl-nf b{font-size:11px}.at-tl .tl-c .tl-nf small{font-size:9.5px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.at-tl .tl-c.fantasma{opacity:.38;border-style:dashed;cursor:pointer;background:transparent}.at-tl .tl-c.fantasma:hover{opacity:.7}
+.at-tl .tl-c.fantasma{opacity:.38;cursor:pointer;background:transparent}.at-tl .tl-c.fantasma:hover{opacity:.7}
 .at-tl .tl-c .tl-volta{position:absolute;left:3px;top:3px;z-index:1;color:var(--cor,#888);background:#151515;border-radius:4px;padding:1px;display:grid;place-items:center}
 .at-tl .tl-c.agora{box-shadow:0 0 0 2px #e8e8e8;opacity:1}
 .at-tl .tl-c.fantasma.agora{opacity:.8}
@@ -975,3 +975,7 @@ body.arrastando-dock{user-select:none;cursor:grabbing}
 .sub-op{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid var(--bd2);border-radius:10px;cursor:pointer;background:var(--bg2)}
 .sub-op:has(input:checked){border-color:#5aa9e8;background:rgba(90,169,232,.1)}
 .sub-op input{margin-top:3px;accent-color:#3d8bf0}.sub-op span{display:flex;flex-direction:column;gap:3px}.sub-op small{color:var(--tx3);font-size:11.5px;line-height:1.35}
+.tl-vel{display:inline-flex;align-items:center;gap:0;border:1px solid var(--bd2);border-radius:7px;overflow:hidden;height:26px;background:var(--bg2)}
+.tl-vel input{width:58px;height:24px;border:0;background:transparent;text-align:right;padding:0 4px;font-size:12px;color:var(--tx);-moz-appearance:textfield}
+.tl-vel input::-webkit-inner-spin-button{opacity:.5}
+.tl-vel select{height:24px;border:0;border-left:1px solid var(--bd2);border-radius:0;background:var(--bg3);font-size:11.5px;padding:0 4px;color:var(--tx2)}
