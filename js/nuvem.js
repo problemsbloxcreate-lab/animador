@@ -77,7 +77,11 @@ const Nuvem = {
   async salvar(def, aoAndar, o = {}) {
     this._lista = null;
     let existentes = this._ks.get(def.id);
-    if (!existentes) { existentes = new Set(); let listou = false; try { const j = await (await this.pede('/personagens')).json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); listou = true; } catch { } if (listou) this._ks.set(def.id, existentes); }
+    if (!existentes) { existentes = new Set(); let listou = false; try { const r = await this.pede('/personagens'), j = await r.json(); for (const it of j.itens || []) if (it.k.startsWith(`personagens/${def.id}/`)) existentes.add(it.k); listou = true;
+        // lista PARCIAL (só o que está na reserva): as imagens que já estão na principal não aparecem nela. A versão da nuvem diz
+        // quais imagens existem (cada mudança vira chave nova), então elas não sobem de novo para a reserva à toa
+        if (r.headers.get('x-nuvem-parcial') === '1') { try { const d = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${def.id}/personagem.json`))).json(); for (const k of Modelo.chavesImgs(d)) existentes.add(k); for (const a of d.audios || []) if (a.k) existentes.add(a.k); } catch { } }
+      } catch { } if (listou) this._ks.set(def.id, existentes); }
     // PERSONAGENS VÃO EM PNG (sem perda nenhuma; decisão do dono). Imagens que chegaram a ir em webp voltam para a PNG original, se ela estiver neste computador.
     const troca = await this.voltaPng(def, aoAndar); this.ultimaTroca = troca;
     const auds = (def.audios || []).map(a => a.k).filter(Boolean); // áudios de teste do Ateliê
