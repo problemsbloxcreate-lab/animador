@@ -85,6 +85,8 @@ const Nuvem = {
       } catch { } if (listou) this._ks.set(def.id, existentes); }
     // PERSONAGENS VÃO EM PNG (sem perda nenhuma; decisão do dono). Imagens que chegaram a ir em webp voltam para a PNG original, se ela estiver neste computador.
     const troca = await this.voltaPng(def, aoAndar); this.ultimaTroca = troca;
+    if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(String(def.id))) throw new Error('o código deste personagem não é aceito pela nuvem. Use “Duplicar (cópia só neste computador)” e salve a cópia na nuvem.');
+    await this.arrumaChaves(def, aoAndar); // chave que a nuvem não aceita (letra maiúscula, _, outra pasta, .JPG…) vira uma chave certa antes de enviar
     const auds = (def.audios || []).map(a => a.k).filter(Boolean); // áudios de teste do Ateliê
     const imgs = [...Modelo.chavesImgs(def), ...auds].filter(Boolean), falta = imgs.filter(k => !existentes.has(k)), semAudio = [];
     let n = 0;
@@ -92,7 +94,7 @@ const Nuvem = {
       const b = await Arq.pegaBlob(k); if (!b) continue;
       aoAndar?.(`Enviando ${/\/aud\//.test(k) ? 'áudios' : 'imagens'}… ${++n}/${falta.length}`);
       if (/\/aud\//.test(k)) { try { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'POST', body: b }); existentes.add(k); } catch { semAudio.push(k); } continue; } // áudio que a nuvem não aceitar fica só neste computador (e no .atelieanimador)
-      await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'POST', body: b }); existentes.add(k);
+      try { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'POST', body: b }); } catch (e) { throw new Error(`a nuvem não aceitou a imagem “${String(k).split('/').pop()}” (${e.message})`); } existentes.add(k);
     }
     this.semAudio = semAudio; if (semAudio.length) setTimeout(() => UI.toast(`${semAudio.length} áudio(s) de teste não foram aceitos pela nuvem: continuam neste computador e vão no .atelieanimador.`, { kind: 'warn', time: 7000 }), 50);
     def.modificado = Date.now(); await Autores.marca(def); // quem subiu (fica para sempre) e quem editou
@@ -103,6 +105,24 @@ const Nuvem = {
     const usadas = new Set(imgs);
     if (o.limpar !== false) for (const k of [...existentes]) if ((k.startsWith(`personagens/${def.id}/img/`) || k.startsWith(`personagens/${def.id}/aud/`)) && !usadas.has(k)) { await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }).catch(() => { }); existentes.delete(k); }
     existentes.add(`personagens/${def.id}/personagem.json`); this.avisaEspaco();
+  },
+  // A NUVEM SÓ ACEITA personagens/<id>/img/<a-z0-9->.png|webp|gif|jpg|jpeg|svg (e aud/ para os áudios). Imagem com outra chave
+  // (veio de um arquivo feito fora, de outra pasta, nome com maiúscula ou _) ganha uma cópia com chave certa e o personagem passa a usar ela.
+  KP: /^personagens\/[a-z0-9][a-z0-9-]{1,40}\/img\/[a-z0-9][a-z0-9-]{1,60}\.(png|webp|gif|jpg|jpeg|svg)$/,
+  async arrumaChaves(def, aoAndar) {
+    const ruins = Modelo.chavesImgs(def).filter(k => !this.KP.test(k)); if (!ruins.length) return {};
+    const troca = {}; let n = 0;
+    for (const k of ruins) {
+      let b = await Arq.pegaBlob(k); if (!b) b = await this.baixar(k).catch(() => null); if (!b) continue; aoAndar?.(`Arrumando o nome das imagens… ${++n}/${ruins.length}`);
+      let ext = (String(k).match(/\.(png|webp|gif|jpe?g|svg)$/i)?.[1] || { 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/jpeg': 'jpg', 'image/svg+xml': 'svg' }[b.type] || '').toLowerCase();
+      if (!ext) { try { const bm = await createImageBitmap(b), c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; c.getContext('2d').drawImage(bm, 0, 0); b = await new Promise(r => c.toBlob(r, 'image/png')); ext = 'png'; } catch { continue; } } // formato que a nuvem não guarda: vira PNG
+      const nk = `personagens/${def.id}/img/${uid('im').toLowerCase().replace(/[^a-z0-9]/g, '')}.${ext}`; await Arq.guardar(b, nk); const bm = Arq.img.get(k); if (bm) Arq.img.set(nk, bm); troca[k] = nk;
+    }
+    if (!Object.keys(troca).length) return troca;
+    const anda = o => { if (Array.isArray(o)) { for (let i = 0; i < o.length; i++) { if (typeof o[i] === 'string' && troca[o[i]]) o[i] = troca[o[i]]; else if (o[i] && typeof o[i] === 'object') anda(o[i]); } return; }
+      for (const c of Object.keys(o)) { const v = o[c]; if (typeof v === 'string' && troca[v]) o[c] = troca[v]; else if (v && typeof v === 'object') anda(v); } };
+    anda(def); if (typeof Atelie !== 'undefined' && Atelie.def && Atelie.def !== def && Atelie.def.id === def.id) anda(Atelie.def); // o aberto também passa a usar a chave nova
+    return troca;
   },
   // converte as imagens PNG/JPG do personagem para WEBP (só se ficar menor) e troca as chaves no def; devolve { chaveVelha: chaveNova }
   async paraWebp(def, aoAndar) {
