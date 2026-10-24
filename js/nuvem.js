@@ -16,7 +16,10 @@ const Nuvem = {
   // lista os personagens da equipe: [{ id, nome, pasta, thumb, por, em }]
   // a lista fica guardada por 2 min (já vem pronta da tela de carregamento); salvar/apagar ou "Atualizar" busca de novo
   // este personagem está na nuvem da equipe agora? true/false; null = não deu para saber (lista incompleta ou sem resposta)
-  async estaNaNuvem(id) { if (!id) return false; let l; try { l = await this.lista(); } catch { return null; } if (this.semLista || this.parcial) return null; return l.some(x => x.id === id); },
+  async estaNaNuvem(id) { if (!id) return false;
+    for (const novo of [false, true]) { let l; try { l = await this.lista(novo); } catch { return null; } if (this.semLista || this.parcial) return null; // lista incompleta (limite): não decide
+      if (l.some(x => x.id === id)) return true; } // não achou na guardada: confere na lista de agora antes de dizer que não está (pode ter acabado de subir)
+    return false; },
   lista(novo) {
     if (!novo && this._lista && Date.now() - this._listaEm < 120000) return this._lista;
     this._listaEm = Date.now(); return (this._lista = this._listaJa().catch(e => { this._lista = null; throw e; }));
