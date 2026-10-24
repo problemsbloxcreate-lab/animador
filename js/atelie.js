@@ -532,6 +532,7 @@ const Atelie = {
     if (e.type === 'keydown' && (k === 'r' || k === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest?.('input,textarea,select,[contenteditable]')) { e.preventDefault(); return this.trocaRegua(); }
     if (ctrl && (k.toLowerCase() === 'z' || k.toLowerCase() === 'y')) { e.preventDefault(); if (e.repeat) return; return this.desfazJa(e.shiftKey || k.toLowerCase() === 'y'); }
     if (ctrl && k.toLowerCase() === 's') { e.preventDefault(); return this.salvarLocal(); } // Ctrl+S = guardar neste computador
+    if (ctrl && e.type === 'keydown' && !this.edImg && !e.shiftKey && !Pintura.temSelecao?.() && (Animacoes.passoAtual() || Animacoes.multi?.size > 1) && /^[cv]$/i.test(k)) { e.preventDefault(); if (e.repeat) return; return k.toLowerCase() === 'c' ? Linha.copiar() : Linha.colar(); } // COPIAR/COLAR FRAMES da timeline
     if (ctrl) { Pintura.teclaCtrl(e); return; }
     if (this.edImg) { // EDITOR DE IMAGEM: só as teclas de pintar; Esc sai (ou desmarca a seleção primeiro)
       if (k === 'Escape') { e.preventDefault(); if (Pintura.dfi?.mexeu()) return Pintura.dfi.cancela(); return Pintura.selecao ? Pintura.desmarcar() : this.fecharEditor(); } // deformando: o Esc primeiro desfaz a deformação

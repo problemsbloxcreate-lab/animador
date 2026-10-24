@@ -1074,3 +1074,21 @@ body.ajuda-on #atelie .at-palco::after{content:'Ajuda ligada · tela pausada';po
 .ajm-img{width:200px;height:110px}
 .ajm-extra{margin-top:8px;padding-top:8px;border-top:1px solid var(--bd);color:var(--tx3);font-size:11.5px}
 .ajm-pe{margin-top:8px;font-size:10.5px;color:var(--tx3)}.ajm-pe a{color:#f1d78f}
+
+/* timeline do Ateliê: sem cópias automáticas (aviso "recomeça" no fim da trilha mais curta) e a vista em LINHAS (como a do Animador) */
+.at-tl .tl-repete{flex:none;align-self:center;display:inline-flex;align-items:center;gap:3px;margin-left:4px;padding:2px 7px;border-radius:9px;border:1px dashed color-mix(in srgb,var(--cor,#888) 60%,transparent);color:var(--cor,#888);font-size:10px;white-space:nowrap;opacity:.8}
+.tl-vistas{display:inline-flex;border:1px solid var(--bd);border-radius:7px;overflow:hidden;margin-right:4px}.tl-vistas .ibtn{border-radius:0;width:26px;height:24px}.tl-vistas .ibtn.on{background:#1f3550;color:#9fd0f7}
+.at-tl .tl-grade.linhas .tl-cel{gap:0}
+.at-tl .tl-grade.linhas .tl-regua .tl-n{width:auto;flex:none;text-align:left;padding-left:2px;border-radius:0;border-left:1px solid var(--bd);font-size:9.5px;height:14px;line-height:14px}
+.at-tl .tl-grade.linhas .tl-regua .tl-n.agora{background:#e8e8e8;color:#151515}
+.at-tl .tl-grade.linhas .tl-linha:not(.tl-regua){min-height:30px}
+.at-tl .tl-grade.linhas .tl-c.tl-b{height:26px;align-self:center;padding:0 0 0 9px;border:0;border-top:0;border-radius:0;display:flex;flex-direction:row;align-items:center;gap:0;background:color-mix(in srgb,var(--cor,#888) 22%,#1a1a1a);border-right:1px solid #111;cursor:pointer;overflow:hidden}
+.at-tl .tl-grade.linhas .tl-c.tl-b:first-child{border-radius:6px 0 0 6px}.at-tl .tl-grade.linhas .tl-c.tl-b:last-of-type{border-radius:0 6px 6px 0}
+.at-tl .tl-grade.linhas .tl-c.tl-b:hover{background:color-mix(in srgb,var(--cor,#888) 36%,#1a1a1a)}
+.at-tl .tl-grade.linhas .tl-c.tl-b .tl-k{position:absolute;left:-1px;top:50%;width:8px;height:8px;margin-top:-4px;background:var(--cor,#888);transform:rotate(45deg);border:1px solid #111}
+.at-tl .tl-grade.linhas .tl-c.tl-b .tl-bt{display:flex;align-items:center;gap:4px;min-width:0;padding-left:3px;pointer-events:none}
+.at-tl .tl-grade.linhas .tl-c.tl-b .tl-bt b{font-size:10px;color:var(--tx)}.at-tl .tl-grade.linhas .tl-c.tl-b .tl-bt small{font-size:9.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.at-tl .tl-grade.linhas .tl-c.tl-b .tl-solta{position:absolute;left:auto!important;right:2px;top:50%!important;transform:translateY(-50%);opacity:.85}.at-tl .tl-grade.linhas .tl-c.tl-b:has(.tl-solta) .tl-bt{padding-right:16px}
+.at-tl .tl-grade.linhas .tl-c.tl-b.agora{box-shadow:inset 0 0 0 2px #e8e8e8}
+.at-tl .tl-grade.linhas .tl-c.tl-b.sel{box-shadow:inset 0 0 0 2px #19d3f0;background:color-mix(in srgb,#19d3f0 30%,#1a1a1a)}
+.at-tl .tl-grade.linhas .tl-c.tl-b.multi{box-shadow:inset 0 0 0 2px #c08bff}
