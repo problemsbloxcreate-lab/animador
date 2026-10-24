@@ -60,11 +60,13 @@ Object.assign(Pintura, {
   // traço do pincel/borracha (chamado pelo Pintura.desce)
   async traco(e, a, pt, mask) {
     const apaga = this.ferr === 'borracha' || this.borrachaDaCaneta(e), cfg = this.cfg[apaga ? 'borracha' : 'pincel'], cor = apaga ? '#000000' : this.cor;
-    const a0 = a, noQuadro = apaga && !!a.quadro; if (noQuadro) a = Quadro.alvoApagar(a); // borracha num keyframe: parte da imagem como aparece nele e guarda só a máscara
+    let a0 = a; const noQuadro = apaga && !!a.quadro; if (noQuadro) a = Quadro.alvoApagar(a); // borracha num keyframe: parte da imagem como aparece nele e guarda só a máscara
     // IMAGEM SVG: o traço vira uma forma do vetor (pincel) ou um apagado na camada escolhida (borracha); a prévia continua em pixels
     const vet = Vetor.eh(a0.img.k), pts = [], sep = vet && !noQuadro ? Vetor.separadas(a0.img) : null;
     const grava = async cv => { if (vet) return Vetor.traco(a0, pts, { apaga, cor, opac: cfg.opac, dureza: cfg.dureza, mask }); if (noQuadro) return Quadro.gravaApagado(a0, a.bm, cv); await this.gravar(a.img, cv); return true; };
-    const { cv, c } = this.tela(a.bm), orig = a.orig || a.bm, k0 = a.img.k, vivo = a.vivo || (x => Arq.img.set(k0, x)), base = this.tela(a.bm).cv, lay = new OffscreenCanvas(cv.width, cv.height), lc = lay.getContext('2d');
+    const { cv, c } = this.tela(a.bm), k0 = a.img.k, orig = Pintura._origs.get(k0) || a.orig || a.bm, toc = new Set(), base = this.tela(a.bm).cv,
+      // prévia ao vivo na chave que está NA TELA agora (se o traço anterior terminou de gravar no meio deste, é a chave nova dele); o original fica guardado em Pintura.marcaPrevia
+      vivo = noQuadro ? (a.vivo || (x => Arq.img.set(k0, x))) : x => { const im = Pintura.atual(a0.img); Pintura.marcaPrevia(im.k, toc); if (a.vivo && im === a.img) a.vivo(x); else Arq.img.set(im.k, x); }, lay = new OffscreenCanvas(cv.width, cv.height), lc = lay.getContext('2d');
     // borracha de fundo: só onde a cor parece com a do primeiro toque
     let fundo = null; if (apaga && cfg.modo === 'fundo' && !vet) fundo = this.areaParecida(c, cv.width, cv.height, Math.floor(pt.x), Math.floor(pt.y), this.tol, true);
     const junta = () => { let l2 = lay; for (const m of [mask, fundo]) if (m) { const t = new OffscreenCanvas(cv.width, cv.height), x = t.getContext('2d'); x.drawImage(l2, 0, 0); x.globalCompositeOperation = 'destination-in'; x.drawImage(m, 0, 0); l2 = t; }
@@ -82,8 +84,8 @@ Object.assign(Pintura, {
       ult = { ...q }; pAnt = p;
     };
     // Shift+clique: linha reta desde o último ponto desta imagem
-    if (e.shiftKey && this._ultimo?.k === a.img.id) { ult = { ...this._ultimo.pt }; pAnt = this.pressao(e); if (vet) pts.push({ ...ult, w: Math.max(.5, tamDe(pAnt)) }); ponto(pt, this.pressao(e)); junta(); this._ultimo = { k: a.img.id, pt }; if (await grava(cv)) Atelie.commit(); return; }
-    ponto(pt, this.pressao(e)); junta(); vivo(cv); Atelie.desenha(); // com camadas: mostra a imagem final com o traço na camada ativa
+    if (e.shiftKey && this._ultimo?.k === a.img.id) { ult = { ...this._ultimo.pt }; pAnt = this.pressao(e); if (vet) pts.push({ ...ult, w: Math.max(.5, tamDe(pAnt)) }); ponto(pt, this.pressao(e)); junta(); this._ultimo = { k: a.img.id, pt }; await Pintura.emFila(async () => { if (await grava(cv)) Atelie.commit(); }); return; }
+    ponto(pt, this.pressao(e)); junta(); vivo(cv); const rever = () => { junta(); vivo(cv); }; Pintura._vivos.add(rever); Atelie.desenha(); // com camadas: mostra a imagem final com o traço na camada ativa
     try { Atelie.cv.setPointerCapture(e.pointerId); } catch { } let pend = false, acabou = false;
     const mov = ev => {
       const lista = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
@@ -93,10 +95,17 @@ Object.assign(Pintura, {
     // CTRL+Z: durante o traço a prévia aparece no lugar da imagem de antes (chave k0). Ao terminar, a imagem de antes TEM que voltar
     // a ser a original, senão o Ctrl+Z volta para k0 e mostra o traço/apagado. Por isso: só termina uma vez, a prévia atrasada não
     // repinta depois de soltar, e caneta que "some" (pointercancel, perder a captura, soltar fora) também termina o traço.
-    const up = async ev => { if (acabou) return; acabou = true;
+    const up = async ev => { if (acabou) return; acabou = true; Pintura._vivos.delete(rever);
       for (const [t, f] of [['pointermove', mov], ['pointerup', up], ['pointercancel', up], ['lostpointercapture', up]]) Atelie.cv.removeEventListener(t, f);
       const raw = ev && ev.type === 'pointerup' ? a.para(Atelie.mundo(ev)) : null; if (raw) ponto(raw, pAnt); junta(); // fecha o traço onde a caneta saiu (a suavização não deixa ele curto)
-      this._ultimo = { k: a.img.id, pt: raw || liso }; vivo(cv); let ok = false, fim; Pintura._gravando = new Promise(r => fim = r); try { ok = await grava(cv); } finally { Arq.img.set(k0, orig); } try { if (ok) Atelie.commit(); else Atelie.desenha(); } finally { fim(); } }; // enquanto grava, a prévia continua na tela (voltar a original antes piscava a imagem de antes); depois k0 volta a ser a original
+      this._ultimo = { k: a.img.id, pt: raw || liso }; vivo(cv);
+      // grava NA FILA (o traço anterior termina antes) e parte do que ele deixou: senão o resultado do traço anterior sumia (SVG) ou piscava
+      await Pintura.emFila(async () => { let ok = false;
+        try { const fr = Pintura.atual(a0.img);
+          if (!noQuadro && !vet && fr.k !== k0) { const fa = Pintura.alvo(); if (fa && fa.img.id === fr.id && fa.bm.width === cv.width && fa.bm.height === cv.height) { a = fa; const bc = base.getContext('2d'); bc.globalCompositeOperation = 'copy'; bc.drawImage(fa.bm, 0, 0); bc.globalCompositeOperation = 'source-over'; junta(); } } // PNG: o traço vai por cima da imagem nova
+          if (vet) a0 = { ...a0, img: fr };
+          ok = await grava(cv); if (ok) { Atelie.commit(); for (const f of Pintura._vivos) f(); } Atelie.desenha(); // outro traço ainda desenhando: a prévia dele volta já (sem um quadro sem ela)
+        } finally { if (noQuadro) Arq.img.set(k0, orig); else Pintura.soltaPrevia(toc); Atelie.desenha(); } }); }; // a prévia fica até a imagem nova estar no lugar; só então a chave de antes volta ao original // enquanto grava, a prévia continua na tela (voltar a original antes piscava a imagem de antes); depois k0 volta a ser a original
     Atelie.cv.addEventListener('pointermove', mov); Atelie.cv.addEventListener('pointerup', up); Atelie.cv.addEventListener('pointercancel', up); Atelie.cv.addEventListener('lostpointercapture', up);
   },
 

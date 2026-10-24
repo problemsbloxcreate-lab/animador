@@ -64,7 +64,7 @@ const VetorUI = {
     const img = a.img, box = h(`<div class="sessao cam-sec vt-cam"><h4>${ic('layers', 13)} Camadas <span class="selo-tipo svg" title="Imagem em vetor">SVG</span></h4><div class="cam-lista"><div class="vazio"><span class="spin-dot"></span></div></div></div>`); el.appendChild(box);
     let m; try { m = await Vetor.modelo(img.k); } catch (e) { $('.cam-lista', box).innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
     const at = Vetor.ativa(m, img), lista = $('.cam-lista', box); lista.innerHTML = '';
-    const grava = async muda => { const mm = await Vetor.modelo(img.k); if (muda(mm) === false) return; await Vetor.gravar(img, mm); Atelie.commit(); };
+    const grava = muda => Pintura.emFila(async () => { const mm = await Vetor.modelo(Pintura.atual(img).k); if (muda(mm) === false) return; await Vetor.gravar(img, mm); Atelie.commit(); });
     [...m.cam].reverse().forEach(c => {
       const r = h(`<div class="cam-l ${c === at ? 'on' : ''}" draggable="true" title="Clique: pincel e borracha mexem nesta camada · duplo clique: renomear · arraste para mudar a ordem · botão direito: mais"><button class="ibtn" data-v title="Mostrar/esconder">${ic(c.vis === false ? 'eyeOff' : 'eye', 13)}</button><canvas width="80" height="80"></canvas><span class="vt-papel ${c.papel}" title="${c.papel === 'linha' ? 'Camada de LINHA (o balde não pinta aqui; ela separa as áreas)' : 'Camada de COR (o balde pinta aqui)'}">${ic(c.papel === 'linha' ? 'pencil' : 'bucket', 13)}</span><span class="nm">${esc(c.nome)}</span><small title="${esc(VetorUI.contaDica(c))}">${esc(VetorUI.contaTxt(c))}</small></div>`);
       r.onclick = ev => { if (ev.target.closest('[data-v]')) return grava(mm => { const k = mm.cam.find(x => x.id === c.id); k.vis = k.vis === false ? undefined : false; }); img.vCam = c.id; Atelie.commit(); };
@@ -101,7 +101,7 @@ const VetorUI = {
   desce(e, a, pt) {
     const f = Pintura.ferr;
     if (f === 'pontos') { this.nosDesce(e, a); return true; }
-    if (f === 'balde' || f === 'magica') { (async () => { const ok = f === 'balde' ? await Vetor.balde(a, pt, Pintura.cor, Pintura.mascara(a)) : await Vetor.magica(a, pt, Pintura.mascara(a)); if (ok) Atelie.commit(); })(); return true; }
+    if (f === 'balde' || f === 'magica') { Pintura.emFila(async () => { const ok = f === 'balde' ? await Vetor.balde(a, pt, Pintura.cor, Pintura.mascara(a)) : await Vetor.magica(a, pt, Pintura.mascara(a)); if (ok) Atelie.commit(); }); return true; }
     if (f === 'camada') { this.moverCamada(e, a, pt); return true; }
     return false;
   },
@@ -132,7 +132,7 @@ const VetorUI = {
   // matriz espaço-da-camada → tela (px do canvas)
   matriz(a, m, c) { const o = m.off || { x: 0, y: 0 }; let T = Atelie.V().multiply(a.mImg).translate(-o.x, -o.y); if (c.tr) T = T.multiply(new DOMMatrix(c.tr)); return T; },
   async nosDesce(e, a) {
-    const img = a.img, m = await Vetor.modelo(img.k), d = devicePixelRatio || 1, r = Atelie.cv.getBoundingClientRect(), sx = (e.clientX - r.left) * d, sy = (e.clientY - r.top) * d;
+    const img = Pintura.atual(a.img), m = await Vetor.modelo(img.k), d = devicePixelRatio || 1, r = Atelie.cv.getBoundingClientRect(), sx = (e.clientX - r.left) * d, sy = (e.clientY - r.top) * d;
     let N = this.nos && this.nos.k === img.k ? this.nos : null;
     // 1) clicou num ponto/alça da forma escolhida?
     if (N) { const c = m.cam.find(x => x.id === N.cam), T = this.matriz(a, m, c), tela = q => T.transformPoint(new DOMPoint(q.x, q.y)), perto = q => { const s = tela(q); return Math.hypot(s.x - sx, s.y - sy) < 8 * d; };
@@ -157,7 +157,7 @@ const VetorUI = {
     for (const [t, fn] of [['pointermove', mov], ['pointerup', up], ['pointercancel', up], ['lostpointercapture', up]]) cv0.addEventListener(t, fn);
   },
   async gravaNos(a) {
-    const N = this.nos; if (!N) return; const img = a.img, m = await Vetor.modelo(img.k), c = m.cam.find(x => x.id === N.cam), f = c?.f[N.i]; if (!f) return;
+    const N = this.nos; if (!N) return; const img = Pintura.atual(a.img), m = await Vetor.modelo(img.k), c = m.cam.find(x => x.id === N.cam), f = c?.f[N.i]; if (!f) return;
     f.d = this.junta(N.S); await Vetor.gravar(img, m); N.k = img.k; Atelie.commit();
   },
   tiraPonto(a, hit) { const N = this.nos, s = N.S[hit.s]; if (s.p.length <= 2) { N.S.splice(hit.s, 1); if (!N.S.length) return UI.toast('A forma ficaria vazia: para tirar a forma inteira use a borracha.', { kind: 'warn' }); } else s.p.splice(hit.i, 1); N.sel = null; this.gravaNos(a); },

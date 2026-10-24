@@ -10,7 +10,7 @@ const Ajustes = {
   volta(a) { Arq.img.set(a.img.k, a.orig || a.bm); Atelie.desenha(); },
   async grava(a, cv, info) { const k0 = a.img.k; try {
       if (info && Vetor.eh(a.img.k)) { if (a.mask && !this._avisouSel) { this._avisouSel = true; UI.toast('No vetor, ajustes e transformar valem para a camada escolhida inteira (sem a seleção).', { kind: 'warn', time: 5000 }); } await Vetor.ajustar(a, info); } // SVG: muda as cores/a matriz da camada (continua vetor)
-      else await Pintura.gravar(a.img, cv); } finally { Arq.img.set(k0, a.orig || a.bm); } Atelie.commit(); }, // a prévia fica até a nova estar pronta (sem piscar)
+      else await Pintura.gravar(a.img, cv); } finally { Arq.img.set(k0, Pintura._origs.get(k0) || a.orig || a.bm); } Atelie.commit(); }, // a prévia fica até a nova estar pronta (sem piscar)
   // aplica o desenho novo só dentro da seleção (fora fica o de antes)
   naSelecao(a, novo) { if (!a.mask) return novo; const W = a.bm.width, H = a.bm.height, cv = new OffscreenCanvas(W, H), x = cv.getContext('2d'), t = new OffscreenCanvas(W, H), tx = t.getContext('2d');
     tx.drawImage(novo, 0, 0); tx.globalCompositeOperation = 'destination-in'; tx.drawImage(a.mask, 0, 0); x.drawImage(a.bm, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(a.mask, 0, 0); x.globalCompositeOperation = 'source-over'; x.drawImage(t, 0, 0); return cv; },

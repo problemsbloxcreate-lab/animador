@@ -36,8 +36,20 @@ const Pintura = {
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.beginPath(); ctx.arc(this.mouse.x * d, this.mouse.y * d, r, 0, 7); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * d; ctx.stroke();
     ctx.beginPath(); ctx.arc(this.mouse.x * d, this.mouse.y * d, r + 1.5 * d, 0, 7); ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 1 * d; ctx.stroke(); ctx.restore();
   },
+  /* TRAÇOS SEGUIDOS SEM PERDER NADA (decisão do dono): o traço seguinte pode começar enquanto o anterior ainda grava.
+     - `emFila`: cada gravação espera a anterior terminar (e o Ctrl+Z espera todas: `_gravando`), então o traço 2 parte do resultado do 1;
+     - `atual`: a imagem é procurada pelo id no personagem de AGORA (o Ctrl+Z troca o objeto; gravar no objeto velho fazia a mudança sumir);
+     - `marcaPrevia`/`soltaPrevia`: a prévia ao vivo troca o bitmap da chave na tela e guarda o original UMA vez; só volta o original quando o último
+       traço que usa aquela chave termina (antes o traço 1 terminando no meio do traço 2 piscava e o "original" do 2 era a prévia do 1). */
+  _origs: new Map(), _uso: new Map(), _vivos: new Set(), // _vivos: traços ainda com o botão apertado (repintam a prévia logo depois de outro traço gravar: sem piscar)
+  atual(img) { if (!img || !Atelie.def) return img; for (const p of Atelie.def.partes || []) { const i = p.imgs?.find(x => x.id === img.id); if (i) return i; } return img; },
+  marcaPrevia(k, toc) { if (!k || toc.has(k)) return; toc.add(k); if (!this._origs.has(k)) this._origs.set(k, Arq.img.get(k)); this._uso.set(k, (this._uso.get(k) || 0) + 1); },
+  soltaPrevia(toc) { for (const k of toc) { const n = (this._uso.get(k) || 1) - 1; if (n > 0) { this._uso.set(k, n); continue; } this._uso.delete(k); const o = this._origs.get(k); this._origs.delete(k); if (o) Arq.img.set(k, o); } toc.clear(); },
+  original(k) { return this._origs.get(k) || Arq.img.get(k); },
+  emFila(fn) { const antes = this._gravando; let fim; const pr = this._gravando = new Promise(r => fim = r); return (async () => { try { if (antes) await antes.catch?.(() => { }); return await fn(); } finally { fim(); if (this._gravando === pr) this._gravando = null; } })(); },
   // grava o canvas como imagem nova da parte (chave nova: o desfazer volta a antiga)
   async gravar(img, cv) {
+    img = this.atual(img); // o personagem de agora (o Ctrl+Z pode ter trocado o objeto)
     if (Vetor.eh(img.k) && !this._avisouPx) { this._avisouPx = true; UI.toast('Esta ferramenta trabalha em pixels: a imagem SVG virou PNG (Ctrl+Z volta para o SVG).', { kind: 'warn', time: 6000 }); }
     if (Camadas.tem(img)) { const c = Camadas.ativa(img); c.k = await Camadas.guarda(cv); return Camadas.achata(img); } // pinta na camada ativa e refaz a imagem final
     const blob = await cv.convertToBlob({ type: 'image/png' }), iid = uid('im').toLowerCase().replace(/[^a-z0-9]/g, ''), k = `personagens/${Atelie.def.id}/img/${iid}.png`;
@@ -59,7 +71,7 @@ const Pintura = {
       const mov = ev => { if (acabou) return; const q = a.para(Atelie.mundo(ev)); d = { x: q.x - pt.x, y: q.y - pt.y }; if (ev.shiftKey) { if (Math.abs(d.x) > Math.abs(d.y)) d.y = 0; else d.x = 0; } a.vivo(Camadas.deslocado(a.bm, d.x, d.y)); Atelie.desenha(); };
       let acabou = false; const k0 = a.img.k; // igual ao pincel: a imagem de antes volta a ser a original (senão o Ctrl+Z mostra a camada movida)
       const up = async () => { if (acabou) return; acabou = true; for (const [t, f] of [['pointermove', mov], ['pointerup', up], ['pointercancel', up], ['lostpointercapture', up]]) cv0.removeEventListener(t, f);
-        if (Math.abs(d.x) + Math.abs(d.y) < .5) { Arq.img.set(k0, a.orig); return Atelie.desenha(); } try { await this.gravar(a.img, Camadas.deslocado(a.bm, d.x, d.y)); } finally { Arq.img.set(k0, a.orig); } Atelie.commit(); };
+        if (Math.abs(d.x) + Math.abs(d.y) < .5) { Arq.img.set(k0, Pintura._origs.get(k0) || a.orig); return Atelie.desenha(); } try { await this.gravar(a.img, Camadas.deslocado(a.bm, d.x, d.y)); } finally { Arq.img.set(k0, Pintura._origs.get(k0) || a.orig); } Atelie.commit(); };
       cv0.addEventListener('pointermove', mov); cv0.addEventListener('pointerup', up); cv0.addEventListener('pointercancel', up); cv0.addEventListener('lostpointercapture', up); return; }
     const aq = this.ferr === 'magica' && a.quadro ? Quadro.alvoApagar(a) : a; // borracha mágica num keyframe: apaga só nele
     const { cv, c } = this.tela(aq.bm), orig = aq.bm, k0 = a.img.k, mask = this.mascara(a);

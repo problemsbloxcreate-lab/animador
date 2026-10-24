@@ -357,7 +357,7 @@ const Vetor = {
   // grava o modelo como uma imagem NOVA (chave nova: o Ctrl+Z do Ateliê volta a de antes)
   async gravar(img, m, k = this.chave()) {
     const t = this.svg(m), b = new Blob([t], { type: 'image/svg+xml' }); await Arq.guardar(b, k); this._txt.set(k, t); this._mod.set(k, clone(m));
-    const im = await this.imagem(b); if (!im) throw new Error('O SVG novo não abriu.'); Arq.img.set(k, im); if (img) img.k = k; return k;
+    const im = await this.imagem(b); if (!im) throw new Error('O SVG novo não abriu.'); Arq.img.set(k, im); if (img) { const at = typeof Pintura !== 'undefined' ? Pintura.atual(img) : img; at.k = k; img.k = k; } return k;
   },
   // desenha o modelo num canvas (só as camadas pedidas), no tamanho da imagem × escala
   async raster(m, o = {}) {
@@ -412,7 +412,7 @@ const Vetor = {
   selD(mask, m, c) { if (!mask) return null; return this.dDe(this.laçosDe(mask), { mapa: this.mapa(m, c), alisa: 0, eps: .3 }) || null; },
   // pincel e borracha: pts = [{ x, y, w }] em pixels da imagem
   async traco(a, pts, o) {
-    const img = a.img, m = await this.modelo(img.k), c = this.ativa(m, img); if (!c) return false;
+    const img = Pintura.atual(a.img), m = await this.modelo(img.k), c = this.ativa(m, img); if (!c) return false;
     const mm = Math.max(...pts.map(p => p.w)) || 1, mn = Math.min(...pts.map(p => p.w)), b = o.dureza < .9 ? +Math.max(.3, (1 - o.dureza) * mm * .35).toFixed(1) : 0, igual = mm - mn < mm * .03;
     // grossura igual (mouse, ou sem pressão no tamanho): vira LINHA do SVG com pontas e juntas redondas; com pressão: o contorno do traço
     const mapaI = p => p, forma = mp => { if (igual) { const k = this.escalaDe(mp); return { d: this.dAberto(pts.map(mp)), s: +(mm * k).toFixed(2) }; } return { d: this.dDoLaço(this.laçoDoTraco(this.lisoTraco(pts)), { mapa: mp }) }; };
@@ -443,14 +443,14 @@ const Vetor = {
     return { cv, s, n };
   },
   async balde(a, pt, cor, mask) {
-    const img = a.img, m = await this.modelo(img.k), ar = await this.area(a, pt, m);
+    const img = Pintura.atual(a.img), m = await this.modelo(img.k), ar = await this.area(a, pt, m);
     if (!ar || ar.aberta) { UI.toast('Essa área não está fechada pelas linhas: o balde do vetor só pinta áreas fechadas.', { kind: 'warn' }); return false; }
     if (ar.linha) { UI.toast('Isso é a linha: o balde pinta a cor das áreas. Para mudar a cor da linha, use Trocar cores ou escolha a camada Linha e pinte com o pincel.', { kind: 'warn', time: 5000 }); return false; }
     const c = this.camCor(m, img), d = this.dDe(this.laçosDe(ar.cv, ar.s), { mapa: this.mapa(m, c) }); if (!d) return false;
     const cl = this.selD(mask, m, c); c.f.push({ d, c: cor, r: 1, ...(cl ? { cl } : {}) }); await this.gravar(img, m); return true;
   },
   async magica(a, pt, mask) {
-    const img = a.img, m = await this.modelo(img.k), c = this.ativa(m, img), ar = await this.area(a, pt, m);
+    const img = Pintura.atual(a.img), m = await this.modelo(img.k), c = this.ativa(m, img), ar = await this.area(a, pt, m);
     if (!ar || ar.aberta || ar.linha) { UI.toast(ar?.linha ? 'Isso é a linha: escolha a camada Linha e use a borracha para apagar a linha.' : 'Clique numa área fechada pelas linhas.', { kind: 'warn' }); return false; }
     if (a.quadro) return this.apagaQuadro(a, this.dDe(this.laçosDe(ar.cv, ar.s)), 1, 0);
     // a borracha mágica tira a COR da área (de todas as camadas de cor); as linhas ficam
@@ -459,7 +459,7 @@ const Vetor = {
   },
   // seleção: apagar (só na camada escolhida) ou manter só ela
   async naSelecao(a, mask, modo) {
-    const img = a.img, m = await this.modelo(img.k), c = this.ativa(m, img);
+    const img = Pintura.atual(a.img), m = await this.modelo(img.k), c = this.ativa(m, img);
     if (modo === 'apagar' && a.quadro) return this.apagaQuadro(a, this.dDe(this.laçosDe(mask), { alisa: 0, eps: .3 }), 1, 0);
     const d = this.selD(mask, m, c); if (!d) return false;
     if (modo === 'apagar' && Pintura.selecao?.vetArea) { for (const k of m.cam) if (k.papel !== 'linha') k.m.push({ d: this.selD(mask, m, k), r: 1 }); } // área da varinha: sai a COR inteira dela (as linhas ficam)
@@ -488,7 +488,7 @@ const Vetor = {
     return hex => { if (cache.has(hex)) return cache.get(hex); const t = new OffscreenCanvas(1, 1), tx = t.getContext('2d'); tx.fillStyle = hex; tx.fillRect(0, 0, 1, 1); x.clearRect(0, 0, 1, 1); x.filter = filtro; x.drawImage(t, 0, 0); x.filter = 'none'; const d = x.getImageData(0, 0, 1, 1).data, r = hexDe(d[0], d[1], d[2]); cache.set(hex, r); return r; }; },
   // Ajustes de cor / Transformar na camada escolhida (as do vetor; nitidez não existe em vetor)
   async ajustar(a, info) {
-    const img = a.img, m = await this.modelo(img.k), c = this.ativa(m, img);
+    const img = Pintura.atual(a.img), m = await this.modelo(img.k), c = this.ativa(m, img);
     if (info.v) { const v = info.v, f = []; if (v.brilho) f.push(`brightness(${100 + v.brilho}%)`); if (v.contraste) f.push(`contrast(${100 + v.contraste}%)`); if (v.sat) f.push(`saturate(${100 + v.sat}%)`); if (v.matiz) f.push(`hue-rotate(${v.matiz}deg)`); if (v.pb) f.push('grayscale(100%)'); if (v.sepia) f.push('sepia(100%)'); if (v.inverter) f.push('invert(100%)');
       const fn = f.length ? this.filtroCor(f.join(' ')) : null; if (fn) for (const p of c.f) p.c = fn(p.c || '#000000'); if (v.desfoque) c.b = +((c.b || 0) + v.desfoque / 2).toFixed(1);
       if (v.nitidez && !v.desfoque && !fn) { UI.toast('Nitidez não existe no vetor (ele já é nítido em qualquer zoom).', { kind: 'warn' }); return false; } }
@@ -507,7 +507,7 @@ const Vetor = {
 
   /* ---------- APAGAR SÓ NUM KEYFRAME (vetor): a máscara do frame também é SVG (formas pretas = apagado), em pixels da imagem ---------- */
   async apagaQuadro(a, d, op = 1, b = 0, sw = 0) {
-    if (!d) return false; const img = a.img, ant = a.ap?.k && this.eh(a.ap.k) ? this.ler(await this.texto(a.ap.k)) : null, m = ant || { W: a.bm.width, H: a.bm.height, off: { x: 0, y: 0 }, cam: [{ id: 'ap', nome: 'Apagado', papel: 'cor', f: [], m: [] }] };
+    if (!d) return false; const img = Pintura.atual(a.img), ant = a.ap?.k && this.eh(a.ap.k) ? this.ler(await this.texto(a.ap.k)) : null, m = ant || { W: a.bm.width, H: a.bm.height, off: { x: 0, y: 0 }, cam: [{ id: 'ap', nome: 'Apagado', papel: 'cor', f: [], m: [] }] };
     m.cam[0].f.push({ d, c: '#000000', ...(sw ? { s: sw } : {}), ...(op < 1 ? { o: op } : {}), ...(b ? { b } : {}) });
     const k = this.chave(); await this.gravar(null, m, k);
     const ap = { [img.id]: { k, x: 0, y: 0 } }; Quadro.poe(a.quadro, a.p.id, { ap }); if (a.quadro.tipo === 'editor') Quadro.avisaEditor({ [a.p.id]: { ap } }, k);
