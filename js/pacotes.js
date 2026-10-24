@@ -78,9 +78,10 @@ const AtelieArq = {
     let r; try { r = await this.ler(f); } catch (e) { return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
     const assumiu = await Autores.assumir(r.def); // sem criador conhecido (IA): quem abre primeiro vira o dono
     r.def.nome = await Arquivos.nomePersonagem(r.def.nome, r.def.id); // outro personagem (outro id) com o mesmo nome: este ganha (1), (2)…
+    const naNuv = await Nuvem.estaNaNuvem(r.def.id); if (naNuv === false) Autores.semNuvem(r.def); // a equipe não tem mais este personagem: ficha de arquivo normal (sem o histórico da nuvem)
     await Atelie.abrir(null, { def: r.def, volta: !!App.P && !Atelie.emAba });
     const n = r.def.partes.length, ns = r.def.sessoes?.length || 0;
-    const body = Autores.ficha(await Autores.prepara({ tipo: 'Personagem do Ateliê · .atelieanimador', nome: r.def.nome, thumb: r.def.thumb, ico: 'layers', resumo: `${n} parte${n === 1 ? '' : 's'} · ${ns} sess${ns === 1 ? 'ão' : 'ões'}`, autor: r.def.autor, verboAutor: 'subiu para a nuvem', edicoes: r.def.edicoes, pacote: r.info,
+    const body = Autores.ficha(await Autores.prepara({ tipo: 'Personagem do Ateliê · .atelieanimador', nome: r.def.nome, thumb: r.def.thumb, ico: 'layers', resumo: `${n} parte${n === 1 ? '' : 's'} · ${ns} sess${ns === 1 ? 'ão' : 'ões'}`, autor: r.def.autor, verboAutor: naNuv === false ? 'criou' : 'subiu para a nuvem', edicoes: r.def.edicoes, pacote: r.info,
       aviso: [o.errado ? 'Este arquivo é um <b>personagem do Ateliê</b> (.atelieanimador), não um projeto do Animador. Projetos de animação são só <b>.animador</b>. Abri ele aqui no Ateliê para você.' : '', assumiu ? Autores.AVISO_DONO : ''].filter(Boolean).join('<br><br>') || null }));
     body.appendChild(h('<div class="ficha-nota">Ele está aberto no Ateliê. Para ir para a biblioteca da equipe, clique em <b>Salvar na nuvem</b> (se a equipe já tiver este personagem, a versão do arquivo fica no lugar).</div>'));
     UI.modal({ title: o.errado ? 'Isto é um personagem do Ateliê' : 'Personagem aberto do arquivo', icon: o.errado ? 'alert' : 'layers', width: 440, body, buttons: [{ label: 'Entendi', kind: 'primary', value: true }] });

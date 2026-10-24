@@ -15,6 +15,8 @@ const Nuvem = {
   },
   // lista os personagens da equipe: [{ id, nome, pasta, thumb, por, em }]
   // a lista fica guardada por 2 min (já vem pronta da tela de carregamento); salvar/apagar ou "Atualizar" busca de novo
+  // este personagem está na nuvem da equipe agora? true/false; null = não deu para saber (lista incompleta ou sem resposta)
+  async estaNaNuvem(id) { if (!id) return false; let l; try { l = await this.lista(); } catch { return null; } if (this.semLista || this.parcial) return null; return l.some(x => x.id === id); },
   lista(novo) {
     if (!novo && this._lista && Date.now() - this._listaEm < 120000) return this._lista;
     this._listaEm = Date.now(); return (this._lista = this._listaJa().catch(e => { this._lista = null; throw e; }));
@@ -229,6 +231,7 @@ const Autores = {
   async marca(def) {
     await this.limpa(def); const eu = await this.eu(), agora = Date.now();
     if (!def.autor) def.autor = { ...eu, em: agora };
+    delete def.semNuvem; // voltou para a nuvem: o histórico de lá recomeça
     def.edicoes = [...(def.edicoes || []).filter(x => x.id !== eu.id), { ...eu, em: agora }].slice(-12);
   },
   // arquivo sem criador conhecido (feito/editado pela IA, ou de antes da ficha): quem abre primeiro vira o dono. Devolve true se assumiu
@@ -272,6 +275,8 @@ const Autores = {
     return { ...o, autor: autor || o.autor, edicoes, pacote: o.pacote ? { ...o.pacote, por } : o.pacote };
   },
   async aoVivo(d) { const autor = await this.vivo(d.autor), edicoes = await Promise.all((d.edicoes || []).map(x => this.vivo(x))); return { ...d, autor, edicoes }; },
+  // NÃO ESTÁ NA NUVEM (saiu de lá ou nunca foi): tira o histórico da nuvem para não confundir — fica só quem criou (como arquivo normal)
+  semNuvem(def) { if (!def) return def; def.edicoes = []; def.semNuvem = true; return def; },
   selo(d0, o = {}) { // o.local = este personagem está só neste computador (não está na nuvem agora)
     if (!d0?.autor) return null; d0 = this.semIa(d0); let d = d0, eds = this.editores(d), ult = eds[0];
     const el = h(`<div class="autores" title=""></div>`);
@@ -279,8 +284,8 @@ const Autores = {
     pinta(); this.aoVivo(d0).then(x => { d = this.semIa(x); pinta(); }); // troca pelo nome e foto de agora assim que chegar
     let pop = null; const fecha = () => { pop?.remove(); pop = null; };
     el.onmouseenter = () => { fecha();
-      pop = h(`<div class="aut-pop"><div class="aut-l">${this.av(d.autor)}<div><b>${esc(d.autor.nome)}</b><small>${d.autor.desc ? 'criador desconhecido' : (o.local ? 'subiu para a nuvem · ' + fmtDate(d.autor.em) + ' (não está mais lá)' : 'subiu para a nuvem · ' + fmtDate(d.autor.em))}</small></div></div>
-        ${o.local ? '<div class="aut-t" style="color:#ffb84d">Agora só neste computador: não está na nuvem</div>' : ''}
+      pop = h(`<div class="aut-pop"><div class="aut-l">${this.av(d.autor)}<div><b>${esc(d.autor.nome)}</b><small>${d.autor.desc ? 'criador desconhecido' : (o.local || d.semNuvem ? 'criou · ' : 'subiu para a nuvem · ') + fmtDate(d.autor.em)}</small></div></div>
+        ${o.local ? '<div class="aut-t">Só neste computador</div>' : ''}
         ${eds.length ? `<div class="aut-t">Editado por</div>${eds.map(x => `<div class="aut-l">${this.av(x)}<div><b>${esc(x.nome)}</b><small>última edição · ${fmtDate(x.em)}</small></div></div>`).join('')}` : '<div class="aut-t">Ninguém mais editou</div>'}
         ${d.modificado ? `<div class="aut-t">Salvo pela última vez ${fmtDate(d.modificado)}</div>` : ''}</div>`);
       document.body.appendChild(pop); const r = el.getBoundingClientRect(), pr = pop.getBoundingClientRect();
