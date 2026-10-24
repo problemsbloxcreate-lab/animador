@@ -96,7 +96,7 @@ const AoVivo = {
   async entrar(ad, o = {}) {
     if (this.ativo) await this.sair(); if (!this.ligado()) return false;
     let t; try { t = await this.transporte(); } catch (e) { if (o.avisa) UI.toast('Trabalhar junto: ' + esc(e.message), { kind: 'warn', time: 7000 }); return false; }
-    this.t = t; this.ad = ad; this.sala = ad.sala; this._nuvemEm = 0; this.gente = {}; this.feitos = {}; this.pend = []; this.log = []; this.minhas = []; this.refazerL = []; this.subidas = new Set(); this._fila = Promise.resolve();
+    this.t = t; this.ad = ad; this.sala = ad.sala; this._nuvemEm = 0; this.gente = {}; this.feitos = {}; this.pend = []; this.fora = []; this.log = []; this.minhas = []; this.refazerL = []; this.subidas = new Set(); this._fila = Promise.resolve();
     const eu = await this.quem();
     try { return await this._entra(t, ad, eu, o); } catch (e) {
       if (!o._de2 && /permission.denied/i.test(String(e?.code || '') + String(e?.message || ''))) { for (const f of (t.offs || []).splice(0)) try { f(); } catch { } const m = await this.liberar(); if (m === 'ok') return this.entrar(ad, { ...o, _de2: true }); e = new Error(m); }
@@ -151,7 +151,7 @@ const AoVivo = {
     if (!this.ativo) return; const st = await this.t.estado(this.sala); if (!st.snap) return;
     this.base = st.snap.j; this.ate = st.snap.ate || ''; this.log = (st.ops || []).map(op => ({ k: op.k, ops: JSON.parse(op.j || '[]') })).filter(x => !this.ate || x.k > this.ate);
     let c = Difs.aplica(JSON.parse(this.base), this.log.flatMap(x => x.ops)); if (this.ad.canon) c = this.ad.canon(c); this.confirmado = JSON.stringify(c);
-    const novo = Difs.aplica(JSON.parse(this.confirmado), this.pend.flatMap(x => x.ops)); await this.garanteArqs(this.ad.chaves(novo));
+    const novo = Difs.aplica(JSON.parse(this.confirmado), [...this.pend, ...(this.fora || [])].flatMap(x => x.ops)); await this.garanteArqs(this.ad.chaves(novo));
     this._aplicando = true; try { this.ad.set(novo); this.local = JSON.stringify(this.ad.get()); } finally { this._aplicando = false; }
   },
   async recebeTroca(x) {
@@ -182,7 +182,10 @@ const AoVivo = {
     const antes = JSON.parse(this.local), depois = JSON.parse(agora), ops = Difs.ops(antes, depois); this.local = agora; if (!ops.length) return;
     if (!this._desfazendo) { this.minhas.push({ ops, inv: Difs.ops(depois, antes) }); if (this.minhas.length > 100) this.minhas.shift(); this.refazerL = []; }
     const chaves = ad.chaves(depois), fazendo = rotulo || this.rotuloDe(ops);
-    this._fila = this._fila.then(async () => { await this.subirArqs(chaves); const k = this.t.enviar(this.sala, { por: this.eu.id, nome: this.eu.nome, r: fazendo || '', j: JSON.stringify(ops) }); this.pend.push({ k, ops }); }).catch(e => console.warn('ao vivo', e));
+    // `fora`: feitas aqui e ainda NÃO mandadas (esperam a fila). Quem aplica mudança de fora conta com elas — antes uma mudança de outra
+    // pessoa que chegava enquanto a minha esperava na fila apagava a minha (ex.: traços seguidos de SVG sumiam ao vivo)
+    const item = { ops }; (this.fora || (this.fora = [])).push(item);
+    this._fila = this._fila.then(async () => { await this.subirArqs(chaves); const k = this.t.enviar(this.sala, { por: this.eu.id, nome: this.eu.nome, r: fazendo || '', j: JSON.stringify(ops) }); const i = this.fora.indexOf(item); if (i >= 0) this.fora.splice(i, 1); this.pend.push({ k, ops }); }).catch(e => console.warn('ao vivo', e));
     this.anota(this.eu?.id, this.eu?.nome, fazendo); this.diz(fazendo);
   },
   rotuloDe(ops) {
@@ -201,13 +204,14 @@ const AoVivo = {
     else this.confirmado = JSON.stringify(Difs.aplica(JSON.parse(this.confirmado), ops));
     if (i >= 0 && op.k >= ultima) return this._contaSnap();
     // de outra pessoa: o que está confirmado + as minhas que ainda não voltaram
-    const novo = Difs.aplica(JSON.parse(this.confirmado), this.pend.flatMap(x => x.ops));
-    this._fila = this._fila.then(async () => { await this.garanteArqs(this.ad.chaves(novo), this._trocaFim ? Infinity : 4000); try { await this._backup; } catch { } await this.livre(); if (!this.ativo) return; this._aplicando = true; try { this.ad.set(novo); this.local = JSON.stringify(this.ad.get()); } finally { this._aplicando = false; } }).catch(e => console.warn('ao vivo', e)); // um erro não pode travar a fila (as próximas mudanças pararam de chegar)
+    // calculado NA HORA de aplicar (depois de esperar o traço/arrasto): confirmado + minhas pendentes + minhas ainda não mandadas
+    const novoAgora = () => Difs.aplica(JSON.parse(this.confirmado), [...this.pend, ...(this.fora || [])].flatMap(x => x.ops));
+    this._fila = this._fila.then(async () => { await this.garanteArqs(this.ad.chaves(novoAgora()), this._trocaFim ? Infinity : 4000); try { await this._backup; } catch { } await this.livre(); if (!this.ativo) return; const novo = novoAgora(); this._aplicando = true; try { this.ad.set(novo); this.local = JSON.stringify(this.ad.get()); } finally { this._aplicando = false; } }).catch(e => console.warn('ao vivo', e)); // um erro não pode travar a fila (as próximas mudanças pararam de chegar)
     if (op.por !== this.eu.id && op.r) { this.atividade(op.nome, op.r); this.anota(op.por, op.nome, op.r); }
     this._contaSnap();
   },
   // no meio de um arrasto/traço (ou com a IA trabalhando) a mudança de fora espera: senão o traço iria para um objeto que já foi trocado
-  async livre() { let n = 0; while (((this._gesto && Date.now() - (this._gestoT || 0) < 20000) || (typeof Ocupado !== 'undefined' && Ocupado.n > (this._trocaFim ? 1 : 0) && n < 500)) && n++ < 1500) /* arrasto “preso” (soltou fora da janela) não segura as mudanças para sempre */ await new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => setTimeout(r, 40); c.port2.postMessage(0); }); },
+  async livre() { let n = 0; while (((this._gesto && Date.now() - (this._gestoT || 0) < 20000) || (typeof Pintura !== 'undefined' && Pintura._gravando && n < 500) /* traço ainda gravando (soltou o mouse mas a imagem nova não entrou): a mudança de fora espera, senão o traço ia para o personagem velho */ || (typeof Ocupado !== 'undefined' && Ocupado.n > (this._trocaFim ? 1 : 0) && n < 500)) && n++ < 1500) /* arrasto “preso” (soltou fora da janela) não segura as mudanças para sempre */ await new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => setTimeout(r, 40); c.port2.postMessage(0); }); },
   _contaSnap() { this._n = (this._n || 0) + 1; if (this._n >= 30) this.talvezSnap(); },
   // quem entrou primeiro (que ainda está) guarda o estado de tempos em tempos: quem chega depois carrega rápido
   async talvezSnap() {
