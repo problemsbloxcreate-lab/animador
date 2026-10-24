@@ -272,14 +272,15 @@ const Autores = {
     return { ...o, autor: autor || o.autor, edicoes, pacote: o.pacote ? { ...o.pacote, por } : o.pacote };
   },
   async aoVivo(d) { const autor = await this.vivo(d.autor), edicoes = await Promise.all((d.edicoes || []).map(x => this.vivo(x))); return { ...d, autor, edicoes }; },
-  selo(d0) {
+  selo(d0, o = {}) { // o.local = este personagem está só neste computador (não está na nuvem agora)
     if (!d0?.autor) return null; d0 = this.semIa(d0); let d = d0, eds = this.editores(d), ult = eds[0];
     const el = h(`<div class="autores" title=""></div>`);
     const pinta = () => { eds = this.editores(d); ult = eds[0]; el.innerHTML = `${this.av(d.autor)}${ult ? this.av(ult, 'sob') : ''}<span class="aut-nm">${esc(d.autor.nome)}${ult ? `<small> · editado por ${esc(ult.nome)}${eds.length > 1 ? ` +${eds.length - 1}` : ''}</small>` : ''}</span>`; };
     pinta(); this.aoVivo(d0).then(x => { d = this.semIa(x); pinta(); }); // troca pelo nome e foto de agora assim que chegar
     let pop = null; const fecha = () => { pop?.remove(); pop = null; };
     el.onmouseenter = () => { fecha();
-      pop = h(`<div class="aut-pop"><div class="aut-l">${this.av(d.autor)}<div><b>${esc(d.autor.nome)}</b><small>${d.autor.desc ? 'criador desconhecido' : 'subiu para a nuvem · ' + fmtDate(d.autor.em)}</small></div></div>
+      pop = h(`<div class="aut-pop"><div class="aut-l">${this.av(d.autor)}<div><b>${esc(d.autor.nome)}</b><small>${d.autor.desc ? 'criador desconhecido' : (o.local ? 'subiu para a nuvem · ' + fmtDate(d.autor.em) + ' (não está mais lá)' : 'subiu para a nuvem · ' + fmtDate(d.autor.em))}</small></div></div>
+        ${o.local ? '<div class="aut-t" style="color:#ffb84d">Agora só neste computador: não está na nuvem</div>' : ''}
         ${eds.length ? `<div class="aut-t">Editado por</div>${eds.map(x => `<div class="aut-l">${this.av(x)}<div><b>${esc(x.nome)}</b><small>última edição · ${fmtDate(x.em)}</small></div></div>`).join('')}` : '<div class="aut-t">Ninguém mais editou</div>'}
         ${d.modificado ? `<div class="aut-t">Salvo pela última vez ${fmtDate(d.modificado)}</div>` : ''}</div>`);
       document.body.appendChild(pop); const r = el.getBoundingClientRect(), pr = pop.getBoundingClientRect();

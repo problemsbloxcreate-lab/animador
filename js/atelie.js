@@ -569,7 +569,7 @@ const Atelie = {
   pinta() {
     if (!this.def) return; $('#at-nome').value = this.def.nome; $('#at-pasta').value = (this.naNuvem && PastasBib._nuvem?.de?.[this.def.id]) || this.def.pasta || 'Personagens';
     this.pintaBotaoNuvem(); this.pintaEstado();
-    const au = $('#at-autores'); if (au && au._de !== this.def.autor?.em + '/' + (this.def.edicoes || []).length) { au._de = this.def.autor?.em + '/' + (this.def.edicoes || []).length; au.innerHTML = ''; const sl = Autores.selo(this.def); if (sl) au.appendChild(sl); }
+    const au = $('#at-autores'), deA = this.def.autor?.em + '/' + (this.def.edicoes || []).length + '/' + !this.naNuvem; if (au && au._de !== deA) { au._de = deA; au.innerHTML = ''; const sl = Autores.selo(this.def, { local: !this.naNuvem }); if (sl) au.appendChild(sl); }
     const pr = this.preset(), s = this.sessao(), st = Animacoes.passoAtual(), ed = this.edImg && this.itemEditor();
     $('#atelie').classList.toggle('ed-img', !!ed); // EDITOR DE IMAGEM: some o que não é da imagem (lista de partes, timeline, botões de mexer nas peças)
     // o que está sendo mexido agora, numa frase só
