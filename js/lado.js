@@ -61,6 +61,17 @@ const Lado = {
       if (parte?.imgs.length > 1) { const sel = h(`<label class="campo"><span>Imagem</span><select style="grid-column:span 2">${parte.imgs.map(i => `<option value="${i.id}" ${i.id === e.img ? 'selected' : ''}>${esc(i.nome)}</option>`).join('')}</select></label>`); $('select', sel).onchange = ev => { muda('img', ev.target.value); App.commit('Trocar imagem'); }; pp.appendChild(sel); }
       el.appendChild(box);
     }
+    // ATUAÇÃO AUTOMÁTICA (js/atuacao.js): o código lê a próxima pose e faz o movimento entre elas (antecipação, mola, respiração, cabelo)
+    { const o = Atuacao.opcoes(f), lig = Atuacao.ligada(f);
+      const box = h(`<div class="sessao atuacao"><h4>${ic('sparkles', 13)} Atuação automática <small>movimento entre as poses</small><span class="sp"></span><button class="btn sm ${lig ? 'primary' : ''}" data-on title="O código lê a próxima pose e faz o personagem se mexer até ela (as chaves não mudam)">${lig ? 'Ligada' : 'Desligada'}</button></h4>
+        <div data-o ${lig ? '' : 'hidden'}><div class="props" style="padding:0" data-f></div><div class="campo2" style="flex-wrap:wrap;gap:4px 12px">
+        <label class="chk" title="Antes de trocar de pose a parte recua um pouco; a pose nova chega girando e passa um tico do ponto (mola). O corpo agacha e estica junto."><input type="checkbox" data-k="mola" ${o.mola ? 'checked' : ''}> Antecipação e mola</label>
+        <label class="chk" title="O corpo respira e os braços nunca ficam 100% parados numa pose"><input type="checkbox" data-k="resp" ${o.resp ? 'checked' : ''}> Respiração e pose viva</label>
+        <label class="chk" title="O cabelo atrasa e balança quando o corpo gira ou o personagem anda, pula ou cai"><input type="checkbox" data-k="cabelo" ${o.cabelo ? 'checked' : ''}> Cabelo solto</label></div></div></div>`);
+      $('[data-on]', box).onclick = () => { f.atuacao = { ...o, on: !lig }; App.commit(lig ? 'Atuação automática desligada' : 'Atuação automática ligada', { semArvore: true }); };
+      $('[data-f]', box).appendChild(this.campo('Força', o.forca, 0, 2, .05, v => { f.atuacao = { ...Atuacao.opcoes(f), forca: v }; App.pinta(); }, () => App.commit('Força da atuação', { semArvore: true })));
+      $$('[data-k]', box).forEach(c => c.onchange = () => { f.atuacao = { ...Atuacao.opcoes(f), [c.dataset.k]: c.checked }; App.commit('Atuação automática', { semArvore: true }); });
+      el.appendChild(box); }
     const ac = h(`<div class="sessao"><div class="campo2"><button class="btn sm" data-boca>${ic('mic', 13)} Boca pela voz</button><button class="btn sm ia" data-ia>${ic('sparkles', 13)} Animar com a IA</button><button class="btn sm" data-at>${ic('edit', 13)} Editar personagem</button></div></div>`);
     $('[data-boca]', ac).onclick = () => Som.bocaPelaVoz(f); $('[data-ia]', ac).onclick = () => IA.abrir(f); $('[data-at]', ac).onclick = () => Atelie.abrirAba(def.id);
     el.appendChild(ac);

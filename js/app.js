@@ -97,7 +97,7 @@ const App = {
     const def = await Biblioteca.escolher(); if (!def) return;
     this.P.personagens[def.id] = def; await Arq.garantir(Modelo.chavesImgs(def)); Icone.garanteNoEditor(this.P);
     const b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, {})), s = b.h > 0 ? clamp(this.P.h * .55 / b.h, .1, 4) : 1;
-    const n = Modelo.novoNo('personagem', { ref: def.id, nome: def.nome, s: round(s, 2) }); n.chaves[0].s = round(s, 2);
+    const n = Modelo.novoNo('personagem', { ref: def.id, nome: def.nome, s: round(s, 2) }); n.chaves[0].s = round(s, 2); n.atuacao = { ...Atuacao.PADRAO };
     this.inserir(n, 'Personagem ' + def.nome); UI.toast(`<b>${esc(def.nome)}</b> entrou no quadro ${this.q + 1}. Os botões das sessões estão no painel da direita.`, { kind: 'ok' });
   },
   async addImagem() {
