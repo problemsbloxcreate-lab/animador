@@ -86,7 +86,10 @@ const Rig = {
     const dur = Math.max(1, Math.min(qb - qa, Math.round(+ch.dur > 0 ? +ch.dur : (P.fps || 24) * .75))), q0 = qb - dur; if (q <= q0) return ep;
     const epB = Modelo.partesNoEstado(Modelo.naVista(def, eb.vista), eb), t = Ease.daChave(ch)((q - q0) / dur), out = {};
     for (const [pid, a] of Object.entries(ep)) {
-      const b = epB[pid]; if (!a || !b || (a.img || null) !== (b.img || null) || (a.vis === false) !== (b.vis === false)) { out[pid] = a; continue; } const x = { ...a }; // troca de desenho: fica para a chave (a atuação faz a mola)
+      const b = epB[pid]; if (!a || !b || (a.vis === false) !== (b.vis === false)) { out[pid] = a; continue; }
+      let x = { ...a }; if ((a.img || null) !== (b.img || null)) { // troca de desenho: só a troca (boca, olhos) fica para a chave; se a parte também gira/anda bastante, o desenho troca no meio do caminho
+        const dr = Math.abs(this.norm((b.r || 0) - (a.r || 0))), dp = Math.hypot((b.x || 0) - (a.x || 0), (b.y || 0) - (a.y || 0)); if (dr < 8 && dp < 4) { out[pid] = a; continue; }
+        if (t >= .5) x = { ...b, x: a.x, y: a.y, r: a.r, s: a.s }; }
       for (const c of ['x', 'y', 'r', 's']) { const va = a[c] ?? (c === 's' ? 1 : 0), vb = b[c] ?? (c === 's' ? 1 : 0); if (va === vb) continue; let d = vb - va; if (c === 'r') d = this.norm(d); x[c] = va + d * t; }
       out[pid] = x;
     }
