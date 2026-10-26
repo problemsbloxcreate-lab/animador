@@ -62,9 +62,10 @@ Você recebe o projeto em JSON: quadros (numerados a partir de 1), fps, personag
 Responda SÓ um JSON: {"explica":"frase curta do que fez","acoes":[...]}.
 Ações possíveis:
  {"tipo":"pose","camada":"nome da camada","quadro":N,"sessoes":{"Nome da sessão":"nome do preset"}}   (vale até a próxima pose daquela sessão)
- {"tipo":"mover","camada":"nome","quadro":N,"x":0,"y":0,"r":0,"s":1}   (só os campos que mudam; x/y em pixels do projeto)
- {"tipo":"camera","quadro":N,"x":0,"y":0,"zoom":1}
- {"tipo":"efeito","efeito":"vinheta|granulado|cinema|flash|tremor|desfoque|brilho|vhs|escurecer|clarear","de":N,"ate":N,"forca":0.5}
+ {"tipo":"mover","camada":"nome","quadro":N,"x":0,"y":0,"r":0,"s":1,"curva":"suave"}   (só os campos que mudam; x/y em pixels do projeto; "curva" = como o movimento CHEGA nesta chave: suave|linear|saida (freando)|entrada (acelerando)|sobra (passa do ponto e volta)|quicar|elastico|corte (pula seco))
+ {"tipo":"camera","quadro":N,"x":0,"y":0,"zoom":1,"tremor":0,"curva":"suave"}   (tremor 0-1 = câmera tremendo nesse trecho, vai mudando até a próxima chave; "curva" igual ao mover; "corte" = corte seco de plano)
+ {"tipo":"entrada","camada":"nome","entra":"pop|carimbo|aparecer|subir|descer|girar|esticar|nenhuma","sai":"…","quadros":6}   (como a camada aparece no começo dela e some no fim; ótimo para textos e objetos)
+ {"tipo":"efeito","efeito":"vinheta|granulado|cinema|flash|tremor|desfoque|brilho|vhs|escurecer|clarear|chicote|zoomcorte","de":N,"ate":N,"forca":0.5}   (chicote e zoomcorte são TRANSIÇÕES: ~0,4 s com o corte no meio)
  {"tipo":"tremulo","camada":"nome","modo":"tremer|ondular|nenhum","forca":0.4}   (deixa uma imagem/camada parada "viva", tremendo ou ondulando)
  {"tipo":"visual","visual":"normal|vivo|quente|frio|noite|por-do-sol|vintage|pb|sonho|terror|desbotado|neon"}
  {"tipo":"cenario","descricao":"o lugar em português, sem personagens"}   (só se a pessoa pedir um cenário/fundo novo; sai no estilo da casa e fica só nesta animação)
@@ -107,8 +108,12 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
           const no = this.acha(todos, a.camada); if (!no) continue;
           if (a.tipo === 'pose' && no.tipo === 'personagem') { const def = Modelo.naVista(P.personagens[no.ref], Modelo.estadoPersonagem(no, q(a.quadro)).vista), k = Modelo.chave(no, q(a.quadro)); k.sessoes = k.sessoes || {};
             for (const [sn, pn] of Object.entries(a.sessoes || {})) { const s = this.acha(def.sessoes, sn); const p = s && (pn ? this.acha(s.presets, pn) : null); if (s) { k.sessoes[s.id] = p ? p.id : null; } } n++; }
-          if (a.tipo === 'mover') { const v = {}; for (const c of ['x', 'y', 'r', 's', 'op']) if (a[c] != null && isFinite(+a[c])) v[c] = +a[c]; Modelo.poeTransf(no, q(a.quadro), v); n++; }
-        } else if (a.tipo === 'camera') { const k = q(a.quadro); P.camera.chaves[k] = { ...Modelo.camera(P, k), ...Object.fromEntries(['x', 'y', 'zoom', 'r'].filter(c => a[c] != null).map(c => [c, +a[c]])) }; n++; }
+          if (a.tipo === 'mover') { const v = {}; for (const c of ['x', 'y', 'r', 's', 'op']) if (a[c] != null && isFinite(+a[c])) v[c] = +a[c]; Modelo.poeTransf(no, q(a.quadro), v); const ck = no.chaves[q(a.quadro)];
+            if (a.curva && Ease.IR[a.curva] && a.curva !== 'livre') { if (a.curva === 'suave') delete ck.ir; else ck.ir = a.curva; if (a.curva !== 'corte') no.interp = true; } n++; }
+        } else if (a.tipo === 'camera') { const k = q(a.quadro); P.camera.chaves[k] = { ...Modelo.camera(P, k), ...Object.fromEntries(['x', 'y', 'zoom', 'r'].filter(c => a[c] != null).map(c => [c, +a[c]])) };
+          if (a.tremor != null && isFinite(+a.tremor)) P.camera.chaves[k].tremor = clamp(+a.tremor, 0, 1); if (a.curva && Ease.IR[a.curva] && a.curva !== 'livre' && a.curva !== 'suave') P.camera.chaves[k].ir = a.curva; n++; }
+        else if (a.tipo === 'entrada') { const no = this.acha(todos, a.camada); if (!no) continue; const qq = clamp(Math.round(+a.quadros || P.fps * .25), 1, 120);
+          for (const [k, v] of [['entra', a.entra], ['sai', a.sai]]) { if (v == null) continue; if (!Modelo.ANIMS[v]) delete no[k]; else no[k] = { tipo: v, q: qq }; } n++; }
         else if (a.tipo === 'efeito' && Efeitos.TELA.some(e => e.id === a.efeito)) { const t = App.efeitoTopo(); t.efeitos.push({ id: uid('ef'), tipo: a.efeito, de: q(a.de), ate: Math.max(q(a.de), q(a.ate)), forca: clamp(+a.forca || .5, 0, 1) }); App.nomeEfeito(t); n++; }
         else if (a.tipo === 'apagar_chaves') { const de = q(a.de), ate = Math.max(de, q(a.ate)), ch = /^c[aâ]mera$/i.test(String(a.camada || '').trim()) ? P.camera.chaves : this.acha(todos, a.camada)?.chaves; if (!ch) continue;
           for (const k of Object.keys(ch)) if (+k >= de && +k <= ate && (!tr || Trechos.dentro(tr, +k)) && !(ch === P.camera.chaves && +k === 0)) delete ch[k]; n++; }

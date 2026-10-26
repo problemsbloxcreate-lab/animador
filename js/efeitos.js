@@ -27,7 +27,24 @@ const Efeitos = {
     { id: 'vhs', nome: 'VHS', ic: 'tv', forca: .5 },
     { id: 'escurecer', nome: 'Escurecer', ic: 'eye', forca: .6 },
     { id: 'clarear', nome: 'Clarear', ic: 'star', forca: .5 },
+    { id: 'chicote', nome: 'Transição chicote', ic: 'transition', forca: .7 },
+    { id: 'zoomcorte', nome: 'Transição com zoom', ic: 'zoomIn', forca: .6 },
   ],
+  // TRANSIÇÕES (como as dos Shorts): o corte fica no meio do efeito; a imagem sai borrada e a de depois entra
+  TRANS: ['chicote', 'zoomcorte'],
+  // matrizes da transição no quadro q (m = matriz de cada cópia, a = opacidade); null = sem transição
+  transicao(lista, q, de, ate, W, H, cx, cy) {
+    const e = lista.find(x => this.TRANS.includes(x.tipo)); if (!e) return null;
+    const a0 = e.de ?? de, a1 = e.ate ?? ate, p = clamp((q - a0 + .5) / Math.max(1, a1 - a0 + 1), 0, 1), f = e.forca ?? .6, pico = Math.sin(Math.PI * p), out = [];
+    if (e.tipo === 'chicote') {
+      const lado = e.lado === 'dir' ? 1 : -1, ofs = W * .55 * f * (p < .5 ? -Ease.in(p * 2) : 1 - Ease.out((p - .5) * 2)) * lado, borrao = W * .09 * f * pico;
+      for (let i = 0; i < 7; i++) out.push({ m: new DOMMatrix().translate(ofs + borrao * (i / 6 - .5), 0), a: i === 3 ? 1 : .22 });
+    } else {
+      const z = 1 + .55 * f * pico, bo = .05 * f * pico;
+      for (let i = 0; i < 6; i++) { const s = z * (1 - bo * i / 5); out.push({ m: new DOMMatrix().translate(cx, cy).scale(s).translate(-cx, -cy), a: i ? .2 : 1 }); }
+    }
+    return out;
+  },
   visual(id) { return this.VISUAIS.find(v => v.id === id) || this.VISUAIS[0]; },
   ativos(P, q) { return (P.efeitos?.tela || []).filter(e => q >= e.de && q <= e.ate); },
   // filtro do quadro (visual + desfoque/brilho)

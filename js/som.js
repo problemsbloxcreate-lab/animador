@@ -72,26 +72,101 @@ const Som = {
     const bs = [...new Set((a.volTrechos || []).flatMap(t => [t.de, t.ate + 1]))].filter(b => b > q0).sort((x, y) => x - y);
     for (const b of bs) { const t = t0 + (b - q0) / fps; g.gain.setValueAtTime(this.ganho(a, b - 1), Math.max(t0, t - .02)); g.gain.linearRampToValueAtTime(this.ganho(a, b), t); }
   },
-  toca(q) {
-    this.para(); const P = App.P, ac = this.ac(); ac.resume(); const t0 = ac.currentTime + .03;
-    for (const a of P.audios || []) {
-      const b = this.buf.get(a.arq); if (!b) continue; const off = (q - (a.de || 0)) / P.fps; if (off >= b.duration) continue;
-      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; this.agenda(g, a, q, t0, P.fps); src.connect(g).connect(ac.destination);
-      if (off >= 0) src.start(t0, off); else src.start(t0 - off, 0); this.fontes.push(src);
+  /* ---------- MIXAGEM (como a dos Shorts): cada áudio tem tipo (voz, música, efeito), corte (ini = segundos cortados do começo,
+     dur = quanto dura na timeline), fade de entrada/saída (fi/fo em s), repetir (loop, música), mudo/solo; e a MÚSICA abaixa sozinha
+     enquanto alguém fala (P.mix = { duck: true, nivel: .45 }). toca (prévia), mistura (exportar) e a onda usam as mesmas contas. ---------- */
+  TIPOS: { voz: 'Voz', musica: 'Música', efeito: 'Efeito sonoro' },
+  tipo(a) { return a.tipo || (/m[uú]sica|music|trilha|bgm|beat/i.test(a.nome || '') ? 'musica' : 'voz'); },
+  ini(a) { return Math.max(0, +a.ini || 0); },
+  // quanto o áudio dura na timeline (segundos)
+  compr(a, b = this.buf.get(a.arq)) { const nat = Math.max(0, (b?.duration || 0) - this.ini(a)); return a.dur != null ? Math.max(.05, a.loop ? +a.dur : Math.min(+a.dur, nat)) : nat; },
+  fimQ(P, a) { return (a.de || 0) + Math.max(1, Math.round(this.compr(a) * P.fps)) - 1; },
+  ouve(P, a) { const solo = (P.audios || []).some(x => x.solo); return !a.mudo && (!solo || a.solo); },
+  // fade (0..1) no segundo x da timeline
+  fade(a, x, tl0, fim) { const fi = +a.fi || 0, fo = +a.fo || 0; return Math.min(fi ? clamp((x - tl0) / fi, 0, 1) : 1, fo ? clamp((fim - x) / fo, 0, 1) : 1); },
+  // trechos (segundos da timeline) em que alguém fala: a música abaixa neles
+  falas(P) {
+    const out = []; for (const a of P.audios || []) { if (this.tipo(a) !== 'voz' || !this.ouve(P, a)) continue; const pk = this.picos(a.arq, P.fps); if (!pk) continue;
+      const i0 = Math.round(this.ini(a) * P.fps), n = Math.round(this.compr(a) * P.fps), tl = (a.de || 0) / P.fps; let s = null;
+      for (let i = 0; i <= n; i++) { const v = i < n ? pk[i0 + i] || 0 : 0, t = tl + i / P.fps; if (v > .12 && s == null) s = t; else if (v <= .12 && s != null) { out.push([s - .05, t + .05]); s = null; } } }
+    out.sort((x, y) => x[0] - y[0]); const m = []; for (const r of out) { const u = m[m.length - 1]; if (u && r[0] - u[1] < .35) u[1] = Math.max(u[1], r[1]); else m.push([...r]); } return m;
+  },
+  // liga UM áudio no contexto ac a partir do segundo "desde" da timeline (t0 = hora do contexto em que "desde" toca)
+  fonte(ac, dest, P, a, b, desde, t0, falas) {
+    const fps = P.fps, ini = this.ini(a), tl0 = (a.de || 0) / fps, len = this.compr(a, b), fim = tl0 + len; if (!b || desde >= fim || len <= 0) return null;
+    const ja = Math.max(desde, tl0), when = t0 + (ja - desde), T = x => Math.max(when, t0 + (x - desde)), dentro = ja - tl0;
+    let off = ini + dentro; if (a.loop) { const L = Math.max(.05, b.duration - ini); off = ini + (dentro % L); } else if (off >= b.duration) return null;
+    const src = ac.createBufferSource(), g = ac.createGain(), gf = ac.createGain(), gd = ac.createGain(); src.buffer = b;
+    if (a.loop) { src.loop = true; src.loopStart = ini; src.loopEnd = b.duration; }
+    src.connect(gf).connect(gd).connect(g).connect(dest);
+    this.agenda(g, a, Math.round(ja * fps), when, fps);
+    // fades
+    gf.gain.setValueAtTime(this.fade(a, ja, tl0, fim), when);
+    if (+a.fi && ja < tl0 + +a.fi) gf.gain.linearRampToValueAtTime(this.fade(a, Math.min(fim, tl0 + +a.fi), tl0, fim), T(Math.min(fim, tl0 + +a.fi)));
+    if (+a.fo) { const s0 = Math.max(fim - +a.fo, ja); gf.gain.setValueAtTime(this.fade(a, s0, tl0, fim), T(s0)); gf.gain.linearRampToValueAtTime(0, T(fim)); }
+    // a música abaixa enquanto alguém fala
+    const mx = P.mix || {}, niv = clamp(mx.nivel ?? .45, 0, 1);
+    if (this.tipo(a) === 'musica' && mx.duck !== false && falas?.length) {
+      let v0 = 1; for (const [s1, e1] of falas) if (ja >= s1 && ja < e1) v0 = niv; gd.gain.setValueAtTime(v0, when);
+      for (const [s1, e1] of falas) { if (e1 <= ja || s1 >= fim) continue; if (s1 > ja) { gd.gain.setValueAtTime(1, T(s1)); gd.gain.linearRampToValueAtTime(niv, T(s1) + .12); } gd.gain.setValueAtTime(niv, T(e1)); gd.gain.linearRampToValueAtTime(1, T(e1) + .25); }
     }
+    src.start(when, off); src.stop(when + (fim - ja)); return src;
+  },
+  toca(q) {
+    this.para(); const P = App.P, ac = this.ac(); ac.resume(); const t0 = ac.currentTime + .03, desde = q / P.fps, falas = this.falas(P);
+    for (const a of P.audios || []) { if (!this.ouve(P, a)) continue; const s = this.fonte(ac, ac.destination, P, a, this.buf.get(a.arq), desde, t0, falas); if (s) this.fontes.push(s); }
   },
   para() { for (const s of this.fontes) { try { s.stop(); } catch { } } this.fontes = []; },
   // ao passar os quadros, toca o pedacinho daquele quadro (bom para acertar a boca)
   raspa(q) {
     const P = App.P, ac = this.ac(); ac.resume();
-    for (const a of P.audios || []) { const b = this.buf.get(a.arq); if (!b) continue; const off = (q - (a.de || 0)) / P.fps; if (off < 0 || off >= b.duration) continue;
+    for (const a of P.audios || []) { const b = this.buf.get(a.arq); if (!b || !this.ouve(P, a)) continue; const dq = q - (a.de || 0); if (dq < 0 || q > this.fimQ(P, a)) continue;
+      let off = this.ini(a) + dq / P.fps; if (a.loop) off = this.ini(a) + (dq / P.fps) % Math.max(.05, b.duration - this.ini(a)); if (off >= b.duration) continue;
       const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; g.gain.value = this.ganho(a, q) * .9; src.connect(g).connect(ac.destination); src.start(ac.currentTime, off, 1.2 / P.fps); }
   },
   // mistura tudo (para exportar)
   async mistura(P, sr = 48000) {
     const dur = P.duracao / P.fps, off = new OfflineAudioContext(2, Math.max(1, Math.ceil(dur * sr)), sr);
-    for (const a of P.audios || []) { const b = await this.decod(a.arq); if (!b) continue; const src = off.createBufferSource(), g = off.createGain(); src.buffer = b; const t = (a.de || 0) / P.fps; this.agenda(g, a, a.de || 0, t, P.fps); src.connect(g).connect(off.destination); src.start(t); }
+    for (const a of P.audios || []) await this.decod(a.arq); const falas = this.falas(P);
+    for (const a of P.audios || []) { if (!this.ouve(P, a)) continue; this.fonte(off, off.destination, P, a, this.buf.get(a.arq), 0, 0, falas); }
     return off.startRendering();
+  },
+  // valor da onda no quadro q da timeline (força × volume × fade), para desenhar
+  ondaEm(P, a, q) {
+    const pk = this.picos(a.arq, P.fps), b = this.buf.get(a.arq); if (!pk || !b) return 0; const dq = q - (a.de || 0); if (dq < 0) return 0;
+    let i = Math.round(this.ini(a) * P.fps) + dq; if (a.loop) { const i0 = Math.round(this.ini(a) * P.fps), L = Math.max(1, pk.length - i0); i = i0 + (dq % L); }
+    const tl0 = (a.de || 0) / P.fps; return (pk[i] || 0) * this.ganho(a, q) * this.fade(a, q / P.fps, tl0, tl0 + this.compr(a));
+  },
+
+  /* ---------- LIMPAR E NIVELAR A VOZ (a cadeia dos Shorts): corta o grave/ronco, tira o zumbido de 60 Hz, tira o "abafado", dá presença,
+     comprime, nivela a fala em −18 dBFS e segura os picos em −1 dBFS. Vira um áudio NOVO (o original fica em a.arqOrig para voltar). ---------- */
+  async limpar(a) {
+    const b = await this.decod(a.arq); if (!b) return UI.toast('O áudio ainda está carregando.', { kind: 'warn' });
+    const t = UI.toast('<span class="spin-dot"></span> Limpando e nivelando a voz…', { time: 120000 });
+    try {
+      const sr = b.sampleRate, ch = Math.min(2, b.numberOfChannels), off = new OfflineAudioContext(ch, b.length, sr), src = off.createBufferSource(); src.buffer = b;
+      const f = (tipo, freq, o = {}) => { const x = off.createBiquadFilter(); x.type = tipo; x.frequency.value = freq; if (o.q != null) x.Q.value = o.q; if (o.g != null) x.gain.value = o.g; return x; };
+      const cadeia = [f('highpass', 90, { q: .7 }), f('notch', 60, { q: 8 }), f('peaking', 280, { q: 1, g: -2 }), f('peaking', 3200, { q: 1, g: 3 }), f('highshelf', 9000, { g: 1.5 })];
+      const cp = off.createDynamicsCompressor(); cp.threshold.value = -26; cp.ratio.value = 3.5; cp.attack.value = .006; cp.release.value = .18; cp.knee.value = 6; cadeia.push(cp);
+      let no = src; for (const x of cadeia) { no.connect(x); no = x; } no.connect(off.destination); src.start();
+      const r = await off.startRendering(), dados = [...Array(r.numberOfChannels)].map((_, i) => r.getChannelData(i)), N = r.length, jan = Math.round(sr * .02);
+      // portão: janelas bem baixas (respiração/ruído) ficam mais baixas; e a média só das partes com fala
+      let soma = 0, cont = 0; const env = new Float32Array(Math.ceil(N / jan));
+      for (let w = 0; w < env.length; w++) { let s = 0; for (let k = w * jan; k < Math.min(N, (w + 1) * jan); k++) s += dados[0][k] * dados[0][k]; env[w] = Math.sqrt(s / jan); }
+      const lim = Math.max(...env) * .08; for (let w = 0; w < env.length; w++) if (env[w] > lim) { soma += env[w] * env[w]; cont++; }
+      const rms = Math.sqrt(soma / Math.max(1, cont)), ganho = rms > 1e-6 ? Math.pow(10, -18 / 20) / rms : 1, teto = Math.pow(10, -1 / 20);
+      for (const d of dados) { let gg = 1; for (let k = 0; k < N; k++) { const alvo = env[Math.floor(k / jan)] < lim * .5 ? .25 : 1; gg += (alvo - gg) * .002; const v = d[k] * ganho * gg; d[k] = teto * Math.tanh(v / teto); } }
+      const id = await Arq.guardar(this.wav(r)); if (!a.arqOrig) a.arqOrig = a.arq; a.arq = id; this._picos.clear(); await this.decod(id);
+      t.remove(); App.commit('Limpar a voz'); UI.toast(`Voz "${esc(a.nome)}" limpa e nivelada.`, { kind: 'ok' });
+    } catch (e) { t.remove(); UI.toast('Não deu para limpar: ' + esc(e.message || e), { kind: 'err' }); }
+  },
+  voltarOriginal(a) { if (!a.arqOrig) return; a.arq = a.arqOrig; delete a.arqOrig; this._picos.clear(); this.decod(a.arq).then(() => Folha.pinta()); App.commit('Voz original'); },
+  // AudioBuffer → WAV 16 bits
+  wav(buf) {
+    const ch = buf.numberOfChannels, n = buf.length, sr = buf.sampleRate, ab = new ArrayBuffer(44 + n * ch * 2), v = new DataView(ab), w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * ch * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true); v.setUint32(24, sr, true); v.setUint32(28, sr * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * ch * 2, true);
+    const cs = [...Array(ch)].map((_, i) => buf.getChannelData(i)); let o = 44; for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) { v.setInt16(o, Math.max(-1, Math.min(1, cs[c][i])) * 32767, true); o += 2; }
+    return new Blob([ab], { type: 'audio/wav' });
   },
 
   /* ---------- boca pela voz: escolhe a pose da boca em cada quadro pela força da voz ---------- */
@@ -111,14 +186,14 @@ const Som = {
     if (ordem.length < 2) return UI.toast('Escolha pelo menos 2 bocas (fechada e aberta).', { kind: 'warn' });
     const a = P.audios.find(x => x.id === $('[data-a]', body).value), pk = this.picos(a.arq, P.fps), sen = +$('[data-sen]', body).value, pula = $('[data-pula]', body).checked;
     if (!pk) return UI.toast('O áudio ainda está carregando, tente de novo.', { kind: 'warn' });
-    let ultimo = null, desde = -9;
-    for (let i = 0; i < pk.length; i++) {
-      const q = (a.de || 0) + i; if (q < 0 || q >= P.duracao) continue; if (!Modelo.aparece(P, n, q)) continue;
+    let ultimo = null, desde = -9; const i0 = Math.round(this.ini(a) * P.fps), nQ = Math.min(pk.length - i0, Math.round(this.compr(a) * P.fps));
+    for (let i = i0; i < i0 + nQ; i++) {
+      const q = (a.de || 0) + i - i0; if (q < 0 || q >= P.duracao) continue; if (!Modelo.aparece(P, n, q)) continue;
       const v = pk[i] < sen ? 0 : Math.min(ordem.length - 1, 1 + Math.floor((pk[i] - sen) / (1 - sen) * (ordem.length - 1)));
       const id = ordem[v]; if (id === ultimo || (pula && q - desde < 2)) continue;
       const k = Modelo.chave(n, q); k.sessoes = { ...(k.sessoes || {}), [s.id]: id }; ultimo = id; desde = q;
     }
-    const fim = (a.de || 0) + pk.length; if (fim < P.duracao) { const k = Modelo.chave(n, fim); k.sessoes = { ...(k.sessoes || {}), [s.id]: ordem[0] }; }
+    const fim = (a.de || 0) + nQ; if (fim < P.duracao) { const k = Modelo.chave(n, fim); k.sessoes = { ...(k.sessoes || {}), [s.id]: ordem[0] }; }
     App.commit('Boca pela voz'); UI.toast(`Boca animada pela voz "${esc(a.nome)}".`, { kind: 'ok' });
   },
 
@@ -139,14 +214,16 @@ const Som = {
         const base = o / sr;
         for (const s of j.segments || []) {
           const ws = (s.words || []).filter(w => String(w.w || '').trim());
-          if (ws.length) { let cur = []; const fecha = () => { if (!cur.length) return; segs.push({ s: base + cur[0].s, e: base + cur[cur.length - 1].e, t: cur.map(w => w.w.trim()).join(' ') }); cur = []; };
-            for (const w of ws) { if (cur.length && cur.map(x => x.w).join(' ').length + w.w.length > 30) fecha(); cur.push(w); } fecha(); }
+          if (ws.length) { let cur = []; const fecha = () => { if (!cur.length) return; segs.push({ s: base + cur[0].s, e: base + cur[cur.length - 1].e, t: cur.map(w => w.w.trim()).join(' '), pal: cur.map(w => [w.w.trim(), base + w.s, base + w.e]) }); cur = []; };
+            // quebra como nos Shorts: até ~32 letras por legenda, preferindo depois de pontuação (e nunca deixando uma palavra sozinha)
+            for (let i = 0; i < ws.length; i++) { const w = ws[i], tam = cur.map(x => x.w.trim()).join(' ').length, pont = cur.length && /[.!?,;:]$/.test(cur[cur.length - 1].w.trim());
+              if (cur.length && (tam + w.w.length > 32 || (pont && tam > 14)) && ws.length - i > 1) fecha(); cur.push(w); } fecha(); }
           else if (String(s.text || '').trim()) segs.push({ s: base + s.start, e: base + s.end, t: String(s.text).trim() });
         }
       }
-      const fps = P.fps, de0 = a.de || 0;
-      const novas = segs.map(s => ({ de: Math.max(0, de0 + Math.round(s.s * fps)), ate: Math.max(0, de0 + Math.round(s.e * fps) - 1), texto: s.t })).filter(g => g.ate >= g.de && g.de < P.duracao);
-      P.legendas = (P.legendas || []).filter(g => g.ate < de0 || g.de > de0 + Math.ceil(b.duration * fps)).concat(novas).sort((x, y) => x.de - y.de);
+      const fps = P.fps, de0 = a.de || 0, ini = this.ini(a), len = this.compr(a, b), Q = x => de0 + Math.round((x - ini) * fps);
+      const novas = segs.filter(s => s.e > ini && s.s < ini + len).map(s => ({ de: Math.max(0, Q(s.s)), ate: Math.max(0, Q(s.e) - 1), texto: s.t, pal: (s.pal || []).filter(w => w[1] > ini && w[1] < ini + len).map(w => [w[0], Q(w[1]), Math.max(Q(w[1]), Q(w[2]) - 1)]) })).filter(g => g.ate >= g.de && g.de < P.duracao);
+      P.legendas = (P.legendas || []).filter(g => g.ate < de0 || g.de > de0 + Math.ceil(len * fps)).concat(novas).sort((x, y) => x.de - y.de);
       t.remove(); App.commit('Legendas pela transcrição'); Lado.aba('som'); UI.toast(`${novas.length} legendas criadas pela fala.`, { kind: 'ok' });
     } catch (e) { t.remove(); UI.toast('Não deu para transcrever: ' + esc(e.message || e), { kind: 'err', time: 7000 }); }
   },

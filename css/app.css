@@ -1092,3 +1092,10 @@ body.ajuda-on #atelie .at-palco::after{content:'Ajuda ligada · tela pausada';po
 .at-tl .tl-grade.linhas .tl-c.tl-b.agora{box-shadow:inset 0 0 0 2px #e8e8e8}
 .at-tl .tl-grade.linhas .tl-c.tl-b.sel{box-shadow:inset 0 0 0 2px #19d3f0;background:color-mix(in srgb,#19d3f0 30%,#1a1a1a)}
 .at-tl .tl-grade.linhas .tl-c.tl-b.multi{box-shadow:inset 0 0 0 2px #c08bff}
+/* editor da curva própria da chave (Folha.editaCurva) */
+.curva-ed{display:grid;gap:8px;justify-items:center}.curva-ed canvas{width:300px;height:300px;background:#151515;border-radius:10px;touch-action:none;cursor:crosshair}
+.curva-pre{position:relative;width:260px;height:14px;border-radius:7px;background:var(--bg0)}.curva-pre i{position:absolute;top:1px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:#19d3f0}
+.curva-prontas{justify-content:center;flex-wrap:wrap}
+/* timeline: mudo / solo nas linhas de áudio */
+.tl-nomes .reg .ms{flex:none;width:17px;height:15px;padding:0;margin-left:2px;border:1px solid var(--bd);border-radius:4px;background:transparent;color:var(--tx3);font:700 9.5px/13px var(--mono, monospace);cursor:pointer}
+.tl-nomes .reg .ms.on{background:#c94a4a;border-color:#c94a4a;color:#fff}.tl-nomes .reg .ms.solo.on{background:#d9a52b;border-color:#d9a52b;color:#111}

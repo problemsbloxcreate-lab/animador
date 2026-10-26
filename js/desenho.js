@@ -10,7 +10,7 @@ const Render = {
     const vai = (lista, m, alfa) => {
       for (let i = lista.length - 1; i >= 0; i--) {
         const n = lista[i]; if (n.vis === false || !Modelo.aparece(P, n, q)) continue;
-        const t = Modelo.transf(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
+        const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
         if (n.filhos) vai(n.filhos, mm, a); else fn(n, mm, a, t);
       }
     };
@@ -87,7 +87,7 @@ const Render = {
   // desenha um nó (pasta: os filhos). Devolve true se desenhou algo
   umNo(ctx, P, q, base, n, m, alfa, fr, nivel) {
     if (!this.vivo(P, n, q) || n.tipo === 'efeito') return false;
-    const t = Modelo.transf(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
+    const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
     if (n.filhos) { this.lista(ctx, P, q, base, n.filhos, mm, a, fr, nivel + 1); return true; }
     ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a));
     const df = n.chaves && Deformar.em(n, q); if (df && Deformar.desenha(ctx, P, q, base, n, mm, df)) { ctx.restore(); return true; } // deformada (js/deformar.js)
@@ -129,7 +129,8 @@ const Render = {
     if (ond) { // faixas deslocadas por uma onda (como o "turbulento")
       const fase = this.sorte(n.id, ond.kk, 9) * 40, amp = (1.5 + ond.f * 7) * k, freq = (.045 + (this.sorte(n.id, ond.kk, 8) + .5) * .03) / k, fx = Math.max(2, Math.round(3 * k));
       for (let y = 0; y < pos.height; y += fx) { const sh = Math.min(fx * 2, pos.height - y), dx = Math.sin(y * freq + fase) * amp + Math.sin(y * freq * 2.3 - fase) * amp * .35; ctx.drawImage(pos, 0, y, pos.width, sh, dx, y, pos.width, sh); }
-    } else ctx.drawImage(pos, 0, 0);
+    } else { const tr = Efeitos.transicao(lista, q, de, ate, pos.width, pos.height, c.x, c.y); // transição chicote / zoom: cópias borradas
+      if (tr) { for (const x of tr) { ctx.setTransform(mt.multiply(x.m)); ctx.globalAlpha = x.a; ctx.drawImage(pos, 0, 0); } ctx.globalAlpha = 1; ctx.setTransform(mt); } else ctx.drawImage(pos, 0, 0); }
     // 4) faixas de cinema e flash: por cima, no quadro da câmera
     ctx.setTransform(fr); for (const e of lista) if (tela(e)) Efeitos.umPorCima(ctx, e, q, P.w, P.h, e.de ?? de, e.ate ?? ate, false);
     ctx.restore();
@@ -151,8 +152,17 @@ const Render = {
   },
   // matriz da câmera: mundo → imagem final de W×H
   matCamera(P, q, W, H) {
-    const c = Modelo.camera(P, q), k = W / P.w, tr = Efeitos.tremor(P, q);
-    return new DOMMatrix().translate(W / 2 + tr.dx * k, H / 2 + tr.dy * k).scale(k * (c.zoom || 1)).rotate(-(c.r || 0)).translate(-c.x, -c.y);
+    const c = Modelo.camera(P, q), k = W / P.w, tr = Efeitos.tremor(P, q), mv = this.camMexe(P, q, c);
+    return new DOMMatrix().translate(W / 2 + (tr.dx + mv.dx) * k, H / 2 + (tr.dy + mv.dy) * k).scale(k * (c.zoom || 1) * mv.z).rotate(-(c.r || 0) - mv.r).translate(-c.x, -c.y);
+  },
+  // câmera "na mão" (P.camera.viva 0..1: respira devagar, como nos Shorts) + TREMOR da chave da câmera (0..1, vai mudando entre as chaves)
+  camMexe(P, q, c) {
+    const t = q / (P.fps || 24), v = +P.camera?.viva || 0, tm = +c.tremor || 0; let dx = 0, dy = 0, r = 0, z = 1;
+    if (v) { dx += (Math.sin(t * 1.3) * 4 + Math.sin(t * 2.9 + 1.7) * 1.6) * v; dy += (Math.sin(t * 1.1 + .6) * 3 + Math.sin(t * 3.7 + 2.2) * 1.2) * v; r += Math.sin(t * .9 + .3) * .35 * v; z += Math.sin(t * .7) * .006 * v; }
+    if (tm) { const ru = i => { const a = Math.floor(i), f = i - a, s = f * f * (3 - 2 * f); return (hash(a) * (1 - s) + hash(a + 1) * s) - .5; }, u = q * .55;
+      dx += ru(u + 11) * 2 * 30 * tm; dy += ru(u + 47) * 2 * 30 * tm; r += ru(u + 91) * 2 * 1.6 * tm; }
+    z += tm * .08 + v * .02; // um pouquinho mais perto: o tremor não mostra a borda do vídeo
+    return { dx, dy, r, z };
   },
   // fundo onde não tem nada: guardado na animação (P.palco). Os quadradinhos têm tamanho fixo no mundo, então a Câmera mostra igual à Cena
   fundoDe(P) {
@@ -181,11 +191,38 @@ const Render = {
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.filter = Efeitos.filtro(P, q); ctx.drawImage(this._tmp, 0, 0); ctx.filter = 'none';
     Efeitos.porCima(ctx, P, q, W, H); this.legenda(ctx, P, q, W, H); ctx.restore();
   },
+  /* ---------- LEGENDAS no estilo dos Shorts: quebra em linhas curtas, tamanho fixo na legenda toda, *palavra* = destaque (cor),
+     palavra que está sendo FALADA acesa (pelos tempos da transcrição, g.pal = [[palavra, q0, q1]], ou estimados pelas sílabas),
+     pop ao entrar. Estilo do projeto: P.legEstilo = { pos: 'baixo'|'meio'|'alto', tam, cor, destaque, caixa, karaoke, pop } ---------- */
+  legPalavras(l) {
+    const out = []; let dest = false;
+    for (const pedaco of String(l.texto || '').split(/\s+/).filter(Boolean)) { const ab = pedaco.startsWith('*'), fe = pedaco.endsWith('*') && pedaco.length > 1; if (ab) dest = true; out.push({ w: pedaco.replace(/\*/g, ''), dest }); if (fe || (ab && fe)) dest = false; }
+    return out.filter(x => x.w);
+  },
+  // quando cada palavra é falada: os tempos da transcrição (se o texto ainda bate) ou uma estimativa pelas sílabas (pausa depois de pontuação)
+  legTempos(l, ps) {
+    const norm = x => String(x).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    if (l.pal?.length === ps.length && l.pal.every((w, i) => norm(w[0]) === norm(ps[i].w))) return l.pal.map(w => [w[1], w[2]]);
+    const pesos = ps.map(p => Math.max(1, (p.w.match(/[aeiouáéíóúâêôãõày]+/gi) || []).length) + (/[.,!?;:]$/.test(p.w) ? 1.2 : 0)), tot = pesos.reduce((a, b) => a + b, 0), n = l.ate - l.de + 1;
+    let acc = 0; return pesos.map(w => { const a = l.de + Math.floor(acc / tot * n); acc += w; return [a, Math.max(a, l.de + Math.floor(acc / tot * n) - 1)]; });
+  },
   legenda(ctx, P, q, W, H) {
     const l = (P.legendas || []).find(x => q >= x.de && q <= x.ate); if (!l || !l.texto) return;
-    const tam = Math.round(Math.min(W, H) * .062); ctx.save();
-    ctx.font = `800 ${tam}px 'Segoe UI', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
-    const y = H - H * (H > W ? .2 : .09); ctx.lineWidth = tam * .2; ctx.strokeStyle = '#000'; ctx.strokeText(l.texto, W / 2, y); ctx.fillStyle = '#fff'; ctx.fillText(l.texto, W / 2, y); ctx.restore();
+    const st = P.legEstilo || {}, ps = this.legPalavras(l); if (!ps.length) return;
+    const tam = Math.round(Math.min(W, H) * .062 * (st.tam || 1)), maxW = W * .86, caixa = !!st.caixa, tx = w => caixa ? w.toUpperCase() : w;
+    ctx.save(); ctx.font = `800 ${tam}px 'Segoe UI', sans-serif`; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round'; ctx.textAlign = 'left';
+    const esp = ctx.measureText(' ').width, larg = ps.map(p => ctx.measureText(tx(p.w)).width), linhas = [[]]; let x = 0;
+    ps.forEach((p, i) => { const L = linhas[linhas.length - 1]; if (L.length && x + esp + larg[i] > maxW) { linhas.push([]); x = 0; } linhas[linhas.length - 1].push(i); x += (x ? esp : 0) + larg[i]; });
+    // última linha com uma palavra só: puxa uma da linha de cima (fica mais bonito, como nos Shorts)
+    if (linhas.length > 1 && linhas[linhas.length - 1].length === 1 && linhas[linhas.length - 2].length > 2) linhas[linhas.length - 1].unshift(linhas[linhas.length - 2].pop());
+    const tempos = st.karaoke ? this.legTempos(l, ps) : null, lh = tam * 1.18, base = { alto: H * .18, meio: H * .5, baixo: H - H * (H > W ? .2 : .09) }[st.pos || 'baixo'];
+    const pop = st.pop !== false ? Math.min(1, (q - l.de + 1) / 3) : 1, k = pop < 1 ? .9 + .1 * Ease.back(pop) : 1, y0 = base - (linhas.length - 1) * lh;
+    ctx.translate(W / 2, base - (linhas.length - 1) * lh / 2); ctx.scale(k, k); ctx.translate(-W / 2, -(base - (linhas.length - 1) * lh / 2));
+    linhas.forEach((L, li) => { const tw = L.reduce((s2, i) => s2 + larg[i], 0) + esp * (L.length - 1); let xx = (W - tw) / 2; const yy = y0 + li * lh;
+      for (const i of L) { const p = ps[i], falando = tempos && q >= tempos[i][0] && q <= tempos[i][1];
+        ctx.lineWidth = tam * .2; ctx.strokeStyle = '#000'; ctx.strokeText(tx(p.w), xx, yy);
+        ctx.fillStyle = falando ? (st.fala || '#5ee0ff') : p.dest ? (st.destaque || '#ffd84a') : (st.cor || '#fff'); ctx.fillText(tx(p.w), xx, yy); xx += larg[i] + esp; } });
+    ctx.restore();
   },
   // caixa de cada nó visível (no "mundo") para escolher com o mouse; a primeira é a da frente
   caixas(P, q) {

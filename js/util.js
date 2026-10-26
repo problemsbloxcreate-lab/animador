@@ -43,6 +43,21 @@ const Ease = {
   bounce: t => { const n1 = 7.5625, d1 = 2.75; if (t < 1 / d1) return n1 * t * t; if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + .75; if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + .9375; return n1 * (t -= 2.625 / d1) * t + .984375; },
   elastic: t => t === 0 || t === 1 ? t : Math.pow(2, -10 * t) * Math.sin((t * 10 - .75) * (2 * Math.PI) / 3) + 1,
   hold: t => t >= 1 ? 1 : 0,
+  // curva própria (como o "vel" das câmeras dos Shorts / speed graph do After Effects): cubic-bezier(x1,y1,x2,y2)
+  bez(x1, y1, x2, y2) {
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const X = u => ((ax * u + bx) * u + cx) * u, Y = u => ((ay * u + by) * u + cy) * u, dX = u => (3 * ax * u + 2 * bx) * u + cx;
+    return t => { if (t <= 0) return 0; if (t >= 1) return 1; let u = t;
+      for (let i = 0; i < 6; i++) { const d = dX(u), e = X(u) - t; if (Math.abs(e) < 1e-5) return Y(u); if (Math.abs(d) < 1e-6) break; u -= e / d; }
+      let lo = 0, hi = 1; u = t; for (let i = 0; i < 30; i++) { const e = X(u) - t; if (Math.abs(e) < 1e-5) break; if (e > 0) hi = u; else lo = u; u = (lo + hi) / 2; } return Y(u); };
+  },
+  // como o movimento CHEGA nesta chave (vale da chave anterior até ela): k.ir; sem ir = suave
+  IR: { suave: 'Suave (padrão)', linear: 'Linear (velocidade igual)', saida: 'Freando no fim', entrada: 'Acelerando', sobra: 'Passa do ponto e volta', quicar: 'Quicando', elastico: 'Elástico', corte: 'Corte seco (pula na hora)', livre: 'Curva própria…' },
+  daChave(k) {
+    const ir = k?.ir; if (!ir || ir === 'suave') return Ease.inOut;
+    if (ir === 'livre') { const v = Array.isArray(k.vel) && k.vel.length === 4 ? k.vel : [.42, 0, .58, 1], c = (Ease._bz ||= new Map()), id = v.join(','); if (!c.has(id)) c.set(id, Ease.bez(...v)); return c.get(id); }
+    return { linear: Ease.linear, saida: Ease.out, entrada: Ease.in, sobra: Ease.back, quicar: Ease.bounce, elastico: Ease.elastic, corte: Ease.hold }[ir] || Ease.inOut;
+  },
 };
 const EASE_NAMES = { linear: 'Linear', inOut: 'Suave', out: 'Desacelerar', in: 'Acelerar', back: 'Passar do ponto', backIn: 'Recuar e ir', bounce: 'Quicar', elastic: 'Elástico', hold: 'Pular (sem transição)' };
 

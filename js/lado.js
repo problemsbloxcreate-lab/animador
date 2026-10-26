@@ -87,6 +87,16 @@ const Lado = {
     const [rg, nb] = $$('input', r); rg.oninput = () => { nb.value = rg.value; aoMudar(+rg.value); }; rg.onchange = () => aoSoltar?.();
     nb.onchange = () => { rg.value = nb.value; aoMudar(+nb.value); aoSoltar?.(); }; return r;
   },
+  // câmera enquadra a caixa x (Render.caixas) no plano escolhido: close = cabeça, médio = até a cintura, americano = até o joelho, inteiro, geral = a cena toda
+  enquadra(P, q, x, plano) {
+    const xs = x.cantos.map(p => p.x), ys = x.cantos.map(p => p.y), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const c = Modelo.camera(P, q); let cx, cy, zoom;
+    if (plano === 'geral') { cx = P.w / 2; cy = P.h / 2; zoom = 1; }
+    else { const fr = { close: .32, medio: .58, americano: .8, inteiro: 1 }[plano] ?? 1, bh = (y1 - y0) * fr, bw = (x1 - x0) * (plano === 'inteiro' ? 1 : Math.min(1, fr * 1.4)), folga = plano === 'inteiro' ? 1.18 : 1.1;
+      zoom = clamp(Math.min(P.w / (bw * folga), P.h / (bh * folga)), .2, 6); cx = (x0 + x1) / 2; cy = y0 + bh / 2 - (plano === 'inteiro' ? 0 : bh * .04); }
+    P.camera.chaves[q] = { ...c, ...(P.camera.chaves[q] || {}), x: round(cx, 1), y: round(cy, 1), zoom: round(zoom, 3) };
+    App.commit('Enquadrar: ' + plano);
+  },
   props(el) {
     const P = App.P, q = App.q, n = App.noSel(), box = h('<div class="props"></div>'); el.appendChild(box);
     if (App.sel === 'camera') {
@@ -96,7 +106,18 @@ const Lado = {
       box.appendChild(this.campo('Y', c.y, -P.h, P.h * 2, 1, v => muda('y', v), () => App.commit('Câmera')));
       box.appendChild(this.campo('Zoom', c.zoom, .2, 6, .01, v => muda('zoom', v), () => App.commit('Zoom da câmera')));
       box.appendChild(this.campo('Girar', c.r, -45, 45, .5, v => muda('r', v), () => App.commit('Câmera')));
-      box.appendChild(h('<div class="dica" style="position:static">Arraste no palco com a ferramenta Câmera (C) para mover. Cada mudança vira chave neste quadro.</div>'));
+      box.appendChild(this.campo('Tremor', c.tremor || 0, 0, 1, .01, v => muda('tremor', v), () => App.commit('Tremor da câmera')));
+      box.appendChild(this.campo('Câmera na mão', +P.camera.viva || 0, 0, 1, .01, v => { P.camera.viva = v; App.pinta(); }, () => App.commit('Câmera na mão')));
+      // PLANOS (como os enquadramentos dos Shorts): a câmera enquadra a camada escolhida numa chave aqui
+      const alvos = Render.caixas(P, q).filter(x => ['personagem', 'imagem', 'texto', 'forma'].includes(x.no.tipo));
+      if (alvos.length) {
+        const pl = h(`<div class="cam-planos"><div class="titulo-p" style="margin-top:8px">Enquadrar</div><select data-alvo>${alvos.map((x, i) => `<option value="${i}" ${x.no.id === this._camAlvo ? 'selected' : ''}>${esc(x.no.nome)}</option>`).join('')}</select>
+          <div class="campo2">${[['close', 'Close'], ['medio', 'Médio'], ['americano', 'Americano'], ['inteiro', 'Inteiro'], ['geral', 'Geral']].map(([id, nm]) => `<button class="btn sm" data-pl="${id}">${nm}</button>`).join('')}</div></div>`);
+        $('[data-alvo]', pl).onchange = ev => { this._camAlvo = alvos[+ev.target.value]?.no.id; };
+        $$('[data-pl]', pl).forEach(bt => bt.onclick = () => { const x = alvos[+$('[data-alvo]', pl).value]; if (!x) return; this._camAlvo = x.no.id; this.enquadra(P, q, x, bt.dataset.pl); });
+        box.appendChild(pl);
+      }
+      box.appendChild(h('<div class="dica" style="position:static">Curva do movimento: botão direito na chave da câmera na timeline (corte seco, linear, freando, curva própria…). Arraste no palco com a ferramenta Câmera (C) para mover. Cada mudança vira chave neste quadro.</div>'));
     } else if (n?.tipo === 'efeito') { box.remove(); el.appendChild(this.camadaEfeito(n)); return;
     } else if (n) {
       const t = Modelo.transf(n, q), muda = (k, v) => { Modelo.poeTransf(n, q, { [k]: v }); App.pinta(); }, sol = () => App.commit('Propriedade', { semArvore: true });
@@ -110,6 +131,14 @@ const Lado = {
       const tm = h(`<div class="campo2"><span style="color:var(--tx2)">Aparece do quadro</span><input type="number" min="1" value="${(n.de || 0) + 1}" data-de style="width:60px"><span style="color:var(--tx2)">até</span><input type="number" min="1" value="${n.ate == null ? '' : n.ate + 1}" placeholder="fim" data-ate style="width:60px"></div>`);
       $('[data-de]', tm).onchange = ev => { n.de = clamp(+ev.target.value - 1, 0, P.duracao - 1); App.commit('Começo'); }; $('[data-ate]', tm).onchange = ev => { n.ate = ev.target.value === '' ? null : Math.max(n.de || 0, +ev.target.value - 1); App.commit('Fim'); };
       box.appendChild(tm);
+      // ENTRADA / SAÍDA (Modelo.transfVis): pop, carimbo, aparecer… em quantos quadros
+      const opA = cur => `<option value="">Nenhuma</option>${Object.entries(Modelo.ANIMS).map(([id, nm]) => `<option value="${id}" ${cur === id ? 'selected' : ''}>${nm}</option>`).join('')}`;
+      const es = h(`<div class="campo2 entra-sai"><span style="color:var(--tx2)">Entrada</span><select data-en>${opA(n.entra?.tipo)}</select><input type="number" min="1" max="120" value="${n.entra?.q || Math.round(P.fps * .25)}" data-enq title="Quadros" style="width:48px">
+        <span style="color:var(--tx2)">Saída</span><select data-sa ${n.ate == null ? 'disabled title="Ponha um fim na camada (até o quadro…) para ter saída"' : ''}>${opA(n.sai?.tipo)}</select><input type="number" min="1" max="120" value="${n.sai?.q || Math.round(P.fps * .25)}" data-saq title="Quadros" style="width:48px"></div>`);
+      const poeA = (k, tipo, qq) => { if (!tipo) delete n[k]; else n[k] = { tipo, q: clamp(Math.round(+qq || 6), 1, 120) }; App.commit(k === 'entra' ? 'Entrada' : 'Saída'); };
+      $('[data-en]', es).onchange = ev => poeA('entra', ev.target.value, $('[data-enq]', es).value); $('[data-enq]', es).onchange = ev => n.entra && poeA('entra', n.entra.tipo, ev.target.value);
+      $('[data-sa]', es).onchange = ev => poeA('sai', ev.target.value, $('[data-saq]', es).value); $('[data-saq]', es).onchange = ev => n.sai && poeA('sai', n.sai.tipo, ev.target.value);
+      box.appendChild(es);
       box.appendChild(this.tremulo(n));
       if (n.tipo === 'forma') {
         box.appendChild(h(`<div class="titulo-p">Forma${n.fundoPadrao ? ' · fundo padrão' : ''}</div>`));
@@ -204,6 +233,8 @@ const Lado = {
       const lin = h(`<div class="ef-item"><div class="campo2"><b style="flex:1">${esc(Efeitos.nomeEf(e))}</b>${e.de != null ? `<small style="color:var(--tx3)">quadros ${e.de + 1}–${(e.ate ?? Modelo.fimNo(P, n)) + 1}</small><button class="btn sm" data-tudo title="Vale o tempo todo da camada">Tempo todo</button>` : ''}<button class="ibtn" data-x title="Tirar">${ic('trash', 13)}</button></div><div class="props" style="padding:0"></div></div>`);
       const pp = $('.props', lin);
       if (e.tipo !== 'cor') pp.appendChild(this.campo('Força', e.forca ?? .5, .02, 1, .01, v => { e.forca = v; App.pinta(); }, () => App.commit('Força')));
+      if (e.tipo === 'chicote') { const sl = h(`<div class="campo2"><span style="color:var(--tx2)">Vai para</span><select><option value="esq">a esquerda</option><option value="dir" ${e.lado === 'dir' ? 'selected' : ''}>a direita</option></select></div>`); $('select', sl).onchange = ev => { e.lado = ev.target.value; App.commit('Lado do chicote'); }; pp.appendChild(sl); }
+      if (Efeitos.TRANS.includes(e.tipo)) pp.appendChild(h('<div style="color:var(--tx3);font-size:11.5px">O corte fica no meio: ponha o fim de uma cena e o começo da outra ali.</div>'));
       if (e.tipo === 'tremulo') pp.appendChild(this.campo('Ritmo', e.ritmo || 2, 1, 8, 1, v => { e.ritmo = Math.round(v); App.pinta(); }, () => App.commit('Ritmo')));
       $('[data-x]', lin).onclick = () => { n.efeitos = n.efeitos.filter(x => x !== e); App.nomeEfeito(n); App.commit('Tirar ' + Efeitos.nomeEf(e)); };
       if ($('[data-tudo]', lin)) $('[data-tudo]', lin).onclick = () => { delete e.de; delete e.ate; App.commit('Tempo todo'); };
@@ -219,10 +250,34 @@ const Lado = {
     const top = h(`<div class="sessao"><h4>Voz e sons</h4><div class="campo2"><button class="btn sm" data-gravar>${ic('mic', 13)} Gravar</button><button class="btn sm" data-add>${ic('upload', 13)} Pôr áudio</button>${P.audios.length ? `<button class="btn sm ia" data-tr>${ic('text', 13)} Transcrever para legendas</button>` : ''}</div></div>`);
     $('[data-add]', top).onclick = () => Som.importar(); $('[data-gravar]', top).onclick = () => Som.gravar(); if ($('[data-tr]', top)) $('[data-tr]', top).onclick = () => Som.transcrever();
     el.appendChild(top);
+    // mixagem do projeto: a música abaixa sozinha enquanto alguém fala (P.mix)
+    if (P.audios.some(a => Som.tipo(a) === 'musica')) {
+      const mx = P.mix || {}, dk = h(`<div class="sessao"><label class="chk"><input type="checkbox" data-duck ${mx.duck !== false ? 'checked' : ''}> Abaixar a música quando alguém fala</label><div class="props" style="padding:0"></div></div>`);
+      $('[data-duck]', dk).onchange = ev => { P.mix = { ...(P.mix || {}), duck: ev.target.checked }; App.commit('Música abaixa na fala'); };
+      $('.props', dk).appendChild(this.campo('Música na fala', mx.nivel ?? .45, .05, 1, .01, v => { P.mix = { ...(P.mix || {}), nivel: v }; }, () => App.commit('Nível da música na fala')));
+      el.appendChild(dk);
+    }
     for (const a of P.audios) {
       const b = h(`<div class="sessao" style="${App.sel === a.id ? 'background:var(--bg2)' : ''}"><h4>${ic('mic', 12)} ${esc(a.nome)}<span class="sp"></span><button class="ibtn" data-x title="Tirar">${ic('trash', 13)}</button></h4>
         <div class="campo2" style="margin-bottom:4px"><span style="color:var(--tx2)">Começa no quadro</span><input type="number" min="1" value="${(a.de || 0) + 1}" style="width:64px" data-de></div><div class="props" style="padding:0"></div></div>`);
+      const tp = h(`<div class="campo2 au-tipo"><select data-tipo>${Object.entries(Som.TIPOS).map(([id, nm]) => `<option value="${id}" ${Som.tipo(a) === id ? 'selected' : ''}>${nm}</option>`).join('')}</select>
+        <label class="chk"><input type="checkbox" data-mudo ${a.mudo ? 'checked' : ''}> Mudo</label><label class="chk"><input type="checkbox" data-solo ${a.solo ? 'checked' : ''}> Solo</label><label class="chk" title="Repete o som até o fim do bloco (bom para música)"><input type="checkbox" data-loop ${a.loop ? 'checked' : ''}> Repetir</label></div>`);
+      $('[data-tipo]', tp).onchange = ev => { a.tipo = ev.target.value; App.commit('Tipo do áudio'); };
+      $('[data-mudo]', tp).onchange = ev => { a.mudo = ev.target.checked; App.commit('Mudo'); }; $('[data-solo]', tp).onchange = ev => { a.solo = ev.target.checked; App.commit('Solo'); };
+      $('[data-loop]', tp).onchange = ev => { a.loop = ev.target.checked; if (!a.loop && a.dur != null && a.dur > Som.compr({ ...a, dur: null })) delete a.dur; App.commit('Repetir'); };
+      $('.props', b).appendChild(tp);
       $('.props', b).appendChild(this.campo('Volume', a.vol ?? 1, 0, 2, .01, v => { a.vol = v; Folha.desenha(); }, () => App.commit('Volume')));
+      const maxF = Math.max(.1, Math.min(5, Som.compr(a) / 2));
+      $('.props', b).appendChild(this.campo('Entrar aos poucos (s)', +a.fi || 0, 0, maxF, .05, v => { a.fi = v || undefined; Folha.desenha(); }, () => App.commit('Fade de entrada')));
+      $('.props', b).appendChild(this.campo('Sair aos poucos (s)', +a.fo || 0, 0, maxF, .05, v => { a.fo = v || undefined; Folha.desenha(); }, () => App.commit('Fade de saída')));
+      const ct = h(`<div class="campo2 au-corte"><span style="color:var(--tx2)" title="Arraste as pontas do áudio na timeline para cortar (Alt + arrastar no meio desliza o som)">Corte</span>
+        <span style="color:var(--tx3)">começo</span><input type="number" step=".05" min="0" value="${round(Som.ini(a), 2)}" data-ini style="width:62px"><span style="color:var(--tx3)">dura</span><input type="number" step=".05" min=".05" value="${round(Som.compr(a), 2)}" data-dur style="width:62px"><span style="color:var(--tx3)">s</span></div>`);
+      $('[data-ini]', ct).onchange = ev => { const v = Math.max(0, +ev.target.value || 0); if (v) a.ini = v; else delete a.ini; App.commit('Cortar o áudio'); };
+      $('[data-dur]', ct).onchange = ev => { a.dur = Math.max(.05, +ev.target.value || .05); App.commit('Cortar o áudio'); };
+      $('.props', b).appendChild(ct);
+      const lp = h(`<div class="campo2"><button class="btn sm" data-limpa title="Tira ronco e zumbido, deixa a voz mais clara, comprime e nivela o volume (vira um áudio novo; dá para voltar)">${ic('wand', 13)} Limpar e nivelar a voz</button>${a.arqOrig ? `<button class="btn sm" data-orig>${ic('undo', 13)} Voltar ao original</button>` : ''}</div>`);
+      $('[data-limpa]', lp).onclick = () => Som.limpar(a); if ($('[data-orig]', lp)) $('[data-orig]', lp).onclick = () => Som.voltarOriginal(a);
+      $('.props', b).appendChild(lp);
       if ((a.volTrechos || []).length) { const vt = h(`<div class="vol-trechos"><div class="vt-cab">Volume em trechos</div></div>`);
         a.volTrechos.slice().sort((x, y) => x.de - y.de).forEach(t => { const r = h(`<div class="campo2 vt-row"><button class="btn sm" data-ir title="Ir até lá">${esc(Trechos.rotulo(t, P))}</button><span class="sp"></span><input type="number" min="0" max="200" step="5" value="${Math.round(t.vol * 100)}" style="width:62px"><span>%</span><button class="ibtn" data-x title="Tirar (volta ao volume geral)">${ic('x', 12)}</button></div>`);
           $('[data-ir]', r).onclick = () => App.setQ(t.de); $('input', r).onchange = ev => { t.vol = clamp(+ev.target.value / 100, 0, 2); App.commit('Volume do trecho'); };
@@ -234,6 +289,16 @@ const Lado = {
     }
     const lg = h(`<div class="sessao"><h4>Legendas <small>${P.legendas.length}</small><span class="sp"></span>${P.legendas.length ? `<button class="btn sm" data-lmp>Apagar todas</button>` : ''}<button class="btn sm" data-nova>+ Nova</button></h4><div class="lg" style="display:grid;gap:4px"></div></div>`);
     const box = $('.lg', lg);
+    // estilo das legendas (como nos Shorts): posição, tamanho, cores, caixa alta, palavra falada acesa, pop ao entrar
+    const st = P.legEstilo || {}, est = h(`<div class="leg-estilo"><div class="campo2"><span style="color:var(--tx2)">Onde</span><select data-pos><option value="baixo">Embaixo</option><option value="meio" ${st.pos === 'meio' ? 'selected' : ''}>No meio</option><option value="alto" ${st.pos === 'alto' ? 'selected' : ''}>Em cima</option></select>
+        <span style="color:var(--tx2)">Cor</span><input type="color" value="${st.cor || '#ffffff'}" data-cor><span style="color:var(--tx2)" title="Escreva *assim* para destacar uma palavra">Destaque</span><input type="color" value="${st.destaque || '#ffd84a'}" data-dest><span style="color:var(--tx2)" title="Cor da palavra que está sendo falada">Fala</span><input type="color" value="${st.fala || '#5ee0ff'}" data-fala></div>
+      <div class="campo2"><label class="chk"><input type="checkbox" data-kar ${st.karaoke ? 'checked' : ''}> Palavra falada acesa</label><label class="chk"><input type="checkbox" data-caixa ${st.caixa ? 'checked' : ''}> CAIXA ALTA</label><label class="chk"><input type="checkbox" data-pop ${st.pop !== false ? 'checked' : ''}> Pop ao entrar</label></div><div class="props" style="padding:0"></div>
+      <small style="color:var(--tx3)">Escreva <b>*palavra*</b> para ela aparecer na cor de destaque.</small></div>`);
+    const poeE = (k, v, nome) => { P.legEstilo = { ...(P.legEstilo || {}), [k]: v }; App.commit(nome || 'Estilo das legendas'); };
+    $('[data-pos]', est).onchange = ev => poeE('pos', ev.target.value); $('[data-cor]', est).onchange = ev => poeE('cor', ev.target.value); $('[data-dest]', est).onchange = ev => poeE('destaque', ev.target.value); $('[data-fala]', est).onchange = ev => poeE('fala', ev.target.value);
+    $('[data-kar]', est).onchange = ev => poeE('karaoke', ev.target.checked); $('[data-caixa]', est).onchange = ev => poeE('caixa', ev.target.checked); $('[data-pop]', est).onchange = ev => poeE('pop', ev.target.checked);
+    $('.props', est).appendChild(this.campo('Tamanho', st.tam || 1, .5, 2, .05, v => { P.legEstilo = { ...(P.legEstilo || {}), tam: v }; App.pinta(); }, () => App.commit('Tamanho das legendas')));
+    if (P.legendas.length) box.before(est);
     P.legendas.forEach((g, i) => {
       const r = h(`<div class="campo2" style="flex-wrap:nowrap"><input type="number" value="${g.de + 1}" style="width:54px" title="Começa"><input type="number" value="${g.ate + 1}" style="width:54px" title="Termina"><input type="text" value="${esc(g.texto)}" style="flex:1"><button class="ibtn" title="Ir até ela">${ic('jump', 13)}</button></div>`);
       const [a, b, t] = $$('input', r); a.onchange = () => { g.de = Math.max(0, +a.value - 1); App.commit('Legenda'); }; b.onchange = () => { g.ate = Math.max(g.de, +b.value - 1); App.commit('Legenda'); }; t.onchange = () => { g.texto = t.value; App.commit('Legenda'); };

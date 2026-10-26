@@ -62,9 +62,28 @@ const Modelo = {
   // intercala entre as chaves a e b ([quadro, valor]) com ease; a chave a pode guardar curva[c] = [t0, t1] = só um pedaço da curva
   // original (a IA mudou só um trecho: a chave que segura a borda do trecho continua a mesma curva de antes, sem degrau)
   mistura(ch, a, b, c, q) {
-    const t = (q - a[0]) / (b[0] - a[0]), cv = ch[a[0]]?.curva?.[c]; let e = Ease.inOut(t);
-    if (cv) { const e0 = Ease.inOut(cv[0]), e1 = Ease.inOut(cv[1]); e = Math.abs(e1 - e0) < 1e-9 ? t : (Ease.inOut(cv[0] + (cv[1] - cv[0]) * t) - e0) / (e1 - e0); }
+    // a curva é a da chave de CHEGADA (b.ir: suave, linear, freando, corte seco, curva própria…; js/util.js Ease.daChave)
+    const t = (q - a[0]) / (b[0] - a[0]), cv = ch[a[0]]?.curva?.[c], E = Ease.daChave(ch[b[0]]); let e = E(t);
+    if (cv) { const e0 = E(cv[0]), e1 = E(cv[1]); e = Math.abs(e1 - e0) < 1e-9 ? t : (E(cv[0] + (cv[1] - cv[0]) * t) - e0) / (e1 - e0); }
     return a[1] + (b[1] - a[1]) * e;
+  },
+  // ENTRADA e SAÍDA da camada (como os "pop"/"carimbo" dos textos dos Shorts): n.entra / n.sai = { tipo, q (quadros) }.
+  // Só no desenho (Render): as chaves nunca guardam esses valores. Saída só quando a camada tem fim (n.ate).
+  ANIMS: { pop: 'Pop', carimbo: 'Carimbo', aparecer: 'Aparecer', subir: 'Subir', descer: 'Descer', girar: 'Girar', esticar: 'Esticar' },
+  transfVis(n, q) {
+    const t = Modelo.transf(n, q), um = (o, u) => { // u = 0 (escondido) → 1 (normal)
+      if (!o?.tipo || u >= 1) return; const k = clamp(u, 0, 1), e = Ease.out(k);
+      if (o.tipo === 'pop') { t.s *= Ease.back(k) || .001; t.op *= Math.min(1, k * 3); }
+      else if (o.tipo === 'carimbo') { t.s *= 2.2 - 1.2 * e; t.op *= Math.min(1, k * 2.5); }
+      else if (o.tipo === 'aparecer') t.op *= e;
+      else if (o.tipo === 'subir') { t.y += (1 - e) * 90; t.op *= e; }
+      else if (o.tipo === 'descer') { t.y -= (1 - e) * 90; t.op *= e; }
+      else if (o.tipo === 'girar') { t.r += (1 - Ease.back(k)) * -120; t.s *= Math.max(.001, e); }
+      else if (o.tipo === 'esticar') { t.s *= Math.max(.001, Ease.elastic(k)); }
+    };
+    if (n.entra?.tipo) um(n.entra, (q - (n.de || 0) + 1) / Math.max(1, n.entra.q || 6));
+    if (n.sai?.tipo && n.ate != null) um(n.sai, (n.ate - q + 1) / Math.max(1, n.sai.q || 6));
+    return t;
   },
   // transformação no quadro q: segura a última chave (ou intercala até a próxima, se interp)
   transf(n, q) {
@@ -213,8 +232,8 @@ const Modelo = {
     vai(P.raiz, true); return out;
   },
   camera(P, q) {
-    const ks = Object.keys(P.camera.chaves).map(Number).sort((a, b) => a - b), out = { x: P.w / 2, y: P.h / 2, zoom: 1, r: 0 };
-    for (const c of ['x', 'y', 'zoom', 'r']) {
+    const ks = Object.keys(P.camera.chaves).map(Number).sort((a, b) => a - b), out = { x: P.w / 2, y: P.h / 2, zoom: 1, r: 0, tremor: 0 };
+    for (const c of ['x', 'y', 'zoom', 'r', 'tremor']) {
       let a = null, b = null; for (const k of ks) { const v = P.camera.chaves[k][c]; if (v == null) continue; if (k <= q) a = [k, v]; else { b = [k, v]; break; } }
       if (!a && b) out[c] = b[1]; else if (a && b) out[c] = Modelo.mistura(P.camera.chaves, a, b, c, q); else if (a) out[c] = a[1];
     }

@@ -141,7 +141,9 @@ const App = {
       if (e.tipo === 'cor') n.efeitos = n.efeitos.filter(x => x.tipo !== 'cor');
       n.efeitos.push(e);
     } else {
-      const curto = { flash: Math.round(P.fps / 3), tremor: Math.round(P.fps * .7) }[e.tipo], de = q, ate = Math.min(P.duracao - 1, q + (curto || P.fps * 2));
+      const curto = { flash: Math.round(P.fps / 3), tremor: Math.round(P.fps * .7), chicote: Math.round(P.fps * .4), zoomcorte: Math.round(P.fps * .4) }[e.tipo];
+      const meio = Efeitos.TRANS.includes(e.tipo) ? Math.floor(curto / 2) : 0; // transição: o corte fica no MEIO (no quadro de agora)
+      const de = Math.max(0, q - meio), ate = Math.min(P.duracao - 1, de + (curto || P.fps * 2));
       const r = s ? Modelo.achar(P, s.id) : null, lista = r ? r.lista : P.raiz, i = r ? lista.indexOf(s) : 0, abaixo = lista[i];
       if (abaixo?.tipo === 'efeito') { // logo abaixo já tem uma camada de efeito: uma nova aqui não pegaria nada, então entra nela (com o tempo dele)
         n = abaixo; if (!toda || curto) { e.de = de; e.ate = ate; } if (e.tipo === 'cor') n.efeitos = n.efeitos.filter(x => x.tipo !== 'cor'); n.efeitos.push(e);
@@ -365,6 +367,14 @@ const App = {
   setFerr(f) { this.ferr = f; $$('[data-ferr]').forEach(b => b.classList.toggle('on', b.dataset.ferr === f)); $('#palco').classList.toggle('pan', f === 'mao'); if (f === 'camera') this.selecionar('camera'); },
   setVista(m) { this.modoVista = m; $$('[data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === m)); this.pinta(); },
 
+  // [ e ]: vai para a chave anterior/próxima da camada escolhida (ou de qualquer camada, câmera e começos/fins de áudio e legenda)
+  pulaChave(dir) {
+    const P = this.P, s = this.noSel(), qs = new Set();
+    if (s?.chaves) Object.keys(s.chaves).forEach(k => qs.add(+k)); else if (this.sel === 'camera') Object.keys(P.camera.chaves).forEach(k => qs.add(+k));
+    else { Modelo.todos(P).forEach(n => { Object.keys(n.chaves || {}).forEach(k => qs.add(+k)); qs.add(n.de || 0); if (n.ate != null) qs.add(n.ate); }); Object.keys(P.camera.chaves).forEach(k => qs.add(+k)); (P.legendas || []).forEach(g => qs.add(g.de)); (P.audios || []).forEach(a => qs.add(a.de || 0)); }
+    const L = [...qs].filter(x => x >= 0 && x < P.duracao).sort((a, b) => a - b), alvo = dir > 0 ? L.find(x => x > this.q) : L.reverse().find(x => x < this.q);
+    if (alvo != null) this.setQ(alvo);
+  },
   /* ---------- atalhos (como num programa de animação) ---------- */
   teclas(e) {
     if (!this.P || $('#editor').classList.contains('hidden')) return;
@@ -381,6 +391,7 @@ const App = {
     if (k === ' ') { e.preventDefault(); return this.tocar(); }
     if (k === ',' || k === '<') { e.preventDefault(); return this.setQ(this.q - (e.shiftKey ? 5 : 1), { som: true }); }
     if (k === '.' || k === '>') { e.preventDefault(); return this.setQ(this.q + (e.shiftKey ? 5 : 1), { som: true }); }
+    if (k === '[' || k === ']') { e.preventDefault(); return this.pulaChave(k === ']' ? 1 : -1); }
     if (k === 'Home') return this.setQ(0); if (k === 'End') return this.setQ(Modelo.ultimoQuadro(this.P));
     if (k.startsWith('Arrow')) {
       e.preventDefault();

@@ -38,13 +38,15 @@ const Folha = {
       const icn = l.tipo === 'no' ? TIPO_IC[l.no.tipo] : { camera: 'camera', efeito: 'sparkles', legenda: 'text', audio: 'mic' }[l.tipo];
       const defP = l.tipo === 'no' && l.no.tipo === 'personagem' ? P.personagens[l.no.ref] : null, corP = defP && Icone.cor(defP);
       const ab = l.tipo === 'no' && l.no.filhos ? `<button class="ab" data-ab title="Abrir/fechar a pasta">${ic(l.no.aberto === false ? 'right' : 'down', 11)}</button>` : '';
-      return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''} ${l.no?.filhos && l.no.corPasta ? 'com-cor' : ''} ${corP ? 'pers-cor' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px;${l.no?.filhos && l.no.corPasta ? `--pc:${l.no.corPasta};` : ''}${corP ? `--cp:${corP};` : ''}">${ab}${defP ? Icone.html(defP, 15) : ic(icn, 13)}<span class="nm">${esc(l.nome)}</span></div>`;
+      return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''} ${l.no?.filhos && l.no.corPasta ? 'com-cor' : ''} ${corP ? 'pers-cor' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px;${l.no?.filhos && l.no.corPasta ? `--pc:${l.no.corPasta};` : ''}${corP ? `--cp:${corP};` : ''}">${ab}${defP ? Icone.html(defP, 15) : ic(icn, 13)}<span class="nm">${esc(l.nome)}</span>${l.tipo === 'audio' ? `<button class="ms ${l.a.mudo ? 'on' : ''}" data-mudo title="Mudo">M</button><button class="ms solo ${l.a.solo ? 'on' : ''}" data-solo title="Solo: só ele toca">S</button>` : ''}</div>`;
     }).join('');
     // cabeçalho: pasta nova (com a camada escolhida dentro, se tiver uma)
     const cab = $('.regua', this.nomes); cab.innerHTML = `<span>Camadas</span><span class="sp"></span><button class="ibtn" data-pasta title="Pasta nova (com a camada escolhida dentro) · Ctrl+G">${ic('folder', 13)}</button>`;
     $('[data-pasta]', cab).onclick = () => App.addPasta();
     $$('.reg', this.nomes).forEach(r => {
-      const l = L[+r.dataset.i]; r.onclick = e => { if (e.target.closest('[data-ab]')) return; this.selLinha(l); };
+      const l = L[+r.dataset.i]; r.onclick = e => { if (e.target.closest('[data-ab],[data-mudo],[data-solo]')) return; this.selLinha(l); };
+      if (l.tipo === 'audio') { $('[data-mudo]', r).onclick = () => { l.a.mudo = !l.a.mudo; if (App.tocando) Som.toca(App.q); App.commit(l.a.mudo ? 'Mudo' : 'Som de volta'); };
+        $('[data-solo]', r).onclick = () => { l.a.solo = !l.a.solo; if (App.tocando) Som.toca(App.q); App.commit('Solo'); }; }
       if (l.tipo !== 'no') return; const n = l.no;
       if ($('[data-ab]', r)) $('[data-ab]', r).onclick = () => { n.aberto = n.aberto === false; App.atualiza({ semLado: true }); };
       r.oncontextmenu = e => { e.preventDefault(); App.selecionar(n.id); Arvore.menu(e, n); };
@@ -61,12 +63,13 @@ const Folha = {
     this.cv.style.width = r.width + 'px'; this.cv.style.height = r.height + 'px'; this.cv.width = Math.max(2, r.width * d); this.cv.height = Math.max(2, r.height * d);
     this.barra(); this.desenha();
     // a cabeça de leitura sempre visível
-    const x = App.q * this.CW; if (x < this.grade.scrollLeft || x > this.grade.scrollLeft + r.width - 40) this.grade.scrollLeft = Math.max(0, x - r.width / 3);
+    // (só quando o quadro mudou: clicar numa linha com a cabeça fora da vista não pula a timeline no meio do arrasto)
+    const x = App.q * this.CW; if (this._qVisto !== App.q && (x < this.grade.scrollLeft || x > this.grade.scrollLeft + r.width - 40)) this.grade.scrollLeft = Math.max(0, x - r.width / 3); this._qVisto = App.q;
   },
   selLinha(l) { if (!l) return; if (l.tipo === 'no') App.selecionar(l.no.id); else if (l.tipo === 'camera') App.selecionar('camera'); else if (l.tipo === 'efeito') { App.selecionar(l.pai ? l.pai.id : l.ef.id); Lado.aba('efeitos'); } else if (l.tipo === 'audio') { App.selecionar(l.a.id); Lado.aba('som'); } else if (l.tipo === 'legenda') Lado.aba('som'); },
   barra() {
-    const P = App.P, s = (App.q / P.fps).toFixed(2).replace('.', ',');
-    $('#tl-q').innerHTML = `<b>${App.q + 1}</b> / ${P.duracao} · ${s}s`;
+    const P = App.P, tc = q => { const t = Math.floor(q / P.fps), qq = q % P.fps; return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}:${String(qq).padStart(2, '0')}`; };
+    $('#tl-q').innerHTML = `<b>${App.q + 1}</b> / ${P.duracao} · <span title="minutos:segundos:quadros (o vídeo todo tem ${tc(P.duracao)})">${tc(App.q)}</span>`;
     $('#tl-fps').value = P.fps; $('#tl-dur').value = P.duracao;
   },
   desenha() {
@@ -86,7 +89,7 @@ const Folha = {
       if (l.tipo === 'no') this.linhaNo(c, P, l.no, y, sx, sel);
       else if (l.tipo === 'camera') this.chaves(c, P.camera.chaves, y, sx, '#9fc3ff');
       else if (l.tipo === 'efeito') this.bloco(c, l.ef.de, l.ef.ate ?? (l.pai ? Modelo.fimNo(P, l.pai) : l.ef.de), y, sx, sel ? '#9a7ad8' : '#6d5a94', l.nome);
-      else if (l.tipo === 'legenda') (P.legendas || []).forEach(g => this.bloco(c, g.de, g.ate, y, sx, '#4f6a58', g.texto));
+      else if (l.tipo === 'legenda') (P.legendas || []).forEach(g => this.bloco(c, g.de, g.ate, y, sx, '#4f6a58', String(g.texto || '').replace(/\*/g, '')));
       else if (l.tipo === 'audio') this.onda(c, P, l.a, y, sx, sel);
     });
     // trecho marcado (Shift + arrastar na régua)
@@ -121,8 +124,16 @@ const Folha = {
   chaves(c, ch, y, sx, cor, ehPose) {
     const CW = this.CW, yy = y + this.RH / 2 - .5;
     for (const k of Object.keys(ch || {}).map(Number)) {
-      const x = k * CW - sx + CW / 2, r = Math.min(5.5, CW / 2 - 1); c.beginPath(); c.moveTo(x, yy - r); c.lineTo(x + r, yy); c.lineTo(x, yy + r); c.lineTo(x - r, yy); c.closePath();
-      const pose = ehPose?.(k); c.fillStyle = pose ? '#ffd36b' : cor; c.fill(); c.strokeStyle = '#111'; c.lineWidth = 1; c.stroke();
+      const x = k * CW - sx + CW / 2, r = Math.min(5.5, CW / 2 - 1), ir = ch[k]?.ir; c.beginPath();
+      // o desenho da chave diz como o movimento CHEGA nela: ◆ suave · ■ linear · ▮ corte seco · ● curva própria · ▲/▼ acelerando/freando
+      if (ir === 'linear') c.rect(x - r * .8, yy - r * .8, r * 1.6, r * 1.6);
+      else if (ir === 'corte') c.rect(x - r * .45, yy - r, r * .9, r * 2);
+      else if (ir === 'livre') c.arc(x, yy, r * .85, 0, Math.PI * 2);
+      else if (ir === 'entrada') { c.moveTo(x - r, yy + r * .8); c.lineTo(x + r, yy); c.lineTo(x - r, yy - r * .8); }
+      else if (ir === 'saida') { c.moveTo(x + r, yy + r * .8); c.lineTo(x - r, yy); c.lineTo(x + r, yy - r * .8); }
+      else { c.moveTo(x, yy - r); c.lineTo(x + r, yy); c.lineTo(x, yy + r); c.lineTo(x - r, yy); }
+      c.closePath();
+      const pose = ehPose?.(k); c.fillStyle = pose ? '#ffd36b' : cor; c.fill(); c.strokeStyle = /^(sobra|quicar|elastico)$/.test(ir || '') ? '#19d3f0' : '#111'; c.lineWidth = 1; c.stroke();
     }
   },
   bloco(c, de, ate, y, sx, cor, txt) {
@@ -130,10 +141,18 @@ const Folha = {
     if (txt && w > 30) { c.save(); c.beginPath(); c.rect(x, y, w, this.RH); c.clip(); c.fillStyle = '#eaeaea'; c.font = '11px Segoe UI'; c.fillText(txt, x + 5, y + this.RH / 2); c.restore(); }
   },
   onda(c, P, a, y, sx, sel) {
-    const pk = Som.picos(a.arq, P.fps), CW = this.CW, de = a.de || 0; c.fillStyle = sel ? '#6c8a7a' : '#4c6658';
-    const n = pk ? pk.length : Math.round((Som.dur(a.arq) || 1) * P.fps); c.fillRect(de * CW - sx, y + 3, n * CW, this.RH - 7);
-    if (!pk) return; c.fillStyle = '#d4f2e0'; const m = this.RH / 2 - 4;
-    for (let i = 0; i < pk.length; i++) { const x = (de + i) * CW - sx; if (x < -CW || x > this.cv.width) continue; const v = Math.max(1, pk[i] * m * Som.ganho(a, de + i)); c.fillRect(x + 1, y + this.RH / 2 - v, Math.max(1, CW - 2), v * 2); }
+    const CW = this.CW, de = a.de || 0, fimQ = Som.buf.get(a.arq) ? Som.fimQ(P, a) : de + Math.round((Som.dur(a.arq) || 1) * P.fps) - 1, ouve = Som.ouve(P, a), tipo = Som.tipo(a);
+    const cor = { voz: sel ? '#6c8a7a' : '#4c6658', musica: sel ? '#6d7fa8' : '#4a5a7e', efeito: sel ? '#a08a5c' : '#76663f' }[tipo], x0 = de * CW - sx, w = (fimQ - de + 1) * CW;
+    c.globalAlpha = ouve ? 1 : .35; c.fillStyle = cor; c.beginPath(); c.roundRect(x0, y + 3, w, this.RH - 7, 4); c.fill();
+    if (Som.picos(a.arq, P.fps)) { c.fillStyle = { voz: '#d4f2e0', musica: '#d6e1ff', efeito: '#ffe9b8' }[tipo]; const m = this.RH / 2 - 4, W = this.cv.width / (devicePixelRatio || 1);
+      for (let q = Math.max(de, Math.floor(sx / CW)); q <= Math.min(fimQ, Math.ceil((sx + W) / CW)); q++) { const v = Math.max(1, Math.min(1.4, Som.ondaEm(P, a, q)) * m); c.fillRect(q * CW - sx + 1, y + this.RH / 2 - v, Math.max(1, CW - 2), v * 2); } }
+    // fades: triângulos escuros nas pontas
+    const fi = (+a.fi || 0) * P.fps * CW, fo = (+a.fo || 0) * P.fps * CW; c.fillStyle = 'rgba(0,0,0,.35)';
+    if (fi) { c.beginPath(); c.moveTo(x0, y + 3); c.lineTo(x0 + fi, y + 3); c.lineTo(x0, y + this.RH - 4); c.fill(); }
+    if (fo) { c.beginPath(); c.moveTo(x0 + w, y + 3); c.lineTo(x0 + w - fo, y + 3); c.lineTo(x0 + w, y + this.RH - 4); c.fill(); }
+    c.fillStyle = 'rgba(255,255,255,.45)'; c.fillRect(x0, y + 3, 3, this.RH - 7); c.fillRect(x0 + w - 3, y + 3, 3, this.RH - 7);
+    if (a.loop) { c.fillStyle = 'rgba(255,255,255,.7)'; c.font = '10px Segoe UI'; c.fillText('↻', x0 + w - 14, y + 12); }
+    c.globalAlpha = 1;
   },
   /* ---------- mouse ---------- */
   ponto(e) { const r = this.cv.getBoundingClientRect(), x = e.clientX - r.left + this.grade.scrollLeft, y = e.clientY - r.top; return { q: Math.floor(x / this.CW), x, y, i: y < this.REG ? -1 : Math.floor((y - this.REG + this.grade.scrollTop) / this.RH) }; },
@@ -165,6 +184,18 @@ const Folha = {
         this.fimArr = () => { if ((n.de || 0) !== de0) App.commit('Mexer no tempo'); }; return;
       }
     }
+    if (l.tipo === 'audio' && Som.buf.get(l.a.arq)) { // ÁUDIO: pontas = cortar o começo/fim (como nos Shorts); Alt no meio = deslizar o som dentro do bloco
+      const a = l.a, b = Som.buf.get(a.arq), de0 = a.de || 0, fim0 = Som.fimQ(P, a), ini0 = Som.ini(a), dur0 = a.dur, q0 = p.q, fps = P.fps;
+      const ponta = perto(de0, 'ini') ? 'de' : perto(fim0, 'fim') ? 'ate' : e.altKey ? 'desliza' : null;
+      if (ponta) {
+        mov(pp => { const dq = pp.q - q0;
+          if (ponta === 'de') { const d = clamp(dq, -Math.min(de0, Math.floor(ini0 * fps)), fim0 - de0); a.de = de0 + d; a.ini = round(Math.max(0, ini0 + d / fps), 3); if (dur0 != null) a.dur = round(Math.max(.05, dur0 - d / fps), 3); if (!a.ini) delete a.ini; }
+          else if (ponta === 'ate') { const nq = Math.max(de0, fim0 + dq), nat = b.duration - ini0; a.dur = round(Math.max(1 / fps, a.loop ? (nq - de0 + 1) / fps : Math.min(nat, (nq - de0 + 1) / fps)), 3); if (!a.loop && Math.abs(a.dur - nat) < .5 / fps) delete a.dur; }
+          else { const len = Som.compr(a, b); a.ini = round(clamp(ini0 - dq / fps, 0, Math.max(0, b.duration - len)), 3); }
+          this.desenha(); });
+        this.fimArr = () => App.commit(ponta === 'desliza' ? 'Deslizar o som' : 'Cortar o áudio'); return;
+      }
+    }
     if (l.tipo === 'efeito' || l.tipo === 'audio') { // mover o bloco (ou só a ponta, nos efeitos)
       const o = l.tipo === 'efeito' ? l.ef : l.a, q0 = p.q;
       const ponta = l.tipo === 'efeito' ? (perto(o.de, 'ini') ? 'de' : perto(o.ate, 'fim') ? 'ate' : null) : null, de0 = o.de, ate0 = o.ate;
@@ -179,6 +210,37 @@ const Folha = {
     const p = this.ponto(e), l = this._L[p.i]; if (!l) return; App.setQ(p.q);
     if (l.tipo === 'no') { App.selecionar(l.no.id); App.chaveAqui(); }
     if (l.tipo === 'camera') { App.P.camera.chaves[p.q] = { ...Modelo.camera(App.P, p.q) }; App.commit('Chave da câmera'); }
+  },
+  // como o movimento CHEGA na chave q (vale da chave de antes até ela); curva própria abre o editor de velocidade
+  async poeIr(l, ch, q, id) {
+    const k = ch[q]; if (!k) return;
+    if (id === 'livre') { const v = await this.editaCurva(k.vel || [.42, 0, .58, 1]); if (!v) return; k.vel = v; }
+    if (id === 'suave') { delete k.ir; delete k.vel; } else { k.ir = id; if (id !== 'livre') delete k.vel; }
+    if (l.tipo === 'no' && id !== 'corte' && !l.no.interp) l.no.interp = true; // escolher uma curva liga o "intercalar entre as chaves"
+    App.commit('Curva da chave');
+  },
+  // editor da curva de velocidade (cubic-bezier com 2 alças), com prévia de uma bolinha indo e voltando
+  async editaCurva(v0) {
+    const v = v0.slice(), S = 240, M = 30, body = h(`<div class="curva-ed"><canvas width="${S + M * 2}" height="${S + M * 2}"></canvas>
+      <div class="curva-pre"><i></i></div><div class="campo2 curva-prontas">${[['Suave', [.42, 0, .58, 1]], ['Rápido no começo', [.1, .7, .3, 1]], ['Lento no começo', [.7, 0, .9, .3]], ['Estilingue', [.6, -.4, .3, 1.4]], ['Chicote', [.9, 0, .1, 1]]].map(([n, c]) => `<button class="btn sm" data-c="${c}">${n}</button>`).join('')}</div>
+      <small style="color:var(--tx3)">Arraste as duas bolinhas. Em cima = já chegou; inclinado = rápido, deitado = devagar.</small></div>`);
+    const cv = $('canvas', body), c = cv.getContext('2d'), P2 = (x, y) => [M + x * S, M + (1 - y) * S];
+    const pinta = () => { c.clearRect(0, 0, cv.width, cv.height); c.strokeStyle = '#333'; c.lineWidth = 1; c.strokeRect(M, M, S, S);
+      for (let i = 1; i < 4; i++) { c.beginPath(); c.moveTo(M + i * S / 4, M); c.lineTo(M + i * S / 4, M + S); c.moveTo(M, M + i * S / 4); c.lineTo(M + S, M + i * S / 4); c.stroke(); }
+      const [a, b] = [P2(0, 0), P2(1, 1)], [h1, h2] = [P2(v[0], v[1]), P2(v[2], v[3])];
+      c.strokeStyle = '#777'; c.beginPath(); c.moveTo(...a); c.lineTo(...h1); c.moveTo(...b); c.lineTo(...h2); c.stroke();
+      c.strokeStyle = '#19d3f0'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(...a); c.bezierCurveTo(...h1, ...h2, ...b); c.stroke();
+      for (const hh of [h1, h2]) { c.fillStyle = '#ffd36b'; c.beginPath(); c.arc(...hh, 7, 0, Math.PI * 2); c.fill(); } };
+    let arr = -1; cv.onpointerdown = e => { const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height;
+      const d = [P2(v[0], v[1]), P2(v[2], v[3])].map(([hx, hy]) => Math.hypot(hx - x, hy - y)); arr = d[0] < d[1] ? 0 : 1; cv.setPointerCapture(e.pointerId); cv.onpointermove(e); };
+    cv.onpointermove = e => { if (arr < 0) return; const r = cv.getBoundingClientRect(), x = ((e.clientX - r.left) * cv.width / r.width - M) / S, y = 1 - ((e.clientY - r.top) * cv.height / r.height - M) / S;
+      v[arr * 2] = round(clamp(x, 0, 1), 3); v[arr * 2 + 1] = round(clamp(y, -.6, 1.6), 3); pinta(); };
+    cv.onpointerup = () => { arr = -1; };
+    $$('[data-c]', body).forEach(b => b.onclick = () => { b.dataset.c.split(',').map(Number).forEach((x, i) => v[i] = x); pinta(); });
+    let t0 = performance.now(), raf = 0; const bola = $('.curva-pre i', body), anda = now => { const t = ((now - t0) / 1100) % 2, u = t < 1 ? t : 2 - t; bola.style.left = (Ease.bez(...v)(u) * 100) + '%'; raf = requestAnimationFrame(anda); };
+    pinta(); raf = requestAnimationFrame(anda);
+    const ok = await UI.modal({ title: 'Curva própria do movimento', icon: 'transition', width: 360, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Usar esta curva', kind: 'primary', value: true }] });
+    cancelAnimationFrame(raf); return ok ? v : null;
   },
   menu(e) {
     const p = this.ponto(e), l = this._L[p.i];
@@ -202,6 +264,7 @@ const Folha = {
       { label: tem ? 'Atualizar a chave' : 'Chave aqui', icon: 'diamond', key: 'K', action: () => l.tipo === 'no' ? App.chaveAqui() : (ch[p.q] = { ...Modelo.camera(App.P, p.q) }, App.commit('Chave da câmera')) },
       tem && { label: 'Copiar chave', icon: 'copy', action: () => { this.copia = clone(ch[p.q]); UI.toast('Chave copiada'); } },
       this.copia && { label: 'Colar chave', icon: 'paste', action: () => { ch[p.q] = clone(this.copia); App.commit('Colar chave'); } },
+      tem && { label: 'Como o movimento chega aqui', icon: 'transition', sub: Object.entries(Ease.IR).map(([id, nome]) => ({ label: nome, icon: (ch[p.q].ir || 'suave') === id ? 'check' : null, action: () => this.poeIr(l, ch, p.q, id) })) },
       tem && { label: 'Tirar a chave', icon: 'trash', danger: true, key: 'Shift+K', action: () => App.tiraChave() },
       l.tipo === 'no' && '-',
       l.tipo === 'no' && { label: 'Começar aqui', icon: 'start', action: () => { l.no.de = p.q; App.commit('Começo'); } },
