@@ -1231,3 +1231,12 @@ body.arrastando-div{user-select:none}
 #editor>header.bar .salvo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 #editor>header.bar>*:not(.proj-nome):not(.sp){flex-shrink:0}
 body.qed-lado #editor>header.bar #b-junto,body.qed-lado #editor>header.bar #b-atelie{font-size:0;gap:0}
+
+/* MÍDIA na esquerda, em cima da Hierarquia (js/midia.js · Midia.liga; é um painel do PaineisEd: muda de lugar e de altura como os outros) */
+.esq-sub{color:var(--tx3);font-size:10.5px;margin-left:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.midia-corpo .sessao{padding:6px 8px}.midia-corpo .midia-grade{grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:6px;padding:6px 8px}
+.palco.drop-midia{outline:2px dashed #3d8bfd;outline-offset:-4px}
+/* a Mídia começa menor que a Hierarquia na coluna (a borda entre elas muda) */
+.dock-col > .dock[data-dock="midia"], .dock-janela > .dock[data-dock="midia"]{flex:.6 1 0}
+#editor .dock[data-dock=midia]>.p-cab{padding-left:24px}
+#midia-cab .ibtn{flex:none}

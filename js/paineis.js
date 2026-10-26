@@ -26,7 +26,10 @@ const PaineisBase = {
     for (const j of s.jan || []) { const p = f(j.p); if (p.length) o.jan.push({ id: String(j.id || uid('j')), x: +j.x || 80, y: +j.y || 80, w: +j.w || 300, h: +j.h || 360, p, ...(j.preso?.alvo ? { preso: { alvo: String(j.preso.alvo), lado: j.preso.lado, off: +j.preso.off || 0, esticar: !!j.preso.esticar } } : {}) }); }
     // quem sumiu (painel novo numa versão nova) volta para o lugar de sempre
     const pad = this.padraoSt();
-    for (const i of ids) if (!vistos.has(i)) { if (pad.baixo.includes(i)) { o.baixo.push(i); continue; } const pc = pad.cols.find(c => c.p.includes(i)); let c = o.cols.find(x => x.lado === pc.lado); if (!c) { c = { ...pc, p: [] }; pc.lado === 'esq' ? o.cols.unshift(c) : o.cols.push(c); } c.p.push(i); }
+    const faltou = [];
+    for (const i of ids) if (!vistos.has(i)) { faltou.push(i); if (pad.baixo.includes(i)) { o.baixo.push(i); continue; } const pc = pad.cols.find(c => c.p.includes(i)); let c = o.cols.find(x => x.lado === pc.lado); if (!c) { c = { ...pc, p: [] }; pc.lado === 'esq' ? o.cols.unshift(c) : o.cols.push(c); }
+      c.p.splice(Math.min(pc.p.indexOf(i), c.p.length), 0, i); } // entra na MESMA posição do padrão (ex.: a Mídia em cima da Hierarquia)
+    if (s !== pad && faltou.length) this.migra?.(o, faltou);
     return o;
   },
   grava() { try { localStorage.setItem(this.CHAVE, JSON.stringify(this.st)); } catch { } this.pintaBotao(); },
@@ -246,12 +249,15 @@ const Paineis = Object.assign(Object.create(PaineisBase), {
 // muda a altura da timeline (localStorage `animador-editor-tl`); "Design padrão" no topo volta tudo como era.
 const PaineisEd = Object.assign(Object.create(PaineisBase), {
   CHAVE: 'animador-editor-layout', CH_ALT: 'animador-editor-alturas', CH_TL: 'animador-editor-tl', BOTAO: 'ed-layout-padrao', MSG_PADRAO: 'Voltou ao design padrão do Animador.',
-  NOMES: { arvore: 'Hierarquia', lado: 'Propriedades · Efeitos · Voz · Mídia · No quadro', linha: 'Timeline' },
+  NOMES: { midia: 'Mídia', arvore: 'Hierarquia', lado: 'Propriedades · Efeitos · Voz · No quadro', linha: 'Timeline' },
   TL_PADRAO: 250,
   SEL: { raiz: '#editor', grade: '#editor .area', esq: '#editor .area > aside.esq', dir: '#editor .area > aside.dir', palco: '#editor .palco' },
   st: null, sec: {},
-  padraoSt() { return { cols: [{ id: 'ae1', lado: 'esq', w: 250, p: ['arvore'] }, { id: 'ad1', lado: 'dir', w: 300, p: ['lado'] }], baixo: ['linha'], jan: [] }; },
-  grupos() { return { arvore: [$('#arvore')?.previousElementSibling, $('#arvore')], lado: [$('#lado-abas'), $('#lado')], linha: [$('#editor section.tl')] }; },
+  // MÍDIA em cima da Hierarquia, na esquerda (um pouco mais larga: 300 px)
+  padraoSt() { return { cols: [{ id: 'ae1', lado: 'esq', w: 300, p: ['midia', 'arvore'] }, { id: 'ad1', lado: 'dir', w: 300, p: ['lado'] }], baixo: ['linha'], jan: [] }; },
+  // quem já tinha o layout guardado: a Mídia entra em cima da Hierarquia e a coluna de 250 (o padrão antigo) vira 300
+  migra(o, faltou) { if (!faltou.includes('midia')) return; const c = o.cols.find(x => x.p.includes('midia')); if (c && c.w === 250) c.w = 300; },
+  grupos() { return { midia: [$('#midia-cab'), $('#midia-corpo')], arvore: [$('#arvore')?.previousElementSibling, $('#arvore')], lado: [$('#lado-abas'), $('#lado')], linha: [$('#editor section.tl')] }; },
   poeBotao(b) { $('#b-ia')?.before(b); },
   leTl() { let v = 0; try { v = +localStorage.getItem(this.CH_TL) || 0; } catch { } return v || this.TL_PADRAO; },
   extraMudou() { try { return !!localStorage.getItem(this.CH_TL) || !!localStorage.getItem('animador-tl-nomes'); } catch { return false; } },

@@ -90,7 +90,7 @@ const App = {
     // posição: centro da câmera, no espaço do pai
     const c = Modelo.camera(this.P, this.q), alvo = lista === this.P.raiz ? null : Modelo.todos(this.P).find(x => x.filhos === lista);
     const inv = alvo ? this.matPai(alvo.id).multiply(Render.matNo(new DOMMatrix(), Modelo.transf(alvo, this.q))).inverse() : new DOMMatrix();
-    const p = inv.transformPoint(new DOMPoint(c.x, c.y)), esc0 = Object.values(n.chaves || {})[0]?.s ?? 1;
+    const p = inv.transformPoint(new DOMPoint(o.pos ? o.pos.x : c.x, o.pos ? o.pos.y : c.y)), esc0 = Object.values(n.chaves || {})[0]?.s ?? 1;
     n.de = this.q; n.chaves = { [this.q]: { x: Math.round(p.x), y: Math.round(p.y + (lista === this.P.raiz ? o.dy || 0 : 0)), r: 0, s: esc0, sx: 1, op: 1 } };
     lista.splice(i, 0, n); this.sel = n.id; this.commit(rotulo || 'Adicionar');
   },
@@ -425,7 +425,7 @@ addEventListener('keydown', e => App.teclas(e));
 addEventListener('keydown', e => { if (e.key === ' ' && e.target === document.body) e.preventDefault(); });
 
 /* trocar de tela (início, editor, ateliê) */
-const Telas = { mostra(id) { for (const t of ['home', 'editor', 'atelie']) $('#' + t).classList.toggle('hidden', t !== id); this.marca(id); },
+const Telas = { mostra(id) { for (const t of ['home', 'editor', 'atelie']) $('#' + t).classList.toggle('hidden', t !== id); this.marca(id); if (id === 'editor' && typeof Midia !== 'undefined') Midia.liga(); },
   // ATELIÊ: ícone próprio na aba (paleta laranja) e título em caixa alta; fora dele volta o do ANIMADOR
   marca(id) { if (window.EstudioIcones) window.EstudioIcones.usar(id === 'atelie' ? 'at' : 'an'); else { const l = document.querySelector('link[rel="icon"]'); if (l) { const novo = id === 'atelie' ? 'icones/atelie.svg' : 'icones/simbolo.svg'; if (!l.href.endsWith(novo)) l.href = novo; } } // ícone da aba = ícone novo do programa (An / At)
     if (id === 'atelie') document.title = (typeof Atelie !== 'undefined' && Atelie.def?.nome ? Atelie.def.nome + ' — ' : '') + 'ATELIÊ · Estúdio Problems'; else if (typeof App !== 'undefined' && App.titulo) App.titulo(); } };
