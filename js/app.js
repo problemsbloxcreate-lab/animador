@@ -11,6 +11,7 @@ const App = {
     this.P = P; this.q = 0; this.sel = null; this.desfazer = []; this.refazer = []; this.ultimo = JSON.stringify(P);
     Promise.all(Object.values(P.personagens || {}).map(def => Arq.garantir(Modelo.chavesImgs(def)))).then(() => Icone.garanteNoEditor(P)); // personagens sem ícone/cor ganham (a cabeça e a cor que mais aparece)
     Telas.mostra('editor'); $('#proj-nome').textContent = P.nome; this.titulo();
+    PaineisEd.liga(); // painéis que mudam de lugar e de tamanho (js/paineis.js)
     this.palco.liga(); this.enquadrar(); Arvore.pinta(); Folha.liga(); Lado.pinta(); Som.prepara(P);
     this.salvoTxt('Salvo neste computador'); this.pintaJunto();
   },

@@ -43,7 +43,7 @@ const Ima = {
   // tudo que está grudado em algo: põe no lugar (depois de mover/aumentar uma janela, mudar o layout, a tela…)
   arruma() {
     if (this._arr) return; this._arr = true; requestAnimationFrame(() => { this._arr = false;
-      for (let k = 0; k < 3; k++) { if (typeof Paineis !== 'undefined') Paineis.posPresos?.(); if (typeof Pintura !== 'undefined') Pintura.posBarra?.(); } this.ajustaEd(); }); // 3 voltas: presos em presos (const não fica em window)
+      for (let k = 0; k < 3; k++) { if (typeof Paineis !== 'undefined') Paineis.posPresos?.(); if (typeof PaineisEd !== 'undefined') PaineisEd.posPresos?.(); if (typeof Pintura !== 'undefined') Pintura.posBarra?.(); } this.ajustaEd(); }); // 3 voltas: presos em presos (const não fica em window)
   },
   // EDITOR DE IMAGEM com janelas soltas por cima da tela: a barra do título e as opções da ferramenta andam para o lado delas (não ficam escondidas)
   ajustaEd() {

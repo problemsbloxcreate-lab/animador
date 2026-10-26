@@ -192,20 +192,35 @@ const Animacoes = {
   corFundo() { const fu = this.def?.vis?.fundo; return fu === 'branco' ? '#ffffff' : fu === 'cenario' ? 'cenario' : null; },
 
   /* ---------- no editor: escrever a animação como chaves a partir do quadro atual ---------- */
+  // vistas do personagem que têm esta animação (mesmo id ou mesmo nome): [{ id, nome, tipo, anim }]
+  vistasComAnim(def0, a) {
+    const nm = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(), out = [];
+    const vs = def0.vistas?.length ? def0.vistas : [{ id: null, nome: '', tipo: 'frente' }];
+    for (const v of vs) { const dv = v.id ? Modelo.naVista(def0, v.id) : def0, an = (dv.animacoes || []).find(x => x.id === a.id) || (dv.animacoes || []).find(x => nm(x.nome) === nm(a.nome)); if (an) out.push({ id: v.id, nome: v.nome, tipo: v.tipo, anim: an, dv }); }
+    return out;
+  },
   async porNoQuadro(n, def, a) {
-    const P = App.P, trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação não tem frames.', { kind: 'warn' });
-    Modelo.sincAnims(def); const fpsP = Modelo.fpsDe(def), qa = +a.q || 1, maior = Math.max(...trilhas.map(t => t.length));
-    // QUADROS POR FRAME no projeto = os quadros do Ateliê × (fps do projeto ÷ fps do personagem). Igual = sem arredondar nada.
-    const conta = f => qa * P.fps / f, fppPadrao = Math.max(1, Math.round(conta(fpsP)));
-    const body = h(`<div><div class="pq-fps">${ic('clock', 13)}<span>No Ateliê: <b>${qa} quadro${qa === 1 ? '' : 's'}</b> por frame a <b>${fpsP} fps</b> (${Linha.seg(a)}) · este projeto: <b>${P.fps} fps</b></span></div>
-      <label class="field">FPS do personagem nesta animação<select data-fp>${Linha.opcoesFps(fpsP).replace('<option value="outro">Outro…</option>', '')}</select></label>
-      <label class="field">Quadros por frame<input type="number" min="1" max="48" value="${fppPadrao}" data-f></label><div class="pq-aviso" data-av></div><label class="field">Quantas vezes repetir<input type="number" min="1" max="50" value="2" data-r></label>
+    const P = App.P, def0 = P.personagens[n.ref] || def, vistaQ = def._vista || def0.vistaAtual || def0.vistas?.[0]?.id || null; // a vista que o quadro MOSTRA
+    const vs = this.vistasComAnim(def0, a); if (!vs.length) vs.push({ id: vistaQ, nome: '', anim: a, dv: def });
+    const ini = vs.find(v => v.id === vistaQ) || vs[0];
+    const conta = (qa, f) => qa * P.fps / f;
+    const body = h(`<div>${def0.vistas?.length > 1 ? `<label class="field">Vista (ângulo) da animação<select data-vi>${vs.map(v => `<option value="${v.id}" ${v === ini ? 'selected' : ''}>${esc(v.nome)}${v.id === vistaQ ? ' · a vista deste quadro' : ''}</option>`).join('')}</select></label>
+      <div class="pq-vista" data-vav></div>` : ''}<div class="pq-fps" data-inf></div>
+      <label class="field">FPS do personagem nesta animação<select data-fp></select></label>
+      <label class="field">Quadros por frame<input type="number" min="1" max="48" data-f></label><div class="pq-aviso" data-av></div><label class="field">Quantas vezes repetir<input type="number" min="1" max="50" value="2" data-r></label>
       <div style="color:var(--tx3);font-size:12px">Começa no quadro ${App.q + 1}. No fim, as partes voltam ao normal.</div></div>`);
-    const av = () => { const f = +$('[data-fp]', body).value, c = conta(f), q = +$('[data-f]', body).value; $('[data-av]', body).innerHTML = Math.abs(c - Math.round(c)) > .01 ? `${ic('alert', 12)} ${qa} quadro(s) a ${f} fps = ${c.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} quadros a ${P.fps} fps: vai arredondar para ${Math.max(1, Math.round(c))}.` : q !== Math.round(c) ? `${ic('info', 12)} No Ateliê seriam ${Math.round(c)} quadros.` : ''; };
-    $('[data-fp]', body).onchange = () => { $('[data-f]', body).value = Math.max(1, Math.round(conta(+$('[data-fp]', body).value))); av(); }; $('[data-f]', body).oninput = av; av();
-    const r = await UI.modal({ title: `Pôr "${a.nome}" na animação`, icon: 'film', body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Pôr', kind: 'primary', collect: x => ({ f: clamp(+$('[data-f]', x.body).value || 1, 1, 48), r: clamp(+$('[data-r]', x.body).value || 1, 1, 50) }) }] });
-    if (!r) return; const vi = Modelo.vistaDaAnim(def, a.id); if (vi && def.vistas?.length > 1) Modelo.chave(n, App.q).vista = vi; // a animação é de uma vista: o personagem fica nela
-    const fim = this.escreve(n, a, App.q, r.f, r.r); App.commit(`Animação "${a.nome}"`); UI.toast(`"${esc(a.nome)}" posta do quadro ${App.q + 1} ao ${fim}.`, { kind: 'ok' });
+    const atual = () => vs.find(v => String(v.id) === String($('[data-vi]', body)?.value ?? ini.id)) || ini;
+    const prepara = () => { const v = atual(); Modelo.sincAnims(v.dv); const fpsP = Modelo.fpsDe(def0), qa = +v.anim.q || 1;
+      $('[data-inf]', body).innerHTML = `${ic('clock', 13)}<span>No Ateliê: <b>${qa} quadro${qa === 1 ? '' : 's'}</b> por frame a <b>${fpsP} fps</b> (${Linha.seg(v.anim)}) · este projeto: <b>${P.fps} fps</b></span>`;
+      $('[data-fp]', body).innerHTML = Linha.opcoesFps(fpsP).replace('<option value="outro">Outro…</option>', ''); $('[data-f]', body).value = Math.max(1, Math.round(conta(qa, fpsP)));
+      const vav = $('[data-vav]', body); if (vav) vav.innerHTML = v.id === vistaQ ? `${ic('check', 12)} Igual à vista que aparece neste quadro.` : `${ic('alert', 12)} O quadro ${App.q + 1} mostra outra vista: o personagem passa para <b>${esc(v.nome)}</b> a partir daqui.`;
+      av(); };
+    const av = () => { const qa = +atual().anim.q || 1, f = +$('[data-fp]', body).value, c = conta(qa, f), q = +$('[data-f]', body).value; $('[data-av]', body).innerHTML = Math.abs(c - Math.round(c)) > .01 ? `${ic('alert', 12)} ${qa} quadro(s) a ${f} fps = ${c.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} quadros a ${P.fps} fps: vai arredondar para ${Math.max(1, Math.round(c))}.` : q !== Math.round(c) ? `${ic('info', 12)} No Ateliê seriam ${Math.round(c)} quadros.` : ''; };
+    $('[data-fp]', body).onchange = () => { $('[data-f]', body).value = Math.max(1, Math.round(conta(+atual().anim.q || 1, +$('[data-fp]', body).value))); av(); }; $('[data-f]', body).oninput = av;
+    if ($('[data-vi]', body)) $('[data-vi]', body).onchange = prepara; prepara();
+    const r = await UI.modal({ title: `Pôr "${a.nome}" na animação`, icon: 'film', body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Pôr', kind: 'primary', collect: x => ({ f: clamp(+$('[data-f]', x.body).value || 1, 1, 48), r: clamp(+$('[data-r]', x.body).value || 1, 1, 50), v: atual() }) }] });
+    if (!r) return; const an = r.v.anim; if (r.v.id && def0.vistas?.length > 1) Modelo.chave(n, App.q).vista = r.v.id; // a animação é de uma vista: o personagem fica NELA (a escolhida)
+    const fim = this.escreve(n, an, App.q, r.f, r.r); App.commit(`Animação "${an.nome}"`); UI.toast(`"${esc(an.nome)}" posta do quadro ${App.q + 1} ao ${fim}${r.v.nome && def0.vistas?.length > 1 ? ` · vista ${esc(r.v.nome)}` : ''}.`, { kind: 'ok' });
   },
   // escreve a animação como chaves no editor: de q0, fpp quadros por passo, reps vezes (devolve o último quadro)
   escreve(n, a, q0, fpp, reps) {

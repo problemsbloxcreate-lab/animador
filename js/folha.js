@@ -16,7 +16,21 @@ const Folha = {
     this.cv.addEventListener('contextmenu', e => { e.preventDefault(); this.menu(e); });
     this.cv.addEventListener('wheel', e => { if (e.ctrlKey) { e.preventDefault(); this.zoom(this.CW * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); } }, { passive: false });
     $('#tl-zoom').oninput = e => this.zoom(+e.target.value);
+    this.ligaBordaNomes();
     this.pinta();
+  },
+  // largura da coluna dos NOMES: arrastar a borda entre os nomes e os quadros (dois cliques = padrão)
+  CH_NOMES: 'animador-tl-nomes',
+  ligaBordaNomes() {
+    const corpo = this.nomes.parentElement, b = h('<div class="tl-nomes-borda" title="Arraste para aumentar/diminuir os nomes das camadas · dois cliques: tamanho padrão"></div>'); corpo.appendChild(b);
+    const poe = w => { if (w) corpo.style.setProperty('--tln', w + 'px'); else corpo.style.removeProperty('--tln'); }; let w0 = 0; try { w0 = +localStorage.getItem(this.CH_NOMES) || 0; } catch { } poe(w0);
+    b.addEventListener('pointerdown', e => { if (e.button !== 0) return; e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('on'); document.body.classList.add('arrastando-div');
+      const x0 = e.clientX, ini = this.nomes.offsetWidth; let w = ini;
+      const mov = ev => { w = clamp(Math.round(ini + ev.clientX - x0), 110, Math.max(140, corpo.offsetWidth - 120)); poe(w); };
+      const up = () => { b.removeEventListener('pointermove', mov); b.removeEventListener('pointerup', up); b.removeEventListener('pointercancel', up); b.classList.remove('on'); document.body.classList.remove('arrastando-div'); try { localStorage.setItem(this.CH_NOMES, String(w)); } catch { } PaineisEd.pintaBotao?.(); };
+      b.addEventListener('pointermove', mov); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); });
+    b.addEventListener('dblclick', () => { try { localStorage.removeItem(this.CH_NOMES); } catch { } poe(0); PaineisEd.pintaBotao?.(); });
+    this._poeNomes = poe;
   },
   zoom(cw) { const q = App.q, x = q * this.CW - this.grade.scrollLeft; this.CW = clamp(Math.round(cw), 6, 48); $('#tl-zoom').value = this.CW; this.pinta(); this.grade.scrollLeft = Math.max(0, q * this.CW - x); },
   // linhas da folha: camadas (como na hierarquia), câmera, efeitos, legendas e áudios
@@ -40,7 +54,7 @@ const Folha = {
       const defP = l.tipo === 'no' && l.no.tipo === 'personagem' ? P.personagens[l.no.ref] : null, corP = defP && Icone.cor(defP);
       const ab = l.tipo === 'no' && l.no.filhos ? `<button class="ab" data-ab title="Abrir/fechar a pasta">${ic(l.no.aberto === false ? 'right' : 'down', 11)}</button>` : '';
       return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''} ${l.no?.filhos && l.no.corPasta ? 'com-cor' : ''} ${corP ? 'pers-cor' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px;${l.h !== this.RH ? `height:${l.h}px;` : ''}${l.no?.filhos && l.no.corPasta ? `--pc:${l.no.corPasta};` : ''}${corP ? `--cp:${corP};` : ''}">${ab}${defP ? Icone.html(defP, 15) : ic(icn, 13)}<span class="nm">${esc(l.nome)}</span>${l.tipo === 'audio' ? `<button class="ms ${l.a.mudo ? 'on' : ''}" data-mudo title="Mudo">M</button><button class="ms solo ${l.a.solo ? 'on' : ''}" data-solo title="Solo: só ele toca">S</button>` : ''}</div>`;
-    }).join('');
+    }).join('') + '<div class="tl-fim" aria-hidden="true"></div>'; // espaço no fim do mesmo tamanho da sobra da grade (30 px + barra de rolagem): sem ele, rolando até o fim os nomes paravam antes e ficavam linhas fora do lugar
     // cabeçalho: pasta nova (com a camada escolhida dentro, se tiver uma)
     const cab = $('.regua', this.nomes); cab.innerHTML = `<span>Camadas</span><span class="sp"></span><button class="ibtn" data-pasta title="Pasta nova (com a camada escolhida dentro) · Ctrl+G">${ic('folder', 13)}</button>`;
     $('[data-pasta]', cab).onclick = () => App.addPasta();
@@ -62,6 +76,8 @@ const Folha = {
     this.espaco.style.width = W + 'px'; this.espaco.style.height = H + 'px';
     const r = this.grade.getBoundingClientRect(), d = devicePixelRatio || 1;
     this.cv.style.width = r.width + 'px'; this.cv.style.height = r.height + 'px'; this.cv.width = Math.max(2, r.width * d); this.cv.height = Math.max(2, r.height * d);
+    const fim = $('.tl-fim', this.nomes); if (fim) fim.style.height = (30 + Math.max(0, this.grade.offsetHeight - this.grade.clientHeight)) + 'px';
+    this.nomes.scrollTop = this.grade.scrollTop;
     this.barra(); this.desenha();
     // a cabeça de leitura sempre visível
     // (só quando o quadro mudou: clicar numa linha com a cabeça fora da vista não pula a timeline no meio do arrasto)
@@ -107,10 +123,31 @@ const Folha = {
   },
   linhaNo(c, P, n, y, sx, sel) {
     if (n.tipo === 'efeito') return this.linhaEfeito(c, P, n, y, sx, sel);
+    if (n.tipo === 'pasta') return this.linhaPasta(c, P, n, y, sx, sel);
     const de = n.de || 0, ate = Modelo.fimNo(P, n), CW = this.CW, cor = n.tipo === 'pasta' ? (n.corPasta ? n.corPasta + '99' : '#4b4b4b') : n.tipo === 'personagem' ? (Icone.cor(P.personagens[n.ref]) ? Icone.cor(P.personagens[n.ref]) + '88' : '#56657a') : n.tipo === 'texto' ? '#6b6150' : '#4f6562';
     c.fillStyle = n.vis === false ? '#333' : cor; c.globalAlpha = sel ? 1 : .85; c.beginPath(); c.roundRect(de * CW - sx + 1, y + 4, (ate - de + 1) * CW - 2, this.RH - 9, 4); c.fill(); c.globalAlpha = 1;
     c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(de * CW - sx + 1, y + 4, 3, this.RH - 9); c.fillRect((ate + 1) * CW - sx - 4, y + 4, 3, this.RH - 9);
     this.chaves(c, n.chaves, y, sx, '#f0f0f0', k => n.chaves[k].sessoes || n.chaves[k].partes);
+  },
+  // PASTA: a linha é da PASTA, não de um conteúdo — faixa listrada (tipo "em obras", só a parte escura) na cor da pasta.
+  // Aberta: cada camada dentro dela tem a própria linha embaixo. Fechada: as chaves de dentro aparecem apagadinhas na faixa.
+  linhaPasta(c, P, n, y, sx, sel) {
+    const de = n.de || 0, ate = Modelo.fimNo(P, n), CW = this.CW, cor = n.corPasta || '#9a9a9a', x = de * CW - sx + 1, w = (ate - de + 1) * CW - 2, top = y + 4, hh = this.RH - 9;
+    c.save(); c.globalAlpha = n.vis === false ? .35 : sel ? 1 : .9; c.beginPath(); c.roundRect(x, top, w, hh, 4); c.clip();
+    c.fillStyle = cor + '40'; c.fillRect(x, top, w, hh);
+    const pat = this.listras(c, cor); pat.setTransform?.(new DOMMatrix().translate(-sx, 0)); c.fillStyle = pat; c.fillRect(x, top, w, hh);
+    c.restore();
+    c.strokeStyle = sel ? cor : cor + '99'; c.lineWidth = 1; c.beginPath(); c.roundRect(x + .5, top + .5, w - 1, hh - 1, 4); c.stroke();
+    if (n.aberto === false) { const ks = new Set(), junta = l => { for (const f of l || []) { Object.keys(f.chaves || {}).forEach(k => ks.add(+k)); junta(f.filhos); } }; junta(n.filhos);
+      c.globalAlpha = .45; this.chaves(c, Object.fromEntries([...ks].map(k => [k, {}])), y, sx, cor); c.globalAlpha = 1; }
+    this.chaves(c, n.chaves, y, sx, '#f0f0f0');
+  },
+  listras(c, cor) { // padrão de listras diagonais escuras na cor da pasta (um por cor)
+    this._pat = this._pat || {}; if (this._pat[cor]) return this._pat[cor];
+    const t = document.createElement('canvas'), L = 14; t.width = t.height = L; const g = t.getContext('2d');
+    g.strokeStyle = 'rgba(0,0,0,.42)'; g.lineWidth = L / 2.6; g.beginPath(); for (const o of [-L, 0, L]) { g.moveTo(o, L); g.lineTo(o + L, 0); } g.stroke();
+    g.strokeStyle = cor + '55'; g.lineWidth = 1; g.beginPath(); for (const o of [-L, 0, L]) { g.moveTo(o + L / 2, L); g.lineTo(o + L * 1.5, 0); } g.stroke();
+    return (this._pat[cor] = c.createPattern(t, 'repeat'));
   },
   // camada de efeito em destaque: barra em gradiente com o nome dos efeitos
   linhaEfeito(c, P, n, y, sx, sel) {

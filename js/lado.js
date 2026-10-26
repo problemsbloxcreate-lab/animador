@@ -4,11 +4,11 @@
    Efeitos: o visual (cor) com 1 clique e efeitos de tela. Voz: áudios, legendas pela transcrição e boca pela voz. */
 'use strict';
 const Lado = {
-  atual: 'quadro', parteSel: null,
+  atual: 'props', parteSel: null, // a 1ª aba é Propriedades; No quadro fica por último (menos usada agora)
   aba(a) { this.atual = a; $$('#lado-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === a)); this.pinta(); },
   pinta() {
     if (!App.P) return; const el = $('#lado'); if (!el) return;
-    const fn = { quadro: 'quadro', props: 'props', efeitos: 'efeitos', som: 'som', midia: 'midia' }[this.atual] || 'quadro';
+    const fn = { quadro: 'quadro', props: 'props', efeitos: 'efeitos', som: 'som', midia: 'midia' }[this.atual] || 'props';
     const rolagem = el.scrollTop; el.innerHTML = ''; this[fn](el); el.scrollTop = rolagem;
   },
   // personagem em foco: o selecionado, ou o 1º do quadro
@@ -16,65 +16,85 @@ const Lado = {
 
   midia(el) { Midia.pinta(el); },
 
-  /* ---------- No quadro ---------- */
+  /* ---------- No quadro (aba de menos prioridade: o rig e a animação agora são feitos pelo Claude) ----------
+     Personagens do quadro em fichas pequenas; do escolhido: a VISTA (ângulo) em botões, e as partes em seções que abrem/fecham
+     (Poses, Animações, Ajustar uma parte, Atuação automática; o que fica aberto é lembrado em localStorage `animador-nq-abertas`). */
+  CH_NQ: 'animador-nq-abertas',
+  nqAbertas() { if (!this._nq) { try { this._nq = JSON.parse(localStorage.getItem(this.CH_NQ) || 'null'); } catch { } this._nq = this._nq || { poses: true, anims: true }; } return this._nq; },
+  secao(id, titulo, extra, corpo) {
+    const ab = this.nqAbertas(), d = h(`<details class="nq-sec" data-sec="${id}" ${ab[id] ? 'open' : ''}><summary><span class="nq-seta">${ic('right', 11)}</span><b>${titulo}</b>${extra ? `<small>${extra}</small>` : ''}</summary><div class="nq-corpo"></div></details>`);
+    d.ontoggle = () => { ab[id] = d.open; try { localStorage.setItem(this.CH_NQ, JSON.stringify(ab)); } catch { } };
+    corpo($('.nq-corpo', d)); return d;
+  },
   quadro(el) {
     const P = App.P, q = App.q, lista = Modelo.noQuadro(P, q), f = this.foco();
     if (!lista.length) { el.innerHTML = `<div class="vazio">Nenhum personagem aparece no quadro ${q + 1}.<br><br><button class="btn" data-add>${ic('plus', 14)} Pôr um personagem</button></div>`; $('[data-add]', el).onclick = () => App.addPersonagem(); return; }
-    const cards = h('<div class="cards"></div>');
+    const topo = h(`<div class="nq-topo"><span class="nq-q">Quadro <b>${q + 1}</b></span><span class="nq-n">${lista.length} personage${lista.length === 1 ? 'm' : 'ns'}</span></div>`), chips = h('<div class="nq-chips"></div>');
     for (const n of lista) {
-      const def = P.personagens[n.ref], c = h(`<div class="card-p ${f === n ? 'sel' : ''}"><div class="th" style="${def.thumb ? `background-image:url('${def.thumb}')` : ''}"></div><div><b>${esc(n.nome)}${def._local ? ` <span class="so-local" title="${def._local.todo ? 'Este personagem ainda não está na nuvem: só neste computador' : 'Tem mudanças salvas só neste computador (ainda não na nuvem)'}">${ic('cloudOff', 13)}</span>` : ''}</b><small>${esc(def.nome)} · ${def.vistas?.length > 1 ? def.vistas.length + ' vistas' : Modelo.naVista(def).sessoes.length + ' sessões'}${def._local ? ' · não está na nuvem' : ''}</small></div></div>`);
-      c.onclick = () => App.selecionar(n.id); cards.appendChild(c);
+      const def = P.personagens[n.ref], c = h(`<button class="nq-chip ${f === n ? 'sel' : ''}" title="${esc(n.nome)} · ${esc(def.nome)}${def._local ? ' · não está na nuvem' : ''}">${Icone.html(def, 18)}<span>${esc(n.nome)}</span>${def._local ? `<span class="so-local">${ic('cloudOff', 11)}</span>` : ''}</button>`);
+      c.onclick = () => App.selecionar(n.id); chips.appendChild(c);
     }
-    el.appendChild(cards);
-    if (!f) { el.appendChild(h('<div class="vazio">Clique num personagem para ver os botões dele.</div>')); return; }
+    topo.appendChild(chips); el.appendChild(topo);
+    if (!f) { el.appendChild(h('<div class="vazio">Clique num personagem para ver as poses e animações dele neste quadro.</div>')); return; }
     const def0 = P.personagens[f.ref], est = Modelo.estadoPersonagem(f, q), aqui = f.chaves[q] || {}, def = Modelo.naVista(def0, est.vista); // def = a vista deste quadro
-    // VISTA (ângulo) neste quadro: frente, três-quartos, lado, costas… (vale até a próxima chave de vista)
-    if (def0.vistas?.length > 1) { const atualV = est.vista && def0.vistas.some(v => v.id === est.vista) ? est.vista : def0.vistas[0].id, temChave = 'vista' in aqui;
-      const box = h(`<div class="sessao vistas-q"><h4>${ic('eye', 13)} Vista <small>ângulo neste quadro</small></h4><div class="presets"></div></div>`), pr = $('.presets', box);
-      for (const v of def0.vistas) { const b = h(`<button class="${v.id === atualV ? 'on' : ''} ${v.id === atualV && temChave ? 'chave' : ''}" title="${esc(v.nome)} a partir do quadro ${q + 1}">${Atelie.icVista(v.tipo, 13)} ${esc(v.nome)}</button>`);
-        b.onclick = () => { const k = Modelo.chave(f, q); k.vista = v.id; App.commit(`Vista ${v.nome} no quadro ${q + 1}`, { semArvore: true }); }; pr.appendChild(b); }
-      el.appendChild(box); }
-    if (!def.sessoes.length) el.appendChild(h(`<div class="vazio">${esc(def.nome)} ainda não tem sessões (olhos, boca, poses…).<br>Crie no <b>Ateliê de personagens</b>.</div>`));
-    for (const s of def.sessoes) {
-      const atual = est.sessoes[s.id] || null, temChave = aqui.sessoes && s.id in aqui.sessoes;
-      const box = h(`<div class="sessao"><h4>${esc(s.nome)} <small>${s.presets.length}</small></h4><div class="presets"></div></div>`), pr = $('.presets', box);
-      const loc = id => def._local && id && (def._local.todo || def._local.presets?.includes(id));
-      const bt = (id, nome) => { const b = h(`<button class="${atual === id ? 'on' : ''} ${atual === id && temChave ? 'chave' : ''} ${loc(id) ? 'loc' : ''}" title="${esc(nome)} no quadro ${q + 1}${loc(id) ? ' · salvo só neste computador (não está na nuvem)' : ''}">${esc(nome)}${loc(id) ? ` <span class="so-local">${ic('cloudOff', 11)}</span>` : ''}</button>`); b.onclick = () => this.escolhe(f, s.id, atual === id && id ? null : id); pr.appendChild(b); };
-      bt(null, 'Padrão'); s.presets.forEach(p => bt(p.id, p.nome)); el.appendChild(box);
-    }
-    // animações de teste do personagem (feitas no Ateliê): viram chaves a partir deste quadro
-    if (def.animacoes?.length) { const box = h(`<div class="sessao"><h4>Animações <small>pôr a partir do quadro ${q + 1}</small></h4><div class="ld-fps${Modelo.fpsDe(def) !== App.P.fps ? ' dif' : ''}" title="As animações deste personagem foram feitas a este fps no Ateliê. Ao pôr, dá para escolher outro.">${ic('clock', 11)} Personagem a <b>${Modelo.fpsDe(def)} fps</b>${Modelo.fpsDe(def) !== App.P.fps ? ` · projeto a ${App.P.fps} fps` : ''}</div><div class="presets"></div></div>`), pr = $('.presets', box);
-      for (const a of def.animacoes) { a._vista = est.vista || def0.vistaAtual || null; const b = h(`<button title="Escreve &quot;${esc(a.nome)}&quot; como chaves a partir deste quadro">${ic('play', 11)} ${esc(a.nome)}</button>`); b.onclick = () => Animacoes.porNoQuadro(f, def, a); pr.appendChild(b); }
-      el.appendChild(box); }
-    // ajustar uma parte só neste trecho (quando uma pose precisa de um retoque)
+    const vistaQ = def._vista || def0.vistaAtual || def0.vistas?.[0]?.id || null, nomeV = def0.vistas?.find(v => v.id === vistaQ)?.nome || '';
+    // cabeçalho do personagem + VISTA (ângulo) neste quadro: vale até a próxima chave de vista
+    const cab = h(`<div class="nq-pers"><div class="nq-cab">${Icone.html(def0, 26)}<div class="nq-nm"><b>${esc(f.nome)}</b><small>${esc(def0.nome)}${def0._local ? ' · não está na nuvem' : ''}</small></div><span class="sp"></span>
+      <button class="ibtn" data-boca title="Boca pela voz">${ic('mic', 14)}</button><button class="ibtn ia" data-ia title="Animar com a IA">${ic('sparkles', 14)}</button><button class="ibtn" data-at title="Editar o personagem no Ateliê">${ic('edit', 14)}</button></div></div>`);
+    $('[data-boca]', cab).onclick = () => Som.bocaPelaVoz(f); $('[data-ia]', cab).onclick = () => IA.abrir(f); $('[data-at]', cab).onclick = () => Atelie.abrirAba(def0.id);
+    if (def0.vistas?.length > 1) { const temChave = 'vista' in aqui, vb = h(`<div class="nq-vistas" title="Vista (ângulo) a partir do quadro ${q + 1}${temChave ? ' · tem chave de vista neste quadro' : ''}"></div>`);
+      for (const v of def0.vistas) { const b = h(`<button class="${v.id === vistaQ ? 'on' : ''} ${v.id === vistaQ && temChave ? 'chave' : ''}" title="${esc(v.nome)} a partir do quadro ${q + 1}">${Atelie.icVista(v.tipo, 13)}<span>${esc(v.nome)}</span></button>`);
+        b.onclick = () => { const k = Modelo.chave(f, q); k.vista = v.id; App.commit(`Vista ${v.nome} no quadro ${q + 1}`, { semArvore: true }); }; vb.appendChild(b); }
+      cab.appendChild(vb); }
+    el.appendChild(cab);
+    // POSES (sessões: olhos, boca, braços…)
+    el.appendChild(this.secao('poses', 'Poses', def.sessoes.length ? `${def.sessoes.length} sessões${nomeV ? ' · ' + esc(nomeV) : ''}` : '', c => {
+      if (!def.sessoes.length) return c.appendChild(h(`<div class="nq-vazio">${esc(def.nome)} ainda não tem sessões nesta vista. Crie no <b>Ateliê</b>.</div>`));
+      for (const s of def.sessoes) {
+        const atual = est.sessoes[s.id] || null, temChave = aqui.sessoes && s.id in aqui.sessoes;
+        const box = h(`<div class="nq-sess"><span class="nq-sn" title="${esc(s.nome)}">${esc(s.nome)}${temChave ? ' <i title="tem chave neste quadro">◆</i>' : ''}</span><div class="presets"></div></div>`), pr = $('.presets', box);
+        const loc = id => def._local && id && (def._local.todo || def._local.presets?.includes(id));
+        const bt = (id, nome) => { const b = h(`<button class="${atual === id ? 'on' : ''} ${atual === id && temChave ? 'chave' : ''} ${loc(id) ? 'loc' : ''} ${id ? '' : 'padrao'}" title="${esc(nome)} no quadro ${q + 1}${loc(id) ? ' · salvo só neste computador (não está na nuvem)' : ''}">${esc(nome)}${loc(id) ? ` <span class="so-local">${ic('cloudOff', 11)}</span>` : ''}</button>`); b.onclick = () => this.escolhe(f, s.id, atual === id && id ? null : id); pr.appendChild(b); };
+        bt(null, 'Padrão'); s.presets.forEach(p => bt(p.id, p.nome)); c.appendChild(box);
+      }
+    }));
+    // ANIMAÇÕES de teste (feitas no Ateliê) DESTA vista: viram chaves a partir deste quadro (na janela dá para escolher outra vista)
+    const anims = def.animacoes || [], outras = def0.vistas?.length > 1 ? def0.vistas.filter(v => v.id !== vistaQ).map(v => ({ v, l: Modelo.naVista(def0, v.id).animacoes || [] })).filter(x => x.l.length) : [];
+    if (anims.length || outras.length) el.appendChild(this.secao('anims', 'Animações', `pôr a partir do quadro ${q + 1}`, c => {
+      const fpsP = Modelo.fpsDe(def0); c.appendChild(h(`<div class="ld-fps${fpsP !== P.fps ? ' dif' : ''}" title="As animações deste personagem foram feitas a este fps no Ateliê. Ao pôr, dá para escolher outro.">${ic('clock', 11)} Personagem a <b>${fpsP} fps</b>${fpsP !== P.fps ? ` · projeto a ${P.fps} fps` : ''}</div>`));
+      if (anims.length) { const g = h(`<div class="nq-anims">${nomeV ? `<div class="nq-vt">${Atelie.icVista(def0.vistas.find(v => v.id === vistaQ)?.tipo, 12)} ${esc(nomeV)} <small>a vista deste quadro</small></div>` : ''}<div class="presets"></div></div>`);
+        for (const a of anims) { const b = h(`<button title="Escreve &quot;${esc(a.nome)}&quot; como chaves a partir deste quadro${nomeV ? ', na vista ' + esc(nomeV) : ''}">${ic('play', 11)} ${esc(a.nome)}</button>`); b.onclick = () => Animacoes.porNoQuadro(f, def, a); $('.presets', g).appendChild(b); }
+        c.appendChild(g); }
+      else c.appendChild(h(`<div class="nq-vazio">A vista ${esc(nomeV)} não tem animações de teste.</div>`));
+      for (const { v, l } of outras) { const g = h(`<div class="nq-anims outra"><div class="nq-vt">${Atelie.icVista(v.tipo, 12)} ${esc(v.nome)} <small>muda a vista para esta</small></div><div class="presets"></div></div>`), dv = Modelo.naVista(def0, v.id);
+        for (const a of l) { const b = h(`<button title="Põe &quot;${esc(a.nome)}&quot; e o personagem passa para a vista ${esc(v.nome)} a partir deste quadro">${ic('play', 11)} ${esc(a.nome)}</button>`); b.onclick = () => Animacoes.porNoQuadro(f, dv, a); $('.presets', g).appendChild(b); }
+        c.appendChild(g); }
+    }));
+    // AJUSTAR UMA PARTE só neste quadro (quando uma pose precisa de um retoque)
     const partes = def.partes, ps = this.parteSel && partes.find(p => p.id === this.parteSel) ? this.parteSel : partes[0]?.id;
-    if (partes.length) {
+    if (partes.length) el.appendChild(this.secao('ajuste', 'Ajustar uma parte', aqui.partes && Object.keys(aqui.partes).length ? `${Object.keys(aqui.partes).length} ajustada(s) aqui` : 'neste quadro', box => {
       const estP = Modelo.partesNoEstado(def, est), e = estP[ps] || {}, temAjuste = !!aqui.partes?.[ps];
-      const box = h(`<div class="sessao"><h4>Ajustar uma parte <small>neste quadro</small></h4>
-        <div class="campo2" style="margin-bottom:6px"><select data-p style="flex:1">${partes.map(p => `<option value="${p.id}" ${p.id === ps ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select>
-        ${temAjuste ? `<button class="btn sm" data-limpa title="Volta ao que a sessão/pose define">Desfazer ajuste</button>` : ''}</div><div class="props" style="padding:0"></div></div>`);
-      const pp = $('.props', box), parte = partes.find(p => p.id === ps);
+      box.appendChild(h(`<div class="campo2" style="margin-bottom:6px"><select data-p style="flex:1">${partes.map(p => `<option value="${p.id}" ${p.id === ps ? 'selected' : ''}>${esc(p.nome)}${aqui.partes?.[p.id] ? ' ◆' : ''}</option>`).join('')}</select>
+        ${temAjuste ? `<button class="btn sm" data-limpa title="Volta ao que a sessão/pose define">Desfazer ajuste</button>` : ''}</div>`)); const pp = h('<div class="props" style="padding:0"></div>'); box.appendChild(pp);
+      const parte = partes.find(p => p.id === ps);
       $('[data-p]', box).onchange = ev => { this.parteSel = ev.target.value; this.pinta(); };
       if ($('[data-limpa]', box)) $('[data-limpa]', box).onclick = () => { delete aqui.partes[ps]; if (!Object.keys(aqui.partes).length) delete aqui.partes; App.commit('Desfazer ajuste'); };
       const muda = (c, v) => { const k = Modelo.chave(f, q); k.partes = k.partes || {}; k.partes[ps] = { ...(k.partes[ps] || {}), [c]: v }; App.pinta(); };
       for (const [c, nome, min, max, passo] of [['x', 'Mover X', -400, 400, 1], ['y', 'Mover Y', -400, 400, 1], ['r', 'Girar', -180, 180, 1], ['s', 'Tamanho', .2, 3, .01]]) pp.appendChild(this.campo(nome, e[c] ?? (c === 's' ? 1 : 0), min, max, passo, v => muda(c, v), () => App.commit('Ajustar ' + parte.nome)));
       if (parte?.imgs.length > 1) { const sel = h(`<label class="campo"><span>Imagem</span><select style="grid-column:span 2">${parte.imgs.map(i => `<option value="${i.id}" ${i.id === e.img ? 'selected' : ''}>${esc(i.nome)}</option>`).join('')}</select></label>`); $('select', sel).onchange = ev => { muda('img', ev.target.value); App.commit('Trocar imagem'); }; pp.appendChild(sel); }
-      el.appendChild(box);
-    }
+    }));
     // ATUAÇÃO AUTOMÁTICA (js/atuacao.js): o código lê a próxima pose e faz o movimento entre elas (antecipação, mola, respiração, cabelo)
     { const o = Atuacao.opcoes(f), lig = Atuacao.ligada(f);
-      const box = h(`<div class="sessao atuacao"><h4>${ic('sparkles', 13)} Atuação automática <small>movimento entre as poses</small><span class="sp"></span><button class="btn sm ${lig ? 'primary' : ''}" data-on title="O código lê a próxima pose e faz o personagem se mexer até ela (as chaves não mudam)">${lig ? 'Ligada' : 'Desligada'}</button></h4>
-        <div data-o ${lig ? '' : 'hidden'}><div class="props" style="padding:0" data-f></div><div class="campo2" style="flex-wrap:wrap;gap:4px 12px">
-        <label class="chk" title="Antes de trocar de pose a parte recua um pouco; a pose nova chega girando e passa um tico do ponto (mola). O corpo agacha e estica junto."><input type="checkbox" data-k="mola" ${o.mola ? 'checked' : ''}> Antecipação e mola</label>
-        <label class="chk" title="O corpo respira e os braços nunca ficam 100% parados numa pose"><input type="checkbox" data-k="resp" ${o.resp ? 'checked' : ''}> Respiração e pose viva</label>
-        <label class="chk" title="O cabelo atrasa e balança quando o corpo gira ou o personagem anda, pula ou cai"><input type="checkbox" data-k="cabelo" ${o.cabelo ? 'checked' : ''}> Cabelo solto</label></div></div></div>`);
-      $('[data-on]', box).onclick = () => { f.atuacao = { ...o, on: !lig }; App.commit(lig ? 'Atuação automática desligada' : 'Atuação automática ligada', { semArvore: true }); };
-      $('[data-f]', box).appendChild(this.campo('Força', o.forca, 0, 2, .05, v => { f.atuacao = { ...Atuacao.opcoes(f), forca: v }; App.pinta(); }, () => App.commit('Força da atuação', { semArvore: true })));
-      $$('[data-k]', box).forEach(c => c.onchange = () => { f.atuacao = { ...Atuacao.opcoes(f), [c.dataset.k]: c.checked }; App.commit('Atuação automática', { semArvore: true }); });
-      el.appendChild(box); }
-    const ac = h(`<div class="sessao"><div class="campo2"><button class="btn sm" data-boca>${ic('mic', 13)} Boca pela voz</button><button class="btn sm ia" data-ia>${ic('sparkles', 13)} Animar com a IA</button><button class="btn sm" data-at>${ic('edit', 13)} Editar personagem</button></div></div>`);
-    $('[data-boca]', ac).onclick = () => Som.bocaPelaVoz(f); $('[data-ia]', ac).onclick = () => IA.abrir(f); $('[data-at]', ac).onclick = () => Atelie.abrirAba(def.id);
-    el.appendChild(ac);
+      el.appendChild(this.secao('atuacao', 'Atuação automática', lig ? 'ligada' : 'desligada', box => {
+        box.appendChild(h(`<div><div class="campo2" style="margin-bottom:6px"><span style="color:var(--tx3);font-size:11.5px;flex:1">O código lê a próxima pose e faz o movimento até ela (as chaves não mudam).</span><button class="btn sm ${lig ? 'primary' : ''}" data-on>${lig ? 'Ligada' : 'Desligada'}</button></div>
+          <div data-o ${lig ? '' : 'hidden'}><div class="props" style="padding:0" data-f></div><div class="campo2" style="flex-wrap:wrap;gap:4px 12px">
+          <label class="chk" title="Antes de trocar de pose a parte recua um pouco; a pose nova chega girando e passa um tico do ponto (mola). O corpo agacha e estica junto."><input type="checkbox" data-k="mola" ${o.mola ? 'checked' : ''}> Antecipação e mola</label>
+          <label class="chk" title="O corpo respira e os braços nunca ficam 100% parados numa pose"><input type="checkbox" data-k="resp" ${o.resp ? 'checked' : ''}> Respiração e pose viva</label>
+          <label class="chk" title="O cabelo atrasa e balança quando o corpo gira ou o personagem anda, pula ou cai"><input type="checkbox" data-k="cabelo" ${o.cabelo ? 'checked' : ''}> Cabelo solto</label></div></div></div>`));
+        $('[data-on]', box).onclick = () => { f.atuacao = { ...o, on: !lig }; App.commit(lig ? 'Atuação automática desligada' : 'Atuação automática ligada', { semArvore: true }); };
+        $('[data-f]', box).appendChild(this.campo('Força', o.forca, 0, 2, .05, v => { f.atuacao = { ...Atuacao.opcoes(f), forca: v }; App.pinta(); }, () => App.commit('Força da atuação', { semArvore: true })));
+        $$('[data-k]', box).forEach(c => c.onchange = () => { f.atuacao = { ...Atuacao.opcoes(f), [c.dataset.k]: c.checked }; App.commit('Atuação automática', { semArvore: true }); });
+      })); }
   },
   escolhe(n, sessao, preset) {
     const k = Modelo.chave(n, App.q); k.sessoes = { ...(k.sessoes || {}), [sessao]: preset };

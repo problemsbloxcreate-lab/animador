@@ -166,7 +166,7 @@ const Modelo = {
   chavesAp(o, out = []) { if (o && typeof o === 'object') for (const [c, v] of Object.entries(o)) { if (c === 'ap' && v && typeof v === 'object') { for (const m of Object.values(v)) if (m?.k) out.push(m.k); } else if (v && typeof v === 'object') Modelo.chavesAp(v, out); } return out; },
   chavesImgs(def) { return [...new Set([...Modelo.chavesAp(def), ...(def?.apKeys || []), ...Modelo.todasPartes(def).flatMap(p => p.imgs.flatMap(i => [i.k, ...(i.camadas || []).map(c => c.k)])), def?.vis?.fantasma?.k, ...(def?.vistas || []).map(v => v.vis?.fantasma?.k), ...(def?.refsAnim || []).map(r => r.k)].filter(Boolean))]; },
   // a vista onde está uma animação de teste
-  vistaDaAnim(def, animId) { if ((def.animacoes || []).some(a => a.id === animId)) return def.vistaAtual || null; return (def.vistas || []).find(v => (v.animacoes || []).some(a => a.id === animId))?.id || null; },
+  vistaDaAnim(def, animId) { if ((def.animacoes || []).some(a => a.id === animId)) return def._vista || def.vistaAtual || null; return (def.vistas || []).find(v => (v.animacoes || []).some(a => a.id === animId))?.id || null; }, // def visto de uma vista (naVista) = ESSA vista, não a ativa do Ateliê
   // usa os mesmos ids das outras vistas para o que tem o mesmo nome (sessões, presets, partes, imagens, animações)
   alinhaIds(def) {
     Modelo.garanteVistas(def); const outras = def.vistas.filter(v => v.id !== def.vistaAtual && v.partes); if (!outras.length) return 0;

@@ -6,12 +6,10 @@
    Dois cliques na alça = volta para o lugar de sempre. Colunas mudam de largura pela borda. Guardado neste computador
    (localStorage `animador-atelie-layout`); "Design padrão" no topo aparece só quando algo mudou e volta tudo. */
 'use strict';
-const Paineis = {
-  CHAVE: 'animador-atelie-layout',
-  NOMES: { vistas: 'Vistas', partes: 'Partes', imagens: 'Imagens', lado: 'Peça · Poses · Animações', linha: 'Timeline' },
-  BEIRA: 22,
-  st: null, sec: {},
-  padraoSt() { return { cols: [{ id: 'e1', lado: 'esq', w: 270, p: ['vistas', 'partes', 'imagens'] }, { id: 'd1', lado: 'dir', w: 320, p: ['lado'] }], baixo: ['linha'], jan: [] }; },
+// BASE usada pelo Ateliê (Paineis) e pelo editor do Animador (PaineisEd, no fim do arquivo): cada um diz os seus painéis e lugares
+const PaineisBase = {
+  BEIRA: 22, SEM_ALT: [], FIXOS: [],
+  tamanho() { }, enquadra() { },
   le() {
     if (this.st) return this.st; let s = null; try { s = JSON.parse(localStorage.getItem(this.CHAVE) || 'null'); } catch { }
     if (s && !s.cols && (s.esq || s.dir)) { // formato antigo (uma coluna de cada lado)
@@ -33,37 +31,29 @@ const Paineis = {
   },
   grava() { try { localStorage.setItem(this.CHAVE, JSON.stringify(this.st)); } catch { } this.pintaBotao(); },
   mudou() {
-    const t = window.Divisores ? Divisores.le() : null;
-    let barra = false; try { barra = !!localStorage.getItem('animador-ferr-lugar') || !!localStorage.getItem('animador-ferr-lugar-ed') || !!localStorage.getItem(this.CH_ALT); } catch { }
-    return JSON.stringify(this.st) !== JSON.stringify(this.padraoSt()) || (t && t.tl) || barra;
+    let alt = false; try { alt = !!localStorage.getItem(this.CH_ALT); } catch { }
+    return JSON.stringify(this.st) !== JSON.stringify(this.padraoSt()) || alt || !!this.extraMudou?.();
   },
-  pintaBotao() { const b = $('#at-layout-padrao'); if (b) b.hidden = !this.mudou(); },
+  pintaBotao() { const b = $('#' + this.BOTAO); if (b) b.hidden = !this.mudou(); },
   padrao() {
     this.st = this.padraoSt(); this.alt = {}; try { localStorage.removeItem(this.CH_ALT); } catch { } this.grava();
-    if (window.Divisores) { Divisores.t = { ...Divisores.PADRAO }; Divisores.grava(); Divisores.aplica(); }
-    if (typeof Pintura !== 'undefined') { Pintura._lugar = Pintura._lugarEd = null; try { localStorage.removeItem('animador-ferr-lugar'); localStorage.removeItem('animador-ferr-lugar-ed'); } catch { } } // a barra de ferramentas também volta ao lugar de sempre
-    this.aplica(); if (typeof Pintura !== 'undefined') Pintura.posBarra(); UI.toast('Voltou ao design padrão do Ateliê.', { kind: 'ok' });
+    this.aoPadrao?.(); this.aplica(); this.depoisPadrao?.(); UI.toast(this.MSG_PADRAO || 'Voltou ao design padrão.', { kind: 'ok' });
   },
   // ---------- montar (uma vez) ----------
   liga() {
-    if (this._ok) return; const at = $('#atelie'), esq = $('#atelie .at > aside:first-child'), dir = $('#atelie .at > aside:last-child'), pal = $('#atelie .at-palco'); if (!at || !esq || !dir || !pal) return; this._ok = true;
-    this.area = { esq, dir }; esq.classList.add('dock-area'); dir.classList.add('dock-area'); $('#atelie .at').classList.add('com-docks');
-    this.baixoEl = h('<div class="dock-baixo"></div>'); pal.appendChild(this.baixoEl);
-    this.soltos = h('<div class="dock-soltos"></div>'); at.appendChild(this.soltos);
-    const cabDe = id => $('#' + id)?.previousElementSibling;
-    const grupos = { vistas: [$('#at-vistas')], partes: [cabDe('at-partes'), $('#at-partes')], imagens: [cabDe('at-imgs'), $('#at-imgs')], lado: [$('#at-abas'), $('#at-lado')], linha: [$('#at-tl')] };
-    for (const [id, els] of Object.entries(grupos)) {
+    if (this._ok) return; const S = this.SEL, raiz = $(S.raiz), grade = $(S.grade), esq = $(S.esq), dir = $(S.dir), pal = $(S.palco); if (!raiz || !grade || !esq || !dir || !pal) return; this._ok = true;
+    this.raizEl = raiz; this.gradeEl = grade; this.palcoEl = pal;
+    this.area = { esq, dir }; esq.classList.add('dock-area'); dir.classList.add('dock-area'); grade.classList.add('com-docks');
+    this.baixoEl = this.criaBaixo(pal, grade);
+    this.soltos = h('<div class="dock-soltos"></div>'); raiz.appendChild(this.soltos);
+    for (const [id, els] of Object.entries(this.grupos())) {
       if (els.some(e => !e)) continue; const s = h(`<section class="dock" data-dock="${id}"><span class="dock-pega" title="Arraste para mudar este painel de lugar: dentro de outro lugar, na beira de uma coluna (coluna nova) ou solto na tela · dois cliques: volta para o lugar de sempre">${ic('grip', 13)}</span></section>`);
       els[0].before(s); for (const e of els) s.appendChild(e); this.sec[id] = s; this.alca(id, $('.dock-pega', s));
     }
-    const b = h(`<button class="btn sm" id="at-layout-padrao" hidden title="Os painéis ou os tamanhos foram mudados: volta tudo ao jeito de sempre">${ic('undo', 13)} Design padrão</button>`); b.onclick = () => this.padrao();
-    ($('#at-autores') || $('#at-ia'))?.before(b);
-    if (window.Divisores && !Divisores._avisaPaineis) { Divisores._avisaPaineis = true; const g = Divisores.grava.bind(Divisores); Divisores.grava = () => { g(); this.pintaBotao(); }; }
-    // a timeline pode sair de baixo do palco: o palco desconta só o que está na faixa de baixo
-    if (window.Linha && !Linha._dock) { Linha._dock = true; Linha.altura = () => { const p = $('.at-palco'); if (!p) return; const hgt = this.baixoEl.offsetHeight; if (p._tl === hgt) return; const primeira = p._tl0 === undefined; p._tl = p._tl0 = hgt; p.style.setProperty('--tl', hgt + 'px'); Atelie.tamanho?.(); if (primeira) Atelie.enquadrar?.(); }; }
-    new ResizeObserver(() => Linha?.altura?.()).observe(this.baixoEl);
-    this.ro = new ResizeObserver(ents => { let mud = false; for (const e of ents) { const j = this.st.jan.find(x => x.id === e.target.dataset.jan); if (!j || !e.target.isConnected) continue; const r = e.target.getBoundingClientRect(); if (!r.width || !r.height) continue; /* escondida (editor de imagem): não guarda tamanho 0 */ if (!j.preso?.esticar && (Math.abs(r.width - j.w) > 2 || Math.abs(r.height - j.h) > 2)) { j.w = Math.round(r.width); j.h = Math.round(r.height); mud = true; } } Ima.arruma(); if (mud) { clearTimeout(this._tg); this._tg = setTimeout(() => this.grava(), 300); } });
-    addEventListener('resize', () => this.cabe()); new ResizeObserver(() => Ima.arruma()).observe($('#atelie .at'));
+    const b = h(`<button class="btn sm" id="${this.BOTAO}" hidden title="Os painéis ou os tamanhos foram mudados: volta tudo ao jeito de sempre">${ic('undo', 13)} Design padrão</button>`); b.onclick = () => this.padrao();
+    this.poeBotao(b); this.aoLigar?.();
+    this.ro = new ResizeObserver(ents => { let mud = false; for (const e of ents) { const j = this.st.jan.find(x => x.id === e.target.dataset.jan); if (!j || !e.target.isConnected) continue; const r = e.target.getBoundingClientRect(); if (!r.width || !r.height) continue; /* escondida (editor de imagem/outra tela): não guarda tamanho 0 */ if (!j.preso?.esticar && (Math.abs(r.width - j.w) > 2 || Math.abs(r.height - j.h) > 2)) { j.w = Math.round(r.width); j.h = Math.round(r.height); mud = true; } } Ima.arruma(); if (mud) { clearTimeout(this._tg); this._tg = setTimeout(() => this.grava(), 300); } });
+    addEventListener('resize', () => this.cabe()); new ResizeObserver(() => Ima.arruma()).observe(grade);
     this.le(); this.aplica();
   },
   NO_ED: ['partes', 'imagens', 'lado'], // painéis que continuam no editor de imagem (o resto some; o lugar de cada um é o mesmo)
@@ -88,16 +78,16 @@ const Paineis = {
       for (const id of j.p) if (this.sec[id]) w.appendChild(this.sec[id]);
       this.moveJanela(j, $('.dock-jbar', w), w); $('.dock-jbar', w).oncontextmenu = e => Ima.menu(e, j.preso, v => { j.preso = v; this.grava(); this.aplica(); }); this.soltos.appendChild(w); this.ro.observe(w);
     }
-    this.alturas(); this.cabe(); this.pintaBotao(); Linha?.altura?.(); requestAnimationFrame(() => { Atelie.tamanho?.(); Linha?.altura?.(); Ima.arruma(); });
+    this.alturas(); this.cabe(); this.depoisAplica?.(); this.pintaBotao(); this.tamanho(); requestAnimationFrame(() => { this.tamanho(); Ima.arruma(); });
   },
   // ALTURA dos painéis empilhados (numa coluna ou janela): borda arrastável entre um e outro (dois cliques = volta ao normal)
   CH_ALT: 'animador-atelie-alturas',
   leAlt() { if (!this.alt) { try { this.alt = JSON.parse(localStorage.getItem(this.CH_ALT) || '{}') || {}; } catch { this.alt = {}; } } return this.alt; },
   gravaAlt() { try { if (Object.keys(this.alt).length) localStorage.setItem(this.CH_ALT, JSON.stringify(this.alt)); else localStorage.removeItem(this.CH_ALT); } catch { } this.pintaBotao(); },
   alturas() {
-    const A = this.leAlt(), fixo = id => id === 'vistas'; // as Vistas têm a altura do conteúdo: arrastando, ganham altura em px
-    for (const box of $$('#atelie .dock-col, .dock-janela')) {
-      const ds = $$(':scope > .dock', box).filter(d => d.dataset.dock !== 'linha');
+    const A = this.leAlt(), fixo = id => this.FIXOS.includes(id); // ex.: as Vistas têm a altura do conteúdo: arrastando, ganham altura em px
+    for (const box of $$('.dock-col, .dock-janela', this.raizEl)) {
+      const ds = $$(':scope > .dock', box).filter(d => !this.SEM_ALT.includes(d.dataset.dock));
       ds.forEach((d, i) => { const id = d.dataset.dock, v = A[id]; $(':scope > .dock-hb', d)?.remove();
         d.style.flex = v ? (fixo(id) ? `0 0 ${v}px` : `${v} 1 0`) : ''; if (v && fixo(id)) d.style.overflow = 'auto'; else d.style.overflow = '';
         if (!i) return; const hb = h('<div class="dock-hb" title="Arraste para mudar a altura · dois cliques: volta ao normal"></div>'); d.appendChild(hb); this.bordaAlt(hb, ds[i - 1], d, ds); });
@@ -109,8 +99,8 @@ const Paineis = {
       for (const d of ds) this.alt[d.dataset.dock] = d.offsetHeight; // tudo em px a partir daqui (senão os pesos misturam)
       const y0 = e.clientY, ha = a.offsetHeight, hbb = b.offsetHeight, MIN = 44;
       const mv = ev => { let dy = ev.clientY - y0; dy = clamp(dy, MIN - ha, hbb - MIN); this.alt[a.dataset.dock] = Math.round(ha + dy); this.alt[b.dataset.dock] = Math.round(hbb - dy);
-        for (const d of [a, b]) { const id = d.dataset.dock, v = this.alt[id]; d.style.flex = id === 'vistas' ? `0 0 ${v}px` : `${v} 1 0`; if (id === 'vistas') d.style.overflow = 'auto'; } };
-      const up = () => { hb.classList.remove('on'); hb.removeEventListener('pointermove', mv); hb.removeEventListener('pointerup', up); hb.removeEventListener('pointercancel', up); this.gravaAlt(); Atelie.tamanho?.(); Ima.arruma(); };
+        for (const d of [a, b]) { const id = d.dataset.dock, v = this.alt[id]; const fx = this.FIXOS.includes(id); d.style.flex = fx ? `0 0 ${v}px` : `${v} 1 0`; if (fx) d.style.overflow = 'auto'; } };
+      const up = () => { hb.classList.remove('on'); hb.removeEventListener('pointermove', mv); hb.removeEventListener('pointerup', up); hb.removeEventListener('pointercancel', up); this.gravaAlt(); this.tamanho(); Ima.arruma(); };
       hb.addEventListener('pointermove', mv); hb.addEventListener('pointerup', up); hb.addEventListener('pointercancel', up); };
   },
   // janelas GRUDADAS em outra coisa (js/ima.js): ficam no lugar dela (e andam junto quando ela anda)
@@ -123,10 +113,10 @@ const Paineis = {
   cabe() { for (const j of this.st?.jan || []) { const x = clamp(j.x, 0, Math.max(0, innerWidth - 120)), y = clamp(j.y, 46, Math.max(46, innerHeight - 60)); if (x !== j.x || y !== j.y) { j.x = x; j.y = y; const w = $(`.dock-janela[data-jan="${j.id}"]`, this.soltos); if (w) { w.style.left = x + 'px'; w.style.top = y + 'px'; } } } },
   bordaCol(c, b, lado) {
     b.addEventListener('pointerdown', e => { if (e.button !== 0) return; e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('on'); document.body.classList.add('arrastando-div'); const x0 = e.clientX, w0 = c.w, col = b.parentElement;
-      const mov = ev => { c.w = clamp(Math.round(w0 + (lado === 'esq' ? 1 : -1) * (ev.clientX - x0)), 190, 620); col.style.width = c.w + 'px'; Atelie.tamanho?.(); };
-      const up = () => { b.removeEventListener('pointermove', mov); b.removeEventListener('pointerup', up); b.classList.remove('on'); document.body.classList.remove('arrastando-div'); this.grava(); Atelie.enquadrar?.(); };
+      const mov = ev => { c.w = clamp(Math.round(w0 + (lado === 'esq' ? 1 : -1) * (ev.clientX - x0)), 190, 620); col.style.width = c.w + 'px'; this.tamanho(); };
+      const up = () => { b.removeEventListener('pointermove', mov); b.removeEventListener('pointerup', up); b.classList.remove('on'); document.body.classList.remove('arrastando-div'); this.grava(); this.enquadra(); };
       b.addEventListener('pointermove', mov); b.addEventListener('pointerup', up); });
-    b.addEventListener('dblclick', () => { c.w = c.lado === 'dir' ? 320 : 270; this.grava(); this.aplica(); });
+    b.addEventListener('dblclick', () => { c.w = this.padraoSt().cols.find(x => x.lado === c.lado)?.w || 280; this.grava(); this.aplica(); });
   },
   // mover a JANELA SOLTA pela barra de cima: solta numa coluna, na beira (coluna nova), noutra janela ou embaixo do palco = os painéis dela
   // GRUDAM lá (linha azul mostra onde); solta no meio = continua solta, e encosta sozinha na beira da tela/das outras janelas (ímã)
@@ -135,8 +125,8 @@ const Paineis = {
       if (e.button !== 0) return; e.preventDefault(); bar.setPointerCapture(e.pointerId); const dx = e.clientX - j.x, dy = e.clientY - j.y;
       const linha = h('<div class="dock-linha"></div>'); document.body.appendChild(linha); document.body.classList.add('arrastando-dock'); let alvo = null;
       const ima = (x, y) => { // encosta nas bordas da tela, das colunas e das outras janelas
-        const W = w.offsetWidth, H = w.offsetHeight, top = $('#atelie .at').getBoundingClientRect().top, D = 14, xs = [0, innerWidth], ys = [top, innerHeight];
-        for (const el of [...$$('.dock-col'), ...$$('.dock-janela', this.soltos).filter(o => o !== w)]) { const r = el.getBoundingClientRect(); if (!r.width) continue; xs.push(r.left, r.right); ys.push(r.top, r.bottom); }
+        const W = w.offsetWidth, H = w.offsetHeight, top = this.gradeEl.getBoundingClientRect().top, D = 14, xs = [0, innerWidth], ys = [top, innerHeight];
+        for (const el of [...$$('.dock-col', this.raizEl), ...$$('.dock-janela', this.soltos).filter(o => o !== w)]) { const r = el.getBoundingClientRect(); if (!r.width) continue; xs.push(r.left, r.right); ys.push(r.top, r.bottom); }
         let bx = x, by = y, mx = D, my = D; for (const v of xs) for (const [ed, off] of [[x, 0], [x + W, W]]) if (Math.abs(ed - v) < mx) { mx = Math.abs(ed - v); bx = v - off; }
         for (const v of ys) for (const [ed, off] of [[y, 0], [y + H, H]]) if (Math.abs(ed - v) < my) { my = Math.abs(ed - v); by = v - off; } return [Math.round(bx), Math.round(Math.max(top, by))]; };
       const mov = ev => {
@@ -155,7 +145,7 @@ const Paineis = {
           else if (alvo.col) st.cols.find(c => c.id === alvo.col)?.p.splice(alvo.i, 0, ...ps);
           else if (alvo.jan) st.jan.find(x => x.id === alvo.jan)?.p.splice(alvo.i, 0, ...ps);
           else if (alvo.baixo) st.baixo.splice(alvo.i, 0, ...ps);
-          this.limpa(); this.grava(); this.aplica(); Atelie.enquadrar?.(); return; }
+          this.limpa(); this.grava(); this.aplica(); this.enquadra(); return; }
         this.cabe(); this.grava(); Ima.arruma();
       };
       bar.addEventListener('pointermove', mov); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
@@ -179,13 +169,14 @@ const Paineis = {
     };
     for (const j of this.st.jan) { if (j.id === semJan) continue; const el = $(`.dock-janela[data-jan="${j.id}"]`, this.soltos); if (!el) continue; const r = el.getBoundingClientRect();
       if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) { const l = lugarNa(j.p, el); return { jan: j.id, i: l.i, linha: l.linha, nome: 'nesta janela' }; } }
-    for (const c of this.st.cols) { const el = $(`.dock-col[data-col="${c.id}"]`); if (!el || !el.offsetWidth) continue; const r = el.getBoundingClientRect();
+    for (const c of this.st.cols) { const el = $(`.dock-col[data-col="${c.id}"]`, this.raizEl); if (!el || !el.offsetWidth) continue; const r = el.getBoundingClientRect();
       if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
       if (x - r.left < B || r.right - x < B) { const depois = r.right - x < B, k = this.st.cols.indexOf(c); return { novaCol: { lado: c.lado, k: depois ? k + 1 : k }, linha: { x: depois ? r.right - 3 : r.left - 3, y: r.top, w: 6, h: r.height }, nome: 'coluna nova' }; }
       const l = lugarNa(c.p, el); return { col: c.id, i: l.i, linha: l.linha, nome: c.lado === 'esq' ? 'nesta coluna (esquerda)' : 'nesta coluna (direita)' }; }
-    const pal = $('#atelie .at-palco').getBoundingClientRect(), rb = this.baixoEl.getBoundingClientRect();
-    if (x >= pal.left && x <= pal.right && y >= Math.min(rb.top, pal.bottom - 46) && y <= pal.bottom) { const l = lugarNa(this.st.baixo, this.baixoEl); if (!this.st.baixo.length) l.linha = { x: pal.left, y: pal.bottom - 5, w: pal.width, h: 5 }; return { baixo: true, i: l.i, linha: l.linha, nome: 'embaixo do palco' }; }
-    const top = $('#atelie .at').getBoundingClientRect().top;
+    const pal = this.palcoEl.getBoundingClientRect(), rb = this.baixoEl.getBoundingClientRect(), tem = rb.width && rb.height; // a faixa de baixo pode ficar dentro do palco (Ateliê) ou embaixo dele (editor)
+    const bx0 = tem ? Math.min(pal.left, rb.left) : pal.left, bx1 = tem ? Math.max(pal.right, rb.right) : pal.right, by0 = Math.min(tem ? rb.top : Infinity, pal.bottom - 46), by1 = Math.max(pal.bottom, tem ? rb.bottom : 0);
+    if (x >= bx0 && x <= bx1 && y >= by0 && y <= by1) { const l = lugarNa(this.st.baixo, this.baixoEl); if (!this.st.baixo.length) l.linha = { x: pal.left, y: pal.bottom - 5, w: pal.width, h: 5 }; return { baixo: true, i: l.i, linha: l.linha, nome: 'embaixo do palco' }; }
+    const top = this.gradeEl.getBoundingClientRect().top;
     if (x < pal.left + B) { const k = this.st.cols.filter(c => c.lado === 'esq').length; return { novaCol: { lado: 'esq', k: this.idxLado('esq', k) }, linha: { x: pal.left, y: top, w: 6, h: innerHeight - top }, nome: 'coluna nova' }; }
     if (x > pal.right - B) { return { novaCol: { lado: 'dir', k: this.idxLado('dir', 0) }, linha: { x: pal.right - 6, y: top, w: 6, h: innerHeight - top }, nome: 'coluna nova' }; }
     return { solto: true, x: Math.round(x - dx), y: Math.round(y - dy), nome: 'janela solta' };
@@ -216,9 +207,66 @@ const Paineis = {
         else if (alvo.col) st.cols.find(c => c.id === alvo.col)?.p.splice(alvo.i, 0, id);
         else if (alvo.jan) st.jan.find(j => j.id === alvo.jan)?.p.splice(alvo.i, 0, id);
         else if (alvo.baixo) st.baixo.splice(alvo.i, 0, id);
-        this.limpa(); this.grava(); this.aplica(); Atelie.enquadrar?.();
+        this.limpa(); this.grava(); this.aplica(); this.enquadra();
       };
       pega.addEventListener('pointermove', mov); pega.addEventListener('pointerup', fim); pega.addEventListener('pointercancel', fim);
     });
   },
 };
+
+// ===================== ATELIÊ =====================
+const Paineis = Object.assign(Object.create(PaineisBase), {
+  CHAVE: 'animador-atelie-layout', CH_ALT: 'animador-atelie-alturas', BOTAO: 'at-layout-padrao', MSG_PADRAO: 'Voltou ao design padrão do Ateliê.',
+  NOMES: { vistas: 'Vistas', partes: 'Partes', imagens: 'Imagens', lado: 'Peça · Poses · Animações', linha: 'Timeline' },
+  SEM_ALT: ['linha'], FIXOS: ['vistas'],
+  SEL: { raiz: '#atelie', grade: '#atelie .at', esq: '#atelie .at > aside:first-child', dir: '#atelie .at > aside:last-child', palco: '#atelie .at-palco' },
+  st: null, sec: {},
+  padraoSt() { return { cols: [{ id: 'e1', lado: 'esq', w: 270, p: ['vistas', 'partes', 'imagens'] }, { id: 'd1', lado: 'dir', w: 320, p: ['lado'] }], baixo: ['linha'], jan: [] }; },
+  grupos() { const cabDe = id => $('#' + id)?.previousElementSibling; return { vistas: [$('#at-vistas')], partes: [cabDe('at-partes'), $('#at-partes')], imagens: [cabDe('at-imgs'), $('#at-imgs')], lado: [$('#at-abas'), $('#at-lado')], linha: [$('#at-tl')] }; },
+  criaBaixo(pal) { const b = h('<div class="dock-baixo"></div>'); pal.appendChild(b); return b; }, // a timeline fica POR CIMA do fundo do palco
+  poeBotao(b) { ($('#at-autores') || $('#at-ia'))?.before(b); },
+  tamanho() { Atelie.tamanho?.(); Linha?.altura?.(); }, enquadra() { Atelie.enquadrar?.(); },
+  extraMudou() { const t = Divisores.le(); let barra = false; try { barra = !!localStorage.getItem('animador-ferr-lugar') || !!localStorage.getItem('animador-ferr-lugar-ed'); } catch { } return !!t?.tl || barra; },
+  aoPadrao() {
+    Divisores.t = { ...Divisores.PADRAO }; Divisores.grava(); Divisores.aplica();
+    if (typeof Pintura !== 'undefined') { Pintura._lugar = Pintura._lugarEd = null; try { localStorage.removeItem('animador-ferr-lugar'); localStorage.removeItem('animador-ferr-lugar-ed'); } catch { } } // a barra de ferramentas também volta ao lugar de sempre
+  },
+  depoisPadrao() { if (typeof Pintura !== 'undefined') Pintura.posBarra(); },
+  aoLigar() {
+    if (!Divisores._avisaPaineis) { Divisores._avisaPaineis = true; const g = Divisores.grava.bind(Divisores); Divisores.grava = () => { g(); this.pintaBotao(); }; }
+    // a timeline pode sair de baixo do palco: o palco desconta só o que está na faixa de baixo
+    if (!Linha._dock) { Linha._dock = true; Linha.altura = () => { const p = $('.at-palco'); if (!p) return; const hgt = this.baixoEl.offsetHeight; if (p._tl === hgt) return; const primeira = p._tl0 === undefined; p._tl = p._tl0 = hgt; p.style.setProperty('--tl', hgt + 'px'); Atelie.tamanho?.(); if (primeira) Atelie.enquadrar?.(); }; }
+    new ResizeObserver(() => Linha?.altura?.()).observe(this.baixoEl);
+  },
+});
+
+// ===================== EDITOR DO ANIMADOR =====================
+// Hierarquia, o painel da direita (Propriedades/Efeitos/Voz/Mídia/No quadro) e a Timeline mudam de lugar igual ao Ateliê:
+// colunas dos dois lados, faixa de baixo (embaixo do palco, como sempre foi) ou janelas soltas. A borda de cima da faixa de baixo
+// muda a altura da timeline (localStorage `animador-editor-tl`); "Design padrão" no topo volta tudo como era.
+const PaineisEd = Object.assign(Object.create(PaineisBase), {
+  CHAVE: 'animador-editor-layout', CH_ALT: 'animador-editor-alturas', CH_TL: 'animador-editor-tl', BOTAO: 'ed-layout-padrao', MSG_PADRAO: 'Voltou ao design padrão do Animador.',
+  NOMES: { arvore: 'Hierarquia', lado: 'Propriedades · Efeitos · Voz · Mídia · No quadro', linha: 'Timeline' },
+  TL_PADRAO: 250,
+  SEL: { raiz: '#editor', grade: '#editor .area', esq: '#editor .area > aside.esq', dir: '#editor .area > aside.dir', palco: '#editor .palco' },
+  st: null, sec: {},
+  padraoSt() { return { cols: [{ id: 'ae1', lado: 'esq', w: 250, p: ['arvore'] }, { id: 'ad1', lado: 'dir', w: 300, p: ['lado'] }], baixo: ['linha'], jan: [] }; },
+  grupos() { return { arvore: [$('#arvore')?.previousElementSibling, $('#arvore')], lado: [$('#lado-abas'), $('#lado')], linha: [$('#editor section.tl')] }; },
+  poeBotao(b) { $('#b-ia')?.before(b); },
+  leTl() { let v = 0; try { v = +localStorage.getItem(this.CH_TL) || 0; } catch { } return v || this.TL_PADRAO; },
+  extraMudou() { try { return !!localStorage.getItem(this.CH_TL) || !!localStorage.getItem('animador-tl-nomes'); } catch { return false; } },
+  aoPadrao() { try { localStorage.removeItem(this.CH_TL); localStorage.removeItem('animador-tl-nomes'); } catch { } Folha._poeNomes?.(0); },
+  // a faixa de baixo é uma linha da grade embaixo da hierarquia e do palco (como a timeline sempre ficou)
+  criaBaixo(pal, grade) {
+    const b = h('<div class="dock-baixo-ed"><div class="ed-tl-borda" title="Arraste para aumentar/diminuir a timeline · dois cliques: tamanho padrão"></div></div>'); grade.appendChild(b);
+    const borda = $('.ed-tl-borda', b);
+    borda.addEventListener('pointerdown', e => { if (e.button !== 0) return; e.preventDefault(); borda.setPointerCapture(e.pointerId); borda.classList.add('on'); document.body.classList.add('arrastando-div');
+      const y0 = e.clientY, h0 = b.offsetHeight, max = () => Math.round((grade.getBoundingClientRect().height || 800) * .75);
+      const mov = ev => { this._tl = clamp(Math.round(h0 - (ev.clientY - y0)), 90, max()); b.style.height = this._tl + 'px'; };
+      const up = () => { borda.removeEventListener('pointermove', mov); borda.removeEventListener('pointerup', up); borda.removeEventListener('pointercancel', up); borda.classList.remove('on'); document.body.classList.remove('arrastando-div'); if (this._tl) { try { localStorage.setItem(this.CH_TL, String(this._tl)); } catch { } } this.pintaBotao(); };
+      borda.addEventListener('pointermove', mov); borda.addEventListener('pointerup', up); borda.addEventListener('pointercancel', up); });
+    borda.addEventListener('dblclick', () => { try { localStorage.removeItem(this.CH_TL); } catch { } this._tl = 0; this.depoisAplica(); this.pintaBotao(); });
+    return b;
+  },
+  depoisAplica() { const b = this.baixoEl; if (!b) return; const vazio = !this.st.baixo.length; b.classList.toggle('vazia', vazio); b.style.height = vazio ? '' : this.leTl() + 'px'; },
+});
