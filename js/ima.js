@@ -38,6 +38,26 @@ const Ima = {
     }
     return melhor ? { alvo: melhor.alvo, lado: melhor.lado, off: Math.round(melhor.off), esticar: false } : null;
   },
+  // ÍMÃ das JANELAS SOLTAS que não são painel (janela do Ateliê no Animador, assistente da IA…): perto da borda/canto da TELA ou da
+  // borda de outra janela solta, ela encosta (lado a lado ou alinhada). eu = o elemento que está mexendo (fica de fora dos alvos).
+  POPUPS: '.qed.solto, .iap:not([hidden]), .dock-janela',
+  encaixa(eu, x, y, w, h, D = 18) {
+    const W = innerWidth, H = innerHeight, outros = $$(this.POPUPS).filter(e => e !== eu && !eu.contains(e) && e.offsetWidth).map(e => e.getBoundingClientRect());
+    const sobV = r => y < r.bottom + D && y + h > r.top - D, sobH = r => x < r.right + D && x + w > r.left - D;
+    let bx = null, by = null; const tenta = (v, alvo, eixo) => { const d = Math.abs(v - alvo); if (d > D) return; const c = eixo === 'x' ? bx : by; if (!c || d < c.d) { if (eixo === 'x') bx = { d, dx: alvo - v }; else by = { d, dy: alvo - v }; } };
+    tenta(x, 0, 'x'); tenta(x + w, W, 'x'); tenta(y, 0, 'y'); tenta(y + h, H, 'y');
+    for (const r of outros) {
+      if (sobV(r)) { tenta(x, r.right, 'x'); tenta(x + w, r.left, 'x'); tenta(x, r.left, 'x'); tenta(x + w, r.right, 'x'); }
+      if (sobH(r)) { tenta(y, r.bottom, 'y'); tenta(y + h, r.top, 'y'); tenta(y, r.top, 'y'); tenta(y + h, r.bottom, 'y'); }
+    }
+    return { x: Math.round(x + (bx?.dx || 0)), y: Math.round(y + (by?.dy || 0)), grudou: !!(bx || by) };
+  },
+  // mesma coisa para a BORDA que está mudando de tamanho (e = esquerda|direita|cima|baixo; v = posição da borda)
+  encaixaBorda(eu, lado, v, D = 18) {
+    const vert = lado === 'esq' || lado === 'dir', alvos = [vert ? 0 : 0, vert ? innerWidth : innerHeight];
+    for (const e of $$(this.POPUPS)) { if (e === eu || eu.contains(e) || !e.offsetWidth) continue; const r = e.getBoundingClientRect(); alvos.push(...(vert ? [r.left, r.right] : [r.top, r.bottom])); }
+    let m = null; for (const a of alvos) { const d = Math.abs(a - v); if (d <= D && (!m || d < m.d)) m = { d, a }; } return m ? Math.round(m.a) : v;
+  },
   // quem está grudado (direta ou indiretamente) numa janela: não pode virar alvo dela (senão anda em círculo)
   presos(alvo, todos) { const out = new Set(); let mud = true; while (mud) { mud = false; for (const [id, p] of todos) if (p && !out.has(id) && (p.alvo === alvo || out.has(p.alvo))) { out.add(id); mud = true; } } return out; },
   // tudo que está grudado em algo: põe no lugar (depois de mover/aumentar uma janela, mudar o layout, a tela…)

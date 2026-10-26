@@ -66,8 +66,9 @@ const Assistente = {
     cab.addEventListener('pointerdown', e => {
       if (e.button !== 0 || e.target.closest('button') || this.trabalhando) return; e.preventDefault(); cab.setPointerCapture(e.pointerId);
       const r = this.el.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top; this.el.classList.add('movendo');
-      const mv = ev => { this.el.style.left = clamp(ev.clientX - dx, 0, innerWidth - r.width) + 'px'; this.el.style.top = clamp(ev.clientY - dy, 0, innerHeight - 40) + 'px'; };
-      const up = () => { cab.removeEventListener('pointermove', mv); cab.removeEventListener('pointerup', up); cab.removeEventListener('pointercancel', up); this.el.classList.remove('movendo'); this.salvaLugar(); };
+      const mv = ev => { const g = ev.shiftKey ? { x: ev.clientX - dx, y: ev.clientY - dy } : Ima.encaixa(this.el, ev.clientX - dx, ev.clientY - dy, r.width, r.height); // ímã nas bordas/cantos da tela e nas outras janelas soltas
+        this.el.classList.toggle('grudando', !!g.grudou); this.el.style.left = clamp(g.x, 0, innerWidth - r.width) + 'px'; this.el.style.top = clamp(g.y, 0, innerHeight - 40) + 'px'; };
+      const up = () => { cab.removeEventListener('pointermove', mv); cab.removeEventListener('pointerup', up); cab.removeEventListener('pointercancel', up); this.el.classList.remove('movendo', 'grudando'); this.salvaLugar(); };
       cab.addEventListener('pointermove', mv); cab.addEventListener('pointerup', up); cab.addEventListener('pointercancel', up);
     });
   },

@@ -82,15 +82,18 @@ const QuadroEd = {
   },
   arrasta() {
     const bar = $('.qed-bar', this.el), c = this.cfg();
-    bar.onpointerdown = e => { if (c.modo === 'lado' && c.min) return; if (e.button !== 0 || e.target.closest('button')) return; e.preventDefault(); bar.setPointerCapture(e.pointerId); this.el.classList.add('mexendo');
+    bar.onpointerdown = e => { if (e.button !== 0 || e.target.closest('button')) return; e.preventDefault(); bar.setPointerCapture(e.pointerId); this.el.classList.add('mexendo');
       let r = this.el.getBoundingClientRect(), gx = e.clientX - r.left, gy = e.clientY - r.top; const x0 = e.clientX, y0 = e.clientY;
       bar.onpointermove = ev => {
         if (c.modo === 'lado') { // encaixado: puxar a barra solta o painel como janela, embaixo do mouse
           if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 12) return;
-          const W = clamp(c.W || 480, 320, innerWidth - 16); c.modo = 'solto'; c.min = false; gx = Math.min(gx, W - 60); gy = 18; c.x = ev.clientX - gx; c.y = ev.clientY - gy; this.arruma(); this.el.classList.add('mexendo'); }
-        c.x = Math.round(ev.clientX - gx); c.y = Math.round(ev.clientY - gy); this.el.style.left = clamp(c.x, 0, innerWidth - 80) + 'px'; this.el.style.top = clamp(c.y, 0, innerHeight - 30) + 'px'; };
-      bar.onpointerup = bar.onpointercancel = ev => { bar.onpointermove = bar.onpointerup = bar.onpointercancel = null; this.el.classList.remove('mexendo');
-        if (c.modo === 'solto' && ev.type === 'pointerup' && ev.clientX >= innerWidth - 24) { c.modo = 'lado'; this.arruma(); } // solto na beira direita: encaixa de novo
+          const W = c.min ? this.el.offsetWidth : clamp(c.W || 480, 320, innerWidth - 16); c.modo = 'solto'; gx = Math.min(gx, W - 60); gy = 18; c.x = ev.clientX - gx; c.y = ev.clientY - gy; this.arruma(); this.el.classList.add('mexendo'); }
+        // ímã: cantos e bordas da tela e bordas de outras janelas soltas (Ima.encaixa)
+        const wj = this.el.offsetWidth, hj = this.el.offsetHeight, g = ev.shiftKey ? { x: ev.clientX - gx, y: ev.clientY - gy } : Ima.encaixa(this.el, ev.clientX - gx, ev.clientY - gy, wj, hj);
+        c.x = Math.round(g.x); c.y = Math.round(g.y); this.el.classList.toggle('grudando', !!g.grudou); this.el.style.left = clamp(c.x, 0, innerWidth - 80) + 'px'; this.el.style.top = clamp(c.y, 0, innerHeight - 30) + 'px'; };
+      bar.onpointerup = bar.onpointercancel = ev => { bar.onpointermove = bar.onpointerup = bar.onpointercancel = null; this.el.classList.remove('mexendo', 'grudando');
+        // solto na beira direita (no meio da altura): encaixa de novo; nos CANTOS fica solta, grudada no canto
+        if (c.modo === 'solto' && !c.min && ev.type === 'pointerup' && ev.clientX >= innerWidth - 24 && ev.clientY > 110 && ev.clientY < innerHeight - 110) { c.modo = 'lado'; this.arruma(); }
         this.grava(); }; };
   },
   borda() {
@@ -105,10 +108,11 @@ const QuadroEd = {
     for (const z of $$('.qed-rz', this.el)) z.onpointerdown = e => { if (c.modo !== 'solto' || c.min || e.button !== 0) return; e.preventDefault(); z.setPointerCapture(e.pointerId); this.el.classList.add('mexendo');
       const d = z.dataset.rz, r = this.el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY, MW = 320, MH = 240;
       z.onpointermove = ev => { const dx = ev.clientX - x0, dy = ev.clientY - y0; let { left: x, top: y, width: W, height: H } = r;
-        if (d.includes('e')) W = clamp(r.width + dx, MW, innerWidth - r.left);
-        if (d.includes('s')) H = clamp(r.height + dy, MH, innerHeight - r.top);
-        if (d.includes('w')) { W = clamp(r.width - dx, MW, r.right); x = r.right - W; }
-        if (d.includes('n')) { H = clamp(r.height - dy, MH, r.bottom); y = r.bottom - H; }
+        const im = (lado, v) => ev.shiftKey ? v : Ima.encaixaBorda(this.el, lado, v); // a borda que muda também gruda (Shift solta)
+        if (d.includes('e')) W = clamp(im('dir', r.right + dx) - r.left, MW, innerWidth - r.left);
+        if (d.includes('s')) H = clamp(im('baixo', r.bottom + dy) - r.top, MH, innerHeight - r.top);
+        if (d.includes('w')) { W = clamp(r.right - im('esq', r.left + dx), MW, r.right); x = r.right - W; }
+        if (d.includes('n')) { H = clamp(r.bottom - im('cima', r.top + dy), MH, r.bottom); y = r.bottom - H; }
         c.x = Math.round(x); c.y = Math.round(y); c.W = Math.round(W); c.H = Math.round(H); Object.assign(this.el.style, { left: c.x + 'px', top: c.y + 'px', width: c.W + 'px', height: c.H + 'px' }); };
       z.onpointerup = z.onpointercancel = () => { z.onpointermove = z.onpointerup = z.onpointercancel = null; this.el.classList.remove('mexendo'); this.grava(); }; };
   },

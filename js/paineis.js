@@ -129,7 +129,7 @@ const PaineisBase = {
       const linha = h('<div class="dock-linha"></div>'); document.body.appendChild(linha); document.body.classList.add('arrastando-dock'); let alvo = null;
       const ima = (x, y) => { // encosta nas bordas da tela, das colunas e das outras janelas
         const W = w.offsetWidth, H = w.offsetHeight, top = this.gradeEl.getBoundingClientRect().top, D = 14, xs = [0, innerWidth], ys = [top, innerHeight];
-        for (const el of [...$$('.dock-col', this.raizEl), ...$$('.dock-janela', this.soltos).filter(o => o !== w)]) { const r = el.getBoundingClientRect(); if (!r.width) continue; xs.push(r.left, r.right); ys.push(r.top, r.bottom); }
+        for (const el of [...$$('.dock-col', this.raizEl), ...$$('.dock-janela', this.soltos).filter(o => o !== w), ...$$('.qed.solto, .iap:not([hidden])')]) { /* também a janela do Ateliê e a do assistente */ const r = el.getBoundingClientRect(); if (!r.width) continue; xs.push(r.left, r.right); ys.push(r.top, r.bottom); }
         let bx = x, by = y, mx = D, my = D; for (const v of xs) for (const [ed, off] of [[x, 0], [x + W, W]]) if (Math.abs(ed - v) < mx) { mx = Math.abs(ed - v); bx = v - off; }
         for (const v of ys) for (const [ed, off] of [[y, 0], [y + H, H]]) if (Math.abs(ed - v) < my) { my = Math.abs(ed - v); by = v - off; } return [Math.round(bx), Math.round(Math.max(top, by))]; };
       const mov = ev => {
