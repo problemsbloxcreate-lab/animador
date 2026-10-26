@@ -11,6 +11,7 @@
    No painel não aparecem a timeline do Ateliê (o Animador tem a dele), as vistas, a aba Animações nem o cabeçalho do Ateliê. */
 'use strict';
 const EMBED = new URLSearchParams(location.search).get('embed');
+if (EMBED === 'quadro' && parent !== window) try { parent.postMessage({ tipo: 'quadro-prog', p: 20, t: 'Ateliê carregado, conferindo a conta…' }, location.origin); } catch { } // os arquivos do Ateliê já chegaram
 const QuadroEd = {
   /* ================= no ANIMADOR ================= */
   CH: 'animador-quadro-ed',
@@ -22,20 +23,24 @@ const QuadroEd = {
     const est = Modelo.estadoPersonagem(n, q), partes = {}; for (const [k, v] of Object.entries(est.partes || {})) if (v) partes[k] = v;
     await DB.put('arquivos', { def: clone(def), sessoes: est.sessoes || {}, partes, vista: est.vista || null, quadro: q, projeto: P.id, no: n.id, anim: P.nome, em: Date.now() }, 'quadro-abrir');
     this.atual = { no: n.id, quadro: q, nome: def.nome, projeto: P.id }; this.mostra();
-    if (this.ifr && this.pronto) { this.carregando(true); this.ifr.contentWindow.postMessage({ tipo: 'abre-quadro' }, location.origin); }
+    if (this.ifr && this.pronto) { this.carregando(true, 30, 'Lendo o quadro…'); this.ifr.contentWindow.postMessage({ tipo: 'abre-quadro' }, location.origin); }
     else if (!this.ifr) this.criaFrame();
   },
   criaFrame() {
     const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('embed', 'quadro');
     this.pronto = false; this.ifr = h(`<iframe title="Ateliê: arrumar este quadro" allow="clipboard-read; clipboard-write"></iframe>`); this.ifr.src = u.href;
-    $('.qed-corpo', this.el).prepend(this.ifr); this.carregando(true);
+    $('.qed-corpo', this.el).prepend(this.ifr); this.carregando(true, 0, 'Carregando o Ateliê…');
   },
-  carregando(on) { this.el?.classList.toggle('carregando', !!on); },
+  // TELA DE CARREGAMENTO com % de VERDADE: cada etapa que já terminou (página do Ateliê, login, personagem, cada imagem, montar o quadro)
+  carregando(on, p = 0, t = '') { const el = this.el; if (!el) return; el.classList.toggle('carregando', !!on); this._p = on ? p : 100; this.pintaProg(t); },
+  progresso(p, t) { if (!this.el?.classList.contains('carregando')) return; this._p = Math.max(this._p || 0, Math.min(100, Math.round(p))); this.pintaProg(t); },
+  pintaProg(t) { const c = $('.qed-carr', this.el); if (!c) return; $('.qed-pct', c).textContent = (this._p || 0) + '%'; $('.qed-pbar i', c).style.width = (this._p || 0) + '%'; if (t) $('.qed-ptxt', c).textContent = t; },
   ouve() {
     if (this._ouve) return; this._ouve = true;
     addEventListener('message', e => { if (e.origin !== location.origin || !e.data?.tipo) return; const d = e.data;
       if (d.tipo === 'quadro-pronto') { this.pronto = true; if (this.atual) this.ifr?.contentWindow?.postMessage({ tipo: 'abre-quadro' }, location.origin); }
-      else if (d.tipo === 'quadro-aberto') this.carregando(false);
+      else if (d.tipo === 'quadro-prog') this.progresso(d.p, d.t);
+      else if (d.tipo === 'quadro-aberto') { this.progresso(100, 'Pronto'); setTimeout(() => this.carregando(false), 150); }
       else if (d.tipo === 'quadro-editado') this.recebe(d).catch(err => console.warn('quadro', err)); });
   },
   // o painel (ao lado da tela ou janela solta; minimiza)
@@ -46,7 +51,7 @@ const QuadroEd = {
         <button class="ibtn" data-undo title="Desfazer no quadro (Ctrl+Z)">${ic('undo', 14)}</button><button class="ibtn" data-redo title="Refazer no quadro">${ic('redo', 14)}</button>
         <button class="ibtn" data-aqui title="Passar para o quadro que está na tela agora">${ic('jump', 14)}</button>
         <button class="ibtn" data-modo></button><button class="ibtn" data-min></button><button class="ibtn" data-x title="Fechar (o que já mudou fica no quadro)">${ic('x', 14)}</button></div>
-        <div class="qed-corpo"><div class="qed-carr"><span class="spin-dot"></span> Abrindo o Ateliê neste quadro…</div><div class="qed-tampa"></div></div><div class="qed-borda" title="Arraste para mudar a largura"></div></div>`);
+        <div class="qed-corpo"><div class="qed-carr"><div class="qed-pbox"><div class="qed-ptit">${ic('brush', 16)} Abrindo o Ateliê neste quadro</div><b class="qed-pct">0%</b><div class="qed-pbar"><i></i></div><small class="qed-ptxt">Carregando o Ateliê…</small></div></div><div class="qed-tampa"></div></div><div class="qed-borda" title="Arraste para mudar a largura"></div></div>`);
       document.body.appendChild(this.el);
       const B = s => $(s, this.el), manda = tipo => this.ifr?.contentWindow?.postMessage({ tipo }, location.origin);
       B('[data-undo]').onclick = () => manda('desfazer'); B('[data-redo]').onclick = () => manda('refazer');
@@ -111,16 +116,21 @@ const QuadroEd = {
     for (const nm of ['commit', 'undo', 'redo']) { const f = Atelie[nm]; Atelie[nm] = function (...x) { const r = f.apply(this, x); QuadroEd.agenda(); return r; }; }
     addEventListener('message', e => { if (e.origin !== location.origin) return; const t = e.data?.tipo;
       if (t === 'abre-quadro') this.abreQuadro(); else if (t === 'desfazer') Atelie.desfazJa(false); else if (t === 'refazer') Atelie.desfazJa(true); });
-    parent.postMessage({ tipo: 'quadro-pronto' }, location.origin);
+    this.prog(30, 'Conta conferida'); parent.postMessage({ tipo: 'quadro-pronto' }, location.origin);
   },
+  prog(p, t) { try { parent.postMessage({ tipo: 'quadro-prog', p, t }, location.origin); } catch { } },
   async abreQuadro() {
-    const r = await DB.get('arquivos', 'quadro-abrir').catch(() => null); if (!r?.def) return;
+    this.prog(33, 'Lendo o quadro…'); const r = await DB.get('arquivos', 'quadro-abrir').catch(() => null); if (!r?.def) return;
     if (Atelie.soQuadro) await this.mandar(); // o quadro de antes já foi
     const def = clone(r.def); Modelo.garanteVistas(def); if (r.vista && def.vistas?.some(v => v.id === r.vista) && def.vistaAtual !== r.vista) Modelo.ativaVista(def, r.vista);
     const a = { id: '__quadro', nome: `Quadro ${r.quadro + 1}`, trilhas: [[{ s: { ...(r.sessoes || {}) }, p: clone(r.partes || {}) }]], q: 1 };
     def.animacoes = [...(def.animacoes || []).filter(x => x.id !== '__quadro'), a];
     Atelie.soQuadro = { projeto: r.projeto, no: r.no, quadro: r.quadro, vista0: r.def.vistaAtual || null, copias: {}, defJ: null };
     Animacoes.parar?.(true); Animacoes.poseFixa = null; Atelie.fecharEditor?.(); Atelie.aba = Atelie.aba === 'animacoes' ? 'peca' : Atelie.aba;
+    // as imagens, uma a uma (6 de cada vez), contando de verdade
+    const ks = Modelo.chavesImgs(def).filter(k => !Arq.img.get(k)); let feitas = 0; this.prog(38, ks.length ? `Imagens 0 de ${ks.length}` : 'Montando o quadro…');
+    { let i = 0; await Promise.all(Array.from({ length: Math.min(6, ks.length) }, async () => { while (i < ks.length) { const k = ks[i++]; try { await Arq.garantir([k]); } catch { } feitas++; this.prog(38 + 52 * feitas / ks.length, `Imagens ${feitas} de ${ks.length}`); } })); }
+    this.prog(93, 'Montando o quadro…');
     await Atelie.abrir(null, { def }); this.defJ0 = JSON.stringify(this.semQuadro(Atelie.def));
     Animacoes.irPara(a, 0, 0); Atelie.pilha = []; Atelie.refazer = []; Atelie.ultimo = JSON.stringify(Atelie.def); Atelie.enquadrar();
     parent.postMessage({ tipo: 'quadro-aberto' }, location.origin);
