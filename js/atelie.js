@@ -60,8 +60,8 @@ const Atelie = {
     this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.baseNuvem = this._temNuvem && !o.def ? (doRascunho ? this.base0Nuvem || null : this.ultimo) : null; this.base0 = o.def || !id ? this.ultimo : this.base0Nuvem || this.ultimo; this.base0Nuvem = null; this.modoMover = 'preset'; this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; window.Falas?.parar(); Falas.aberto = null; this.teste = null; this.edImg = null; Animacoes.passoSel = null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
     Modelo.garanteVistas(def); await Arq.garantir(Modelo.chavesImgs(def)); await Arq.usarOriginais(Modelo.chavesImgs(def)); // edita sempre a partir da original
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
-    if (!this.naNuvem && (def.edicoes?.length || !def.semNuvem)) Nuvem.estaNaNuvem(def.id).then(tem => { if (tem === false && this.def === def && !this.naNuvem) { Autores.semNuvem(def); const au = $('#at-autores'); if (au) au._de = null; this.pinta(); } }); // não está na nuvem: sem o histórico de lá
-    try { const u = new URL(location.href); if (u.searchParams.get('atelie') !== def.id) { u.searchParams.set('atelie', def.id); u.searchParams.delete('pose'); history.replaceState(null, '', u.pathname + u.search); } } catch { } // F5 / Ctrl+F5 / atualizar o site: volta para ESTE personagem no Ateliê (não para o menu)
+    if (!this.soQuadro && !this.naNuvem && (def.edicoes?.length || !def.semNuvem)) Nuvem.estaNaNuvem(def.id).then(tem => { if (tem === false && this.def === def && !this.naNuvem) { Autores.semNuvem(def); const au = $('#at-autores'); if (au) au._de = null; this.pinta(); } }); // não está na nuvem: sem o histórico de lá
+    if (!this.soQuadro) try { const u = new URL(location.href); if (u.searchParams.get('atelie') !== def.id) { u.searchParams.set('atelie', def.id); u.searchParams.delete('pose'); history.replaceState(null, '', u.pathname + u.search); } } catch { } // F5 / Ctrl+F5 / atualizar o site: volta para ESTE personagem no Ateliê (não para o menu)
     if (this.naNuvem && this.sujo) this.agendaNuvem(); // mudanças guardadas aqui que ainda não foram: vão agora
     if (novo?.fs.length) await this.montarNovo(novo); Telas.marca('atelie');
     Nuvem.souAdm?.(); // ADM: só eles apagam vistas (o menu já sai certo)
@@ -177,7 +177,7 @@ const Atelie = {
      Guardado em arquivos["rascunho:<id do personagem>"] = { def, em, thumb }. As imagens novas já ficam no navegador (Arq). ---------- */
   chaveRascunho(id = this.def?.id) { return 'rascunho:' + id; },
   rascunho() {
-    if (!this.def || this._apagado === this.def.id) return; this.salvandoLocal = true; this.pintaEstado(); clearTimeout(this._tr);
+    if (!this.def || this._apagado === this.def.id || this.soQuadro) return; // painel do quadro: a cópia da animação nunca vira rascunho this.salvandoLocal = true; this.pintaEstado(); clearTimeout(this._tr);
     this._tr = setTimeout(async () => { if (this._apagado === this.def?.id) return; try { const def = JSON.parse(this.ultimo || JSON.stringify(this.def)); let thumb = null; try { thumb = this.miniatura(); } catch { }
       await DB.put('arquivos', { tipo: 'rascunho-atelie', def, em: Date.now(), thumb, nuvem: !!this.naNuvem }, this.chaveRascunho(def.id)); this.rascunhoEm = Date.now(); } catch (e) { UI.toast('Não consegui guardar no navegador: ' + esc(e.message), { kind: 'err' }); }
       this.salvandoLocal = false; this.pintaEstado(); window.EstudioConta?.espaco?.atualizar?.(); if (this.naNuvem) this.agendaNuvem(); }, 500);
@@ -240,6 +240,7 @@ const Atelie = {
   },
   // Ctrl+S: guarda neste computador (NÃO manda para a nuvem; só o botão da nuvem manda — ou sozinho, se ele já está lá)
   async salvarLocal() {
+    if (this.soQuadro) { await QuadroEd.mandar(); return UI.toast('Já está no quadro da animação (cada mudança vai sozinha).', { time: 2500 }); }
     if (!this.def) return; const ok = await this.guardarLocalJa(); if (ok === false) return;
     this.base0 = this.ultimo; this.pinta(); this.avisaAnimador(JSON.parse(this.ultimo), !this.naNuvem); // salvo aqui: sai o laranja e a animação aberta recebe já
     if (this.naNuvem) { UI.toast(`<b>${esc(this.def.nome)}</b> guardado neste computador e indo para a nuvem.`, { kind: 'ok' }); this.sincronizar(); }
@@ -540,6 +541,7 @@ const Atelie = {
       if (e.type === 'keydown' && Pintura.tecla(e)) return;
       if ((k === 'Delete' || k === 'Backspace') && Pintura.temSelecao()) { e.preventDefault(); return Pintura.mexeDentro('apagar'); }
       return; }
+    if (this.soQuadro && (k === 'Escape' || k === ',' || k === '.' || k.toLowerCase() === 'p') && !this.imgSo) { if (k !== 'Escape') e.preventDefault(); return; } // painel do quadro: não toca nem sai do quadro
     if (!e.repeat && k.toLowerCase() === 'p' && !e.shiftKey && !e.altKey && Animacoes.achar(Animacoes.sel)) { e.preventDefault(); return Linha.tocaPausa(); } // P: toca/pausa a animação da timeline
     if ((k === ',' || k === '.') && Animacoes.achar(Animacoes.sel)) { e.preventDefault(); return Linha.anda(k === '.' ? 1 : -1); }
     if (this.imgSo && k === 'Escape') { e.preventDefault(); return this.sairImgSo(); } // Esc = Concluído do "mover esta imagem em tudo"

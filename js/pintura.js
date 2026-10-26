@@ -50,6 +50,7 @@ const Pintura = {
   // grava o canvas como imagem nova da parte (chave nova: o desfazer volta a antiga)
   async gravar(img, cv) {
     img = this.atual(img); // o personagem de agora (o Ctrl+Z pode ter trocado o objeto)
+    if (Atelie.soQuadro) img = QuadroEd.imgDoQuadro(img); // painel do quadro: pinta numa cópia da imagem só deste quadro
     if (Vetor.eh(img.k) && !this._avisouPx) { this._avisouPx = true; UI.toast('Esta ferramenta trabalha em pixels: a imagem SVG virou PNG (Ctrl+Z volta para o SVG).', { kind: 'warn', time: 6000 }); }
     if (Camadas.tem(img)) { const c = Camadas.ativa(img); c.k = await Camadas.guarda(cv); return Camadas.achata(img); } // pinta na camada ativa e refaz a imagem final
     const blob = await cv.convertToBlob({ type: 'image/png' }), iid = uid('im').toLowerCase().replace(/[^a-z0-9]/g, ''), k = `personagens/${Atelie.def.id}/img/${iid}.png`;

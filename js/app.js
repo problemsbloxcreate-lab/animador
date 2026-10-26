@@ -14,7 +14,7 @@ const App = {
     this.palco.liga(); this.enquadrar(); Arvore.pinta(); Folha.liga(); Lado.pinta(); Som.prepara(P);
     this.salvoTxt('Salvo neste computador'); this.pintaJunto();
   },
-  async fechar() { this.pausa(); await this.salvarJa(); if (AoVivo.ad?.ctx === 'animador') await this.sairJunto(false, true); this.P = null; Telas.mostra('home'); Home.pinta(); this.titulo(); },
+  async fechar() { QuadroEd.fechar?.(); this.pausa(); await this.salvarJa(); if (AoVivo.ad?.ctx === 'animador') await this.sairJunto(false, true); this.P = null; Telas.mostra('home'); Home.pinta(); this.titulo(); },
   // TRABALHAR JUNTO: o arquivo vai TEMPORARIAMENTE para a nuvem enquanto as pessoas trabalham (js/aovivo.js)
   async trabalharJunto() {
     if (AoVivo.ativo && AoVivo.ad?.ctx === 'animador') return UI.toast('Já está ao vivo: quem é da equipe entra pela tela inicial, em "Ao vivo agora".');
@@ -297,7 +297,7 @@ const App = {
       this.fim(e, ev => { const w = this.paraMundo(ev); App.P.camera.chaves[App.q] = { ...k, ...(App.P.camera.chaves[App.q] || {}), x: round(k.x + w.x - w0.x, 1), y: round(k.y + w.y - w0.y, 1) }; App.pinta(); },
         () => App.commit('Mover a câmera'));
     },
-    duplo(e) { const w = this.paraMundo(e), alvo = Render.caixas(App.P, App.q).find(c => dentroPoligono(w, c.cantos)); if (alvo?.no.tipo === 'texto') Lado.editarTexto(alvo.no); else if (alvo?.no.tipo === 'personagem') Lado.aba('quadro'); },
+    duplo(e) { const w = this.paraMundo(e), alvo = Render.caixas(App.P, App.q).find(c => dentroPoligono(w, c.cantos)); if (alvo?.no.tipo === 'texto') Lado.editarTexto(alvo.no); else if (alvo?.no.tipo === 'personagem') QuadroEd.abrir(alvo.no); }, // dois cliques no personagem: o Ateliê ao lado, só neste quadro
     menu(e) {
       const w = this.paraMundo(e), sob = Render.caixas(App.P, App.q).find(c => dentroPoligono(w, c.cantos))?.no; // botão direito numa camada: ela passa a ser a escolhida
       if (sob && sob.id !== App.sel) App.selecionar(sob.id);
@@ -306,6 +306,7 @@ const App = {
         { label: 'Personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Imagem…', icon: 'image', action: () => App.addImagem() }, { label: 'Cenário (prontos e IA)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() }, { label: 'Cenário da nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() }, { label: 'Texto', icon: 'text', action: () => App.addTexto() }, '-',
         s?.tipo === 'imagem' && { label: 'Trocar a imagem…', icon: 'image', action: () => App.trocarImagem(s) },
         (s?.tipo === 'imagem' || s?.cenaEd) && (s.nuvem ? { label: 'Já está na nuvem da equipe', icon: 'check', disabled: true } : { label: 'Salvar na nuvem', icon: 'cloud', action: () => App.salvarNaNuvem(s) }),
+        s?.tipo === 'personagem' && { label: `Arrumar o quadro ${App.q + 1} aqui (Ateliê ao lado)`, icon: 'brush', action: () => QuadroEd.abrir(s) },
         s?.tipo === 'personagem' && { label: `Editar no Ateliê (pose do quadro ${App.q + 1})`, icon: 'edit', action: () => Animacoes.editarNoAtelie(s) },
         s?.tipo === 'personagem' && { label: 'Abrir no Ateliê como pose nova…', icon: 'plus', action: () => Animacoes.poseNova(s) },
         s?.tipo === 'personagem' && { label: (Modelo.transf(s, App.q).sx || 1) < 0 ? 'Desespelhar (voltar para o lado de antes)' : 'Espelhar (virar para o outro lado)', icon: 'transition', action: () => Animacoes.espelhar(s) },

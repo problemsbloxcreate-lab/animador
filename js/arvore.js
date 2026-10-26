@@ -50,6 +50,7 @@ const Arvore = {
   },
   menu(e, n) {
     UI.ctx(e.clientX, e.clientY, [
+      n.tipo === 'personagem' && { label: `Arrumar o quadro ${App.q + 1} aqui (Ateliê ao lado)`, icon: 'brush', action: () => QuadroEd.abrir(n) },
       n.tipo === 'personagem' && { label: `Editar no Ateliê (pose do quadro ${App.q + 1})`, icon: 'edit', action: () => Animacoes.editarNoAtelie(n) },
       n.tipo === 'personagem' && { label: 'Abrir no Ateliê como pose nova…', icon: 'plus', action: () => Animacoes.poseNova(n) },
       n.tipo === 'personagem' && { label: (Modelo.transf(n, App.q).sx || 1) < 0 ? 'Desespelhar (voltar para o lado de antes)' : 'Espelhar (virar para o outro lado)', icon: 'transition', action: () => Animacoes.espelhar(n) }, n.tipo === 'personagem' && '-',

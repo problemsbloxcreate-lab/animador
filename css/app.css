@@ -1099,3 +1099,34 @@ body.ajuda-on #atelie .at-palco::after{content:'Ajuda ligada · tela pausada';po
 /* timeline: mudo / solo nas linhas de áudio */
 .tl-nomes .reg .ms{flex:none;width:17px;height:15px;padding:0;margin-left:2px;border:1px solid var(--bd);border-radius:4px;background:transparent;color:var(--tx3);font:700 9.5px/13px var(--mono, monospace);cursor:pointer}
 .tl-nomes .reg .ms.on{background:#c94a4a;border-color:#c94a4a;color:#fff}.tl-nomes .reg .ms.solo.on{background:#d9a52b;border-color:#d9a52b;color:#111}
+
+/* ARRUMAR UM QUADRO (js/quadroed.js): o Ateliê num painel do lado (ou janela solta) dentro do Animador */
+.qed{position:fixed;z-index:60;display:flex;flex-direction:column;background:var(--bg1);border:1px solid #3a6f9e;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.qed[hidden]{display:none}
+.qed.lado{border-width:0 0 0 1px;border-radius:0}
+.qed.solto{border-radius:12px;overflow:hidden;resize:both;min-width:320px;min-height:240px}
+.qed.min{resize:none;min-height:0;height:auto!important}.qed.min .qed-corpo,.qed.min .qed-borda{display:none}
+.qed.lado.min{top:auto!important;bottom:12px!important;right:12px!important;border:1px solid #3a6f9e;border-radius:10px}
+.qed-bar{display:flex;align-items:center;gap:4px;height:36px;padding:0 6px 0 10px;flex:none;background:#17273a;border-bottom:1px solid #3a6f9e;user-select:none}
+.qed.solto .qed-bar{cursor:grab}.qed.solto.mexendo .qed-bar{cursor:grabbing}
+.qed-ic{color:#9fd0f7;display:grid}.qed-t{font-size:12.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.qed-t b{color:var(--tx)}
+.qed-t small{margin-left:6px;padding:1px 6px;border-radius:8px;background:rgba(25,211,240,.14);color:#7fe3f5;font-size:10px}
+.qed-bar .ibtn{width:26px;height:26px;flex:none}
+.qed-corpo{position:relative;flex:1;min-height:0}.qed-corpo iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#141414}
+.qed-carr{position:absolute;inset:0;display:none;place-items:center;color:var(--tx3);font-size:12.5px;background:#141414;z-index:1}.qed.carregando .qed-carr{display:grid}
+.qed-tampa{position:absolute;inset:0;display:none;z-index:2}.qed.mexendo .qed-tampa{display:block} /* arrastando: o iframe não engole o mouse */
+.qed-borda{position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3}.qed.solto .qed-borda{display:none}.qed-borda:hover{background:rgba(90,169,232,.4)}
+body.qed-lado #editor{right:var(--qed-w,0px)}
+/* dentro do painel (iframe ?embed=quadro): sem cabeçalho, timeline, vistas e aba Animações; palco em cima, Partes/Imagens e o painel da direita embaixo */
+body.embed-quadro #atelie>header.bar,body.embed-quadro [data-estudio-conta],body.embed-quadro #atelie [data-dock=linha],body.embed-quadro #atelie [data-dock=vistas],body.embed-quadro #at-tl,body.embed-quadro #at-abas [data-aba=animacoes],body.embed-quadro .dock-pega,body.embed-quadro .dock-col-borda,body.embed-quadro #at-layout-padrao,body.embed-quadro .estudio-limite{display:none!important}
+body.embed-quadro #atelie .at.com-docks{grid-template-columns:1fr 1fr!important;grid-template-rows:minmax(0,1fr) minmax(170px,44%)!important}
+body.embed-quadro #atelie .at>.at-palco{grid-column:1/-1;grid-row:1}
+body.embed-quadro #atelie .at>aside:first-child{grid-column:1;grid-row:2;border-top:1px solid var(--bd)}
+body.embed-quadro #atelie .at>aside:last-child{grid-column:2;grid-row:2;border-top:1px solid var(--bd)}
+body.embed-quadro #atelie .at>aside.dock-area>.dock-col{width:auto!important;flex:1 1 0;min-width:0}
+body.embed-quadro #atelie .dock>:nth-child(2){padding-left:0}
+body.embed-quadro #atelie .kf-aviso{display:none}
+body.embed-quadro #atelie .p-cab h3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+body.embed-quadro #atelie .at.com-docks{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)!important}
+body.embed-quadro #atelie .ed-aviso{display:none}
+body.embed-quadro #at-ferr button{width:27px;height:27px}body.embed-quadro #at-ferr button svg{width:15px;height:15px}body.embed-quadro #at-ferr.deitada{gap:1px;padding:3px}

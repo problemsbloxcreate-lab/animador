@@ -238,6 +238,7 @@ try { navigator.serviceWorker?.getRegistrations?.().then(rs => rs.forEach(r => {
 addEventListener('DOMContentLoaded', async () => {
   const email = await TurmaAuth.gate(); if (!email || !TurmaAuth.passed) return;
   Versao.liga(); // versão nova publicada = trava e pede para atualizar
+  if (EMBED === 'quadro') return QuadroEd.iniciaEmbutido(); // painel "Arrumar este quadro" dentro do Animador: só o Ateliê, sem tela inicial
   // ainda na tela de carregamento: a biblioteca da equipe, quem fez cada projeto (nome e foto de agora) e as miniaturas,
   // para nada "pipocar" depois na tela inicial, no Ateliê ou nas fichas
   window.EstudioProgresso?.tarefa((async () => {

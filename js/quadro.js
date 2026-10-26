@@ -39,6 +39,7 @@ const Quadro = {
   // fica no localStorage `animador-apagar-frame` { idDoPersonagem: 'tudo'|'frame' } e muda nas opções da borracha)
   prefApagar(v) { let m = {}; try { m = JSON.parse(localStorage.getItem('animador-apagar-frame') || '{}') || {}; } catch { } const id = Atelie.def?.id; if (v === undefined) return m[id] || null; if (v) m[id] = v; else delete m[id]; try { localStorage.setItem('animador-apagar-frame', JSON.stringify(m)); } catch { } return v; },
   async escolheApagar(a) {
+    if (Atelie.soQuadro) return 'frame'; // painel do quadro do Animador: apagar vale só no quadro
     const p = this.prefApagar(); if (p) return p;
     const body = h(`<div>Você apagou com um <b>frame parado</b> (${esc(this.nome(a.quadro))}).<label class="pc-chk" style="margin-top:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" data-nao> Não perguntar de novo (só para você, neste personagem)</label><small style="display:block;color:var(--tx3);margin-top:4px">Dá para mudar depois nas opções da borracha.</small></div>`);
     const r = await UI.modal({ title: 'Apagar onde?', icon: 'eraser', width: 460, body, cancelValue: null, buttons: [{ label: 'Cancelar', value: null }, { label: 'Só neste frame', collect: x => ({ v: 'frame', nao: $('[data-nao]', x.body).checked }) }, { label: 'Na imagem toda', kind: 'primary', collect: x => ({ v: 'tudo', nao: $('[data-nao]', x.body).checked }) }] });

@@ -357,7 +357,7 @@ const Vetor = {
   // grava o modelo como uma imagem NOVA (chave nova: o Ctrl+Z do Ateliê volta a de antes)
   async gravar(img, m, k = this.chave()) {
     const t = this.svg(m), b = new Blob([t], { type: 'image/svg+xml' }); await Arq.guardar(b, k); this._txt.set(k, t); this._mod.set(k, clone(m));
-    const im = await this.imagem(b); if (!im) throw new Error('O SVG novo não abriu.'); Arq.img.set(k, im); if (img) { const at = typeof Pintura !== 'undefined' ? Pintura.atual(img) : img; at.k = k; img.k = k; } return k;
+    const im = await this.imagem(b); if (!im) throw new Error('O SVG novo não abriu.'); Arq.img.set(k, im); if (img) { let at = typeof Pintura !== 'undefined' ? Pintura.atual(img) : img; if (Atelie.soQuadro) { at = QuadroEd.imgDoQuadro(at); at.k = k; } else { at.k = k; img.k = k; } } return k; // painel do quadro: o desenho vai numa cópia só deste quadro
   },
   // desenha o modelo num canvas (só as camadas pedidas), no tamanho da imagem × escala
   async raster(m, o = {}) {
