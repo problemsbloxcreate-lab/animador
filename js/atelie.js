@@ -353,6 +353,7 @@ const Atelie = {
     $('#at-mover').onchange = e => this.setModo(e.target.value);
     $('#at-enq').onclick = () => this.enquadrar(); $('#at-regua').onclick = () => this.trocaRegua(); this.pintaRegua(); this.cv.addEventListener('pointerup', () => { if (this.guias) { this.guias = null; this.desenha(); } }); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 15); $('#at-enq').innerHTML = ic('frame', 15); $('#at-ed-ok').onclick = () => this.fecharEditor(); $('#at-ed-ok').innerHTML = `${ic('check', 13)} Salvar`; $('#at-ed-ok').title = 'Guarda o que mudou nesta imagem e volta ao Ateliê (Esc)'; $('#at-ed-ok').classList.add('ed-salvar'); { const bv = h(`<button class="btn sm ed-voltar" id="at-ed-voltar" hidden title="Fecha o editor SEM guardar o que mudou nesta imagem desde que abriu">${ic('x', 13)} Voltar</button>`); $('#at-ed-ok').before(bv); bv.onclick = () => this.voltarEditor(); } this.cv.addEventListener('dblclick', e => { if (this.edImg || Pintura.ferr !== 'mover') return; const it = this.acha(this.mundo(e)); if (it?.img) this.abrirEditor(it.parte, it.img); }); /* dois cliques numa peça: edita a imagem dela */
     $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
+    $('#at-cor').onclick = () => this.corInterna();
     addEventListener('keydown', e => this.teclas(e));
     Pintura.liga(); Divisores.liga(); Paineis.liga(); // bordas dos painéis e da timeline: arrastar muda o tamanho
   },
@@ -590,7 +591,7 @@ const Atelie = {
     let bp = $('#at-abas [data-aba="pintar"]'); if (!bp && $('#at-abas')) { bp = h(`<button data-aba="pintar" title="Camadas, cores e opções de pintar da parte escolhida">${ic('layers', 12)} Camadas</button>`); $('#at-abas').appendChild(bp); bp.onclick = () => { this.aba = 'pintar'; this.pinta(); }; }
     if (bp) bp.hidden = !this.soQuadro && Pintura.ferr === 'mover' && this.aba !== 'pintar'; // no painel do quadro (Animador) a aba Camadas fica sempre à vista
     if (this.imgSo) this.barraImgSo();
-    this.pintaIcone(); this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
+    this.pintaIcone(); this.pintaCor(); this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; if (this.aba === 'pintar' && !$('#at-abas [data-aba="pintar"]')) this.aba = 'peca';
     if (ed) this.pintaEditor(lado); else this.aba === 'pintar' ? this.pintaPintar(lado) : this.aba === 'peca' ? this.pintaPeca(lado) : this.aba === 'animacoes' ? Animacoes.pinta(lado) : this.pintaSessoes(lado); lado.scrollTop = rol; this.desenha();
   },
@@ -1280,6 +1281,26 @@ const Atelie = {
     };
   },
   /* ---------- ÍCONE e COR do personagem (hierarquia e timeline do editor) ---------- */
+  // COR INTERNA (def.corInterna): o branco puro do preenchimento vira essa cor no Ateliê e no editor (Arq.comCor). Vale para o personagem
+  // inteiro, em todas as vistas; no editor dá para trocar só num personagem da animação (botão direito › Cor interna…).
+  CORES_PRONTAS: ['#ffffff', '#f2d3b3', '#d9a27a', '#8d5a3b', '#ffd84d', '#ff9f43', '#ff6b6b', '#ff8fc7', '#b38cff', '#5aa9ff', '#4dd6c8', '#7ed957', '#9aa3ad', '#3a3f47'],
+  pintaCor() {
+    const b = $('#at-cor'); if (!b || !this.def) return; const c = this.def.corInterna;
+    b.innerHTML = `<span style="width:14px;height:14px;border-radius:50%;border:2px solid var(--tx2);background:${c || '#ffffff'};display:inline-block;flex:none"></span><span>Cor</span>`;
+    b.title = c ? `Cor interna: ${c} (clique para trocar)` : 'Cor interna do personagem: troca o branco do preenchimento pela cor que você quiser';
+  },
+  async corInterna() {
+    const def = this.def; if (!def) return; const antes = def.corInterna || null; let cor = antes || '#ffffff';
+    const body = h(`<div><div style="color:var(--tx2);font-size:12.5px;margin-bottom:10px">Troca o <b>branco</b> de dentro do personagem pela cor escolhida (as linhas continuam iguais). Vale em todas as vistas e já aparece na animação.</div>
+      <div class="presets" data-pr style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${this.CORES_PRONTAS.map(c => `<button class="btn sm" data-c="${c}" title="${c}" style="width:28px;height:28px;padding:0;border-radius:50%;background:${c};border:2px solid var(--bd)"></button>`).join('')}</div>
+      <div class="campo2" style="display:flex;gap:10px;align-items:center"><input type="color" data-in value="${cor}"><code data-hex>${cor}</code><span style="color:var(--tx3);font-size:11.5px">Branco = cor original</span></div></div>`);
+    const inp = $('[data-in]', body), hex = $('[data-hex]', body);
+    const aplica = c => { cor = c.toLowerCase(); inp.value = cor; hex.textContent = cor; if (/^#ffffff$/i.test(cor)) delete def.corInterna; else def.corInterna = cor; this.desenha(); }; // prévia ao vivo no palco
+    inp.oninput = () => aplica(inp.value); $$('[data-c]', body).forEach(b => b.onclick = () => aplica(b.dataset.c));
+    const ok = await UI.modal({ title: 'Cor interna do personagem', icon: 'brush', width: 420, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Aplicar', kind: 'primary', value: true }] });
+    if (!ok) { if (antes) def.corInterna = antes; else delete def.corInterna; this.desenha(); return; }
+    this.commit(); this.pintaCor();
+  },
   pintaIcone() {
     const b = $('#at-icone'); if (!b || !this.def) return; const def = this.def, auto = (def.iconeModo || 'auto') === 'auto' && !(def.iconeFixo && def.icone), cAuto = (def.corModo || 'auto') === 'auto'; // iconeFixo: aplicado na configuração = fica ASSIM (não é refeito sozinho)
     const deIc = def.id + ':' + (def.vistas?.[0]?.id || ''); // UM ícone para o personagem todo (feito da vista principal): trocar de vista não muda nem apaga a foto

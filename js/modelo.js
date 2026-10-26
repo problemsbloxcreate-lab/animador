@@ -226,7 +226,7 @@ const Modelo = {
       const e = est[p.id] || p.base; if (e.vis === false) continue;
       const img = p.imgs.find(i => i.id === e.img) || null, dd = img && e.d?.[img.id], mp = mat(p.id);
       // m = onde a imagem é desenhada (com o "d" desta imagem neste preset) · mp = a parte (as filhas encaixam nela, sem o d)
-      out.push({ parte: p, img, ap: (img && e.ap?.[img.id]) || null, m: dd ? mp.translate(dd.x || 0, dd.y || 0) : mp, mp, z: (p.z || 0) + (e.z || 0) + (img?.z || 0) }); // img.z: camada só daquela imagem (ex.: braço de trás que fica por cima do corpo só na pose base)
+      out.push({ parte: p, img, cor: def.corInterna || null, ap: (img && e.ap?.[img.id]) || null, m: dd ? mp.translate(dd.x || 0, dd.y || 0) : mp, mp, z: (p.z || 0) + (e.z || 0) + (img?.z || 0) }); // img.z: camada só daquela imagem (ex.: braço de trás que fica por cima do corpo só na pose base)
     }
     return out.sort((a, b) => a.z - b.z);
   },
@@ -299,10 +299,28 @@ const Arq = {
   // (uma por imagem+máscara) e refaz sozinha se a imagem mudar (ex.: prévia do pincel). Sem máscara (ou carregando) = a imagem normal.
   apCache: new Map(),
   comAp(bm, it, aoChegar) {
+    bm = this.comCor(bm, it, aoChegar); // COR INTERNA do personagem (def.corInterna / cor do personagem no editor), antes do apagado
     const ap = it?.ap; if (!bm || !ap?.k) return bm; if (typeof Vetor !== 'undefined' && Vetor.eh(ap.k) && Vetor.eh(it.img.k)) return Vetor.comAp(bm, it, aoChegar); /* keyframe de imagem SVG: o apagado também é vetor */ const m = this.bitmap(ap.k, aoChegar); if (!m) return bm;
     const ch = it.img.k + '|' + ap.k + '|' + ap.x + '|' + ap.y, c = this.apCache.get(ch); if (c && c.src === bm) return c.cv;
     const cv = document.createElement('canvas'); cv.width = bm.width; cv.height = bm.height; const x = cv.getContext('2d'); x.drawImage(bm, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(m, ap.x || 0, ap.y || 0);
     this.apCache.set(ch, { cv, src: bm }); if (this.apCache.size > 160) this.apCache.delete(this.apCache.keys().next().value); return cv;
+  },
+  // COR INTERNA: o preenchimento BRANCO puro (#FFFFFF) do personagem vira a cor escolhida (def.corInterna no Ateliê, ou a cor só
+  // daquele personagem na animação, n.cor). SVG: troca o fill no próprio vetor (as linhas não mudam, continua nítido no zoom);
+  // imagem comum: multiplica pela cor (o branco vira a cor, o preto continua preto). Guarda uma por imagem+cor; refaz se a imagem mudar.
+  corCache: new Map(), _corFaz: new Set(),
+  comCor(bm, it, aoChegar) {
+    const cor = it?.cor; if (!bm || !cor || !it.img?.k || !/^#[0-9a-f]{6}$/i.test(cor) || /^#ffffff$/i.test(cor)) return bm;
+    const k = it.img.k, ch = k + '|' + cor.toLowerCase(), c = this.corCache.get(ch); if (c && c.src === bm) return c.out;
+    const guarda = out => { this.corCache.set(ch, { src: bm, out }); if (this.corCache.size > 300) this.corCache.delete(this.corCache.keys().next().value); };
+    if (typeof Vetor !== 'undefined' && Vetor.eh(k)) {
+      if (!this._corFaz.has(ch)) { this._corFaz.add(ch); (async () => { try { const t = Vetor.recolore(await Vetor.texto(k), cor), im = await Vetor.imagem(new Blob([t], { type: 'image/svg+xml' })); if (im) guarda(im); }
+        catch (e) { console.warn('[cor interna]', e); } finally { this._corFaz.delete(ch); } aoChegar?.(); })(); }
+      return c ? c.out : bm; // enquanto a versão nova carrega, desenha a anterior (ou a branca)
+    }
+    const cv = document.createElement('canvas'); cv.width = bm.width; cv.height = bm.height; const x = cv.getContext('2d');
+    x.drawImage(bm, 0, 0); x.globalCompositeOperation = 'multiply'; x.fillStyle = cor; x.fillRect(0, 0, cv.width, cv.height); x.globalCompositeOperation = 'destination-in'; x.drawImage(bm, 0, 0);
+    guarda(cv); return cv;
   },
   // ORIGINAL sem perda: imagens que foram para a nuvem em webp continuam com a PNG original guardada neste navegador (arquivos["orig:<chave webp>"] = chave da original)
   async original(k) { if (!/\.webp$/i.test(k || '')) return null; try { const o = await DB.get('arquivos', 'orig:' + k); return o ? await this.pegaBlob(o) : null; } catch { return null; } },

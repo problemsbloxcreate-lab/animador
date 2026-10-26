@@ -53,7 +53,8 @@ const Render = {
     const est = Modelo.estadoPersonagem(n, q), dv = Modelo.naVista(def, est.vista); // a vista escolhida neste quadro (frente, lado…)
     let ep = Modelo.partesNoEstado(dv, est);
     if (typeof Atuacao !== 'undefined' && Atuacao.ligada(n)) { try { ep = Atuacao.aplica(P, n, q, dv, ep); } catch (e) { console.warn('[Atuação]', e); } } // atuação automática (js/atuacao.js)
-    return Modelo.montar(dv, ep, m);
+    const cor = n.cor === 'original' ? null : n.cor || dv.corInterna; // cor interna: a deste personagem na animação, ou a do Ateliê
+    return Modelo.montar(cor === dv.corInterna ? dv : { ...dv, corInterna: cor }, ep, m);
   },
   // desenha as camadas no ctx (que já está com a transformação do "mundo" aplicada em base)
   // o.fundo: desenha o fundo do canvas (quadriculado/liso) como a camada mais de baixo da raiz (assim as camadas de efeito valem nele)

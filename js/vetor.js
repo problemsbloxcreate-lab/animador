@@ -294,6 +294,8 @@ const Vetor = {
   _txt: new Map(), _mod: new Map(),
   // a imagem pronta para desenhar: <img> do SVG (o navegador desenha o vetor no tamanho em que for pintado: sem perder qualidade)
   imagem(blob) { return new Promise(ok => { const u = URL.createObjectURL(blob.type === 'image/svg+xml' ? blob : new Blob([blob], { type: 'image/svg+xml' })), im = new Image(); im.decoding = 'sync'; im.onload = () => ok(im); im.onerror = () => { URL.revokeObjectURL(u); ok(null); }; im.src = u; }); },
+  // troca o preenchimento BRANCO puro pela cor (só fill: as linhas/traços não mudam). Usado pela cor interna do personagem (Arq.comCor).
+  recolore(t, cor) { return t.replace(/<mask[\s\S]*?<\/mask>|fill="(?:#fff(?:fff)?|white)"/gi, m => m[0] === '<' ? m : `fill="${cor}"`); }, // máscaras (apagados) ficam como estão
   async texto(k) {
     if (this._txt.has(k)) return this._txt.get(k);
     let b = await Arq.pegaBlob(k); if (!b && /^personagens\//.test(k)) b = await Nuvem.baixar(k).catch(() => null); if (!b) throw new Error('O SVG desta imagem não está neste computador.');
@@ -517,9 +519,9 @@ const Vetor = {
   // a imagem SVG com o apagado do keyframe (continua vetor: sem perder qualidade no zoom)
   _ap: new Map(), _apFaz: new Set(),
   comAp(bm, it, aoChegar) {
-    const ch = it.img.k + '|' + it.ap.k; if (this._ap.has(ch)) return this._ap.get(ch);
+    const ch = it.img.k + '|' + it.ap.k + (it.cor ? '|' + it.cor : ''); if (this._ap.has(ch)) return this._ap.get(ch);
     if (!this._apFaz.has(ch)) { this._apFaz.add(ch); (async () => { try {
-      const t = await this.texto(it.img.k), mk = this.ler(await this.texto(it.ap.k)), a0 = t.indexOf('>', t.indexOf('<svg')) + 1, a1 = t.lastIndexOf('</svg>');
+      const t0 = await this.texto(it.img.k), t = it.cor ? this.recolore(t0, it.cor) : t0, mk = this.ler(await this.texto(it.ap.k)), a0 = t.indexOf('>', t.indexOf('<svg')) + 1, a1 = t.lastIndexOf('</svg>');
       const corpo = mk.cam[0].f.map(p => `<path d="${p.d}" ${p.s ? `fill="none" stroke="#000" stroke-width="${p.s}" stroke-linecap="round" stroke-linejoin="round"` : 'fill="#000"'}${p.o < 1 ? ` ${p.s ? 'stroke' : 'fill'}-opacity="${p.o}"` : ''}${p.b ? ` filter="url(#apb${String(p.b).replace('.', '_')})"` : ''}/>`).join(''), fs = [...new Set(mk.cam[0].f.filter(p => p.b).map(p => p.b))].map(b => `<filter id="apb${String(b).replace('.', '_')}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${b}"/></filter>`).join('');
       const novo = t.slice(0, a0) + `<defs>${fs}<mask id="ap-q" maskUnits="userSpaceOnUse" x="-5e4" y="-5e4" width="1e5" height="1e5"><path d="M-5e4 -5e4H5e4V5e4H-5e4Z" fill="#fff"/>${corpo}</mask></defs><g mask="url(#ap-q)">` + t.slice(a0, a1) + '</g></svg>';
       const im = await this.imagem(new Blob([novo], { type: 'image/svg+xml' })); if (im) { this._ap.set(ch, im); if (this._ap.size > 120) this._ap.delete(this._ap.keys().next().value); }

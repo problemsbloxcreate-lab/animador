@@ -72,6 +72,19 @@ const App = {
 
   /* ---------- mudanças, desfazer, salvar ---------- */
   // chame depois de mudar o projeto (o que estava antes vai para o desfazer)
+  // COR INTERNA só deste personagem na animação (n.cor): troca o branco do preenchimento; "Usar a do Ateliê" volta para def.corInterna
+  async corInterna(n) {
+    const def = this.P.personagens[n.ref]; if (!def) return; const antes = n.cor; let cor = (n.cor && n.cor !== 'original' ? n.cor : def.corInterna) || '#ffffff';
+    const body = h(`<div><div style="color:var(--tx2);font-size:12.5px;margin-bottom:10px">Troca o <b>branco</b> de dentro de <b>${esc(n.nome || def.nome)}</b> só nesta animação (as linhas continuam iguais).${def.corInterna ? ` No Ateliê ele está com ${def.corInterna}.` : ''}</div>
+      <div data-pr style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${Atelie.CORES_PRONTAS.map(c => `<button class="btn sm" data-c="${c}" title="${c}" style="width:28px;height:28px;padding:0;border-radius:50%;background:${c};border:2px solid var(--bd)"></button>`).join('')}</div>
+      <div style="display:flex;gap:10px;align-items:center"><input type="color" data-in value="${cor}"><code data-hex>${cor}</code></div></div>`);
+    const inp = $('[data-in]', body), hex = $('[data-hex]', body);
+    const aplica = c => { cor = c.toLowerCase(); inp.value = cor; hex.textContent = cor; n.cor = /^#ffffff$/i.test(cor) ? 'original' : cor; Render.aoChegarImagem?.(); this.atualiza?.(); };
+    inp.oninput = () => aplica(inp.value); $$('[data-c]', body).forEach(b => b.onclick = () => aplica(b.dataset.c));
+    const v = await UI.modal({ title: 'Cor interna', icon: 'brush', width: 420, body, buttons: [{ label: 'Cancelar', value: 0 }, { label: 'Usar a do Ateliê', value: 2 }, { label: 'Aplicar', kind: 'primary', value: 1 }] });
+    if (v === 2) delete n.cor; else if (v !== 1) { if (antes === undefined) delete n.cor; else n.cor = antes; }
+    this.commit('Cor interna do personagem');
+  },
   commit(rotulo, o = {}) {
     const agora = JSON.stringify(this.P); if (agora === this.ultimo) return this.atualiza(o);
     if (this.P.anterior) delete this.P.anterior; // mudou de verdade: deixa de ser "o anterior" (virou um arquivo comum)
@@ -352,6 +365,7 @@ const App = {
         s?.tipo === 'personagem' && { label: `Editar no Ateliê (pose do quadro ${App.q + 1})`, icon: 'edit', action: () => Animacoes.editarNoAtelie(s) },
         s?.tipo === 'personagem' && { label: 'Abrir a cópia desta animação no Ateliê (todos os quadros, só aqui)', icon: 'film', action: () => AtelieAnim.abrir(App.P.id, s.ref) },
         s?.tipo === 'personagem' && { label: 'Abrir no Ateliê como pose nova…', icon: 'plus', action: () => Animacoes.poseNova(s) },
+        s?.tipo === 'personagem' && { label: 'Cor interna…', icon: 'brush', action: () => App.corInterna(s) },
         s?.tipo === 'personagem' && { label: (Modelo.transf(s, App.q).sx || 1) < 0 ? 'Desespelhar (voltar para o lado de antes)' : 'Espelhar (virar para o outro lado)', icon: 'transition', action: () => Animacoes.espelhar(s) },
         Deformar.pode(s) && { label: Deformar.ativo ? 'Parar de deformar' : 'Deformar (cantos ou malha)…', icon: 'transition', key: 'T', action: () => Deformar.alterna(s) },
         s && { label: 'Chave neste quadro', icon: 'diamond', key: 'K', action: () => App.chaveAqui() },
