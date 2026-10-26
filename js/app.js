@@ -67,7 +67,7 @@ const App = {
     if (!(AoVivo.ativo && AoVivo.ad?.ctx === 'animador')) return; if (encerrar && !(await UI.confirm({ title: 'Encerrar para todos?', msg: 'Cada pessoa fica com a cópia com as últimas mudanças no computador dela, e a animação sai da nuvem.', ok: 'Encerrar' }))) return;
     await this.salvarJa(); await AoVivo.sair({ encerrar }); this.pintaJunto(); if (!quieto) UI.toast(encerrar ? 'Encerrado: a animação saiu da nuvem. A cópia com as últimas mudanças ficou salva aqui.' : 'Você saiu. A cópia com as últimas mudanças ficou salva neste computador.', { kind: 'ok', time: 7000 });
   },
-  pintaJunto() { const b = $('#b-junto'); if (!b) return; const on = AoVivo.ativo && AoVivo.ad?.ctx === 'animador'; b.hidden = on; b.innerHTML = ic('users', 13) + ' Trabalhar junto'; b.onclick = () => this.trabalharJunto(); AoVivo.pintaBarra(); },
+  pintaJunto() { const b = $('#b-junto'); if (!b) return; const on = AoVivo.ativo && AoVivo.ad?.ctx === 'animador'; b.hidden = on; b.innerHTML = ic('users', 15); b.classList.add('so-icone'); b.title = 'Trabalhar junto ao vivo: outras pessoas da equipe entram e veem as mudanças na hora'; b.onclick = () => this.trabalharJunto(); AoVivo.pintaBarra(); },
   titulo() { document.title = (this.P ? this.P.nome + ' — ' : '') + 'ANIMADOR · Estúdio Problems'; },
 
   /* ---------- mudanças, desfazer, salvar ---------- */

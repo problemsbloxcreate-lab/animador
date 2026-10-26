@@ -124,12 +124,12 @@ const Lado = {
      Campos numéricos: arrastar o nome do campo para os lados muda o valor (Shift = mais rápido, Alt = fino), ou digitar. */
   num(nome, v, o, aoMudar, aoSoltar) {
     const m = o.mult || 1, dec = o.dec ?? 1, mostra = x => String(round(x * m, dec)).replace('.', ',');
-    const el = h(`<label class="pn" title="${esc(o.dica || 'Arraste o nome para os lados para mudar · Shift = rápido · Alt = fino')}"><span class="pn-n">${esc(nome)}</span><input type="text" inputmode="decimal" value="${mostra(v)}">${o.unid ? `<i>${o.unid}</i>` : ''}</label>`);
+    const el = h(`<label class="pr-num" title="${esc(o.dica || 'Arraste o nome para os lados para mudar · Shift = rápido · Alt = fino')}"><span class="pr-num-n">${esc(nome)}</span><input type="text" inputmode="decimal" value="${mostra(v)}">${o.unid ? `<i>${o.unid}</i>` : ''}</label>`);
     const inp = $('input', el), lim = x => clamp(x, o.min ?? -Infinity, o.max ?? Infinity), le = () => { const x = parseFloat(String(inp.value).replace(',', '.')); return isNaN(x) ? null : x / m; };
     inp.onchange = () => { const x = le(); if (x == null) { inp.value = mostra(v); return; } v = lim(x); inp.value = mostra(v); aoMudar(v); aoSoltar?.(); };
     inp.onkeydown = e => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); v = lim((le() ?? v) + (e.key === 'ArrowUp' ? 1 : -1) * (o.passo || 1) * (e.shiftKey ? 10 : 1)); inp.value = mostra(v); aoMudar(v); clearTimeout(this._tSol); this._tSol = setTimeout(() => aoSoltar?.(), 400); } if (e.key === 'Enter') inp.blur(); };
     if (o.vivo) (this._vivos ||= []).push(() => { if (document.activeElement === inp || this._arrNum) return; v = o.vivo(); inp.value = mostra(v); });
-    const nm = $('.pn-n', el); nm.onpointerdown = e => { if (e.button !== 0) return; e.preventDefault(); nm.setPointerCapture(e.pointerId); this._arrNum = true; const x0 = e.clientX, v0 = v; let mexeu = false; document.body.classList.add('arrastando-num');
+    const nm = $('.pr-num-n', el); nm.onpointerdown = e => { if (e.button !== 0) return; e.preventDefault(); nm.setPointerCapture(e.pointerId); this._arrNum = true; const x0 = e.clientX, v0 = v; let mexeu = false; document.body.classList.add('arrastando-num');
       const mv = ev => { const dx = ev.clientX - x0; if (!mexeu && Math.abs(dx) < 2) return; mexeu = true; v = lim(v0 + dx * (o.passo || 1) * (ev.shiftKey ? 10 : ev.altKey ? .1 : 1)); inp.value = mostra(v); aoMudar(v); };
       const up = () => { this._arrNum = false; nm.removeEventListener('pointermove', mv); nm.removeEventListener('pointerup', up); nm.removeEventListener('pointercancel', up); document.body.classList.remove('arrastando-num'); if (mexeu) aoSoltar?.(); else inp.focus(); };
       nm.addEventListener('pointermove', mv); nm.addEventListener('pointerup', up); nm.addEventListener('pointercancel', up); };
@@ -137,13 +137,13 @@ const Lado = {
   },
   // barrinha (0–100%) com número, para opacidade e afins
   barra(nome, v, aoMudar, aoSoltar, vivo) {
-    const el = h(`<label class="pb"><span>${esc(nome)}</span><input type="range" min="0" max="100" step="1" value="${Math.round(v * 100)}"><b>${Math.round(v * 100)}%</b></label>`), r = $('input', el), b = $('b', el);
+    const el = h(`<label class="pr-barra"><span>${esc(nome)}</span><input type="range" min="0" max="100" step="1" value="${Math.round(v * 100)}"><b>${Math.round(v * 100)}%</b></label>`), r = $('input', el), b = $('b', el);
     if (vivo) (this._vivos ||= []).push(() => { if (document.activeElement === r) return; const x = Math.round(vivo() * 100); r.value = x; b.textContent = x + '%'; });
     r.oninput = () => { b.textContent = r.value + '%'; aoMudar(+r.value / 100); }; r.onchange = () => aoSoltar?.(); return el;
   },
   // linha de cor: bolinha de cor + código
   cor(nome, v, aoMudar, aoSoltar) {
-    const el = h(`<label class="pc"><span>${esc(nome)}</span><input type="color" value="${v}"><code>${esc(v)}</code></label>`), c = $('input', el);
+    const el = h(`<label class="pr-cor"><span>${esc(nome)}</span><input type="color" value="${v}"><code>${esc(v)}</code></label>`), c = $('input', el);
     c.oninput = () => { $('code', el).textContent = c.value; aoMudar(c.value); }; c.onchange = () => aoSoltar?.(); return el;
   },
   cabecalho(icone, titulo, tipo, extra) { return h(`<div class="pr-cab"><span class="pr-ic">${icone}</span><div class="pr-nm">${titulo}<small>${tipo}</small></div>${extra || ''}</div>`); },
@@ -180,7 +180,7 @@ const Lado = {
     const topo = h('<div class="pr-topo"></div>'); topo.append(cab, this.barraChave(!!n.chaves?.[q], Object.keys(n.chaves || {}).length, () => n.chaves)); el.appendChild(topo);
     // TRANSFORMAR
     el.appendChild(this.secao('p-transf', 'Transformar', `quadro ${q + 1}`, c => {
-      const g = h('<div class="pn-grade"></div>');
+      const g = h('<div class="pr-num-grade"></div>');
       const vv = k => () => Modelo.transf(n, App.q)[k] ?? (k === 'op' || k === 's' ? 1 : 0); // ao vivo: tocando, os números andam junto
       g.append(this.num('X', t.x, { passo: 1, dec: 1, unid: 'px', vivo: vv('x') }, v => muda('x', v), sol), this.num('Y', t.y, { passo: 1, dec: 1, unid: 'px', vivo: vv('y') }, v => muda('y', v), sol),
         this.num('Tamanho', t.s, { passo: .005, min: .01, max: 20, mult: 100, dec: 1, unid: '%', vivo: vv('s') }, v => muda('s', v), sol), this.num('Girar', t.r, { passo: .5, min: -3600, max: 3600, dec: 1, unid: '°', vivo: vv('r') }, v => muda('r', v), sol));
@@ -215,7 +215,7 @@ const Lado = {
     if (n.tipo === 'forma') el.appendChild(this.secao('p-forma', n.fundoPadrao ? 'Forma · fundo padrão' : 'Forma', '', c => {
       const fs = h(`<div class="pr-icones">${[['ret', 'square', 'Retângulo'], ['elipse', 'circle', 'Círculo'], ['tri', 'shapes', 'Triângulo'], ['estrela', 'star', 'Estrela']].map(([f, i, l]) => `<button data-f="${f}" class="${n.forma === f ? 'on' : ''}" title="${l}">${ic(i, 15)}<span>${l}</span></button>`).join('')}</div>`);
       $$('[data-f]', fs).forEach(b => b.onclick = () => { n.forma = b.dataset.f; App.commit('Forma'); }); c.appendChild(fs);
-      const sf = () => App.commit('Forma', { semArvore: true }), g = h('<div class="pn-grade"></div>');
+      const sf = () => App.commit('Forma', { semArvore: true }), g = h('<div class="pr-num-grade"></div>');
       g.append(this.num('Largura', n.w, { passo: 1, min: 2, max: 20000, dec: 0, unid: 'px' }, v => { n.w = v; App.pinta(); }, sf), this.num('Altura', n.h, { passo: 1, min: 2, max: 20000, dec: 0, unid: 'px' }, v => { n.h = v; App.pinta(); }, sf));
       if (n.forma === 'ret') g.append(this.num('Cantos', n.raio || 0, { passo: 1, min: 0, max: 2000, dec: 0, unid: 'px' }, v => { n.raio = v; App.pinta(); }, sf));
       g.append(this.num('Borda', n.bordaL || 0, { passo: .5, min: 0, max: 200, dec: 1, unid: 'px' }, v => { n.bordaL = v; App.pinta(); }, sf)); c.appendChild(g);
@@ -226,7 +226,7 @@ const Lado = {
       const st = () => App.commit('Texto', { semArvore: true });
       const tx = h(`<textarea rows="3" class="pr-txt">${esc(n.texto)}</textarea>`); tx.oninput = () => { n.texto = tx.value; App.pinta(); }; tx.onchange = st; c.appendChild(tx);
       const est = h(`<div class="pr-acoes"><button class="btn sm ${n.negrito ? 'on' : ''}" data-n title="Negrito"><b>N</b> Negrito</button></div>`); $('[data-n]', est).onclick = () => { n.negrito = !n.negrito; st(); }; c.appendChild(est);
-      const g = h('<div class="pn-grade"></div>'); g.append(this.num('Tamanho', n.tam, { passo: 1, min: 8, max: 1000, dec: 0, unid: 'px' }, v => { n.tam = v; App.pinta(); }, st), this.num('Borda', n.bordaL || 0, { passo: .5, min: 0, max: 100, dec: 1, unid: 'px' }, v => { n.bordaL = v; App.pinta(); }, st)); c.appendChild(g);
+      const g = h('<div class="pr-num-grade"></div>'); g.append(this.num('Tamanho', n.tam, { passo: 1, min: 8, max: 1000, dec: 0, unid: 'px' }, v => { n.tam = v; App.pinta(); }, st), this.num('Borda', n.bordaL || 0, { passo: .5, min: 0, max: 100, dec: 1, unid: 'px' }, v => { n.bordaL = v; App.pinta(); }, st)); c.appendChild(g);
       c.append(this.cor('Cor', n.cor, v => { n.cor = v; App.pinta(); }, st), this.cor('Cor da borda', n.borda, v => { n.borda = v; App.pinta(); }, st));
     }, true));
     if (n.tipo === 'imagem') el.appendChild(this.secao('p-img', 'Imagem', '', c => {
@@ -244,7 +244,7 @@ const Lado = {
     const muda = (k, v) => { const q2 = App.q; P.camera.chaves[q2] = { ...Modelo.camera(P, q2), ...(P.camera.chaves[q2] || {}), [k]: v }; App.pinta(); }, sol = () => App.commit('Câmera', { semArvore: true }), c = Modelo.camera(P, q);
     const topo = h('<div class="pr-topo"></div>'); topo.append(this.cabecalho(ic('camera', 16), 'Câmera', `${P.w} × ${P.h}`), this.barraChave(!!P.camera.chaves[q], Object.keys(P.camera.chaves).length, () => P.camera.chaves)); el.appendChild(topo);
     el.appendChild(this.secao('c-pos', 'Posição', `quadro ${q + 1}`, b => {
-      const g = h('<div class="pn-grade"></div>');
+      const g = h('<div class="pr-num-grade"></div>');
       const cv = k => () => Modelo.camera(P, App.q)[k] || 0;
       g.append(this.num('X', c.x, { passo: 1, dec: 1, unid: 'px', vivo: cv('x') }, v => muda('x', v), sol), this.num('Y', c.y, { passo: 1, dec: 1, unid: 'px', vivo: cv('y') }, v => muda('y', v), sol),
         this.num('Zoom', c.zoom, { passo: .005, min: .2, max: 6, mult: 100, dec: 0, unid: '%', vivo: cv('zoom') }, v => muda('zoom', v), sol), this.num('Girar', c.r || 0, { passo: .25, min: -45, max: 45, dec: 1, unid: '°', vivo: cv('r') }, v => muda('r', v), sol));
@@ -273,7 +273,7 @@ const Lado = {
       $('input', nm).onchange = ev => { P.nome = ev.target.value.trim() || P.nome; $('#proj-nome').textContent = P.nome; App.titulo(); App.commit('Nome'); }; c.appendChild(nm);
       const tam = h(`<div class="pr-icones">${this.TAMANHOS.map(([r, w, hh]) => `<button data-r="${r}" class="${P.w === w && P.h === hh ? 'on' : ''}" title="${w} × ${hh}"><i class="pr-ret" style="aspect-ratio:${w}/${hh}"></i><span>${r}</span></button>`).join('')}</div>`);
       $$('[data-r]', tam).forEach(b => b.onclick = () => { const [, w, hh] = this.TAMANHOS.find(x => x[0] === b.dataset.r); P.w = w; P.h = hh; App.commit('Tamanho'); App.enquadrar(); }); c.appendChild(tam);
-      const g = h('<div class="pn-grade"></div>'), sz = () => { App.commit('Tamanho'); App.enquadrar(); };
+      const g = h('<div class="pr-num-grade"></div>'), sz = () => { App.commit('Tamanho'); App.enquadrar(); };
       g.append(this.num('Largura', P.w, { passo: 2, min: 64, max: 4096, dec: 0, unid: 'px' }, v => { P.w = Math.round(v); }, sz), this.num('Altura', P.h, { passo: 2, min: 64, max: 4096, dec: 0, unid: 'px' }, v => { P.h = Math.round(v); }, sz),
         this.num('FPS', P.fps, { passo: .1, min: 1, max: 60, dec: 0, dica: 'Quadros por segundo' }, v => { P.fps = Math.round(v); }, () => App.commit('fps')),
         this.num('Duração', P.duracao, { passo: 1, min: 1, max: 20000, dec: 0, unid: 'q', dica: `Quantos quadros a animação tem (${(P.duracao / P.fps).toFixed(1).replace('.', ',')} s)` }, v => { P.duracao = Math.round(v); }, () => { if (App.q > P.duracao - 1) App.q = P.duracao - 1; App.commit('Duração'); }));

@@ -6,7 +6,7 @@
   poe('b-regua', 'ruler', '', () => App.trocaRegua()); $('#b-regua').classList.toggle('on', App.regua());
   poe('b-onion', 'onion', '', () => { App.onion = !App.onion; $('#b-onion').classList.toggle('on', App.onion); App.pinta(); });
   poe('b-ia', 'sparkles', 'IA', () => IA.abrir(Lado.foco())); { const b = $('#b-atelie'); if (b) { b.innerHTML = '<span class="ic-atelie ic-ep" data-estudio-icone="at" aria-label="Ateliê"></span>'; b.classList.add('so-icone'); b.title = 'Ateliê de personagens (abrir no Animador ou numa aba nova)'; b.onclick = () => App.abrirAtelie(); } } // ícone do Ateliê (paleta laranja), pergunta simples × completo
-  poe('b-exportar', 'download', 'Exportar', () => Exportar.abrir());
+  poe('b-exportar', 'download', '', () => Exportar.abrir()); { const b = $('#b-exportar'); if (b) { b.classList.add('so-icone'); b.title = 'Exportar o vídeo (MP4)'; } } // só o ícone: poupa espaço no topo
   poe('h-pers', 'plus', '', () => App.addPersonagem()); poe('h-cen', 'paisagem', '', () => { const r = $('#h-cen').getBoundingClientRect(); App.menuCenario(r.left, r.bottom + 4); }); poe('h-img', 'image', '', () => App.addImagem()); poe('h-forma', 'shapes', '', () => { const r = $('#h-forma').getBoundingClientRect(); App.menuForma(r.left, r.bottom + 4); }); poe('h-txt', 'text', '', () => App.addTexto()); poe('h-pasta', 'folder', '', () => App.addPasta());
   poe('t-ini', 'start', '', () => App.setQ(0)); poe('t-ant', 'prev', '', () => App.setQ(App.q - 1, { som: true })); poe('b-tocar', 'play', '', () => App.tocar());
   poe('t-prox', 'next', '', () => App.setQ(App.q + 1, { som: true })); poe('t-fim', 'end', '', () => App.setQ(Modelo.ultimoQuadro(App.P)));
