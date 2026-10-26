@@ -50,7 +50,7 @@ const Rig = {
     const L = rs.length > 1 ? { min: Math.min(...rs), max: Math.max(...rs), n: rs.length } : null; M.set(pid, L); return L; },
   foraDoLimite(def, pid, r, folga = 20) { const L = this.limites(def, pid); if (!L) return 0; return r < L.min - folga ? L.min - folga - r : r > L.max + folga ? r - L.max - folga : 0; },
   // IK de dois ossos: devolve { [raiz]: r, [meio]: r } (giros novos) para a ponta (fim) chegar em alvo {x,y} (coordenadas do personagem)
-  // o.dobra: 1/-1 força o lado da dobra; sem = o lado que respeita os limites das poses (empate: o de agora)
+  // o.dobra: 1/-1 força o lado da dobra; sem = o lado que respeita os limites das poses e muda menos a pose de partida
   // o.ponta = 'centro': quem chega no alvo é o MEIO da mão/pé (não o pulso/tornozelo)
   ik(def, est, cad, alvo, o = {}) {
     const e0 = Object.fromEntries(Object.entries(est).map(([k, v]) => [k, { ...v }])), base = id => def.partes.find(p => p.id === id)?.base;
@@ -71,7 +71,7 @@ const Rig = {
       if (o.ponta === 'centro') for (let i = 0; i < 3; i++) { const C = this.centroTinta(def, e, cad.fim), Wn = this.juntas(def, e)[cad.fim]; if (!C || !Wn) break; al = { x: alvo.x - (C.x - Wn.x), y: alvo.y - (C.y - Wn.y) }; e = resolve(al, lado); }
       return e; };
     let lados = o.dobra ? [o.dobra] : [agora, -agora], melhor = null;
-    for (const l of lados) { const e = comPonta(l), custo = this.foraDoLimite(def, cad.meio, e[cad.meio].r) * 2 + this.foraDoLimite(def, cad.raiz, e[cad.raiz].r, 35) + (l === agora ? 0 : 6); if (!melhor || custo < melhor.custo) melhor = { e, custo }; }
+    for (const l of lados) { const e = comPonta(l), custo = this.foraDoLimite(def, cad.meio, e[cad.meio].r) * 2 + this.foraDoLimite(def, cad.raiz, e[cad.raiz].r, 35) + .25 * (Math.abs(this.norm(e[cad.raiz].r - (e0[cad.raiz].r || 0))) + Math.abs(this.norm(e[cad.meio].r - (e0[cad.meio].r || 0)))) + (l === agora ? 0 : 4); /* o mais perto da pose de partida (o preset escolhido) */ if (!melhor || custo < melhor.custo) melhor = { e, custo }; }
     const e = melhor.e, out = { [cad.raiz]: round(e[cad.raiz].r, 2), [cad.meio]: round(e[cad.meio].r, 2) };
     if (o.manterMao) { const J2 = this.juntas(def, e), giroMao = this.ang(J0[cad.meio], J0[cad.fim]) - this.ang(J2[cad.meio], J2[cad.fim]); if (Math.abs(giroMao) > .1) out[cad.fim] = round((e0[cad.fim].r || 0) + giroMao * this.sinal(def, e, cad.fim), 2); }
     return out;
