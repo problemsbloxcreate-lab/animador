@@ -21,19 +21,20 @@ const App = {
   async abrirAtelie() {
     const P = this.P; if (!P) return; this.pausa();
     const card = (v, ic1, t, d) => `<button class="at-esc" data-v="${v}">${ic1}<span><b>${t}</b><small>${d}</small></span></button>`;
-    const body = h(`<div class="at-escolha">${card('simples', ic('monitor', 22), 'No Animador <em>simples</em>', 'O Ateliê abre aqui ao lado e muda só o personagem neste quadro.')}${card('aba', '<img src="icones/atelie.svg" alt="" width="26" height="26">', 'Em uma nova aba <em>completo</em>', 'O Ateliê inteiro: partes, imagens, poses, animações de teste e vistas.')}</div>`);
+    const body = h(`<div class="at-escolha">${card('simples', ic('monitor', 22), 'No Animador <em>simples</em>', 'O Ateliê abre aqui ao lado e muda só o personagem neste quadro.')}${card('aba', '<img src="icones/atelie.svg" alt="" width="26" height="26">', 'Em uma nova aba <em>completo · personagem da equipe</em>', 'O Ateliê inteiro com o personagem da nuvem (ou deste computador): vale para todas as animações quando salvar.')}${card('anim', ic('film', 24), 'Em uma nova aba <em>completo · só desta animação</em>', 'O Ateliê inteiro com a cópia que está na timeline desta animação: muda todos os quadros dela, e só dela.')}</div>`);
     const modo = await UI.modal({ title: 'Abrir o Ateliê', icon: 'palette', width: 460, body, buttons: [{ label: 'Cancelar', value: null }],
       onOpen: api => $$('[data-v]', api.body).forEach(b => b.onclick = () => api.close(b.dataset.v)) });
     if (!modo) return;
     let n = this.noSel(); if (n && n.tipo !== 'personagem') n = null; // só o que está SELECIONADO; nada selecionado = pergunta qual
     if (!n) { n = await this.qualPersonagem(modo); if (n === undefined || n === null) return; }
     if (modo === 'simples') { if (n === 'novo') return; return QuadroEd.abrir(n); }
+    if (modo === 'anim') { if (n === 'novo') return; return AtelieAnim.abrir(P.id, n.ref); }
     Atelie.abrirAba(n === 'novo' ? null : P.personagens[n.ref]?.id || null);
   },
   // nenhum personagem escolhido: lista os do quadro (e, embaixo, os outros da animação) para escolher; 'novo' = personagem novo (só no completo)
   async qualPersonagem(modo) {
     const P = this.P, aqui = Modelo.noQuadro(P, this.q), outros = Modelo.todos(P).filter(n => n.tipo === 'personagem' && !aqui.includes(n));
-    if (!aqui.length && !outros.length && modo === 'simples') { UI.toast('Nenhum personagem nesta animação. Ponha um personagem primeiro (botão + da Hierarquia).', { kind: 'warn' }); return null; }
+    if (!aqui.length && !outros.length && modo !== 'aba') { UI.toast('Nenhum personagem nesta animação. Ponha um personagem primeiro (botão + da Hierarquia).', { kind: 'warn' }); return null; }
     const item = n => { const def = P.personagens[n.ref]; return `<button class="at-pers" data-id="${n.id}">${Icone.html(def, 26)}<span><b>${esc(n.nome)}</b><small>${esc(def?.nome || '')}</small></span></button>`; };
     const body = h(`<div class="at-qual">${aqui.length ? `<div class="at-qt">No quadro ${this.q + 1}</div>${aqui.map(item).join('')}` : ''}
       ${outros.length ? `<div class="at-qt">${modo === 'simples' ? 'Fora deste quadro <small>(vai para o quadro onde aparece)</small>' : 'Na animação'}</div>${outros.map(item).join('')}` : ''}
@@ -343,6 +344,7 @@ const App = {
         (s?.tipo === 'imagem' || s?.cenaEd) && (s.nuvem ? { label: 'Já está na nuvem da equipe', icon: 'check', disabled: true } : { label: 'Salvar na nuvem', icon: 'cloud', action: () => App.salvarNaNuvem(s) }),
         s?.tipo === 'personagem' && { label: `Arrumar o quadro ${App.q + 1} aqui (Ateliê ao lado)`, icon: 'brush', action: () => QuadroEd.abrir(s) },
         s?.tipo === 'personagem' && { label: `Editar no Ateliê (pose do quadro ${App.q + 1})`, icon: 'edit', action: () => Animacoes.editarNoAtelie(s) },
+        s?.tipo === 'personagem' && { label: 'Abrir a cópia desta animação no Ateliê (todos os quadros, só aqui)', icon: 'film', action: () => AtelieAnim.abrir(App.P.id, s.ref) },
         s?.tipo === 'personagem' && { label: 'Abrir no Ateliê como pose nova…', icon: 'plus', action: () => Animacoes.poseNova(s) },
         s?.tipo === 'personagem' && { label: (Modelo.transf(s, App.q).sx || 1) < 0 ? 'Desespelhar (voltar para o lado de antes)' : 'Espelhar (virar para o outro lado)', icon: 'transition', action: () => Animacoes.espelhar(s) },
         Deformar.pode(s) && { label: Deformar.ativo ? 'Parar de deformar' : 'Deformar (cantos ou malha)…', icon: 'transition', key: 'T', action: () => Deformar.alterna(s) },

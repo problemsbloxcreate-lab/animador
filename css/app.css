@@ -1265,3 +1265,14 @@ body.embed-quadro #atelie .at.com-docks.qe-sem-baixo{grid-template-rows:minmax(0
 .qed-atelie img{display:block;border-radius:4px}.qed-atelie:hover{background:rgba(255,154,98,.15)!important}
 .qed-sep{width:1px;height:16px;background:#3a6f9e;margin:0 3px;flex:none}
 #b-atelie.so-icone{padding:0;width:34px;justify-content:center}#b-atelie.so-icone .ic-atelie{width:20px;height:20px}
+
+/* Ateliê: qual versão do personagem está aberta (js/atelieanim.js) */
+.at-onde{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px 0 8px;border-radius:13px;font:inherit;font-size:11.5px;white-space:nowrap;cursor:pointer;max-width:300px;flex:0 1 auto;min-width:0}
+.at-onde span{overflow:hidden;text-overflow:ellipsis}.at-onde>svg{flex:none}.at-onde>svg:last-child{opacity:.6}
+.at-onde.nuvem{color:#8fc9f5;background:rgba(90,169,232,.1);border:1px solid rgba(90,169,232,.4)}
+.at-onde.local{color:var(--warn);background:rgba(232,194,90,.1);border:1px solid rgba(232,194,90,.4)}
+.at-onde.anim{color:#d6b4ff;background:rgba(168,110,255,.14);border:1px solid rgba(168,110,255,.55)}
+.at-onde:hover{filter:brightness(1.2)}
+.at-estado.anim{color:#d6b4ff;background:rgba(168,110,255,.12);border:1px solid rgba(168,110,255,.45)}
+.anim-t{display:flex;align-items:center;gap:6px}.anim-t .btn{height:24px}
+.pc.anim-c{border-color:rgba(168,110,255,.35)}.pc.anim-c .in small{color:#c9a8f5}

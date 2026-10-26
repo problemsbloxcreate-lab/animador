@@ -146,15 +146,16 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
     Nuvem.souAdm(); // o menu de cada personagem já sai certo (apagar da nuvem: só ADM)
     c.innerHTML = `<div class="novos"><button class="novo" data-novo><span class="fm">${ic('plus', 24)}</span><span><b>Personagem novo</b><small>montar pelas partes</small></span></button>
       <button class="novo" data-backup><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .atelieanimador</b><small>backup de um personagem</small></span></button></div>
-      <div class="pers-abas"><div class="seg-pers"><button data-s="nuvem">${ic('cloud', 14)} Na nuvem da equipe <small data-cn>…</small></button><button data-s="local">${ic('save', 14)} Só neste computador <small data-cl>0</small></button></div>
+      <div class="pers-abas"><div class="seg-pers"><button data-s="nuvem">${ic('cloud', 14)} Na nuvem da equipe <small data-cn>…</small></button><button data-s="local">${ic('save', 14)} Só neste computador <small data-cl>0</small></button><button data-s="anims" title="A cópia de cada personagem dentro de cada animação (a da timeline)">${ic('film', 14)} Nas animações <small data-ca>…</small></button></div>
         <span class="sp"></span><input type="search" data-busca placeholder="Buscar personagem" value="${esc(this.qp || '')}"></div>
+      <div data-anims hidden></div>
       <div data-local hidden><section class="bloco-sec local"><div class="vazio">Nenhum personagem só neste computador: tudo já está na nuvem da equipe.</div></section></div>
       <section class="bloco-sec" data-nuvem><div class="sec">${ic('cloud', 14)} Na nuvem da equipe <small class="sec-sub">a equipe toda vê e usa</small><span class="sp"></span><button class="btn sm" data-pnova-n title="Pasta nova na nuvem da equipe (todos veem)">${ic('folder', 13)} Pasta nova</button><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-res-aviso></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div></section>`;
     Nuvem.avisoReserva($('[data-res-aviso]', c));
     $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-backup]', c).onclick = () => AtelieArq.escolher(); $('[data-atu]', c).onclick = () => { Nuvem.lista(true).catch(() => { }); this.pinta(); };
     const l = $('[data-l]', c);
     // as duas listas ficam em abas separadas (com quantos tem em cada): muitos personagens numa não empurram a outra
-    const sub = s => { this.subPers = s; try { localStorage.setItem('animador-pers-aba', s); } catch { } $$('[data-s]', c).forEach(b => b.classList.toggle('on', b.dataset.s === s)); $('[data-nuvem]', c).hidden = s !== 'nuvem'; $('[data-local]', c).hidden = s !== 'local'; };
+    const sub = s => { this.subPers = s; try { localStorage.setItem('animador-pers-aba', s); } catch { } $$('[data-s]', c).forEach(b => b.classList.toggle('on', b.dataset.s === s)); $('[data-nuvem]', c).hidden = s !== 'nuvem'; $('[data-local]', c).hidden = s !== 'local'; $('[data-anims]', c).hidden = s !== 'anims'; };
     if (!this.subPers) { try { this.subPers = localStorage.getItem('animador-pers-aba') || 'nuvem'; } catch { this.subPers = 'nuvem'; } }
     $$('[data-s]', c).forEach(b => b.onclick = () => sub(b.dataset.s)); sub(this.subPers);
     const filtra = () => { const q = (this.qp || '').trim().toLowerCase(); $$('.pc', c).forEach(card => { const n = $('.in b', card)?.textContent.toLowerCase() || ''; card.hidden = !!q && !n.includes(q); });
@@ -182,6 +183,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
         for (const r of rs) await Atelie.apagarRascunho(r.def.id, true); UI.toast(`${rs.length} apagado(s) deste computador.`, { kind: 'ok' }); this.pinta(); };
       box.innerHTML = ''; box.appendChild(sec); filtra(); });
     pintaLocal();
+    AtelieAnim.pintaLista($('[data-anims]', c), () => filtra()).then(n => { const e = $('[data-ca]', c); if (e) e.textContent = n; });
     try {
       const lista = await Nuvem.lista(); $('[data-cn]', c).textContent = lista.length;
       if (Nuvem.semLista) { this.copiasLocais(l, Nuvem.copiasPc); return; }
@@ -253,7 +255,9 @@ addEventListener('DOMContentLoaded', async () => {
   // aba do Ateliê (aberta pelo botão Ateliê): abre direto o personagem; Voltar fecha a aba
   const at = new URLSearchParams(location.search).get('atelie');
   const naPose = new URLSearchParams(location.search).get('pose') === '1';
-  if (at) { Atelie.emAba = true; await Atelie.abrir(at === 'novo' ? null : at, naPose ? { reserva: await Animacoes.reservaDaPose(at) } : {}); if (naPose && Atelie.def) await Animacoes.entrarNaPose(at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
+  const daAnim = new URLSearchParams(location.search).get('anim'); AtelieAnim.liga();
+  if (at && daAnim) { Atelie.emAba = true; if (!(await AtelieAnim.entrar(at, daAnim))) { history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } } // a CÓPIA de uma animação (o que está na timeline)
+  else if (at) { Atelie.emAba = true; await Atelie.abrir(at === 'novo' ? null : at, naPose ? { reserva: await Animacoes.reservaDaPose(at) } : {}); if (naPose && Atelie.def) await Animacoes.entrarNaPose(at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
     if (at && Atelie.def) { const rc = await Citacao.receber(); if (rc?.parte) Citacao.irAtelie(rc.parte); }
   else { Home.pinta(); await Citacao.receber(); } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
   // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
@@ -276,8 +280,10 @@ addEventListener('DOMContentLoaded', async () => {
         if (prox != null) { const k2 = n.chaves[prox]; k2.partes = { ...(k2.partes || {}) }; const e2 = { ...(k2.partes[pid] || {}) };
           if (v.ap && e2.ap === undefined) e2.ap = antes?.[pid]?.ap ?? null; if ('z' in v && e2.z === undefined) e2.z = antes?.[pid]?.z ?? null; k2.partes[pid] = e2; } }
       App.commit('Mudança só neste keyframe (Ateliê)'); return; }
+    if (d?.tipo === 'personagem-anim' && d.def && App.P?.id === d.projeto) { // a cópia DESTA animação foi mudada no Ateliê (outra aba): vale só aqui
+      App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem desta animação (Ateliê)'); return; }
     if (d?.tipo !== 'personagem' || !d.def) return;
-    if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem atualizado'); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
+    if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = AtelieAnim.junta(App.P.personagens[d.def.id], d.def); /* imagens feitas só para um quadro continuam */ await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem atualizado'); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
     else if (!App.P && Home.atual === 'personagens' && !Atelie.emAba) Home.pinta();
   }; } catch { }
   // círculo de espaço (padrão de todos os projetos): as animações deste computador, com "Baixar .animador"
