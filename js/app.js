@@ -93,7 +93,7 @@ const App = {
   /* ---------- quadro atual e reprodução ---------- */
   setQ(q, o = {}) {
     q = clamp(Math.round(q), 0, Modelo.ultimoQuadro(this.P)); if (q === this.q && !o.forca) return;
-    this.q = q; Folha.pinta(); if (!this.tocando) Lado.pinta(); this.pinta(); if (o.som && !this.tocando) Som.raspa(q);
+    this.q = q; Folha.pinta(); if (!this.tocando) Lado.pinta(); else Lado.aoVivo(); this.pinta(); if (o.som && !this.tocando) Som.raspa(q);
   },
   tocar() {
     if (this.tocando) return this.pausa(); if (this.q >= Modelo.ultimoQuadro(this.P)) this.q = 0;
@@ -103,7 +103,7 @@ const App = {
       if (!this.tocando) return;
       let q = q0 + Math.floor((performance.now() - t0) / 1000 * fps);
       if (q > Modelo.ultimoQuadro(this.P)) { if (Folha.loop) { this.pausa(); this.q = 0; return this.tocar(); } this.pausa(); q = Modelo.ultimoQuadro(this.P); }
-      if (q !== this.q) { this.q = q; Folha.pinta(); this.pinta(); }
+      if (q !== this.q) { this.q = q; Folha.pinta(); this.pinta(); Lado.aoVivo(); }
       requestAnimationFrame(passo);
     };
     requestAnimationFrame(passo);
@@ -164,8 +164,9 @@ const App = {
   },
   /* ---------- camada de efeito: vale para o que está abaixo dela (até a próxima camada de efeito) ---------- */
   nomeEfeito(n) { if (n.nomeAuto !== false) n.nome = n.efeitos.length ? 'Efeito: ' + n.efeitos.map(e => Efeitos.nomeEf(e)).join(' + ') : 'Efeito'; },
+  // o: { toda, q (quadro), alvo (camada; null = no topo), faixa: { de, ate } = o tempo de uma camada (arrastado para um clipe na timeline) }
   addEfeito(e, o = {}) {
-    const P = this.P, q = this.q, s = this.noSel(), toda = o.toda ?? (Lado.toda ?? true);
+    const P = this.P, q = o.q ?? this.q, s = o.alvo !== undefined ? o.alvo : this.noSel(), toda = o.toda ?? (Lado.toda ?? true), fx = o.faixa;
     e = { id: uid('ef'), ...e };
     let n = s?.tipo === 'efeito' ? s : null;
     if (n) { // na camada escolhida: clicar de novo no mesmo tira; cor: uma só por camada (troca)
@@ -180,10 +181,11 @@ const App = {
       const de = Math.max(0, q - meio), ate = Math.min(P.duracao - 1, de + (curto || P.fps * 2));
       const r = s ? Modelo.achar(P, s.id) : null, lista = r ? r.lista : P.raiz, i = r ? lista.indexOf(s) : 0, abaixo = lista[i];
       if (abaixo?.tipo === 'efeito') { // logo abaixo já tem uma camada de efeito: uma nova aqui não pegaria nada, então entra nela (com o tempo dele)
-        n = abaixo; if (!toda || curto) { e.de = de; e.ate = ate; } if (e.tipo === 'cor') n.efeitos = n.efeitos.filter(x => x.tipo !== 'cor'); n.efeitos.push(e);
+        n = abaixo; if (fx && !curto) { if (fx.de > (n.de || 0) || (fx.ate != null && fx.ate < Modelo.fimNo(P, n))) { e.de = fx.de; e.ate = fx.ate ?? Modelo.fimNo(P, n); } } else if (!toda || curto) { e.de = de; e.ate = ate; } if (e.tipo === 'cor') n.efeitos = n.efeitos.filter(x => x.tipo !== 'cor'); n.efeitos.push(e);
       } else {
         n = Modelo.novoNo('efeito', { efeitos: [e] });
-        if (!toda || curto) { n.de = de; n.ate = ate; n.chaves = { [q]: n.chaves[0] }; }
+        if (fx && !curto) { n.de = fx.de; n.ate = fx.ate ?? null; n.chaves = { [fx.de]: n.chaves[0] }; }
+        else if (!toda || curto) { n.de = de; n.ate = ate; n.chaves = { [de]: n.chaves[0] }; }
         lista.splice(i, 0, n); // logo acima da escolhida (ou no topo)
       }
     }

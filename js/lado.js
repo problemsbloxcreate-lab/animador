@@ -9,7 +9,7 @@ const Lado = {
   pinta() {
     if (!App.P) return; const el = $('#lado'); if (!el) return;
     const fn = { quadro: 'quadro', props: 'props', efeitos: 'efeitos', som: 'som' }[this.atual] || 'props'; // a Mídia agora fica na esquerda (Midia.liga)
-    const rolagem = el.scrollTop; el.innerHTML = ''; this[fn](el); el.scrollTop = rolagem;
+    const rolagem = el.scrollTop; el.innerHTML = ''; this._vivos = []; this[fn](el); el.scrollTop = rolagem;
   },
   // personagem em foco: o selecionado, ou o 1º do quadro
   foco() { const P = App.P, s = App.noSel(), lista = Modelo.noQuadro(P, App.q); return s?.tipo === 'personagem' && lista.includes(s) ? s : lista.length === 1 ? lista[0] : s?.tipo === 'personagem' ? s : null; },
@@ -128,15 +128,17 @@ const Lado = {
     const inp = $('input', el), lim = x => clamp(x, o.min ?? -Infinity, o.max ?? Infinity), le = () => { const x = parseFloat(String(inp.value).replace(',', '.')); return isNaN(x) ? null : x / m; };
     inp.onchange = () => { const x = le(); if (x == null) { inp.value = mostra(v); return; } v = lim(x); inp.value = mostra(v); aoMudar(v); aoSoltar?.(); };
     inp.onkeydown = e => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); v = lim((le() ?? v) + (e.key === 'ArrowUp' ? 1 : -1) * (o.passo || 1) * (e.shiftKey ? 10 : 1)); inp.value = mostra(v); aoMudar(v); clearTimeout(this._tSol); this._tSol = setTimeout(() => aoSoltar?.(), 400); } if (e.key === 'Enter') inp.blur(); };
-    const nm = $('.pn-n', el); nm.onpointerdown = e => { if (e.button !== 0) return; e.preventDefault(); nm.setPointerCapture(e.pointerId); const x0 = e.clientX, v0 = v; let mexeu = false; document.body.classList.add('arrastando-num');
+    if (o.vivo) (this._vivos ||= []).push(() => { if (document.activeElement === inp || this._arrNum) return; v = o.vivo(); inp.value = mostra(v); });
+    const nm = $('.pn-n', el); nm.onpointerdown = e => { if (e.button !== 0) return; e.preventDefault(); nm.setPointerCapture(e.pointerId); this._arrNum = true; const x0 = e.clientX, v0 = v; let mexeu = false; document.body.classList.add('arrastando-num');
       const mv = ev => { const dx = ev.clientX - x0; if (!mexeu && Math.abs(dx) < 2) return; mexeu = true; v = lim(v0 + dx * (o.passo || 1) * (ev.shiftKey ? 10 : ev.altKey ? .1 : 1)); inp.value = mostra(v); aoMudar(v); };
-      const up = () => { nm.removeEventListener('pointermove', mv); nm.removeEventListener('pointerup', up); nm.removeEventListener('pointercancel', up); document.body.classList.remove('arrastando-num'); if (mexeu) aoSoltar?.(); else inp.focus(); };
+      const up = () => { this._arrNum = false; nm.removeEventListener('pointermove', mv); nm.removeEventListener('pointerup', up); nm.removeEventListener('pointercancel', up); document.body.classList.remove('arrastando-num'); if (mexeu) aoSoltar?.(); else inp.focus(); };
       nm.addEventListener('pointermove', mv); nm.addEventListener('pointerup', up); nm.addEventListener('pointercancel', up); };
     return el;
   },
   // barrinha (0–100%) com número, para opacidade e afins
-  barra(nome, v, aoMudar, aoSoltar) {
+  barra(nome, v, aoMudar, aoSoltar, vivo) {
     const el = h(`<label class="pb"><span>${esc(nome)}</span><input type="range" min="0" max="100" step="1" value="${Math.round(v * 100)}"><b>${Math.round(v * 100)}%</b></label>`), r = $('input', el), b = $('b', el);
+    if (vivo) (this._vivos ||= []).push(() => { if (document.activeElement === r) return; const x = Math.round(vivo() * 100); r.value = x; b.textContent = x + '%'; });
     r.oninput = () => { b.textContent = r.value + '%'; aoMudar(+r.value / 100); }; r.onchange = () => aoSoltar?.(); return el;
   },
   // linha de cor: bolinha de cor + código
@@ -146,13 +148,17 @@ const Lado = {
   },
   cabecalho(icone, titulo, tipo, extra) { return h(`<div class="pr-cab"><span class="pr-ic">${icone}</span><div class="pr-nm">${titulo}<small>${tipo}</small></div>${extra || ''}</div>`); },
   // chave neste quadro: botão de pôr/tirar + pular para a anterior/próxima
-  barraChave(temChave, total) {
+  barraChave(temChave, total, ch) {
     const b = h(`<div class="pr-chave ${temChave ? 'on' : ''}"><button class="ibtn" data-ant title="Chave anterior ( [ )">${ic('prev', 13)}</button>
       <button class="pr-k" data-k title="${temChave ? 'Tirar a chave deste quadro (Shift+K)' : 'Pôr uma chave neste quadro (K)'}">${ic('diamond', 13)}<span>${temChave ? 'Chave neste quadro' : 'Sem chave neste quadro'}</span></button>
       <button class="ibtn" data-prox title="Próxima chave ( ] )">${ic('next', 13)}</button><small>${total} chave${total === 1 ? '' : 's'}</small></div>`);
     $('[data-ant]', b).onclick = () => App.pulaChave(-1); $('[data-prox]', b).onclick = () => App.pulaChave(1);
-    $('[data-k]', b).onclick = () => temChave ? App.tiraChave() : App.chaveAqui(); return b;
+    $('[data-k]', b).onclick = () => (ch ? !!ch()?.[App.q] : temChave) ? App.tiraChave() : App.chaveAqui();
+    if (ch) (this._vivos ||= []).push(() => { const t = !!ch()?.[App.q]; b.classList.toggle('on', t); $('[data-k] span', b).textContent = t ? 'Chave neste quadro' : 'Sem chave neste quadro'; });
+    return b;
   },
+  // TOCANDO a timeline: os números das Propriedades andam junto (sem redesenhar o painel; o campo em uso não muda)
+  aoVivo() { if (this.atual !== 'props') return; for (const f of this._vivos || []) { try { f(); } catch { } } },
   props(el) {
     const P = App.P, q = App.q, n = App.noSel();
     if (App.sel === 'camera') this.propsCamera(el, P, q);
@@ -162,7 +168,7 @@ const Lado = {
     this.propsProjeto(el, P, !n && App.sel !== 'camera');
   },
   propsCamada(el, P, q, n) {
-    const t = Modelo.transf(n, q), muda = (k, v) => { Modelo.poeTransf(n, q, { [k]: v }); App.pinta(); }, sol = () => App.commit('Propriedade', { semArvore: true });
+    const t = Modelo.transf(n, q), muda = (k, v) => { Modelo.poeTransf(n, App.q, { [k]: v }); App.pinta(); }, sol = () => App.commit('Propriedade', { semArvore: true });
     const nomeTipo = { pasta: 'Pasta', personagem: 'Personagem', imagem: n.vetor ? 'Imagem (vetor)' : 'Imagem', texto: 'Texto', forma: 'Forma', efeito: 'Efeito' }[n.tipo] || n.tipo;
     const defP = n.tipo === 'personagem' ? P.personagens[n.ref] : null;
     const cab = this.cabecalho(defP ? Icone.html(defP, 26) : ic(TIPO_IC[n.tipo] || 'layers', 16), `<input class="pr-nome" value="${esc(n.nome)}" title="Nome da camada">`, `${nomeTipo}${defP ? ' · ' + esc(defP.nome) : ''}`,
@@ -171,13 +177,14 @@ const Lado = {
     $('.pr-nome', cab).onkeydown = ev => { if (ev.key === 'Enter') ev.target.blur(); };
     $('[data-vis]', cab).onclick = () => { n.vis = n.vis === false; App.commit(n.vis ? 'Mostrar' : 'Esconder'); };
     $('[data-tr]', cab).onclick = () => { n.trava = !n.trava; App.commit(n.trava ? 'Travar' : 'Destravar'); };
-    const topo = h('<div class="pr-topo"></div>'); topo.append(cab, this.barraChave(!!n.chaves?.[q], Object.keys(n.chaves || {}).length)); el.appendChild(topo);
+    const topo = h('<div class="pr-topo"></div>'); topo.append(cab, this.barraChave(!!n.chaves?.[q], Object.keys(n.chaves || {}).length, () => n.chaves)); el.appendChild(topo);
     // TRANSFORMAR
     el.appendChild(this.secao('p-transf', 'Transformar', `quadro ${q + 1}`, c => {
       const g = h('<div class="pn-grade"></div>');
-      g.append(this.num('X', t.x, { passo: 1, dec: 1, unid: 'px' }, v => muda('x', v), sol), this.num('Y', t.y, { passo: 1, dec: 1, unid: 'px' }, v => muda('y', v), sol),
-        this.num('Tamanho', t.s, { passo: .005, min: .01, max: 20, mult: 100, dec: 1, unid: '%' }, v => muda('s', v), sol), this.num('Girar', t.r, { passo: .5, min: -3600, max: 3600, dec: 1, unid: '°' }, v => muda('r', v), sol));
-      c.appendChild(g); c.appendChild(this.barra('Opacidade', t.op ?? 1, v => muda('op', v), sol));
+      const vv = k => () => Modelo.transf(n, App.q)[k] ?? (k === 'op' || k === 's' ? 1 : 0); // ao vivo: tocando, os números andam junto
+      g.append(this.num('X', t.x, { passo: 1, dec: 1, unid: 'px', vivo: vv('x') }, v => muda('x', v), sol), this.num('Y', t.y, { passo: 1, dec: 1, unid: 'px', vivo: vv('y') }, v => muda('y', v), sol),
+        this.num('Tamanho', t.s, { passo: .005, min: .01, max: 20, mult: 100, dec: 1, unid: '%', vivo: vv('s') }, v => muda('s', v), sol), this.num('Girar', t.r, { passo: .5, min: -3600, max: 3600, dec: 1, unid: '°', vivo: vv('r') }, v => muda('r', v), sol));
+      c.appendChild(g); c.appendChild(this.barra('Opacidade', t.op ?? 1, v => muda('op', v), sol, vv('op')));
       const at = h(`<div class="pr-acoes"><button class="btn sm ${t.sx < 0 ? 'on' : ''}" data-sx title="Espelhar na horizontal">${ic('flip', 13)} Espelhar</button><button class="btn sm" data-cen title="Pôr no meio da câmera">${ic('camera', 13)} No meio</button><button class="btn sm" data-zero title="Giro 0°, tamanho 100%, opacidade 100%">${ic('undo', 13)} Zerar</button></div>`);
       $('[data-sx]', at).onclick = () => { Modelo.poeTransf(n, q, { sx: t.sx < 0 ? 1 : -1 }); App.commit('Espelhar'); };
       $('[data-cen]', at).onclick = () => { const c0 = Modelo.camera(P, q); Modelo.poeTransf(n, q, { x: round(c0.x, 1), y: round(c0.y, 1) }); App.commit('No meio da câmera'); };
@@ -234,12 +241,13 @@ const Lado = {
     { const ef = h(`<button class="pr-ir-ef">${ic('sparkles', 13)}<span>Trêmulo e efeitos desta camada</span><small>${n.tremulo ? (n.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : ''}</small>${ic('right', 12)}</button>`); ef.onclick = () => this.aba('efeitos'); el.appendChild(ef); }
   },
   propsCamera(el, P, q) {
-    const c = Modelo.camera(P, q), muda = (k, v) => { P.camera.chaves[q] = { ...c, ...(P.camera.chaves[q] || {}), [k]: v }; App.pinta(); }, sol = () => App.commit('Câmera', { semArvore: true });
-    const topo = h('<div class="pr-topo"></div>'); topo.append(this.cabecalho(ic('camera', 16), 'Câmera', `${P.w} × ${P.h}`), this.barraChave(!!P.camera.chaves[q], Object.keys(P.camera.chaves).length)); el.appendChild(topo);
+    const muda = (k, v) => { const q2 = App.q; P.camera.chaves[q2] = { ...Modelo.camera(P, q2), ...(P.camera.chaves[q2] || {}), [k]: v }; App.pinta(); }, sol = () => App.commit('Câmera', { semArvore: true }), c = Modelo.camera(P, q);
+    const topo = h('<div class="pr-topo"></div>'); topo.append(this.cabecalho(ic('camera', 16), 'Câmera', `${P.w} × ${P.h}`), this.barraChave(!!P.camera.chaves[q], Object.keys(P.camera.chaves).length, () => P.camera.chaves)); el.appendChild(topo);
     el.appendChild(this.secao('c-pos', 'Posição', `quadro ${q + 1}`, b => {
       const g = h('<div class="pn-grade"></div>');
-      g.append(this.num('X', c.x, { passo: 1, dec: 1, unid: 'px' }, v => muda('x', v), sol), this.num('Y', c.y, { passo: 1, dec: 1, unid: 'px' }, v => muda('y', v), sol),
-        this.num('Zoom', c.zoom, { passo: .005, min: .2, max: 6, mult: 100, dec: 0, unid: '%' }, v => muda('zoom', v), sol), this.num('Girar', c.r || 0, { passo: .25, min: -45, max: 45, dec: 1, unid: '°' }, v => muda('r', v), sol));
+      const cv = k => () => Modelo.camera(P, App.q)[k] || 0;
+      g.append(this.num('X', c.x, { passo: 1, dec: 1, unid: 'px', vivo: cv('x') }, v => muda('x', v), sol), this.num('Y', c.y, { passo: 1, dec: 1, unid: 'px', vivo: cv('y') }, v => muda('y', v), sol),
+        this.num('Zoom', c.zoom, { passo: .005, min: .2, max: 6, mult: 100, dec: 0, unid: '%', vivo: cv('zoom') }, v => muda('zoom', v), sol), this.num('Girar', c.r || 0, { passo: .25, min: -45, max: 45, dec: 1, unid: '°', vivo: cv('r') }, v => muda('r', v), sol));
       b.appendChild(g);
       const a = h(`<div class="pr-acoes"><button class="btn sm" data-cen title="Câmera no meio do vídeo, sem zoom nem giro">${ic('undo', 13)} Centralizar</button></div>`);
       $('[data-cen]', a).onclick = () => { P.camera.chaves[q] = { ...c, ...(P.camera.chaves[q] || {}), x: P.w / 2, y: P.h / 2, zoom: 1, r: 0 }; App.commit('Centralizar a câmera'); }; b.appendChild(a);
@@ -303,10 +311,15 @@ const Lado = {
   GRUPOS_EF: [
     ['tela', 'Tela', ['vinheta', 'granulado', 'cinema', 'desfoque', 'brilho', 'vhs', 'escurecer', 'clarear']],
     ['mov', 'Movimento', ['tremor', 'tremulo:tremer', 'tremulo:ondular']],
-    ['trans', 'Transições', ['chicote', 'zoomcorte', 'flash']],
+    ['trans', 'Cortes entre cenas', ['chicote', 'zoomcorte', 'flash']],
   ],
   DICAS_EF: { vinheta: 'Escurece as bordas', granulado: 'Grão de filme', cinema: 'Faixas pretas em cima e embaixo', desfoque: 'Imagem borrada', brilho: 'Brilho suave em volta da luz', vhs: 'Fita antiga, linhas e cor separada', escurecer: 'Tudo mais escuro', clarear: 'Tudo mais claro', tremor: 'A tela inteira treme', 'tremulo:tremer': 'Tudo abaixo treme quadro a quadro', 'tremulo:ondular': 'Tudo abaixo ondula', chicote: 'Passa borrando para o lado (o corte fica no meio)', zoomcorte: 'Zoom borrado no corte', flash: 'Clarão branco' },
+  // item da biblioteca que dá para ARRASTAR para a timeline (js/folhavideo.js mostra onde cai)
+  arrastavel(el, d) { el.draggable = true; el.ondragstart = e => { Folha.arrasto = d; e.dataTransfer.effectAllowed = 'copy'; try { e.dataTransfer.setData('text/plain', d.nome); } catch { } document.body.classList.add('arrastando-ef'); };
+    el.ondragend = () => { Folha.arrasto = null; document.body.classList.remove('arrastando-ef'); }; return el; },
   efDef(id) { if (id.startsWith('tremulo:')) { const m = id.split(':')[1]; return { id: 'tremulo', modo: m, nome: m === 'tremer' ? 'Trêmulo' : 'Ondular', ic: 'wave', forca: .4 }; } return Efeitos.TELA.find(e => e.id === id); },
+  DICAS_ES: { pop: 'cresce rápido e quica', carimbo: 'cai grande e bate', aparecer: 'fade: vai aparecendo', subir: 'sobe para o lugar', descer: 'desce para o lugar', girar: 'chega girando', esticar: 'estica e volta' },
+  ICS_ES: { pop: 'zoomIn', carimbo: 'square', aparecer: 'eye', subir: 'up', descer: 'down', girar: 'redo', esticar: 'move' },
   efeitos(el) {
     const P = App.P, s = App.noSel(), alvo = s?.tipo === 'efeito' ? s : null, toda = this.toda ?? true;
     const tem = (tipo, extra = {}) => alvo?.efeitos.some(e => e.tipo === tipo && Object.entries(extra).every(([k, v]) => e[k] === v));
@@ -318,22 +331,44 @@ const Lado = {
       el.appendChild(this.secao('e-trem', 'Trêmulo', s.tremulo ? (s.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : 'a camada parada fica viva', c => c.appendChild(this.tremulo(s, true)), true));
     }
     // 2) para onde vai o que for clicado
-    const destino = alvo ? `Clique para pôr em <b>${esc(alvo.nome)}</b>.` : `Clique cria uma <b>camada de efeito</b> ${s ? `acima de <b>${esc(s.nome)}</b>` : 'no topo'}: vale para tudo o que está abaixo dela.`;
+    const destino0 = alvo ? `Clique para pôr em <b>${esc(alvo.nome)}</b>.` : `Clique cria uma <b>camada de efeito</b> ${s ? `acima de <b>${esc(s.nome)}</b>` : 'no topo'}: vale para tudo o que está abaixo dela.`;
+    const destino = destino0 + ' Ou <b>arraste para a timeline</b>: ela mostra onde vai cair.';
     const ond = h(`<div class="ef-onde"><div class="ef-dica">${ic('info', 13)}<span>${destino}</span></div>${alvo ? '' : `<div class="pr-seg"><span>Duração</span><div><button data-t="1" class="${toda ? 'on' : ''}" title="Do primeiro ao último quadro">Toda a timeline</button><button data-t="0" class="${toda ? '' : 'on'}" title="Começa no quadro de agora e dura um pouco">Daqui, um pouco</button></div></div>`}</div>`);
     $$('[data-t]', ond).forEach(b => b.onclick = () => { this.toda = b.dataset.t === '1'; this.pinta(); }); el.appendChild(ond);
     // 3) biblioteca
     el.appendChild(this.secao('e-cor', 'Cor', 'o visual de tudo abaixo', c => {
       const g = h('<div class="visuais"></div>');
-      for (const v of Efeitos.VISUAIS) { if (v.id === 'normal') continue; const b = h(`<button class="visual ${tem('cor', { visual: v.id }) ? 'on' : ''}" title="${esc(v.nome)}"><i style="background:linear-gradient(135deg,${v.cor[0]},${v.cor[1]});filter:${v.f || 'none'}"></i><span>${esc(v.nome)}</span></button>`); b.onclick = () => App.addEfeito({ tipo: 'cor', visual: v.id }); g.appendChild(b); }
+      for (const v of Efeitos.VISUAIS) { if (v.id === 'normal') continue; const b = h(`<button class="visual ${tem('cor', { visual: v.id }) ? 'on' : ''}" title="${esc(v.nome)}"><i style="background:linear-gradient(135deg,${v.cor[0]},${v.cor[1]});filter:${v.f || 'none'}"></i><span>${esc(v.nome)}</span></button>`); b.onclick = () => App.addEfeito({ tipo: 'cor', visual: v.id }); this.arrastavel(b, { k: 'ef', e: { tipo: 'cor', visual: v.id }, nome: 'Cor ' + v.nome }); g.appendChild(b); }
       c.appendChild(g);
     }, true));
     for (const [gid, nome, ids] of this.GRUPOS_EF) el.appendChild(this.secao('e-' + gid, nome, '', c => {
       const g = h('<div class="ef-lib"></div>');
       for (const id of ids) { const ef = this.efDef(id); if (!ef) continue; const on = tem(ef.id, ef.modo ? { modo: ef.modo } : {});
         const b = h(`<button class="ef-it ${on ? 'on' : ''}" title="${esc(this.DICAS_EF[id] || ef.nome)}">${ic(ef.ic, 15)}<span><b>${esc(ef.nome.replace('Transição ', ''))}</b><small>${esc(this.DICAS_EF[id] || '')}</small></span>${on ? ic('check', 13) : ic('plus', 13)}</button>`);
-        b.onclick = () => App.addEfeito({ tipo: ef.id, forca: ef.forca, ...(ef.modo ? { modo: ef.modo, ritmo: 2 } : {}) }); g.appendChild(b); }
+        const eo = { tipo: ef.id, forca: ef.forca, ...(ef.modo ? { modo: ef.modo, ritmo: 2 } : {}) };
+        b.onclick = () => App.addEfeito({ ...eo }); this.arrastavel(b, { k: 'ef', e: eo, nome: ef.nome.replace('Transição ', '') }); g.appendChild(b); }
       c.appendChild(g);
     }, gid !== 'trans'));
+    // TRANSIÇÕES DE ENTRADA E SAÍDA (de uma camada) e FADES DO SOM
+    const camS = s && s.tipo !== 'efeito' ? s : null, audS = (P.audios || []).find(a => a.id === App.sel);
+    el.appendChild(this.secao('e-es', 'Entrada e saída', camS ? esc(camS.nome) : 'arraste para uma camada', c => {
+      c.appendChild(h(`<div class="pr-info">Arraste para o <b>começo</b> (entrada) ou o <b>fim</b> (saída) de uma camada na timeline${camS ? `, ou clique para pôr em <b>${esc(camS.nome)}</b>` : ''}. A duração muda pela alça branca no canto do clipe.</div>`));
+      const g = h('<div class="ef-lib duas"></div>');
+      for (const [id, nm] of Object.entries(Modelo.ANIMS)) { const on = camS && (camS.entra?.tipo === id || camS.sai?.tipo === id);
+        const b = h(`<button class="ef-it ${on ? 'on' : ''}" title="${esc(this.DICAS_ES[id] || nm)}">${ic(this.ICS_ES[id] || 'transition', 14)}<span><b>${esc(nm)}</b><small>${esc(this.DICAS_ES[id] || '')}</small></span></button>`);
+        b.onclick = ev => { if (!camS) return UI.toast('Escolha uma camada ou arraste para a timeline.', { kind: 'warn' }); const poe = k => { if (k === 'sai' && camS.ate == null) camS.ate = Modelo.fimNo(P, camS); camS[k] = { tipo: id, q: camS[k]?.q || Math.round(P.fps * .25) }; App.commit((k === 'entra' ? 'Entrada: ' : 'Saída: ') + nm); };
+          const r = b.getBoundingClientRect(); UI.ctx(r.left, r.bottom + 2, [{ head: `${nm} em ${camS.nome}` }, { label: 'Na entrada', icon: 'start', checked: camS.entra?.tipo === id, action: () => poe('entra') }, { label: 'Na saída', icon: 'end', checked: camS.sai?.tipo === id, action: () => poe('sai') }]); };
+        this.arrastavel(b, { k: 'anim', tipo: id, nome: nm }); g.appendChild(b); }
+      c.appendChild(g);
+      // som
+      c.appendChild(h(`<div class="ef-sub">${ic('vol', 12)} Som</div>`));
+      const gs = h('<div class="ef-lib duas"></div>');
+      for (const [k, nm, dc] of [['fi', 'Fade de entrada', 'o som começa baixinho'], ['fo', 'Fade de saída', 'o som termina baixinho']]) { const on = audS && audS[k];
+        const b = h(`<button class="ef-it ${on ? 'on' : ''}" title="${dc}">${ic(k === 'fi' ? 'start' : 'end', 14)}<span><b>${nm}</b><small>${dc}</small></span></button>`);
+        b.onclick = () => { if (!audS) return UI.toast('Escolha um áudio na timeline (ou arraste o fade para ele).', { kind: 'warn' }); if (audS[k]) delete audS[k]; else audS[k] = .5; App.commit(nm + ' do som'); };
+        this.arrastavel(b, { k: 'fade', nome: nm }); gs.appendChild(b); }
+      c.appendChild(gs);
+    }, true));
     // efeitos antigos do vídeo todo (projetos de antes das camadas de efeito)
     const velhos = P.efeitos.tela || [];
     if (velhos.length || (P.efeitos.visual && P.efeitos.visual !== 'normal')) el.appendChild(this.secao('e-velhos', 'Do vídeo todo (antigos)', '', c => {

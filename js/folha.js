@@ -16,7 +16,7 @@ const Folha = {
     this.cv.addEventListener('contextmenu', e => { e.preventDefault(); this.menu(e); });
     this.cv.addEventListener('wheel', e => { if (e.ctrlKey) { e.preventDefault(); this.zoom(this.CW * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); } }, { passive: false });
     $('#tl-zoom').oninput = e => this.zoom(+e.target.value);
-    this.ligaBordaNomes();
+    this.ligaBordaNomes(); this.ligaVideo?.(); // modo Vídeo, fades e arrastar efeitos (js/folhavideo.js)
     this.pinta();
   },
   // largura da coluna dos NOMES: arrastar a borda entre os nomes e os quadros (dois cliques = padrão)
@@ -35,6 +35,7 @@ const Folha = {
   zoom(cw) { const q = App.q, x = q * this.CW - this.grade.scrollLeft; this.CW = clamp(Math.round(cw), 6, 48); $('#tl-zoom').value = this.CW; this.pinta(); this.grade.scrollLeft = Math.max(0, q * this.CW - x); },
   // linhas da folha: camadas (como na hierarquia), câmera, efeitos, legendas e áudios
   linhas() {
+    if (this.modo === 'video' && this.linhasVideo) { const out = this.linhasVideo(); let y = 0; for (const l of out) { l.h ||= this.RH; l.y = y; y += l.h; } this._altura = y; return out; }
     const P = App.P, out = [];
     for (const l of Modelo.linhas(P)) { out.push({ tipo: 'no', no: l.no, nivel: l.nivel, nome: l.no.nome });
       if (l.no.tipo === 'efeito') for (const e of l.no.efeitos || []) if (e.de != null) out.push({ tipo: 'efeito', ef: e, pai: l.no, nivel: l.nivel + 1, nome: Efeitos.nomeEf(e) }); } // efeito com tempo próprio dentro da camada
@@ -49,17 +50,18 @@ const Folha = {
     if (!this.cv || !App.P) return; const P = App.P, L = this._L = this.linhas();
     // nomes à esquerda
     this.nomes.innerHTML = '<div class="regua"></div>' + L.map((l, i) => {
+      if (l.tipo === 'sec' || l.tipo === 'vazio') return `<div class="reg tl-${l.tipo}" data-i="${i}" style="height:${l.h}px">${l.ic ? ic(l.ic, 12) : ''}<span class="nm">${esc(l.nome)}</span></div>`;
       const sel = (l.tipo === 'no' && App.sel === l.no.id) || (l.tipo === 'camera' && App.sel === 'camera') || (l.tipo === 'efeito' && App.sel === l.ef.id) || (l.tipo === 'audio' && App.sel === l.a.id);
       const icn = l.tipo === 'no' ? TIPO_IC[l.no.tipo] : { camera: 'camera', efeito: 'sparkles', legenda: 'text', audio: 'mic' }[l.tipo];
       const defP = l.tipo === 'no' && l.no.tipo === 'personagem' ? P.personagens[l.no.ref] : null, corP = defP && Icone.cor(defP);
-      const ab = l.tipo === 'no' && l.no.filhos ? `<button class="ab" data-ab title="Abrir/fechar a pasta">${ic(l.no.aberto === false ? 'right' : 'down', 11)}</button>` : '';
+      const ab = l.tipo === 'no' && l.no.filhos && !l.video ? `<button class="ab" data-ab title="Abrir/fechar a pasta">${ic(l.no.aberto === false ? 'right' : 'down', 11)}</button>` : '';
       return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''} ${l.no?.filhos && l.no.corPasta ? 'com-cor' : ''} ${corP ? 'pers-cor' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px;${l.h !== this.RH ? `height:${l.h}px;` : ''}${l.no?.filhos && l.no.corPasta ? `--pc:${l.no.corPasta};` : ''}${corP ? `--cp:${corP};` : ''}">${ab}${defP ? Icone.html(defP, 15) : ic(icn, 13)}<span class="nm">${esc(l.nome)}</span>${l.tipo === 'audio' ? `<button class="ms ${l.a.mudo ? 'on' : ''}" data-mudo title="Mudo">M</button><button class="ms solo ${l.a.solo ? 'on' : ''}" data-solo title="Solo: só ele toca">S</button>` : ''}</div>`;
     }).join('') + '<div class="tl-fim" aria-hidden="true"></div>'; // espaço no fim do mesmo tamanho da sobra da grade (30 px + barra de rolagem): sem ele, rolando até o fim os nomes paravam antes e ficavam linhas fora do lugar
     // cabeçalho: pasta nova (com a camada escolhida dentro, se tiver uma)
     const cab = $('.regua', this.nomes); cab.innerHTML = `<span>Camadas</span><span class="sp"></span><button class="ibtn" data-pasta title="Pasta nova (com a camada escolhida dentro) · Ctrl+G">${ic('folder', 13)}</button>`;
     $('[data-pasta]', cab).onclick = () => App.addPasta();
     $$('.reg', this.nomes).forEach(r => {
-      const l = L[+r.dataset.i]; r.onclick = e => { if (e.target.closest('[data-ab],[data-mudo],[data-solo]')) return; this.selLinha(l); };
+      const l = L[+r.dataset.i]; if (l.tipo === 'sec' || l.tipo === 'vazio') return; r.onclick = e => { if (e.target.closest('[data-ab],[data-mudo],[data-solo]')) return; this.selLinha(l); };
       if (l.tipo === 'audio') { $('[data-mudo]', r).onclick = () => { l.a.mudo = !l.a.mudo; if (App.tocando) Som.toca(App.q); App.commit(l.a.mudo ? 'Mudo' : 'Som de volta'); };
         $('[data-solo]', r).onclick = () => { l.a.solo = !l.a.solo; if (App.tocando) Som.toca(App.q); App.commit('Solo'); }; }
       if (l.tipo !== 'no') return; const n = l.no;
@@ -101,14 +103,17 @@ const Folha = {
     L.forEach((l, i) => {
       const y = REG + l.y - sy, lh = l.h; if (y > H || y + lh < REG) return;
       const sel = (l.tipo === 'no' && App.sel === l.no.id) || (l.tipo === 'camera' && App.sel === 'camera') || (l.tipo === 'efeito' && App.sel === l.ef.id) || (l.tipo === 'audio' && App.sel === l.a.id);
+      if (l.tipo === 'sec') return this.linhaSec(c, l, y, W); if (l.tipo === 'vazio') return this.linhaVazio(c, l, y, sx, W);
       if (sel) { c.fillStyle = 'rgba(140,170,210,.12)'; c.fillRect(0, y, W, lh); }
       c.fillStyle = '#2a2a2a'; c.fillRect(0, y + lh - 1, W, 1);
-      if (l.tipo === 'no') this.linhaNo(c, P, l.no, y, sx, sel);
+      if (l.tipo === 'no' && l.video) this.clipe(c, P, l, y, sx, sel);
+      else if (l.tipo === 'no') this.linhaNo(c, P, l.no, y, sx, sel);
       else if (l.tipo === 'camera') this.chaves(c, P.camera.chaves, y, sx, '#9fc3ff');
       else if (l.tipo === 'efeito') this.bloco(c, l.ef.de, l.ef.ate ?? (l.pai ? Modelo.fimNo(P, l.pai) : l.ef.de), y, sx, sel ? '#9a7ad8' : '#6d5a94', l.nome);
       else if (l.tipo === 'legenda') (P.legendas || []).forEach(g => this.bloco(c, g.de, g.ate, y, sx, '#4f6a58', String(g.texto || '').replace(/\*/g, '')));
-      else if (l.tipo === 'audio') this.onda(c, P, l.a, y, sx, sel, lh);
+      else if (l.tipo === 'audio') { this.onda(c, P, l.a, y, sx, sel, lh); if (sel || this._sobre === l.a.id) this.alcasAudio?.(c, P, l.a, y, sx); }
     });
+    this.sobreposicoes?.(c, P, L, sx, sy, W); // onde a camada de efeito escolhida vale + alvo do arrasto da biblioteca
     // trecho marcado (Shift + arrastar na régua)
     const tr = this.trecho; if (tr) { const x0 = tr.de * CW - sx, w = (tr.ate - tr.de + 1) * CW; c.fillStyle = 'rgba(25,211,240,.09)'; c.fillRect(x0, REG, w, H); c.fillStyle = 'rgba(25,211,240,.55)'; c.fillRect(x0, REG, 1, H); c.fillRect(x0 + w - 1, REG, 1, H); }
     // régua
@@ -127,6 +132,9 @@ const Folha = {
     const de = n.de || 0, ate = Modelo.fimNo(P, n), CW = this.CW, cor = n.tipo === 'pasta' ? (n.corPasta ? n.corPasta + '99' : '#4b4b4b') : n.tipo === 'personagem' ? (Icone.cor(P.personagens[n.ref]) ? Icone.cor(P.personagens[n.ref]) + '88' : '#56657a') : n.tipo === 'texto' ? '#6b6150' : '#4f6562';
     c.fillStyle = n.vis === false ? '#333' : cor; c.globalAlpha = sel ? 1 : .85; c.beginPath(); c.roundRect(de * CW - sx + 1, y + 4, (ate - de + 1) * CW - 2, this.RH - 9, 4); c.fill(); c.globalAlpha = 1;
     c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(de * CW - sx + 1, y + 4, 3, this.RH - 9); c.fillRect((ate + 1) * CW - sx - 4, y + 4, 3, this.RH - 9);
+    for (const k of ['entra', 'sai']) { const t = n[k]; if (!t) continue; const qq = Math.min(t.q, ate - de + 1), x0 = k === 'entra' ? de * CW - sx + 1 : (ate + 1 - qq) * CW - sx - 1, w = qq * CW, top = y + 4, hh = this.RH - 9;
+      c.fillStyle = 'rgba(255,255,255,.3)'; c.beginPath(); if (k === 'entra') { c.moveTo(x0, top + hh); c.lineTo(x0 + w, top); c.lineTo(x0 + w, top + hh); } else { c.moveTo(x0, top); c.lineTo(x0 + w, top + hh); c.lineTo(x0, top + hh); } c.closePath(); c.fill(); }
+    if (App.sel === n.id || this._sobre === n.id) { const tam = ate - de + 1; this.alcas?.(c, de * CW - sx + 1 + (n.entra ? Math.min(n.entra.q, tam) * CW : 0), (ate + 1) * CW - sx - 1 - (n.sai ? Math.min(n.sai.q, tam) * CW : 0), y + 2); }
     this.chaves(c, n.chaves, y, sx, '#f0f0f0', k => n.chaves[k].sessoes || n.chaves[k].partes);
   },
   // PASTA: a linha é da PASTA, não de um conteúdo — faixa listrada (tipo "em obras", só a parte escura) na cor da pasta.
@@ -212,6 +220,8 @@ const Folha = {
     if (p.i < 0) { App.pausa(); App.setQ(p.q, { som: true }); return mov(pp => App.setQ(pp.q, { som: true })); }
     const l = L[p.i]; if (!l) return; this.selLinha(l);
     const perto = (q, borda) => Math.abs(p.x - (borda === 'fim' ? (q + 1) * this.CW : q * this.CW)) < 6;
+    if (l.tipo === 'sec' || l.tipo === 'vazio') { App.pausa(); App.setQ(p.q, { som: true }); return mov(pp => App.setQ(pp.q, { som: true })); }
+    if (this.desceVideo?.(e, p, l, mov, perto)) return; // alças de entrada/saída e de fade do som; modo Vídeo: mover o clipe inteiro
     if (l.tipo === 'no' || l.tipo === 'camera') {
       const ch = l.tipo === 'no' ? l.no.chaves : P.camera.chaves, k = Object.keys(ch).map(Number).find(k => k === p.q);
       if (k != null && !(l.no?.trava) && l.no?.tipo !== 'efeito') { // arrastar a chave
@@ -296,6 +306,8 @@ const Folha = {
         { label: 'Editar o corte…', icon: 'cut', key: 'dois cliques', action: () => CorteVoz.abrir(a) },
         !a.loop && q > (a.de || 0) && q < Som.fimQ(App.P, a) && { label: 'Dividir aqui', icon: 'split', action: () => CorteVoz.dividirEm(a, q) },
         { label: 'Tirar silêncios…', icon: 'wand', action: () => CorteVoz.abrir(a) },
+        '-', { label: a.fi ? 'Tirar o fade de entrada' : 'Fade de entrada (0,5 s)', icon: 'start', action: () => { if (a.fi) delete a.fi; else a.fi = .5; App.commit('Fade de entrada do som'); } },
+        { label: a.fo ? 'Tirar o fade de saída' : 'Fade de saída (0,5 s)', icon: 'end', action: () => { if (a.fo) delete a.fo; else a.fo = .5; App.commit('Fade de saída do som'); } },
         '-', { label: a.mudo ? 'Tirar o mudo' : 'Mudo', icon: a.mudo ? 'vol' : 'mute', action: () => { a.mudo = !a.mudo; App.commit('Mudo'); } },
         { label: 'Limpar e nivelar a voz', icon: 'wand', action: () => Som.limpar(a) },
         { label: 'Tirar o áudio', icon: 'trash', danger: true, action: () => { App.P.audios = App.P.audios.filter(x => x !== a); App.commit('Tirar áudio'); } }].filter(Boolean)); }
@@ -325,6 +337,8 @@ const Folha = {
       l.tipo === 'no' && '-',
       l.tipo === 'no' && { label: 'Começar aqui', icon: 'start', action: () => { l.no.de = p.q; App.commit('Começo'); } },
       l.tipo === 'no' && { label: 'Terminar aqui', icon: 'end', action: () => { l.no.ate = Math.max(l.no.de || 0, p.q); App.commit('Fim'); } },
+      l.tipo === 'no' && l.no.tipo !== 'efeito' && { label: 'Entrada', icon: 'start', sub: [{ label: 'Nenhuma', icon: !l.no.entra ? 'check' : null, action: () => { delete l.no.entra; App.commit('Sem entrada'); } }, ...Object.entries(Modelo.ANIMS).map(([id, nm]) => ({ label: nm, icon: l.no.entra?.tipo === id ? 'check' : null, action: () => { l.no.entra = { tipo: id, q: l.no.entra?.q || Math.round(App.P.fps * .25) }; App.commit('Entrada: ' + nm); } }))] },
+      l.tipo === 'no' && l.no.tipo !== 'efeito' && { label: 'Saída', icon: 'end', sub: [{ label: 'Nenhuma', icon: !l.no.sai ? 'check' : null, action: () => { delete l.no.sai; App.commit('Sem saída'); } }, ...Object.entries(Modelo.ANIMS).map(([id, nm]) => ({ label: nm, icon: l.no.sai?.tipo === id ? 'check' : null, action: () => { if (l.no.ate == null) l.no.ate = Modelo.fimNo(App.P, l.no); l.no.sai = { tipo: id, q: l.no.sai?.q || Math.round(App.P.fps * .25) }; App.commit('Saída: ' + nm); } }))] },
       l.tipo === 'no' && { label: l.no.interp ? 'Movimento: segurar até a próxima chave' : 'Movimento: intercalar entre as chaves', icon: 'transition', action: () => { l.no.interp = !l.no.interp; App.commit('Movimento'); } },
       '-', { label: `Citar na IA: ${l.nome} no quadro ${p.q + 1}`, icon: 'sparkles', ai: true, action: () => Assistente.citar(l.tipo === 'no' ? { tipo: 'camada', id: l.no.id, nome: l.no.nome, q: p.q } : { tipo: 'camera', q: p.q }) },
       { label: `Citar o quadro ${p.q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, p.q, l.tipo === 'no' ? l.no.id : 'camera') },
