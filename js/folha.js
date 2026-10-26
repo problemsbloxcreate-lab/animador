@@ -27,7 +27,8 @@ const Folha = {
     out.push({ tipo: 'camera', nome: 'Câmera' });
     (P.efeitos.tela || []).forEach(ef => out.push({ tipo: 'efeito', ef, nome: (Efeitos.TELA.find(t => t.id === ef.tipo)?.nome || ef.tipo) }));
     if ((P.legendas || []).length) out.push({ tipo: 'legenda', nome: 'Legendas' });
-    (P.audios || []).forEach(a => out.push({ tipo: 'audio', a, nome: a.nome }));
+    (P.audios || []).forEach(a => out.push({ tipo: 'audio', a, nome: a.nome, h: 40 })); // áudio: linha mais alta (a onda aparece de verdade)
+    let y = 0; for (const l of out) { l.h ||= this.RH; l.y = y; y += l.h; } this._altura = y;
     return out;
   },
   pinta() {
@@ -38,7 +39,7 @@ const Folha = {
       const icn = l.tipo === 'no' ? TIPO_IC[l.no.tipo] : { camera: 'camera', efeito: 'sparkles', legenda: 'text', audio: 'mic' }[l.tipo];
       const defP = l.tipo === 'no' && l.no.tipo === 'personagem' ? P.personagens[l.no.ref] : null, corP = defP && Icone.cor(defP);
       const ab = l.tipo === 'no' && l.no.filhos ? `<button class="ab" data-ab title="Abrir/fechar a pasta">${ic(l.no.aberto === false ? 'right' : 'down', 11)}</button>` : '';
-      return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''} ${l.no?.filhos && l.no.corPasta ? 'com-cor' : ''} ${corP ? 'pers-cor' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px;${l.no?.filhos && l.no.corPasta ? `--pc:${l.no.corPasta};` : ''}${corP ? `--cp:${corP};` : ''}">${ab}${defP ? Icone.html(defP, 15) : ic(icn, 13)}<span class="nm">${esc(l.nome)}</span>${l.tipo === 'audio' ? `<button class="ms ${l.a.mudo ? 'on' : ''}" data-mudo title="Mudo">M</button><button class="ms solo ${l.a.solo ? 'on' : ''}" data-solo title="Solo: só ele toca">S</button>` : ''}</div>`;
+      return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''} ${l.no?.filhos && l.no.corPasta ? 'com-cor' : ''} ${corP ? 'pers-cor' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px;${l.h !== this.RH ? `height:${l.h}px;` : ''}${l.no?.filhos && l.no.corPasta ? `--pc:${l.no.corPasta};` : ''}${corP ? `--cp:${corP};` : ''}">${ab}${defP ? Icone.html(defP, 15) : ic(icn, 13)}<span class="nm">${esc(l.nome)}</span>${l.tipo === 'audio' ? `<button class="ms ${l.a.mudo ? 'on' : ''}" data-mudo title="Mudo">M</button><button class="ms solo ${l.a.solo ? 'on' : ''}" data-solo title="Solo: só ele toca">S</button>` : ''}</div>`;
     }).join('');
     // cabeçalho: pasta nova (com a camada escolhida dentro, se tiver uma)
     const cab = $('.regua', this.nomes); cab.innerHTML = `<span>Camadas</span><span class="sp"></span><button class="ibtn" data-pasta title="Pasta nova (com a camada escolhida dentro) · Ctrl+G">${ic('folder', 13)}</button>`;
@@ -57,7 +58,7 @@ const Folha = {
       r.ondragover = e => { if (!Arvore.arrastando || Arvore.arrastando === n.id) return; e.preventDefault(); const z = Arvore.zona(e, r, n); $$('.reg', this.nomes).forEach(x => x.classList.remove('drop-antes', 'drop-depois', 'drop-dentro')); r.classList.add('drop-' + z); };
       r.ondrop = e => { e.preventDefault(); const z = Arvore.zona(e, r, n); Arvore.mover(Arvore.arrastando, n.id, z); };
     });
-    const tq = P.duracao, W = tq * this.CW + 200, H = this.REG + L.length * this.RH + 30;
+    const tq = P.duracao, W = tq * this.CW + 200, H = this.REG + this._altura + 30;
     this.espaco.style.width = W + 'px'; this.espaco.style.height = H + 'px';
     const r = this.grade.getBoundingClientRect(), d = devicePixelRatio || 1;
     this.cv.style.width = r.width + 'px'; this.cv.style.height = r.height + 'px'; this.cv.width = Math.max(2, r.width * d); this.cv.height = Math.max(2, r.height * d);
@@ -82,15 +83,15 @@ const Folha = {
     c.strokeStyle = '#2b2b2b'; c.lineWidth = 1; c.beginPath(); for (let q = q0; q <= q1 + 1; q++) { const x = Math.round(q * CW - sx) + .5; c.moveTo(x, REG); c.lineTo(x, H); } c.stroke();
     // linhas
     L.forEach((l, i) => {
-      const y = REG + i * RH - sy; if (y > H || y + RH < REG) return;
+      const y = REG + l.y - sy, lh = l.h; if (y > H || y + lh < REG) return;
       const sel = (l.tipo === 'no' && App.sel === l.no.id) || (l.tipo === 'camera' && App.sel === 'camera') || (l.tipo === 'efeito' && App.sel === l.ef.id) || (l.tipo === 'audio' && App.sel === l.a.id);
-      if (sel) { c.fillStyle = 'rgba(140,170,210,.12)'; c.fillRect(0, y, W, RH); }
-      c.fillStyle = '#2a2a2a'; c.fillRect(0, y + RH - 1, W, 1);
+      if (sel) { c.fillStyle = 'rgba(140,170,210,.12)'; c.fillRect(0, y, W, lh); }
+      c.fillStyle = '#2a2a2a'; c.fillRect(0, y + lh - 1, W, 1);
       if (l.tipo === 'no') this.linhaNo(c, P, l.no, y, sx, sel);
       else if (l.tipo === 'camera') this.chaves(c, P.camera.chaves, y, sx, '#9fc3ff');
       else if (l.tipo === 'efeito') this.bloco(c, l.ef.de, l.ef.ate ?? (l.pai ? Modelo.fimNo(P, l.pai) : l.ef.de), y, sx, sel ? '#9a7ad8' : '#6d5a94', l.nome);
       else if (l.tipo === 'legenda') (P.legendas || []).forEach(g => this.bloco(c, g.de, g.ate, y, sx, '#4f6a58', String(g.texto || '').replace(/\*/g, '')));
-      else if (l.tipo === 'audio') this.onda(c, P, l.a, y, sx, sel);
+      else if (l.tipo === 'audio') this.onda(c, P, l.a, y, sx, sel, lh);
     });
     // trecho marcado (Shift + arrastar na régua)
     const tr = this.trecho; if (tr) { const x0 = tr.de * CW - sx, w = (tr.ate - tr.de + 1) * CW; c.fillStyle = 'rgba(25,211,240,.09)'; c.fillRect(x0, REG, w, H); c.fillStyle = 'rgba(25,211,240,.55)'; c.fillRect(x0, REG, 1, H); c.fillRect(x0 + w - 1, REG, 1, H); }
@@ -140,22 +141,30 @@ const Folha = {
     const CW = this.CW, x = de * CW - sx + 1, w = (ate - de + 1) * CW - 2; c.fillStyle = cor; c.beginPath(); c.roundRect(x, y + 4, w, this.RH - 9, 4); c.fill();
     if (txt && w > 30) { c.save(); c.beginPath(); c.rect(x, y, w, this.RH); c.clip(); c.fillStyle = '#eaeaea'; c.font = '11px Segoe UI'; c.fillText(txt, x + 5, y + this.RH / 2); c.restore(); }
   },
-  onda(c, P, a, y, sx, sel) {
-    const CW = this.CW, de = a.de || 0, fimQ = Som.buf.get(a.arq) ? Som.fimQ(P, a) : de + Math.round((Som.dur(a.arq) || 1) * P.fps) - 1, ouve = Som.ouve(P, a), tipo = Som.tipo(a);
-    const cor = { voz: sel ? '#6c8a7a' : '#4c6658', musica: sel ? '#6d7fa8' : '#4a5a7e', efeito: sel ? '#a08a5c' : '#76663f' }[tipo], x0 = de * CW - sx, w = (fimQ - de + 1) * CW;
-    c.globalAlpha = ouve ? 1 : .35; c.fillStyle = cor; c.beginPath(); c.roundRect(x0, y + 3, w, this.RH - 7, 4); c.fill();
-    if (Som.picos(a.arq, P.fps)) { c.fillStyle = { voz: '#d4f2e0', musica: '#d6e1ff', efeito: '#ffe9b8' }[tipo]; const m = this.RH / 2 - 4, W = this.cv.width / (devicePixelRatio || 1);
-      for (let q = Math.max(de, Math.floor(sx / CW)); q <= Math.min(fimQ, Math.ceil((sx + W) / CW)); q++) { const v = Math.max(1, Math.min(1.4, Som.ondaEm(P, a, q)) * m); c.fillRect(q * CW - sx + 1, y + this.RH / 2 - v, Math.max(1, CW - 2), v * 2); } }
-    // fades: triângulos escuros nas pontas
-    const fi = (+a.fi || 0) * P.fps * CW, fo = (+a.fo || 0) * P.fps * CW; c.fillStyle = 'rgba(0,0,0,.35)';
-    if (fi) { c.beginPath(); c.moveTo(x0, y + 3); c.lineTo(x0 + fi, y + 3); c.lineTo(x0, y + this.RH - 4); c.fill(); }
-    if (fo) { c.beginPath(); c.moveTo(x0 + w, y + 3); c.lineTo(x0 + w - fo, y + 3); c.lineTo(x0 + w, y + this.RH - 4); c.fill(); }
-    c.fillStyle = 'rgba(255,255,255,.45)'; c.fillRect(x0, y + 3, 3, this.RH - 7); c.fillRect(x0 + w - 3, y + 3, 3, this.RH - 7);
-    if (a.loop) { c.fillStyle = 'rgba(255,255,255,.7)'; c.font = '10px Segoe UI'; c.fillText('↻', x0 + w - 14, y + 12); }
-    c.globalAlpha = 1;
+  // ONDA do áudio: contínua (pico por pixel, espelhada e suave), na cor do tipo; fades escurecem as pontas; nome em cima
+  onda(c, P, a, y, sx, sel, lh = this.RH) {
+    const CW = this.CW, fps = P.fps, de = a.de || 0, b = Som.buf.get(a.arq), fimQ = b ? Som.fimQ(P, a) : de + Math.round((Som.dur(a.arq) || 1) * fps) - 1, ouve = Som.ouve(P, a), tipo = Som.tipo(a);
+    const pal = { voz: ['#2f4d40', '#3c6352', '#8fe0b4'], musica: ['#2e3a57', '#3b4b72', '#9fb7ff'], efeito: ['#4d4128', '#665634', '#ffd27a'] }[tipo], x0 = de * CW - sx, w = (fimQ - de + 1) * CW, top = y + 2, hh = lh - 5, mid = top + hh / 2 + (lh > 30 ? 4 : 0), m0 = lh > 30 ? hh / 2 - 5 : hh / 2 - 1.5;
+    c.save(); c.globalAlpha = ouve ? 1 : .35; c.fillStyle = sel ? pal[1] : pal[0]; c.beginPath(); c.roundRect(x0, top, w, hh, 5); c.fill(); c.clip();
+    const W = this.cv.width / (devicePixelRatio || 1), xa = Math.max(x0, 0), xz = Math.min(x0 + w, W), f = b && Som.finos(a.arq);
+    if (f && xz > xa) {
+      const ini = Som.ini(a), tl0 = de / fps, fim = tl0 + Som.compr(a, b), L = Math.max(.05, b.duration - ini), m = m0, pts = [];
+      for (let x = xa; x <= xz; x += 1.5) { const t = (x + sx) / CW / fps, t2 = (x + 1.5 + sx) / CW / fps; let u0 = t - tl0, u1 = t2 - tl0; if (a.loop) { u0 = u0 % L; u1 = u0 + (t2 - t); }
+        const v = Som.picoEntre(a.arq, ini + u0, ini + u1) * Som.ganho(a, Math.floor(t * fps)) * Som.fade(a, t, tl0, fim); pts.push([x, Math.min(1, Math.sqrt(v)) * m]); } // raiz: a parte baixa da fala aparece
+      const g = c.createLinearGradient(0, top, 0, top + hh); g.addColorStop(0, pal[2]); g.addColorStop(.5, pal[2] + 'ee'); g.addColorStop(1, pal[2]);
+      c.fillStyle = g; c.beginPath(); c.moveTo(pts[0][0], mid); for (const [x, v] of pts) c.lineTo(x, mid - Math.max(.6, v)); for (let i = pts.length - 1; i >= 0; i--) c.lineTo(pts[i][0], mid + Math.max(.6, pts[i][1])); c.closePath(); c.fill();
+    } else { c.fillStyle = pal[2] + '55'; c.fillRect(x0, mid - .5, w, 1); }
+    // fades: sombra nas pontas
+    const fi = (+a.fi || 0) * fps * CW, fo = (+a.fo || 0) * fps * CW; c.fillStyle = 'rgba(0,0,0,.38)';
+    if (fi) { c.beginPath(); c.moveTo(x0, top); c.lineTo(x0 + fi, top); c.lineTo(x0, top + hh); c.fill(); }
+    if (fo) { c.beginPath(); c.moveTo(x0 + w, top); c.lineTo(x0 + w - fo, top); c.lineTo(x0 + w, top + hh); c.fill(); }
+    if (w > 60) { c.font = '600 10px Segoe UI'; c.fillStyle = 'rgba(255,255,255,.85)'; c.shadowColor = '#000'; c.shadowBlur = 3; c.fillText((a.loop ? '↻ ' : '') + (a.nome || ''), Math.max(x0, 0) + 6, top + 9); c.shadowBlur = 0; }
+    c.restore(); c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(x0, top + 3, 2, hh - 6); c.fillRect(x0 + w - 2, top + 3, 2, hh - 6);
+    if (sel) { c.strokeStyle = pal[2]; c.lineWidth = 1; c.beginPath(); c.roundRect(x0 + .5, top + .5, w - 1, hh - 1, 5); c.stroke(); }
   },
   /* ---------- mouse ---------- */
-  ponto(e) { const r = this.cv.getBoundingClientRect(), x = e.clientX - r.left + this.grade.scrollLeft, y = e.clientY - r.top; return { q: Math.floor(x / this.CW), x, y, i: y < this.REG ? -1 : Math.floor((y - this.REG + this.grade.scrollTop) / this.RH) }; },
+  ponto(e) { const r = this.cv.getBoundingClientRect(), x = e.clientX - r.left + this.grade.scrollLeft, y = e.clientY - r.top; return { q: Math.floor(x / this.CW), x, y, i: y < this.REG ? -1 : this.linhaEm(y - this.REG + this.grade.scrollTop) }; },
+  linhaEm(yy) { const L = this._L || []; for (let i = 0; i < L.length; i++) if (yy >= L[i].y && yy < L[i].y + L[i].h) return i; return L.length + Math.floor((yy - (this._altura || 0)) / this.RH); },
   desce(e) {
     const p = this.ponto(e), P = App.P, L = this._L; this.cv.setPointerCapture(e.pointerId);
     const mov = f => { const m = ev => f(this.ponto(ev), ev); const up = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', up); this.fimArr?.(ev); this.fimArr = null; }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', up); };
@@ -210,6 +219,7 @@ const Folha = {
     const p = this.ponto(e), l = this._L[p.i]; if (!l) return; App.setQ(p.q);
     if (l.tipo === 'no') { App.selecionar(l.no.id); App.chaveAqui(); }
     if (l.tipo === 'camera') { App.P.camera.chaves[p.q] = { ...Modelo.camera(App.P, p.q) }; App.commit('Chave da câmera'); }
+    if (l.tipo === 'audio') CorteVoz.abrir(l.a); // dois cliques no áudio = editor de corte
   },
   // como o movimento CHEGA na chave q (vale da chave de antes até ela); curva própria abre o editor de velocidade
   async poeIr(l, ch, q, id) {
@@ -244,6 +254,14 @@ const Folha = {
   },
   menu(e) {
     const p = this.ponto(e), l = this._L[p.i];
+    if (l?.tipo === 'audio') { const a = l.a, q = clamp(p.q, 0, Modelo.ultimoQuadro(App.P)); App.setQ(q); App.selecionar(a.id);
+      return UI.ctx(e.clientX, e.clientY, [{ head: `${a.nome} · quadro ${q + 1}` },
+        { label: 'Editar o corte…', icon: 'cut', key: 'dois cliques', action: () => CorteVoz.abrir(a) },
+        !a.loop && q > (a.de || 0) && q < Som.fimQ(App.P, a) && { label: 'Dividir aqui', icon: 'split', action: () => CorteVoz.dividirEm(a, q) },
+        { label: 'Tirar silêncios…', icon: 'wand', action: () => CorteVoz.abrir(a) },
+        '-', { label: a.mudo ? 'Tirar o mudo' : 'Mudo', icon: a.mudo ? 'vol' : 'mute', action: () => { a.mudo = !a.mudo; App.commit('Mudo'); } },
+        { label: 'Limpar e nivelar a voz', icon: 'wand', action: () => Som.limpar(a) },
+        { label: 'Tirar o áudio', icon: 'trash', danger: true, action: () => { App.P.audios = App.P.audios.filter(x => x !== a); App.commit('Tirar áudio'); } }].filter(Boolean)); }
     if (!l || (l.tipo !== 'no' && l.tipo !== 'camera')) { // régua dos quadros ou linha sem chaves: dá para citar o quadro
       if (!App.P || !Number.isFinite(p.q)) return; const q = clamp(p.q, 0, Modelo.ultimoQuadro(App.P)); App.setQ(q);
       const tr = this.trecho && q >= this.trecho.de && q <= this.trecho.ate ? this.trecho : null, P = App.P;
@@ -254,7 +272,8 @@ const Folha = {
         !tr && { label: `Citar o quadro ${q + 1} na IA`, icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'quadro', q }) },
         !tr && { label: 'Citar um trecho daqui na IA (2 s)', icon: 'cut', action: () => { const t = Trechos.novo(P, q / P.fps, q / P.fps + 2); Assistente.citar({ tipo: 'trecho', de: t.de, ate: t.ate }); } },
         !tr && { label: 'Marcar um trecho: Shift + arrastar na régua', icon: 'cut', disabled: true },
-        '-', { label: `Citar o quadro ${q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, q, App.sel) }].filter(Boolean));
+        '-', { label: `Citar o quadro ${q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, q, App.sel) },
+        { label: 'Revisar a animação (antes de exportar)…', icon: 'check', action: () => Revisor.abrir() }].filter(Boolean));
     }
     App.setQ(p.q);
     const ch = l.tipo === 'no' ? l.no.chaves : App.P.camera.chaves, tem = !!ch[p.q];

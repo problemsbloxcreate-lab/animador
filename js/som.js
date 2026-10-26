@@ -18,6 +18,15 @@ const Som = {
     for (let i = 0; i < n; i++) { let s = 0; const a = Math.floor(i * por), z = Math.min(d.length, Math.floor((i + 1) * por)); for (let j = a; j < z; j += 4) s += d[j] * d[j]; out[i] = Math.sqrt(s / Math.max(1, (z - a) / 4)); mx = Math.max(mx, out[i]); }
     for (let i = 0; i < n; i++) out[i] /= mx; this._picos.set(k, out); return out;
   },
+  // picos FINOS (200 por segundo, maior |amostra| de cada pedacinho): para a onda bonita da timeline e do editor de corte
+  finos(arq) {
+    if (this._finos?.has(arq)) return this._finos.get(arq); const b = this.buf.get(arq); if (!b) return null;
+    const R = 200, por = b.sampleRate / R, n = Math.ceil(b.length / por), mx = new Float32Array(n), chs = [...Array(Math.min(2, b.numberOfChannels))].map((_, i) => b.getChannelData(i)); let top = 1e-6;
+    for (let i = 0; i < n; i++) { let m = 0; const a = Math.floor(i * por), z = Math.min(b.length, Math.floor((i + 1) * por)); for (const d of chs) for (let j = a; j < z; j++) { const v = d[j] < 0 ? -d[j] : d[j]; if (v > m) m = v; } mx[i] = m; if (m > top) top = m; }
+    const o = { R, mx, top }; (this._finos ||= new Map()).set(arq, o); return o;
+  },
+  // maior pico entre os segundos t0 e t1 do ARQUIVO (0..1 pelo pico do arquivo)
+  picoEntre(arq, t0, t1) { const f = this.finos(arq); if (!f) return 0; let m = 0; const a = Math.max(0, Math.floor(t0 * f.R)), z = Math.min(f.mx.length - 1, Math.max(a, Math.ceil(t1 * f.R))); for (let i = a; i <= z; i++) if (f.mx[i] > m) m = f.mx[i]; return m / f.top; },
   /* ---------- gravar a voz aqui mesmo (microfone): entra como áudio a partir do quadro atual ---------- */
   async gravar() {
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return UI.toast('Este navegador não grava áudio. Use o Chrome ou o Edge.', { kind: 'err' });
@@ -156,11 +165,11 @@ const Som = {
       const lim = Math.max(...env) * .08; for (let w = 0; w < env.length; w++) if (env[w] > lim) { soma += env[w] * env[w]; cont++; }
       const rms = Math.sqrt(soma / Math.max(1, cont)), ganho = rms > 1e-6 ? Math.pow(10, -18 / 20) / rms : 1, teto = Math.pow(10, -1 / 20);
       for (const d of dados) { let gg = 1; for (let k = 0; k < N; k++) { const alvo = env[Math.floor(k / jan)] < lim * .5 ? .25 : 1; gg += (alvo - gg) * .002; const v = d[k] * ganho * gg; d[k] = teto * Math.tanh(v / teto); } }
-      const id = await Arq.guardar(this.wav(r)); if (!a.arqOrig) a.arqOrig = a.arq; a.arq = id; this._picos.clear(); await this.decod(id);
+      const id = await Arq.guardar(this.wav(r)); if (!a.arqOrig) a.arqOrig = a.arq; a.arq = id; this._picos.clear(); this._finos?.clear(); await this.decod(id);
       t.remove(); App.commit('Limpar a voz'); UI.toast(`Voz "${esc(a.nome)}" limpa e nivelada.`, { kind: 'ok' });
     } catch (e) { t.remove(); UI.toast('Não deu para limpar: ' + esc(e.message || e), { kind: 'err' }); }
   },
-  voltarOriginal(a) { if (!a.arqOrig) return; a.arq = a.arqOrig; delete a.arqOrig; this._picos.clear(); this.decod(a.arq).then(() => Folha.pinta()); App.commit('Voz original'); },
+  voltarOriginal(a) { if (!a.arqOrig) return; a.arq = a.arqOrig; delete a.arqOrig; this._picos.clear(); this._finos?.clear(); this.decod(a.arq).then(() => Folha.pinta()); App.commit('Voz original'); },
   // AudioBuffer → WAV 16 bits
   wav(buf) {
     const ch = buf.numberOfChannels, n = buf.length, sr = buf.sampleRate, ab = new ArrayBuffer(44 + n * ch * 2), v = new DataView(ab), w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };

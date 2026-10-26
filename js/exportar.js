@@ -3,9 +3,13 @@
 const Exportar = {
   async abrir() {
     const P = App.P;
-    const body = h(`<div><label class="field">Tamanho<select data-q><option value="1">${P.w}×${P.h} (original)</option><option value=".5">${Math.round(P.w / 2)}×${Math.round(P.h / 2)} (metade, mais rápido)</option></select></label>
+    const body = h(`<div><div class="rv-banner" data-rv hidden></div><label class="field">Tamanho<select data-q><option value="1">${P.w}×${P.h} (original)</option><option value=".5">${Math.round(P.w / 2)}×${Math.round(P.h / 2)} (metade, mais rápido)</option></select></label>
       <label class="field">Quadros<div class="campo2"><input type="number" data-de value="1" min="1" style="width:70px"> até <input type="number" data-ate value="${P.duracao}" min="1" style="width:70px"> <small style="color:var(--tx3)">${P.fps} quadros por segundo</small></div></label>
       <div class="prog" hidden><div style="height:6px;border-radius:3px;background:var(--bg0);overflow:hidden"><i style="display:block;height:100%;width:0;background:#ddd"></i></div><p style="margin-top:6px" data-t></p></div></div>`);
+    // REVISOR: antes de exportar, mostra quantas coisas achou (som depois do fim, voz cortando palavra, solo ligado…)
+    Revisor.conta(P).then(r => { const el = $('[data-rv]', body); if (!el || !(r.erro + r.aviso + r.dica)) return; el.hidden = false; el.className = 'rv-banner ' + (r.erro ? 'rv-erro' : r.aviso ? 'rv-aviso' : 'rv-dica');
+      el.innerHTML = `${ic(r.erro + r.aviso ? 'alert' : 'info', 15)}<span>O revisor achou ${[r.erro && `${r.erro} erro${r.erro > 1 ? 's' : ''}`, r.aviso && `${r.aviso} aviso${r.aviso > 1 ? 's' : ''}`, r.dica && `${r.dica} dica${r.dica > 1 ? 's' : ''}`].filter(Boolean).join(', ')} antes de exportar.</span><button class="btn sm">Revisar</button>`;
+      $('button', el).onclick = () => Revisor.abrir(); }).catch(() => { });
     await UI.modal({ title: 'Exportar vídeo', icon: 'download', body, buttons: [
       { label: 'Arquivo .animador', left: true, onClick: () => { Toon.baixar(App.P); return false; } },
       { label: 'Imagem deste quadro', left: true, onClick: () => { this.png(); return false; } },
