@@ -87,9 +87,9 @@ const Ideias = {
   pintaIdeias(c) {
     const I = this.S?.ideias, L = (I?.lista || []).filter(x => this.filtro === 'todas' || x.formato === this.filtro), A = this.S.analise, velha = I && I.base !== A?.em;
     const top = h(`<div class="ide-itopo"><div class="ide-modo"><button data-f="todas">Todas <small>${I?.lista?.length || 0}</small></button><button data-f="short">${ic('play', 12)} Shorts <small>${(I?.lista || []).filter(x => x.formato === 'short').length}</small></button><button data-f="longo">${ic('film', 12)} Vídeos longos <small>${(I?.lista || []).filter(x => x.formato === 'longo').length}</small></button></div>
-      <div class="ide-ger"><input type="text" placeholder="Direção para a IA (opcional): ex.: só com a Lumi, terror leve, música…" value="${esc(this._dir || '')}"><button class="btn sm ia" data-g>${ic('sparkles', 13)} ${I?.lista?.length ? 'Gerar de novo' : 'Gerar ideias'}</button>${I?.lista?.length ? `<button class="btn sm" data-mais>${ic('plus', 13)} Mais 6</button>` : ''}</div></div>`);
+      <div class="ide-ger"><span class="ide-gic">${ic('sparkles', 18)}</span><div class="ide-gin"><b>Ideias com a IA</b><small>Ela lê a análise dos canais e escreve ideias no nosso estilo.</small><textarea rows="2" placeholder="Quer algo específico? Ex.: só com a Lumi, terror leve, um clipe musical… (opcional)">${esc(this._dir || '')}</textarea></div><div class="ide-gbts"><button class="btn sm ia" data-g>${ic('sparkles', 13)} ${I?.lista?.length ? 'Gerar de novo' : 'Gerar ideias'}</button>${I?.lista?.length ? `<button class="btn sm" data-mais>${ic('plus', 13)} Mais 6</button>` : ''}</div></div></div>`);
     $$('[data-f]', top).forEach(b => { b.classList.toggle('on', b.dataset.f === this.filtro); b.onclick = () => { this.filtro = b.dataset.f; this.pintaCorpo(); }; });
-    const dir = $('input', top); dir.oninput = () => { this._dir = dir.value; };
+    const dir = $('textarea', top); dir.oninput = () => { this._dir = dir.value; };
     $('[data-g]', top).onclick = () => this.gerarIdeias({ tudo: true }); if ($('[data-mais]', top)) $('[data-mais]', top).onclick = () => this.gerarIdeias({ mais: 6 });
     c.appendChild(top);
     if (velha) c.appendChild(h(`<div class="ide-aviso">${ic('info', 13)} Tem análise nova (${esc(this.quando(A.em))}) depois destas ideias. <b>Gerar de novo</b> usa os números de agora.</div>`));
@@ -169,8 +169,10 @@ ${g}`,
   async listaRoteiros() { try { const ks = (await DB.keys('arquivos')).filter(k => String(k).startsWith('roteiro:')); return (await Promise.all(ks.map(k => DB.get('arquivos', k)))).filter(r => r?.id).sort((a, b) => b.em - a.em); } catch { return []; } },
   async guarda(R) { R.em = Date.now(); await DB.put('arquivos', JSON.parse(JSON.stringify(R)), 'roteiro:' + R.id); },
   async pintaRoteiros() {
-    const box = $('.ide-rots', this.el); if (!box) return; const L = await this.listaRoteiros(); box.hidden = !L.length; if (!L.length) return;
-    box.innerHTML = `<div class="ide-sec">${ic('edit', 13)} <b>Seus roteiros</b><small>só neste computador</small></div><div class="ide-rl"></div>`;
+    const box = $('.ide-rots', this.el); if (!box) return; const L = await this.listaRoteiros(); box.hidden = false;
+    box.innerHTML = `<div class="ide-sec">${ic('edit', 13)} <b>Seus roteiros</b><small>só neste computador</small><span class="sp"></span><button class="btn sm" data-pronto title="Cole ou envie um roteiro que você já tem: a IA separa em cenas e falas">${ic('paste', 13)} Usar um roteiro pronto</button></div><div class="ide-rl"></div>`;
+    $('[data-pronto]', box).onclick = () => this.roteiroPronto();
+    if (!L.length) $('.ide-rl', box).appendChild(h('<small class="ide-dica">Nenhum roteiro ainda: marque ideias e siga, ou use um roteiro pronto.</small>'));
     for (const R of L.slice(0, 12)) { const c = h(`<div class="ide-rc"><span class="ide-fmt">${ic(R.formato === 'short' ? 'play' : 'film', 11)} ${R.formato === 'short' ? 'Short' : 'Longo'}</span><b>${esc(R.nome)}</b><small>${esc(this.PASSOS[R.passo - 1]?.[1] || '')} · ${new Date(R.em).toLocaleDateString('pt-BR')}</small><button class="ibtn" title="Apagar este roteiro">${ic('trash', 12)}</button></div>`);
       c.onclick = e => { if (e.target.closest('button')) return; this.abreRoteiro(R); };
       $('button', c).onclick = async () => { if (!await UI.confirm({ title: `Apagar o roteiro "${R.nome}"?`, msg: 'As vozes gravadas dele também saem deste computador. A animação gerada continua.', ok: 'Apagar', danger: true })) return; await DB.del('arquivos', 'roteiro:' + R.id); this.pintaRoteiros(); };
@@ -188,7 +190,7 @@ ${g}`,
   pintaRoteiro() {
     const R = this.roteiro, c = this.el; R.passo ||= 2;
     c.innerHTML = `<div class="ide ide-r"><div class="ide-rtopo"><button class="btn sm" data-volta>${ic('left', 13)} Ideias</button><input class="ide-rnome" value="${esc(R.nome)}" title="Nome do roteiro"><span class="ide-fmt">${ic(R.formato === 'short' ? 'play' : 'film', 11)} ${R.formato === 'short' ? 'Short (9:16)' : 'Vídeo longo (16:9)'}</span></div>
-      <div class="ide-passos">${this.PASSOS.map(([id, nm], i) => `<button data-p="${i + 1}" class="${R.passo === i + 1 ? 'on' : ''} ${this.feito(R, i + 1) ? 'ok' : ''}"><i>${this.feito(R, i + 1) ? ic('check', 11) : i + 1}</i>${nm}</button>`).join('')}</div><div class="ide-pc"></div></div>`;
+      <div class="ide-passos">${this.PASSOS.map(([id, nm], i) => `<button data-p="${i + 1}" class="${R.passo === i + 1 ? 'on' : ''} ${this.feito(R, i + 1) ? 'ok' : ''} ${i && (this.feito(R, i) || R.passo === i) && (this.feito(R, i + 1) || R.passo === i + 1) ? 'liga' : ''}"><i>${this.feito(R, i + 1) && R.passo !== i + 1 ? ic('check', 13) : i + 1}</i><span>${nm}</span></button>`).join('')}</div><div class="ide-pc"></div></div>`;
     $('[data-volta]', c).onclick = () => { this.roteiro = null; this.pinta(c); };
     const nm = $('.ide-rnome', c); nm.onchange = () => { R.nome = nm.value.trim() || R.nome; this.guarda(R); };
     $$('[data-p]', c).forEach(b => b.onclick = () => { R.passo = +b.dataset.p; this.guarda(R); this.pintaRoteiro(); });
@@ -210,6 +212,8 @@ ${g}`,
   poeMemo(id, v) { const m = this.memo(); m[id] = { ...(m[id] || {}), ...v }; try { localStorage.setItem(this.PERS_K, JSON.stringify(m)); } catch { } },
   passoPers(pc, R) {
     pc.appendChild(h(`<div class="ide-dica">Quem entra neste ${R.formato === 'short' ? 'short' : 'vídeo'}: personagens da nuvem da equipe, deste computador ou uma imagem (PNG/SVG). Dê o nome que vai no roteiro, a cor (legendas e destaque) e o jeito de cada um — a IA usa isso para escrever as falas. Num personagem da nuvem, a cor e o jeito ficam salvos nele para a próxima vez.</div>`));
+    const falta = R.roteiro ? [...new Set(this.falas(R).map(f => f.personagem).filter(n => n && !this.persDe(R, n)))] : [];
+    if (falta.length) pc.appendChild(h(`<div class="ide-aviso ide-av-b">${ic('alert', 13)} Papéis do roteiro sem personagem: <b>${falta.map(esc).join(', ')}</b>. Escolha os personagens e dê a eles esses nomes.</div>`));
     const L = h('<div class="ide-pl"></div>'); pc.appendChild(L);
     for (const p of R.pers) {
       const c = h(`<div class="ide-p" style="--pc:${esc(p.cor)}"><span class="ide-pth">${p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : ic('users', 18)}</span>
@@ -225,7 +229,7 @@ ${g}`,
     const add = h(`<div class="ide-padd"><button class="btn" data-n>${ic('users', 14)} Escolher personagens</button><button class="btn" data-i>${ic('image', 14)} Personagem de uma imagem (PNG/SVG)</button></div>`);
     $('[data-n]', add).onclick = () => this.escolhePers(R); $('[data-i]', add).onclick = () => this.persDeImagem(R);
     pc.appendChild(add);
-    this.rodape(pc, R, 3, 'Gerar situações', R.pers.length > 0);
+    if (R.pronto && R.roteiro) this.rodape(pc, R, 5, 'Pôr as vozes', R.pers.length > 0); else this.rodape(pc, R, 3, 'Gerar situações', R.pers.length > 0);
   },
   async escolhePers(R) {
     const body = h('<div class="ide-esc"><div class="vazio"><span class="spin-dot"></span> Carregando os personagens…</div></div>'), marc = new Map(R.pers.filter(p => p.origem !== 'img').map(p => [p.id, p]));
@@ -282,8 +286,8 @@ Use só os personagens dados. Respeite o jeito de cada um.
 GUIA:
 ${g}`,
   passoSit(pc, R) {
-    const top = h(`<div class="ide-ger"><input type="text" placeholder="Direção (opcional): ex.: mais engraçado, termina com mistério, na escola…" value="${esc(R.dirSit || '')}"><button class="btn sm ia" data-g>${ic('sparkles', 13)} ${R.situacoes.length ? 'Gerar todas de novo' : 'Gerar situações'}</button>${R.situacoes.length ? `<button class="btn sm" data-mais>${ic('plus', 13)} Mais 3</button><button class="btn sm" data-ref>${ic('sparkles', 13)} Refazer as marcadas</button>` : ''}</div>`);
-    const dir = $('input', top); dir.onchange = () => { R.dirSit = dir.value; this.guarda(R); };
+    const top = h(`<div class="ide-ger"><span class="ide-gic">${ic('sparkles', 18)}</span><div class="ide-gin"><b>Situações com a IA</b><small>Cada vez sai diferente: gere até gostar de uma.</small><textarea rows="2" placeholder="Quer algo específico? Ex.: mais engraçado, termina com mistério, na escola… (opcional)">${esc(R.dirSit || '')}</textarea></div><div class="ide-gbts"><button class="btn sm ia" data-g>${ic('sparkles', 13)} ${R.situacoes.length ? 'Gerar todas de novo' : 'Gerar situações'}</button>${R.situacoes.length ? `<button class="btn sm" data-mais>${ic('plus', 13)} Mais 3</button><button class="btn sm" data-ref>${ic('sparkles', 13)} Refazer as marcadas</button>` : ''}</div></div>`);
+    const dir = $('textarea', top); dir.onchange = () => { R.dirSit = dir.value; this.guarda(R); };
     $('[data-g]', top).onclick = () => this.gerarSit(R, { tudo: true }); if ($('[data-mais]', top)) { $('[data-mais]', top).onclick = () => this.gerarSit(R, { mais: 3 }); $('[data-ref]', top).onclick = () => { const L = R.situacoes.filter(s => s.marca); if (!L.length) return UI.toast('Marque as situações que quer refazer (o quadradinho).', { kind: 'warn' }); this.gerarSit(R, { refazer: L.map(s => s.id) }); }; }
     pc.appendChild(top);
     pc.appendChild(h(`<div class="ide-dica">Gere de novo quantas vezes quiser. Marque o quadradinho para refazer só aquelas e clique em <b>Usar esta</b> na que vai virar o roteiro (pode usar mais de uma para juntar).</div>`));
@@ -321,10 +325,11 @@ Regras: gancho na primeira fala; falas curtas (até ~20 palavras) e alternadas; 
 GUIA:
 ${g}`,
   passoRot(pc, R) {
-    const top = h(`<div class="ide-ger"><input type="text" placeholder="Direção (opcional): ex.: mais rápido, mais piadas, final de mistério…" value="${esc(R.dirRot || '')}"><button class="btn sm ia" data-g>${ic('sparkles', 13)} ${R.roteiro ? 'Escrever tudo de novo' : 'Escrever o roteiro'}</button>${R.roteiro ? `<button class="btn sm" data-ref title="A IA reescreve só as falas marcadas (pode virar mais de uma fala)">${ic('sparkles', 13)} Refazer as marcadas</button>` : ''}</div>`);
-    const dir = $('input', top); dir.onchange = () => { R.dirRot = dir.value; this.guarda(R); };
+    const top = h(`<div class="ide-ger"><span class="ide-gic">${ic('sparkles', 18)}</span><div class="ide-gin"><b>Roteiro com a IA</b><small>Escreve as cenas e as falas a partir da situação escolhida.</small><textarea rows="2" placeholder="Quer algo específico? Ex.: mais rápido, mais piadas, final de mistério… (opcional)">${esc(R.dirRot || '')}</textarea></div><div class="ide-gbts"><button class="btn sm ia" data-g>${ic('sparkles', 13)} ${R.roteiro ? 'Escrever tudo de novo' : 'Escrever o roteiro'}</button>${R.roteiro ? `<button class="btn sm" data-ref title="A IA reescreve só as falas marcadas (pode virar mais de uma fala)">${ic('sparkles', 13)} Refazer as marcadas</button>` : ''}</div></div>`);
+    const dir = $('textarea', top); dir.onchange = () => { R.dirRot = dir.value; this.guarda(R); };
     $('[data-g]', top).onclick = async () => { if (R.roteiro && !await UI.confirm({ title: 'Escrever o roteiro todo de novo?', msg: 'As mudanças feitas à mão e as vozes já gravadas deixam de bater com as falas.', ok: 'Escrever de novo' })) return; this.gerarRot(R); };
     if ($('[data-ref]', top)) $('[data-ref]', top).onclick = () => { const ids = this.falas(R).filter(f => f.marca).map(f => f.id); if (!ids.length) return UI.toast('Marque as falas que quer refazer (o quadradinho de cada uma).', { kind: 'warn' }); this.gerarRot(R, { refazer: ids }); };
+    const pr = h(`<button class="btn sm" data-colar title="Cole ou envie um roteiro que você já tem: a IA separa em cenas e falas">${ic('paste', 13)} Colar / enviar um roteiro</button>`); pr.onclick = () => this.colarRoteiro(R); $('.ide-gbts', top).appendChild(pr);
     pc.appendChild(top);
     if (!R.roteiro) { pc.appendChild(h('<div class="vazio">Aperte <b>Escrever o roteiro</b>: a IA usa as situações marcadas com "Usar esta".</div>')); return; }
     const T = R.roteiro, cab = h(`<div class="ide-rcab"><label>Título<input value="${esc(T.titulo || '')}" data-k="titulo"></label><label>Descrição<textarea rows="2" data-k="descricao">${esc(T.descricao || '')}</textarea></label>${T.thumb ? `<p class="ide-ps">${ic('image', 11)} Miniatura: ${esc(T.thumb)}</p>` : ''}</div>`);
@@ -359,7 +364,7 @@ ${g}`,
     this.rodape(pc, R, 5, 'Pôr as vozes', this.falas(R).length > 0);
   },
   normRot(j, R) { return { titulo: String(j.titulo || R.nome).slice(0, 140), descricao: String(j.descricao || '').slice(0, 1200), thumb: String(j.thumb || '').slice(0, 300), cenas: (j.cenas || []).map(c => ({ id: uid('c'), lugar: String(c.lugar || '').slice(0, 80), visual: String(c.visual || '').slice(0, 400), personagens: (c.personagens || []).map(String), falas: (c.falas || []).filter(f => f?.texto).map(f => this.normFala(f, R)) })).filter(c => c.falas.length) }; },
-  normFala(f, R) { return { id: uid('f'), personagem: this.persDe(R, f.personagem)?.nome || R.pers[0]?.nome || '', texto: String(f.texto).slice(0, 400), emocao: this.EMOCOES.includes(f.emocao) ? f.emocao : 'neutro', acao: String(f.acao || '').slice(0, 120), camera: this.CAMERAS.includes(f.camera) ? f.camera : 'médio' }; },
+  normFala(f, R) { return { id: uid('f'), personagem: this.persDe(R, f.personagem)?.nome || String(f.personagem || '').trim().slice(0, 40) || R.pers[0]?.nome || '', texto: String(f.texto).slice(0, 400), emocao: this.EMOCOES.includes(f.emocao) ? f.emocao : 'neutro', acao: String(f.acao || '').slice(0, 120), camera: this.CAMERAS.includes(f.camera) ? f.camera : 'médio' }; },
   async gerarRot(R, o = {}) {
     const sits = R.situacoes.filter(s => s.usar), base = `FORMATO: ${R.formato === 'short' ? 'SHORT vertical (25–55 s, 8–18 falas, um lugar)' : 'VÍDEO LONGO horizontal (4–12 min, 3–6 cenas)'}\n\nIDEIAS:\n${this.ideiasTexto(R)}\n\nPERSONAGENS:\n${this.persTexto(R)}\n\nSITUAÇÕES ESCOLHIDAS:\n${sits.map(s => `- ${s.titulo}: ${s.resumo}\n  batidas: ${(s.batidas || []).join(' / ')}\n  lugares: ${(s.lugares || []).join(', ')}\n  final: ${s.final}`).join('\n')}\n\n${R.dirRot ? `DIREÇÃO: ${R.dirRot}\n\n` : ''}`;
     if (o.refazer) {
@@ -373,6 +378,33 @@ ${g}`,
       R.roteiro = T; R.vozes = {}; if (T.titulo) R.nome = T.titulo;
     }
     await this.guarda(R); this.pintaRoteiro();
+  },
+  // ROTEIRO PRONTO: começa um roteiro sem ideias, já pedindo o texto
+  async roteiroPronto() {
+    const formato = await UI.modal({ title: 'Usar um roteiro pronto', icon: 'paste', body: 'Ele vai virar um short ou um vídeo longo?', buttons: [{ label: 'Cancelar', value: null }, { label: 'Vídeo longo', value: 'longo' }, { label: 'Short', kind: 'primary', value: 'short' }] }); if (!formato) return;
+    const R = { id: uid('rt'), nome: 'Roteiro pronto', criado: Date.now(), formato, ideias: [], padroes: (this.S?.ideias?.padroes || []).slice(0, 8), pers: [], defs: {}, situacoes: [], roteiro: null, vozes: {}, passo: 4, opcoes: { cenarios: true, boca: true, legendas: true, animar: true, refs: [] } };
+    if (!await this.colarRoteiro(R, true)) return; R.passo = 2; await this.guarda(R); this.abreRoteiro(R);
+    UI.toast('Roteiro organizado! Agora escolha quem faz cada papel (os nomes do texto viraram os nomes do roteiro).', { kind: 'ok', time: 7000 });
+  },
+  SIS_ORG: `Você organiza roteiros do canal Problems (animação 2D brasileira) que a equipe já escreveu.
+Recebe um texto solto (pode ter "NOME: fala", cenas, rubricas entre parênteses, listas, legendas de vídeo) e devolve SÓ um JSON:
+{"titulo":"","descricao":"","thumb":"","cenas":[{"lugar":"","visual":"cenário sem personagens","personagens":["nomes"],"falas":[{"personagem":"nome","texto":"fala","emocao":"neutro|feliz|bravo|triste|assustado|surpreso|sarcástico|apaixonado|pensativo|envergonhado","acao":"","camera":"geral|médio|close|zoom rápido|tremor|seguindo"}]}]}
+Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", "visual" ou "lugar" (não viram fala); troca de lugar ou de tempo = cena nova; o nome do personagem é o que está no texto (se bater com um personagem da lista, use o nome da lista); deduza emoção e câmera pelo contexto; narrador conta como personagem "Narrador".`,
+  async colarRoteiro(R, novo) {
+    const body = h(`<div class="ide-colar"><p class="ide-dica">Cole o roteiro do jeito que ele estiver (ex.: <b>LUMI: Alguém viu meu chapéu?!</b>), ou abra um arquivo. A IA separa em cenas e falas, com o personagem, a emoção, a ação e a câmera de cada uma.</p>
+      <textarea rows="14" placeholder="Cole o roteiro aqui…"></textarea><div class="ide-colar-b"><button class="btn sm" data-arq>${ic('upload', 13)} Abrir arquivo (.txt, .md, .srt, .json)</button><span class="sp"></span>
+      <label class="chk"><input type="checkbox" data-igual checked> Manter as falas exatamente como estão</label></div></div>`), ta = $('textarea', body);
+    $('[data-arq]', body).onclick = async () => { const [f] = await pickFiles('.txt,.md,.srt,.vtt,.json,.fountain,text/*', false); if (f) ta.value = await f.text(); };
+    const ok = await UI.modal({ title: novo ? 'Usar um roteiro pronto' : 'Colar ou enviar um roteiro', icon: 'paste', width: 720, body, buttons: [{ label: 'Cancelar', value: false }, { label: 'Organizar com a IA', kind: 'primary', value: true }] });
+    const txt = ta.value.trim(); if (!ok || !txt) return false;
+    if (R.roteiro && !novo && !await UI.confirm({ title: 'Trocar o roteiro de agora?', msg: 'O roteiro atual sai e as vozes já gravadas deixam de bater com as falas.', ok: 'Trocar' })) return false;
+    const pedido = `FORMATO: ${R.formato === 'short' ? 'SHORT vertical' : 'VÍDEO LONGO horizontal'}\nPERSONAGENS JÁ ESCOLHIDOS: ${R.pers.map(p => p.nome).join(', ') || '(nenhum ainda)'}\n${$('[data-igual]', body).checked ? 'NÃO mude o texto das falas: só separe e organize.' : 'Pode melhorar o texto das falas (mais natural e no estilo do canal), sem mudar a história.'}\n\nROTEIRO:\n${txt.slice(0, 60000)}`;
+    let j; try { j = IA.json(await IA.chama(this.SIS_ORG, pedido)); } catch (e) { UI.toast('A IA não conseguiu organizar: ' + esc(e.message), { kind: 'err' }); return false; }
+    const T = this.normRot(j, R); if (!T.cenas.length) { UI.toast('Não achei falas nesse texto.', { kind: 'warn' }); return false; }
+    R.roteiro = T; R.vozes = {}; if (T.titulo) R.nome = T.titulo; R.pronto = true; await this.guarda(R);
+    const falta = [...new Set(this.falas(R).map(f => f.personagem).filter(n => n && !this.persDe(R, n)))];
+    if (!novo) { this.pintaRoteiro(); if (falta.length) UI.toast(`Personagens do texto que ainda não estão no roteiro: <b>${falta.map(esc).join(', ')}</b>. Escolha quem faz esses papéis em Personagens (dê o mesmo nome).`, { kind: 'warn', time: 9000 }); }
+    return true;
   },
   // tempo de uma fala: o da voz, ou o estimado pelas palavras (2,6 palavras/s + respiro)
   durFala(R, f) { const v = R.vozes[f.id]; return v?.dur ? v.dur : Math.max(1.2, String(f.texto || '').split(/\s+/).filter(Boolean).length / 2.6 + .4); },
