@@ -273,7 +273,7 @@ addEventListener('DOMContentLoaded', async () => {
     if (d?.tipo === 'pose-pronta' && d.def && App.P?.id === d.projeto && App.P.personagens?.[d.def.id]) { // "Abrir no Ateliê como pose nova": o quadro passa a usar
       App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); const r = Modelo.achar(App.P, d.no), n = r?.no;
       if (n) { const k = Modelo.chave(n, d.quadro); if (d.vista) k.vista = d.vista; if (d.preset) k.sessoes = { ...(k.sessoes || {}), [d.sessao]: d.preset }; if (d.tiraEspelho) Modelo.poeTransf(n, d.quadro, { sx: Math.abs(Modelo.transf(n, d.quadro).sx || 1) }); if (d.tiraAjustes?.length) { k.partes = { ...(k.partes || {}) }; for (const pid of d.tiraAjustes) k.partes[pid] = null; } }
-      App.commit('Pose nova do Ateliê'); UI.toast(`O quadro ${d.quadro + 1} agora usa a ${d.vista ? 'vista' : 'pose'} nova de <b>${esc(d.def.nome)}</b>.`, { kind: 'ok' }); return; }
+      App.commit('Pose nova do Ateliê', { livre: true }); UI.toast(`O quadro ${d.quadro + 1} agora usa a ${d.vista ? 'vista' : 'pose'} nova de <b>${esc(d.def.nome)}</b>.`, { kind: 'ok' }); return; }
     if (d?.tipo === 'quadro-partes' && App.P?.id === d.projeto) { // o que foi mudado SÓ NESTE KEYFRAME no Ateliê (apagado, profundidade): vai para a chave do quadro
       const n = Modelo.achar(App.P, d.no)?.no; if (!n) return; const def = App.P.personagens?.[d.personagem];
       if (d.apKey) { if (def) def.apKeys = [...new Set([...(def.apKeys || []), d.apKey])]; await Arq.garantir([d.apKey]); }
@@ -282,11 +282,11 @@ addEventListener('DOMContentLoaded', async () => {
         // só neste keyframe: na próxima chave volta a ser como era
         if (prox != null) { const k2 = n.chaves[prox]; k2.partes = { ...(k2.partes || {}) }; const e2 = { ...(k2.partes[pid] || {}) };
           if (v.ap && e2.ap === undefined) e2.ap = antes?.[pid]?.ap ?? null; if ('z' in v && e2.z === undefined) e2.z = antes?.[pid]?.z ?? null; k2.partes[pid] = e2; } }
-      App.commit('Mudança só neste keyframe (Ateliê)'); return; }
+      App.commit('Mudança só neste keyframe (Ateliê)', { livre: true }); return; }
     if (d?.tipo === 'personagem-anim' && d.def && App.P?.id === d.projeto) { // a cópia DESTA animação foi mudada no Ateliê (outra aba): vale só aqui
-      App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem desta animação (Ateliê)'); return; }
+      App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem desta animação (Ateliê)', { livre: true }); return; }
     if (d?.tipo !== 'personagem' || !d.def) return;
-    if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = AtelieAnim.junta(App.P.personagens[d.def.id], d.def); /* imagens feitas só para um quadro continuam */ await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem atualizado'); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
+    if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = AtelieAnim.junta(App.P.personagens[d.def.id], d.def); /* imagens feitas só para um quadro continuam */ await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem atualizado', { livre: true }); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
     else if (!App.P && Home.atual === 'personagens' && !Atelie.emAba) Home.pinta();
   }; } catch { }
   // círculo de espaço (padrão de todos os projetos): as animações deste computador, com "Baixar .animador"

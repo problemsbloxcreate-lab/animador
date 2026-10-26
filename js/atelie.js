@@ -235,7 +235,7 @@ const Atelie = {
     const c = clone(def); delete c._local;
     if (local) { const L = this.local(); c._local = { em: Date.now(), todo: !!L.todo, presets: [...L.presets], partes: [...L.partes] }; }
     Icone.prepara(c).then(() => { // ícone (cabeça) e cor automáticos vão prontos para a hierarquia do editor
-      if (App.P?.personagens?.[c.id] && !this.emAba) { App.P.personagens[c.id] = AtelieAnim.junta(App.P.personagens[c.id], c); App.commit('Personagem atualizado'); } // imagens feitas só para um quadro continuam
+      if (App.P?.personagens?.[c.id] && !this.emAba) { App.P.personagens[c.id] = AtelieAnim.junta(App.P.personagens[c.id], c); App.commit('Personagem atualizado', { livre: true }); } // imagens feitas só para um quadro continuam
       try { (this._canal ||= new BroadcastChannel('animador')).postMessage({ tipo: 'personagem', def: c }); } catch { } });
   },
   // Ctrl+S: guarda neste computador (NÃO manda para a nuvem; só o botão da nuvem manda — ou sozinho, se ele já está lá)
