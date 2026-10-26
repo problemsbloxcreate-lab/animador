@@ -1216,3 +1216,5 @@ body.arrastando-div{user-select:none}
 #editor .tl-corpo{grid-template-columns:min(var(--tln,220px),55%) 1fr}
 #editor .tl-nomes-borda{left:calc(min(var(--tln,220px),55%) - 4px)}
 #editor .dock[data-dock=arvore]>.p-cab h3{letter-spacing:.4px}
+/* ícones novos dos programas (An, At; /estudio-icones.js — ADM › Ícones) */
+.brand .logo.logo-ep{background:none!important;border-radius:0;box-shadow:none;width:30px;height:30px}.brand .logo.logo-ep svg{width:100%;height:100%;display:block}
