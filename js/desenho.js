@@ -184,13 +184,13 @@ const Render = {
   },
   // QUADRO FINAL (exportar e prévia da câmera): fundo, camadas, cor, efeitos e legenda
   _tmp: null,
-  quadro(ctx, P, q, W, H) {
+  quadro(ctx, P, q, W, H, o = {}) { // o.semLegenda: exportar sem as legendas
     if (!this._tmp || this._tmp.width !== W || this._tmp.height !== H) this._tmp = new OffscreenCanvas(W, H);
     const t = this._tmp.getContext('2d');
     t.setTransform(1, 0, 0, 1, 0, 0); t.clearRect(0, 0, W, H);
     this.camadas(t, P, q, this.matCamera(P, q, W, H), 1, { fundo: true }); // o mesmo fundo da Cena (quadriculado ou cor lisa), visto pela câmera
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.filter = Efeitos.filtro(P, q); ctx.drawImage(this._tmp, 0, 0); ctx.filter = 'none';
-    Efeitos.porCima(ctx, P, q, W, H); this.legenda(ctx, P, q, W, H); ctx.restore();
+    Efeitos.porCima(ctx, P, q, W, H); if (!o.semLegenda) this.legenda(ctx, P, q, W, H); ctx.restore();
   },
   /* ---------- LEGENDAS no estilo dos Shorts: quebra em linhas curtas, tamanho fixo na legenda toda, *palavra* = destaque (cor),
      palavra que está sendo FALADA acesa (pelos tempos da transcrição, g.pal = [[palavra, q0, q1]], ou estimados pelas sílabas),
