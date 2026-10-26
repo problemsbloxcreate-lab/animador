@@ -222,7 +222,7 @@ const Render = {
     linhas.forEach((L, li) => { const tw = L.reduce((s2, i) => s2 + larg[i], 0) + esp * (L.length - 1); let xx = (W - tw) / 2; const yy = y0 + li * lh;
       for (const i of L) { const p = ps[i], falando = tempos && q >= tempos[i][0] && q <= tempos[i][1];
         ctx.lineWidth = tam * .2; ctx.strokeStyle = '#000'; ctx.strokeText(tx(p.w), xx, yy);
-        ctx.fillStyle = falando ? (st.fala || '#5ee0ff') : p.dest ? (st.destaque || '#ffd84a') : (st.cor || '#fff'); ctx.fillText(tx(p.w), xx, yy); xx += larg[i] + esp; } });
+        ctx.fillStyle = falando ? (l.cor || st.fala || '#5ee0ff') : p.dest ? (st.destaque || '#ffd84a') : (st.cor || '#fff'); ctx.fillText(tx(p.w), xx, yy); xx += larg[i] + esp; } });
     ctx.restore();
   },
   // caixa de cada nó visível (no "mundo") para escolher com o mouse; a primeira é a da frente

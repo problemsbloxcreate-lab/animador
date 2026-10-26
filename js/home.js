@@ -26,9 +26,9 @@ const Home = {
   aba(a) { this.atual = a; this.pinta(); },
   async pinta() {
     const el = $('#home-in'); if (!el) return;
-    el.innerHTML = `<div class="home-abas"><button data-a="animacoes" class="${this.atual === 'animacoes' ? 'on' : ''}"><span class="aba-ic-atelie" data-estudio-icone="an"></span>Animações</button><button data-a="personagens" class="${this.atual === 'personagens' ? 'on' : ''}"><span class="aba-ic-atelie" data-estudio-icone="at"></span>Personagens da equipe</button></div><div data-corpo></div>`;
+    el.innerHTML = `<div class="home-abas"><button data-a="animacoes" class="${this.atual === 'animacoes' ? 'on' : ''}"><span class="aba-ic-atelie" data-estudio-icone="an"></span>Animações</button><button data-a="personagens" class="${this.atual === 'personagens' ? 'on' : ''}"><span class="aba-ic-atelie" data-estudio-icone="at"></span>Personagens da equipe</button><button data-a="ideias" class="${this.atual === 'ideias' ? 'on' : ''}">${ic('bulb', 15)}Ideias</button></div><div data-corpo></div>`;
     $$('[data-a]', el).forEach(b => b.onclick = () => this.aba(b.dataset.a));
-    const c = $('[data-corpo]', el); this.atual === 'animacoes' ? this.animacoes(c) : this.personagens(c);
+    const c = $('[data-corpo]', el); this.atual === 'animacoes' ? this.animacoes(c) : this.atual === 'ideias' ? Ideias.pinta(c) : this.personagens(c);
   },
   async animacoes(c) {
     c.innerHTML = `<div class="novos">${FORMATOS.map(f => { const k = 34 / Math.max(f.w, f.h); return `<button class="novo" data-f="${f.id}"><span class="fm"><i style="width:${f.w * k}px;height:${f.h * k}px"></i></span><span><b>${f.nome}</b><small>${f.w}×${f.h} · ${f.fps} fps</small></span></button>`; }).join('')}

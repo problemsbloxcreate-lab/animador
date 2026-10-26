@@ -179,6 +179,19 @@ const Som = {
   },
 
   /* ---------- boca pela voz: escolhe a pose da boca em cada quadro pela força da voz ---------- */
+  // BOCA PELA VOZ sem janela (aba Ideias › Gerar o vídeo): sessão "Boca" (ou parecida) do personagem, da boca fechada até a mais
+  // aberta pela ordem dos presets (os de nome "fechada/neutra/padrão" primeiro, "aberta/grito" por último). Devolve se mexeu.
+  bocaAuto(P, n, a, sen = .18) {
+    const def = Modelo.naVista(P.personagens[n.ref], Modelo.estadoPersonagem(n, a.de || 0).vista), s = def?.sessoes?.find(x => /boca|mouth|fala/i.test(x.nome)); if (!s || s.presets.length < 2) return false;
+    const peso = p => /fech|neutr|padr|closed|calad|séri|seri/i.test(p.nome) ? 0 : /grit|bem abert|muito|scream/i.test(p.nome) ? 3 : /abert|open|\ba\b|aa|fala/i.test(p.nome) ? 2 : 1;
+    const ordem = s.presets.slice().sort((x, y) => peso(x) - peso(y)).map(p => p.id), pk = this.picos(a.arq, P.fps); if (!pk) return false;
+    let ultimo = null, desde = -9; const i0 = Math.round(this.ini(a) * P.fps), nQ = Math.min(pk.length - i0, Math.round(this.compr(a) * P.fps));
+    for (let i = i0; i < i0 + nQ; i++) { const q = (a.de || 0) + i - i0; if (q < 0 || q >= P.duracao || !Modelo.aparece(P, n, q)) continue;
+      const v = pk[i] < sen ? 0 : Math.min(ordem.length - 1, 1 + Math.floor((pk[i] - sen) / (1 - sen) * (ordem.length - 1))), id = ordem[v]; if (id === ultimo || q - desde < 2) continue;
+      const k = Modelo.chave(n, q); k.sessoes = { ...(k.sessoes || {}), [s.id]: id }; ultimo = id; desde = q; }
+    const fim = (a.de || 0) + nQ; if (fim < P.duracao && Modelo.aparece(P, n, fim)) { const k = Modelo.chave(n, fim); k.sessoes = { ...(k.sessoes || {}), [s.id]: ordem[0] }; }
+    return ultimo != null;
+  },
   async bocaPelaVoz(n) {
     const P = App.P, def = Modelo.naVista(P.personagens[n.ref], Modelo.estadoPersonagem(n, App.q).vista); if (!P.audios.length) return UI.toast('Ponha um áudio de voz primeiro (aba Voz).', { kind: 'warn' });
     const sess = def.sessoes.find(s => /boca/i.test(s.nome)) || def.sessoes[0]; if (!sess) return UI.toast('Esse personagem não tem sessões. Crie a sessão "Boca" no Ateliê.', { kind: 'warn' });
