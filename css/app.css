@@ -1573,3 +1573,9 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .ide-ref img{width:72px;aspect-ratio:16/9;object-fit:cover;border-radius:5px;flex:none}.ide-ref span{min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.ide-ref small{display:block;color:var(--tx3)}
 
 .ide-cena>.btn,.ide-pc>.btn{justify-self:start}.ide-rcab input{font-size:14px}
+/* abas da tela inicial em grupos: ícone do programa (da ADM) + as abas dele */
+.home-abas{gap:10px;flex-wrap:wrap}
+.home-grupo{display:flex;align-items:center;gap:3px;padding:3px 3px 3px 5px;border-radius:20px;border:1px solid var(--bd2);background:var(--bg1)}
+.home-gic{display:inline-grid;width:26px;height:26px;flex:none;border-radius:7px;overflow:hidden;margin-right:3px}.home-gic>*{width:100%;height:100%;display:block}
+.home-grupo button{height:30px;border:0;background:none;color:var(--tx2)}.home-grupo button:hover{color:var(--tx);background:var(--bg3)}
+.home-grupo button.on{background:#e6e6e6;color:#111}
