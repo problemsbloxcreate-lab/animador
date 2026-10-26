@@ -15,6 +15,36 @@ const App = {
     this.palco.liga(); this.enquadrar(); Arvore.pinta(); Folha.liga(); Lado.pinta(); Som.prepara(P);
     this.salvoTxt('Salvo neste computador'); this.pintaJunto();
   },
+  /* ---------- botão ATELIÊ do topo: pergunta onde abrir ----------
+     Simples = o Ateliê DENTRO do Animador (ao lado/janela, js/quadroed.js), arrumando só o personagem neste quadro.
+     Completo = o Ateliê inteiro numa aba nova. Sem personagem escolhido, pergunta qual. */
+  async abrirAtelie() {
+    const P = this.P; if (!P) return; this.pausa();
+    const card = (v, ic1, t, d) => `<button class="at-esc" data-v="${v}">${ic1}<span><b>${t}</b><small>${d}</small></span></button>`;
+    const body = h(`<div class="at-escolha">${card('simples', ic('monitor', 22), 'No Animador <em>simples</em>', 'O Ateliê abre aqui ao lado e muda só o personagem neste quadro.')}${card('aba', '<img src="icones/atelie.svg" alt="" width="26" height="26">', 'Em uma nova aba <em>completo</em>', 'O Ateliê inteiro: partes, imagens, poses, animações de teste e vistas.')}</div>`);
+    const modo = await UI.modal({ title: 'Abrir o Ateliê', icon: 'palette', width: 460, body, buttons: [{ label: 'Cancelar', value: null }],
+      onOpen: api => $$('[data-v]', api.body).forEach(b => b.onclick = () => api.close(b.dataset.v)) });
+    if (!modo) return;
+    let n = this.noSel(); if (n && n.tipo !== 'personagem') n = null; // só o que está SELECIONADO; nada selecionado = pergunta qual
+    if (!n) { n = await this.qualPersonagem(modo); if (n === undefined || n === null) return; }
+    if (modo === 'simples') { if (n === 'novo') return; return QuadroEd.abrir(n); }
+    Atelie.abrirAba(n === 'novo' ? null : P.personagens[n.ref]?.id || null);
+  },
+  // nenhum personagem escolhido: lista os do quadro (e, embaixo, os outros da animação) para escolher; 'novo' = personagem novo (só no completo)
+  async qualPersonagem(modo) {
+    const P = this.P, aqui = Modelo.noQuadro(P, this.q), outros = Modelo.todos(P).filter(n => n.tipo === 'personagem' && !aqui.includes(n));
+    if (!aqui.length && !outros.length && modo === 'simples') { UI.toast('Nenhum personagem nesta animação. Ponha um personagem primeiro (botão + da Hierarquia).', { kind: 'warn' }); return null; }
+    const item = n => { const def = P.personagens[n.ref]; return `<button class="at-pers" data-id="${n.id}">${Icone.html(def, 26)}<span><b>${esc(n.nome)}</b><small>${esc(def?.nome || '')}</small></span></button>`; };
+    const body = h(`<div class="at-qual">${aqui.length ? `<div class="at-qt">No quadro ${this.q + 1}</div>${aqui.map(item).join('')}` : ''}
+      ${outros.length ? `<div class="at-qt">${modo === 'simples' ? 'Fora deste quadro <small>(vai para o quadro onde aparece)</small>' : 'Na animação'}</div>${outros.map(item).join('')}` : ''}
+      ${modo === 'aba' ? `<button class="at-pers novo" data-id="novo">${ic('plus', 18)}<span><b>Personagem novo</b><small>começar do zero</small></span></button>` : ''}</div>`);
+    const id = await UI.modal({ title: modo === 'simples' ? 'Qual personagem abrir no Animador?' : 'Qual personagem abrir no Ateliê?', icon: 'layers', width: 420, body, buttons: [{ label: 'Cancelar', value: null }],
+      onOpen: api => $$('[data-id]', api.body).forEach(b => b.onclick = () => api.close(b.dataset.id)) });
+    if (!id) return null; if (id === 'novo') return 'novo';
+    const n = Modelo.achar(P, id)?.no; if (!n) return null;
+    if (modo === 'simples' && !Modelo.aparece(P, n, this.q)) this.setQ(n.de || 0); // fora do quadro: vai para onde ele aparece
+    this.selecionar(n.id); return n;
+  },
   async fechar() { QuadroEd.fechar?.(); this.pausa(); await this.salvarJa(); if (AoVivo.ad?.ctx === 'animador') await this.sairJunto(false, true); this.P = null; Telas.mostra('home'); Home.pinta(); this.titulo(); },
   // TRABALHAR JUNTO: o arquivo vai TEMPORARIAMENTE para a nuvem enquanto as pessoas trabalham (js/aovivo.js)
   async trabalharJunto() {

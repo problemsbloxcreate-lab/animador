@@ -5,7 +5,7 @@
   poe('b-undo', 'undo', '', () => App.undo()); poe('b-redo', 'redo', '', () => App.redo());
   poe('b-regua', 'ruler', '', () => App.trocaRegua()); $('#b-regua').classList.toggle('on', App.regua());
   poe('b-onion', 'onion', '', () => { App.onion = !App.onion; $('#b-onion').classList.toggle('on', App.onion); App.pinta(); });
-  poe('b-ia', 'sparkles', 'IA', () => IA.abrir(Lado.foco())); poe('b-atelie', 'edit', 'Ateliê', () => Atelie.abrirAba(Lado.foco() ? App.P.personagens[Lado.foco().ref]?.id : null));
+  poe('b-ia', 'sparkles', 'IA', () => IA.abrir(Lado.foco())); { const b = $('#b-atelie'); if (b) { b.innerHTML = '<img class="ic-atelie" src="icones/atelie.svg" alt=""><span>Ateliê</span>'; b.onclick = () => App.abrirAtelie(); } } // ícone do Ateliê (paleta laranja), pergunta simples × completo
   poe('b-exportar', 'download', 'Exportar', () => Exportar.abrir());
   poe('h-pers', 'plus', '', () => App.addPersonagem()); poe('h-cen', 'paisagem', '', () => { const r = $('#h-cen').getBoundingClientRect(); App.menuCenario(r.left, r.bottom + 4); }); poe('h-img', 'image', '', () => App.addImagem()); poe('h-forma', 'shapes', '', () => { const r = $('#h-forma').getBoundingClientRect(); App.menuForma(r.left, r.bottom + 4); }); poe('h-txt', 'text', '', () => App.addTexto()); poe('h-pasta', 'folder', '', () => App.addPasta());
   poe('t-ini', 'start', '', () => App.setQ(0)); poe('t-ant', 'prev', '', () => App.setQ(App.q - 1, { som: true })); poe('b-tocar', 'play', '', () => App.tocar());
@@ -43,7 +43,7 @@
       { head: 'ANIMADOR' },
       { label: 'Desfazer', icon: 'undo', key: 'Ctrl+Z', action: () => App.undo() }, { label: 'Refazer', icon: 'redo', key: 'Ctrl+Y', action: () => App.redo() }, '-',
       { label: 'Pôr um personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Pôr uma forma…', icon: 'shapes', action: () => App.menuForma(e.clientX, e.clientY) }, { label: 'Pôr um texto', icon: 'text', action: () => App.addTexto() }, '-',
-      { label: 'Animar com a IA…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco()) }, { label: 'Ateliê de personagens', icon: 'edit', action: () => $('#b-atelie').click() },
+      { label: 'Animar com a IA…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco()) }, { label: 'Ateliê de personagens…', icon: 'palette', action: () => App.abrirAtelie() },
       { label: 'Exportar…', icon: 'download', action: () => Exportar.abrir() }, { label: 'Baixar .animador', icon: 'file', action: () => Toon.baixar(App.P) }, { label: 'Citar este quadro em mensagens…', icon: 'chat', action: () => Citacao.animacao(App.P, App.q, App.sel) }, '-',
       { label: 'Voltar ao início', icon: 'left', action: () => App.fechar() },
     ] : tela === 'atelie' ? [

@@ -1243,3 +1243,14 @@ body.embed-quadro #atelie .at.com-docks.qe-sem-baixo{grid-template-rows:minmax(0
 /* painel do quadro: encaixado vai até o topo (a barra dele na altura do cabeçalho do Animador) e a alça de pontinhos mostra que ele se move */
 .qed.lado .qed-bar{height:46px;cursor:grab}.qed.lado.mexendo .qed-bar{cursor:grabbing}
 .qed-pega{display:grid;place-items:center;width:14px;margin-left:-4px;color:var(--tx3);opacity:.7;flex:none}.qed-bar:hover .qed-pega{opacity:1;color:#9fd0f7}
+/* botão Ateliê do topo do Animador e a janela "Abrir o Ateliê" */
+#b-atelie .ic-atelie{width:17px;height:17px;border-radius:5px;flex:none}
+.at-escolha{display:grid;gap:8px}
+.at-esc,.at-pers{display:flex;align-items:center;gap:12px;width:100%;padding:12px;border:1px solid var(--bd2);border-radius:10px;background:var(--bg2);color:var(--tx);font:inherit;text-align:left;cursor:pointer}
+.at-esc:hover,.at-pers:hover{background:var(--bg3);border-color:#ff9a62}
+.at-esc>svg,.at-esc>img{flex:none;color:#ff9a62;border-radius:7px}
+.at-esc b,.at-pers b{display:block;font-size:13.5px}.at-esc b em{font-style:normal;font-weight:500;font-size:11px;color:#ffb27a;margin-left:6px;text-transform:uppercase;letter-spacing:.6px}
+.at-esc small,.at-pers small{display:block;color:var(--tx3);font-size:12px;margin-top:2px}
+.at-qual{display:grid;gap:6px;max-height:60vh;overflow:auto}
+.at-qt{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx3);margin:6px 0 0}.at-qt small{text-transform:none;letter-spacing:0}
+.at-pers{padding:8px 10px}.at-pers.novo{border-style:dashed}.at-pers.novo>svg{color:var(--tx2);margin:0 4px}

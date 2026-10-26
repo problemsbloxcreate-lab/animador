@@ -21,7 +21,7 @@ const QuadroEd = {
   async abrir(n, q = App.q) {
     const P = App.P, def = P?.personagens?.[n?.ref]; if (!def) return; App.pausa?.();
     const est = Modelo.estadoPersonagem(n, q), partes = {}; for (const [k, v] of Object.entries(est.partes || {})) if (v) partes[k] = v;
-    await DB.put('arquivos', { def: clone(def), sessoes: est.sessoes || {}, partes, vista: est.vista || null, quadro: q, projeto: P.id, no: n.id, anim: P.nome, em: Date.now() }, 'quadro-abrir');
+    await DB.put('arquivos', { def: clone(def), sessoes: est.sessoes || {}, partes, vista: est.vista || def.vistas?.[0]?.id || null, quadro: q, projeto: P.id, no: n.id, anim: P.nome, em: Date.now() }, 'quadro-abrir');
     this.atual = { no: n.id, quadro: q, nome: def.nome, projeto: P.id }; this.mostra();
     if (this.ifr && this.pronto) { this.carregando(true, 30, 'Lendo o quadro…'); this.ifr.contentWindow.postMessage({ tipo: 'abre-quadro' }, location.origin); }
     else if (!this.ifr) this.criaFrame();
