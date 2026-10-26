@@ -1401,3 +1401,28 @@ body.arrastando-num,body.arrastando-num *{cursor:ew-resize!important;user-select
 .pr-tempo input,.pr-es select,.pr-campo input{width:0!important;flex:1 1 0;min-width:0}
 .pr-es input{flex:none}
 .pr-5 .pr-icones{grid-template-columns:repeat(5,minmax(0,1fr))}.pr-5 .pr-icones button{font-size:10.5px;min-height:32px}
+/* ===== EFEITOS (lado.js › efeitos/camadaEfeito) ===== */
+.pr-ir-ef{display:flex;align-items:center;gap:8px;width:100%;padding:10px;border:0;border-bottom:1px solid var(--bd);background:none;color:var(--tx2);font:inherit;font-size:12px;cursor:pointer;text-align:left}
+.pr-ir-ef:hover{background:var(--bg2);color:var(--tx)}.pr-ir-ef>svg:first-child{color:#b49cff}.pr-ir-ef span{flex:1}.pr-ir-ef small{color:#b49cff;font-size:11px}
+.ef-onde{padding:8px 10px;border-bottom:1px solid var(--bd)}
+.ef-onde .ef-dica{display:flex;gap:6px;align-items:flex-start;font-size:11.5px;color:var(--tx2);line-height:1.4;margin-bottom:6px}.ef-onde .ef-dica svg{flex:none;margin-top:1px;color:#b49cff}
+.ef-onde .ef-dica:last-child{margin-bottom:0}
+#lado .visuais{padding:0;grid-template-columns:repeat(3,minmax(0,1fr))}
+#lado .visual{border:1px solid var(--bd);color:var(--tx2);font:inherit;font-size:11px;padding:5px 4px}
+#lado .visual span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#lado .visual.on{border-color:#b49cff;color:#fff;box-shadow:0 0 0 1px #b49cff inset}
+.ef-lib{display:grid;gap:4px}
+.ef-it{display:flex;align-items:center;gap:9px;width:100%;padding:7px 9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg2);color:var(--tx2);font:inherit;text-align:left;cursor:pointer}
+.ef-it span{flex:1;min-width:0}.ef-it b{display:block;font-size:12.5px;color:var(--tx);font-weight:600}.ef-it small{display:block;font-size:11px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ef-it>svg:first-child{color:#b49cff;flex:none}.ef-it>svg:last-child{color:var(--tx3);flex:none}
+.ef-it:hover{background:var(--bg3);border-color:var(--bd2)}.ef-it:hover>svg:last-child{color:var(--tx)}
+.ef-it.on{border-color:rgba(180,156,255,.6);background:rgba(143,107,255,.12)}.ef-it.on>svg:last-child{color:#b49cff}
+#lado .ef-camada{margin:0;border:0;border-bottom:1px solid var(--bd);border-radius:0;padding:10px;background:linear-gradient(180deg,rgba(143,107,255,.12),transparent)}
+.ef-camada .pr-ic{background:rgba(143,107,255,.2);color:#cbbcff}
+.ef-lista{display:grid;gap:6px;margin-top:8px}
+.ef-card{padding:8px 9px;border:1px solid rgba(180,156,255,.3);border-radius:9px;background:var(--bg1)}
+.ef-cc{display:flex;align-items:center;gap:7px;margin-bottom:6px}.ef-cc>svg{color:#b49cff}.ef-cc b{font-size:12.5px}.ef-cc small{color:var(--tx3);font-size:11px}
+.ef-cc .ibtn{margin-left:auto;width:26px;height:26px}
+.ef-cor{width:18px;height:14px;border-radius:4px;flex:none}
+.ef-card .pb,.ef-card .pn{margin-bottom:6px}.ef-card [data-c]>:last-child{margin-bottom:0}
+#lado .visual i{aspect-ratio:2.2/1}

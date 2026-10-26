@@ -231,7 +231,7 @@ const Lado = {
       const a = h(`<div class="pr-acoes"><button class="btn sm" data-nq>${ic('layers', 13)} Poses e vista</button><button class="btn sm" data-at><img src="icones/atelie.svg" alt="" width="14" height="14" style="border-radius:3px"> Ateliê…</button></div>`);
       $('[data-nq]', a).onclick = () => this.aba('quadro'); $('[data-at]', a).onclick = () => App.abrirAtelie(); c.appendChild(a);
     }, true));
-    el.appendChild(this.secao('p-trem', 'Trêmulo', n.tremulo ? (n.tremulo.modo === 'ondular' ? 'ondular' : 'tremer') : 'desligado', c => c.appendChild(this.tremulo(n, true))));
+    { const ef = h(`<button class="pr-ir-ef">${ic('sparkles', 13)}<span>Trêmulo e efeitos desta camada</span><small>${n.tremulo ? (n.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : ''}</small>${ic('right', 12)}</button>`); ef.onclick = () => this.aba('efeitos'); el.appendChild(ef); }
   },
   propsCamera(el, P, q) {
     const c = Modelo.camera(P, q), muda = (k, v) => { P.camera.chaves[q] = { ...c, ...(P.camera.chaves[q] || {}), [k]: v }; App.pinta(); }, sol = () => App.commit('Câmera', { semArvore: true });
@@ -296,52 +296,79 @@ const Lado = {
 
   /* ---------- Efeitos (1 clique) ---------- */
   /* ---------- Efeitos: tudo vira CAMADA DE EFEITO (vale para o que está abaixo dela na hierarquia, até a próxima camada de efeito) ---------- */
+  /* ---------- Efeitos ----------
+     Em cima: o que já está ligado — a CAMADA DE EFEITO escolhida (lista dos efeitos com força, tempo e tirar) ou, com uma camada comum
+     escolhida, os efeitos SÓ DELA (Trêmulo/Ondular, que antes ficavam nas Propriedades). Embaixo: a BIBLIOTECA em grupos que abrem/fecham
+     (Cor, Tela, Movimento, Transições); clicar põe na camada de efeito escolhida ou cria uma acima da camada escolhida. */
+  GRUPOS_EF: [
+    ['tela', 'Tela', ['vinheta', 'granulado', 'cinema', 'desfoque', 'brilho', 'vhs', 'escurecer', 'clarear']],
+    ['mov', 'Movimento', ['tremor', 'tremulo:tremer', 'tremulo:ondular']],
+    ['trans', 'Transições', ['chicote', 'zoomcorte', 'flash']],
+  ],
+  DICAS_EF: { vinheta: 'Escurece as bordas', granulado: 'Grão de filme', cinema: 'Faixas pretas em cima e embaixo', desfoque: 'Imagem borrada', brilho: 'Brilho suave em volta da luz', vhs: 'Fita antiga, linhas e cor separada', escurecer: 'Tudo mais escuro', clarear: 'Tudo mais claro', tremor: 'A tela inteira treme', 'tremulo:tremer': 'Tudo abaixo treme quadro a quadro', 'tremulo:ondular': 'Tudo abaixo ondula', chicote: 'Passa borrando para o lado (o corte fica no meio)', zoomcorte: 'Zoom borrado no corte', flash: 'Clarão branco' },
+  efDef(id) { if (id.startsWith('tremulo:')) { const m = id.split(':')[1]; return { id: 'tremulo', modo: m, nome: m === 'tremer' ? 'Trêmulo' : 'Ondular', ic: 'wave', forca: .4 }; } return Efeitos.TELA.find(e => e.id === id); },
   efeitos(el) {
-    const P = App.P, q = App.q, s = App.noSel(), alvo = s?.tipo === 'efeito' ? s : null, toda = this.toda ?? true;
-    const dica = alvo ? `Clique para pôr na camada <b>${esc(alvo.nome)}</b>.` : `Clique: cria uma <b>camada de efeito</b> ${s ? `acima de <b>${esc(s.nome)}</b>` : 'no topo'} — vale para tudo o que está abaixo dela (até a próxima camada de efeito).`;
-    const top = h(`<div class="ef-topo"><div class="ef-dica">${dica}</div><label class="chk" title="Desligado: começa neste quadro e dura um pouco"><input type="checkbox" data-toda ${toda ? 'checked' : ''}> Na timeline toda</label></div>`);
-    $('[data-toda]', top).onchange = ev => { this.toda = ev.target.checked; };
-    el.appendChild(top);
+    const P = App.P, s = App.noSel(), alvo = s?.tipo === 'efeito' ? s : null, toda = this.toda ?? true;
     const tem = (tipo, extra = {}) => alvo?.efeitos.some(e => e.tipo === tipo && Object.entries(extra).every(([k, v]) => e[k] === v));
-    el.appendChild(h('<div class="p-cab" style="border:0"><h3>Cor</h3></div>'));
-    const g = h('<div class="visuais"></div>');
-    for (const v of Efeitos.VISUAIS) { if (v.id === 'normal') continue; const b = h(`<div class="visual ${tem('cor', { visual: v.id }) ? 'on' : ''}" title="${esc(v.nome)}"><i style="background:linear-gradient(135deg,${v.cor[0]},${v.cor[1]});filter:${v.f || 'none'}"></i>${esc(v.nome)}</div>`); b.onclick = () => App.addEfeito({ tipo: 'cor', visual: v.id }); g.appendChild(b); }
-    el.appendChild(g);
-    el.appendChild(h('<div class="p-cab" style="border:0"><h3>Efeitos de tela</h3></div>'));
-    const t = h('<div class="efeitos-t"></div>');
-    for (const ef of [...Efeitos.TELA, { id: 'tremulo', modo: 'tremer', nome: 'Trêmulo', ic: 'wave', forca: .4 }, { id: 'tremulo', modo: 'ondular', nome: 'Ondular', ic: 'wave', forca: .4 }]) {
-      const b = h(`<div class="ef ${tem(ef.id, ef.modo ? { modo: ef.modo } : {}) ? 'on' : ''}">${ic(ef.ic, 14)}${esc(ef.nome)}</div>`);
-      b.onclick = () => App.addEfeito({ tipo: ef.id, forca: ef.forca, ...(ef.modo ? { modo: ef.modo, ritmo: 2 } : {}) }); t.appendChild(b);
-    }
-    el.appendChild(t);
+    // 1) o que está ligado agora
     if (alvo) el.appendChild(this.camadaEfeito(alvo));
-    else if (s && s.tipo !== 'efeito') { el.appendChild(h(`<div class="p-cab" style="border:0"><h3>Só na camada "${esc(s.nome)}"</h3></div>`)); el.appendChild(this.tremulo(s)); }
+    else if (s) {
+      const defP = s.tipo === 'personagem' ? P.personagens[s.ref] : null, cab = h('<div class="pr-topo"></div>');
+      cab.appendChild(this.cabecalho(defP ? Icone.html(defP, 26) : ic(TIPO_IC[s.tipo] || 'layers', 16), esc(s.nome), 'efeitos só desta camada')); el.appendChild(cab);
+      el.appendChild(this.secao('e-trem', 'Trêmulo', s.tremulo ? (s.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : 'a camada parada fica viva', c => c.appendChild(this.tremulo(s, true)), true));
+    }
+    // 2) para onde vai o que for clicado
+    const destino = alvo ? `Clique para pôr em <b>${esc(alvo.nome)}</b>.` : `Clique cria uma <b>camada de efeito</b> ${s ? `acima de <b>${esc(s.nome)}</b>` : 'no topo'}: vale para tudo o que está abaixo dela.`;
+    const ond = h(`<div class="ef-onde"><div class="ef-dica">${ic('info', 13)}<span>${destino}</span></div>${alvo ? '' : `<div class="pr-seg"><span>Duração</span><div><button data-t="1" class="${toda ? 'on' : ''}" title="Do primeiro ao último quadro">Toda a timeline</button><button data-t="0" class="${toda ? '' : 'on'}" title="Começa no quadro de agora e dura um pouco">Daqui, um pouco</button></div></div>`}</div>`);
+    $$('[data-t]', ond).forEach(b => b.onclick = () => { this.toda = b.dataset.t === '1'; this.pinta(); }); el.appendChild(ond);
+    // 3) biblioteca
+    el.appendChild(this.secao('e-cor', 'Cor', 'o visual de tudo abaixo', c => {
+      const g = h('<div class="visuais"></div>');
+      for (const v of Efeitos.VISUAIS) { if (v.id === 'normal') continue; const b = h(`<button class="visual ${tem('cor', { visual: v.id }) ? 'on' : ''}" title="${esc(v.nome)}"><i style="background:linear-gradient(135deg,${v.cor[0]},${v.cor[1]});filter:${v.f || 'none'}"></i><span>${esc(v.nome)}</span></button>`); b.onclick = () => App.addEfeito({ tipo: 'cor', visual: v.id }); g.appendChild(b); }
+      c.appendChild(g);
+    }, true));
+    for (const [gid, nome, ids] of this.GRUPOS_EF) el.appendChild(this.secao('e-' + gid, nome, '', c => {
+      const g = h('<div class="ef-lib"></div>');
+      for (const id of ids) { const ef = this.efDef(id); if (!ef) continue; const on = tem(ef.id, ef.modo ? { modo: ef.modo } : {});
+        const b = h(`<button class="ef-it ${on ? 'on' : ''}" title="${esc(this.DICAS_EF[id] || ef.nome)}">${ic(ef.ic, 15)}<span><b>${esc(ef.nome.replace('Transição ', ''))}</b><small>${esc(this.DICAS_EF[id] || '')}</small></span>${on ? ic('check', 13) : ic('plus', 13)}</button>`);
+        b.onclick = () => App.addEfeito({ tipo: ef.id, forca: ef.forca, ...(ef.modo ? { modo: ef.modo, ritmo: 2 } : {}) }); g.appendChild(b); }
+      c.appendChild(g);
+    }, gid !== 'trans'));
     // efeitos antigos do vídeo todo (projetos de antes das camadas de efeito)
     const velhos = P.efeitos.tela || [];
-    if (velhos.length || (P.efeitos.visual && P.efeitos.visual !== 'normal')) {
-      el.appendChild(h('<div class="p-cab" style="border:0"><h3>Do vídeo todo (antigos)</h3></div>'));
-      const box = h(`<div class="sessao"><div style="color:var(--tx2);font-size:12px;margin-bottom:6px">${[P.efeitos.visual !== 'normal' && Efeitos.visual(P.efeitos.visual).nome, ...velhos.map(e => Efeitos.nomeEf(e) + ` (${e.de + 1}–${e.ate + 1})`)].filter(Boolean).map(esc).join(' · ')}</div><button class="btn sm" data-conv>${ic('layers', 13)} Virar camada de efeito</button> <button class="btn sm" data-tira>${ic('trash', 13)} Tirar</button></div>`);
+    if (velhos.length || (P.efeitos.visual && P.efeitos.visual !== 'normal')) el.appendChild(this.secao('e-velhos', 'Do vídeo todo (antigos)', '', c => {
+      const box = h(`<div><div class="pr-info">${[P.efeitos.visual !== 'normal' && Efeitos.visual(P.efeitos.visual).nome, ...velhos.map(e => Efeitos.nomeEf(e) + ` (${e.de + 1}–${e.ate + 1})`)].filter(Boolean).map(esc).join(' · ')}</div><div class="pr-acoes"><button class="btn sm" data-conv>${ic('layers', 13)} Virar camada de efeito</button><button class="btn sm" data-tira>${ic('trash', 13)} Tirar</button></div></div>`);
       $('[data-conv]', box).onclick = () => App.converterEfeitosAntigos(); $('[data-tira]', box).onclick = () => { P.efeitos = { visual: 'normal', tela: [] }; App.commit('Tirar efeitos antigos'); };
-      el.appendChild(box);
-    }
+      c.appendChild(box);
+    }, true));
   },
   // os efeitos de uma camada de efeito: força, tempo próprio e tirar
   camadaEfeito(n) {
-    const P = App.P, box = h(`<div class="sessao ef-camada"><h4>${ic('sparkles', 13)} ${esc(n.nome)} <small>quadros ${(n.de || 0) + 1}–${Modelo.fimNo(P, n) + 1}</small><span class="sp"></span><button class="btn sm" data-toda title="Do primeiro ao último quadro">Na timeline toda</button></h4></div>`);
-    $('[data-toda]', box).onclick = () => { n.de = 0; n.ate = null; n.chaves = { 0: n.chaves?.[Object.keys(n.chaves || {})[0]] || { x: 0, y: 0, r: 0, s: 1, sx: 1, op: 1 } }; App.commit('Na timeline toda'); };
-    if (!n.efeitos.length) box.appendChild(h('<div class="vazio">Sem efeitos: clique em um aí em cima.</div>'));
+    const P = App.P, fim = Modelo.fimNo(P, n), box = h('<div class="ef-camada"></div>');
+    const cab = this.cabecalho(ic('sparkles', 16), `<input class="pr-nome" value="${esc(n.nome)}" title="Nome da camada de efeito">`, `camada de efeito · quadros ${(n.de || 0) + 1}–${n.ate == null ? 'fim' : fim + 1}`,
+      `<button class="ibtn ${n.vis === false ? 'off' : ''}" data-vis title="${n.vis === false ? 'Ligar' : 'Desligar'} todos">${ic(n.vis === false ? 'eyeOff' : 'eye', 14)}</button>`);
+    $('.pr-nome', cab).onchange = ev => { n.nome = ev.target.value.trim() || n.nome; n.nomeAuto = false; App.commit('Nome da camada'); };
+    $('[data-vis]', cab).onclick = () => { n.vis = n.vis === false; App.commit(n.vis ? 'Ligar efeitos' : 'Desligar efeitos'); };
+    box.appendChild(cab);
+    const tm = h(`<div class="pr-acoes" style="margin:8px 0 0">${n.de || n.ate != null ? `<button class="btn sm" data-toda title="Do primeiro ao último quadro">${ic('loop', 13)} Toda a timeline</button>` : ''}<button class="btn sm" data-sel title="Escolher as camadas abaixo dela na hierarquia">${ic('layers', 13)} Ver na hierarquia</button></div>`);
+    if ($('[data-toda]', tm)) $('[data-toda]', tm).onclick = () => { n.de = 0; n.ate = null; n.chaves = { 0: n.chaves?.[Object.keys(n.chaves || {})[0]] || { x: 0, y: 0, r: 0, s: 1, sx: 1, op: 1 } }; App.commit('Na timeline toda'); };
+    $('[data-sel]', tm).onclick = () => App.selecionar(n.id); box.appendChild(tm);
+    const lista = h('<div class="ef-lista"></div>');
+    if (!n.efeitos.length) lista.appendChild(h('<div class="nq-vazio">Sem efeitos: escolha um na biblioteca abaixo.</div>'));
     for (const e of n.efeitos) {
-      const lin = h(`<div class="ef-item"><div class="campo2"><b style="flex:1">${esc(Efeitos.nomeEf(e))}</b>${e.de != null ? `<small style="color:var(--tx3)">quadros ${e.de + 1}–${(e.ate ?? Modelo.fimNo(P, n)) + 1}</small><button class="btn sm" data-tudo title="Vale o tempo todo da camada">Tempo todo</button>` : ''}<button class="ibtn" data-x title="Tirar">${ic('trash', 13)}</button></div><div class="props" style="padding:0"></div></div>`);
-      const pp = $('.props', lin);
-      if (e.tipo !== 'cor') pp.appendChild(this.campo('Força', e.forca ?? .5, .02, 1, .01, v => { e.forca = v; App.pinta(); }, () => App.commit('Força')));
-      if (e.tipo === 'chicote') { const sl = h(`<div class="campo2"><span style="color:var(--tx2)">Vai para</span><select><option value="esq">a esquerda</option><option value="dir" ${e.lado === 'dir' ? 'selected' : ''}>a direita</option></select></div>`); $('select', sl).onchange = ev => { e.lado = ev.target.value; App.commit('Lado do chicote'); }; pp.appendChild(sl); }
-      if (Efeitos.TRANS.includes(e.tipo)) pp.appendChild(h('<div style="color:var(--tx3);font-size:11.5px">O corte fica no meio: ponha o fim de uma cena e o começo da outra ali.</div>'));
-      if (e.tipo === 'tremulo') pp.appendChild(this.campo('Ritmo', e.ritmo || 2, 1, 8, 1, v => { e.ritmo = Math.round(v); App.pinta(); }, () => App.commit('Ritmo')));
+      const def = e.tipo === 'cor' ? null : this.efDef(e.tipo === 'tremulo' ? 'tremulo:' + (e.modo || 'tremer') : e.tipo), vis = e.tipo === 'cor' ? Efeitos.visual(e.visual) : null;
+      const lin = h(`<div class="ef-card"><div class="ef-cc">${vis ? `<i class="ef-cor" style="background:linear-gradient(135deg,${vis.cor[0]},${vis.cor[1]})"></i>` : ic(def?.ic || 'sparkles', 14)}<b>${esc(Efeitos.nomeEf(e))}</b>${e.de != null ? `<small>quadros ${e.de + 1}–${(e.ate ?? fim) + 1}</small>` : ''}<button class="ibtn" data-x title="Tirar este efeito">${ic('trash', 13)}</button></div><div data-c></div></div>`);
+      const c = $('[data-c]', lin);
+      if (e.tipo !== 'cor') c.appendChild(this.barra('Força', e.forca ?? .5, v => { e.forca = Math.max(.02, v); App.pinta(); }, () => App.commit('Força')));
+      if (e.tipo === 'tremulo') c.appendChild(this.num('Ritmo', e.ritmo || 2, { passo: .05, min: 1, max: 8, dec: 0, unid: 'q', dica: 'Quantos quadros até mudar (2 = 12 vezes por segundo a 24 fps)' }, v => { e.ritmo = Math.round(v); App.pinta(); }, () => App.commit('Ritmo')));
+      if (e.tipo === 'chicote') { const sl = h(`<div class="pr-seg"><span>Vai para</span><div><button data-l="esq" class="${e.lado !== 'dir' ? 'on' : ''}">Esquerda</button><button data-l="dir" class="${e.lado === 'dir' ? 'on' : ''}">Direita</button></div></div>`); $$('[data-l]', sl).forEach(b => b.onclick = () => { e.lado = b.dataset.l; App.commit('Lado do chicote'); }); c.appendChild(sl); }
+      if (Efeitos.TRANS.includes(e.tipo)) c.appendChild(h('<div class="pr-info">O corte fica no meio: ponha o fim de uma cena e o começo da outra ali.</div>'));
+      if (e.de != null) { const t = h(`<div class="pr-acoes"><button class="btn sm" data-tudo title="Vale o tempo todo da camada">${ic('loop', 13)} Tempo todo da camada</button></div>`); $('[data-tudo]', t).onclick = () => { delete e.de; delete e.ate; App.commit('Tempo todo'); }; c.appendChild(t); }
       $('[data-x]', lin).onclick = () => { n.efeitos = n.efeitos.filter(x => x !== e); App.nomeEfeito(n); App.commit('Tirar ' + Efeitos.nomeEf(e)); };
-      if ($('[data-tudo]', lin)) $('[data-tudo]', lin).onclick = () => { delete e.de; delete e.ate; App.commit('Tempo todo'); };
-      box.appendChild(lin);
+      lista.appendChild(lin);
     }
-    box.appendChild(h('<div style="color:var(--tx3);font-size:11.5px;margin-top:6px">Vale para o que está <b>abaixo</b> desta camada na hierarquia, até a próxima camada de efeito (o que está abaixo dela só obedece a ela). Arraste a barra na timeline para mudar o tempo.</div>'));
+    box.appendChild(lista);
+    box.appendChild(h('<div class="pr-info" style="margin:8px 0 0">Vale para o que está <b>abaixo</b> desta camada na hierarquia, até a próxima camada de efeito. Arraste a barra na timeline para mudar o tempo.</div>'));
     return box;
   },
 
