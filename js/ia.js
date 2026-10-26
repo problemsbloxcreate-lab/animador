@@ -87,7 +87,7 @@ Ações possíveis:
  {"tipo":"cenario","descricao":"o lugar em português, sem personagens"}   (só se a pessoa pedir um cenário/fundo novo; sai no estilo da casa e fica só nesta animação)
  {"tipo":"vista","camada":"nome","quadro":N,"vista":"Lado"}   (troca o ÂNGULO do personagem a partir do quadro N: frente, três-quartos, lado, costas… — para virar, andar de lado, dar as costas)
  {"tipo":"parte","camada":"nome","quadro":N,"parte":"Cabeça","r":10,"x":0,"y":0,"s":1,"img":"nome da imagem","curva":"suave"}   (RIG: gira/move UMA parte a partir do quadro N; r, x e y SOMAM ao que a pose de agora tem (r=10 = inclina mais 10°), "absoluto":true usa o valor exato; "duracao":Q = quantos quadros o movimento leva para chegar nesta chave (padrão ~0,75 s; antes disso a pose fica parada); "soltar":true tira o ajuste e a parte volta ao que a pose manda. Use para inclinar a cabeça, dobrar o tronco, balançar o braço. Com "partes_suaves" a parte vai mudando aos poucos até essa chave, como no Toon Boom; escolher uma pose nova tira os ajustes das partes dela)
- {"tipo":"alcancar","camada":"nome","quadro":N,"membro":"Mão direita","alvo":{"x":0,"y":0},"dobra":"igual|inverter"}   (IK: leva a mão/pé até o ponto (px do projeto) girando braço e antebraço/perna e canela; o alvo pode ser "camada":"nome da camada" em vez de x,y. Use para apontar, pegar, tocar, chutar, pisar no lugar certo)
+ {"tipo":"alcancar","camada":"nome","quadro":N,"membro":"Mão direita","alvo":{"x":0,"y":0},"dobra":"igual|inverter"}   (IK: leva a mão/pé até o ponto (px do projeto) girando braço e antebraço/perna e canela; começa do preset do membro mais parecido (desenho e camada certos; "preset":false não troca); o alvo pode ser "camada":"nome da camada" em vez de x,y. Use para apontar, pegar, tocar, chutar, pisar no lugar certo)
  {"tipo":"suave","camada":"nome","ligado":true}   (partes mudam aos poucos entre as chaves — true — ou trocam seco — false, estilo animação limitada)
  {"tipo":"animacao","camada":"nome","animacao":"Andar","quadro":N,"repeticoes":2,"quadros_por_passo":3}   (põe um CICLO pronto do personagem — andar, falar, piscar, respirar… — como chaves a partir do quadro N)
  {"tipo":"apagar_chaves","camada":"nome ou camera","de":N,"ate":N}   (tira as chaves da camada nesse trecho, para refazer o que ficou ruim)
@@ -184,8 +184,11 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
           else { const cad = Rig.membro(dv, a.membro || a.parte); if (!cad) continue; let alvo = null;
             if (a.alvo?.camada || typeof a.alvo === 'string') { const outro = this.acha(todos, a.alvo.camada || a.alvo); if (outro) { const m = this.matCamada(P, outro, qq); alvo = m.transformPoint(new DOMPoint(0, 0)); } }
             else if (a.alvo && isFinite(+a.alvo.x) && isFinite(+a.alvo.y)) alvo = { x: +a.alvo.x, y: +a.alvo.y };
-            if (!alvo) continue; const loc = this.matCamada(P, no, qq).inverse().transformPoint(new DOMPoint(alvo.x, alvo.y)), ep = Modelo.partesNoEstado(dv, est);
-            const r = Rig.ik(dv, ep, cad, { x: loc.x, y: loc.y }, { dobra: a.dobra === 'inverter' ? this.ladoDobra(dv, ep, cad) : undefined }); if (!r) continue; v = Object.fromEntries(Object.entries(r).map(([id, rr]) => [id, { r: rr }])); }
+            if (!alvo) continue; const loc = this.matCamada(P, no, qq).inverse().transformPoint(new DOMPoint(alvo.x, alvo.y)), lp = { x: loc.x, y: loc.y };
+            const mp = a.preset !== false && Rig.melhorPose(dv, est, cad, lp); // parte do preset mais parecido (desenho e camada certos)
+            if (mp) { k.sessoes = { ...(k.sessoes || {}), [mp.sessao]: mp.preset }; est.sessoes = { ...est.sessoes, [mp.sessao]: mp.preset }; for (const id of [cad.raiz, cad.meio, cad.fim]) if (est.partes?.[id]) { delete est.partes[id]; k.partes = { ...(k.partes || {}), [id]: null }; } }
+            const ep = Modelo.partesNoEstado(dv, est);
+            const r = Rig.ik(dv, ep, cad, lp, { dobra: a.dobra === 'inverter' ? this.ladoDobra(dv, ep, cad) : undefined }); if (!r) continue; v = Object.fromEntries(Object.entries(r).map(([id, rr]) => [id, { r: rr }])); }
           k.partes = { ...(k.partes || {}) }; for (const [id, x] of Object.entries(v)) k.partes[id] = { ...(k.partes[id] || {}), ...x };
           if (a.curva && Ease.IR[a.curva] && a.curva !== 'livre') { if (a.curva === 'suave') delete k.ir; else k.ir = a.curva; }
           if (+a.duracao > 0) k.dur = clamp(Math.round(+a.duracao), 1, 600);

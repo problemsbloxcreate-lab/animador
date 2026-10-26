@@ -57,6 +57,16 @@ const Rig = {
     if (o.manterMao) { const J2 = this.juntas(def, e), giroMao = this.ang(J[cad.meio], J[cad.fim]) - this.ang(J2[cad.meio], J2[cad.fim]); if (Math.abs(giroMao) > .1) out[cad.fim] = round(r0(cad.fim) + giroMao * this.sinal(def, e, cad.fim), 2); }
     return out;
   },
+  // PONTO DE PARTIDA DO IK: entre os presets das sessões que mexem neste membro, o que já deixa a ponta mais perto do alvo
+  // (assim o braço erguido usa o desenho/camada do preset "Erguido/Acenando" — na frente do cabelo — e o IK só acerta o resto)
+  melhorPose(def, est, cad, alvo) {
+    const ids = new Set([cad.raiz, cad.meio, cad.fim]), semAj = { ...est, partes: Object.fromEntries(Object.entries(est.partes || {}).filter(([id]) => !ids.has(id))) };
+    const dist = e => { const J = this.juntas(def, e)[cad.fim]; return J ? Math.hypot(J.x - alvo.x, J.y - alvo.y) : Infinity; };
+    let m = { d: dist(Modelo.partesNoEstado(def, semAj)) * .9, s: null, p: null }; // a pose de agora ganha um empate
+    for (const s of def.sessoes || []) { if (!s.presets?.some(pr => Object.keys(pr.estado || {}).some(id => id === cad.raiz || id === cad.meio))) continue;
+      for (const pr of s.presets) { const d = dist(Modelo.partesNoEstado(def, { ...semAj, sessoes: { ...(semAj.sessoes || {}), [s.id]: pr.id } })); if (d < m.d) m = { d, s, p: pr }; } }
+    return m.s ? { sessao: m.s.id, preset: m.p.id, nome: m.p.nome } : null;
+  },
   // acha um membro pelo nome (mão direita, braço esquerdo, pé…)
   membro(def, nome) {
     const L = this.cadeias(def), n = String(nome || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''), lim = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
