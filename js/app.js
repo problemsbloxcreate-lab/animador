@@ -1,7 +1,7 @@
 /* ===================== app.js — o editor de animação: estado, desfazer, salvar, palco (canvas infinito + câmera) e atalhos ===================== */
 'use strict';
 const App = {
-  P: null, q: 0, sel: null, tocando: false, onion: false, ferr: 'mover', modoVista: 'mundo', vista: { x: 0, y: 0, z: .4 },
+  P: null, q: 0, sel: null, tocando: false, onion: false, esqueleto: (() => { try { return !!localStorage.getItem('animador-esqueleto'); } catch { return false; } })(), ferr: 'mover', modoVista: 'mundo', vista: { x: 0, y: 0, z: .4 },
   desfazer: [], refazer: [], ultimo: null, salvoEm: 0,
 
   /* ---------- abrir / fechar ---------- */
@@ -145,7 +145,7 @@ const App = {
     const def = await Biblioteca.escolher(); if (!def) return;
     this.P.personagens[def.id] = def; await Arq.garantir(Modelo.chavesImgs(def)); Icone.garanteNoEditor(this.P);
     const b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, {})), s = b.h > 0 ? clamp(this.P.h * .55 / b.h, .1, 4) : 1;
-    const n = Modelo.novoNo('personagem', { ref: def.id, nome: def.nome, s: round(s, 2) }); n.chaves[0].s = round(s, 2); n.atuacao = { ...Atuacao.PADRAO };
+    const n = Modelo.novoNo('personagem', { ref: def.id, nome: def.nome, s: round(s, 2) }); n.chaves[0].s = round(s, 2); n.atuacao = { ...Atuacao.PADRAO }; n.suaveP = true;
     this.inserir(n, 'Personagem ' + def.nome); UI.toast(`<b>${esc(def.nome)}</b> entrou no quadro ${this.q + 1}. Os botões das sessões estão no painel da direita.`, { kind: 'ok' });
   },
   async addImagem() {
@@ -285,6 +285,7 @@ const App = {
       if (this.cv) return this.tamanho(); this.cv = $('#palco-cv'); this.ctx = this.cv.getContext('2d');
       new ResizeObserver(() => this.tamanho()).observe(this.cv.parentElement); this.tamanho();
       this.cv.addEventListener('pointerdown', e => this.desce(e)); this.cv.addEventListener('wheel', e => this.roda(e), { passive: false });
+      this.cv.addEventListener('pointermove', e => { if (e.buttons || !App.esqueleto) return; const sim = !!App.alcaEsqueleto({ x: e.offsetX, y: e.offsetY }); if (sim !== this._sobreRig) { this._sobreRig = sim; this.cv.style.cursor = sim ? 'grab' : ''; } }); // em cima de uma junta do esqueleto
       this.cv.addEventListener('dblclick', e => this.duplo(e)); this.cv.addEventListener('contextmenu', e => { e.preventDefault(); this.menu(e); });
       document.addEventListener('visibilitychange', () => { if (document.hidden || !App.P) return; this.tamanho(); }); // aberto numa aba escondida: ao aparecer, desenha tudo (e enquadra se ainda não tinha tamanho)
       Render.aoChegarImagem = () => { if (App._rafImg) return; App._rafImg = requestAnimationFrame(() => { App._rafImg = 0; App.pinta(); Folha.pinta(); }); }; // várias imagens chegando: redesenha uma vez por quadro
@@ -317,6 +318,7 @@ const App = {
       if (e.button !== 0) return;
       if (App.ferr === 'camera' || App.sel === 'camera') return this.arrastaCamera(e);
       if (Deformar.ativo && Deformar.desce(e, this.cv, this.dpr)) return; // deformar: arrastar um ponto
+      const ik = App.alcaEsqueleto(tela); if (ik) return this.arrastaRig(e, ik); // esqueleto: IK nas pontas, FK nas juntas
       const al = this.alcas(), perto = (a, b, r = 10) => a && Math.hypot(a.x - b.x, a.y - b.y) < r;
       const s = App.noSel();
       if (al && s && !s.trava && perto(al.girar, tela, 11)) return this.arrastaGiro(e, s, al);
@@ -338,6 +340,19 @@ const App = {
         if (ima && App.regua() && !ev.ctrlKey) w = App.gruda(ima, w0, w, ev.shiftKey); else App.guias = null;
         const a = inv.transformPoint(new DOMPoint(w.x, w.y)), dx = a.x - a0.x, dy = a.y - a0.y;
         Modelo.poeTransf(n, App.q, { x: round(t0.x + dx, 1), y: round(t0.y + dy, 1) }); mexeu = true; App.pinta(); }, () => { App.guias = null; if (mexeu) App.commit('Mover', { semArvore: true }); else App.pinta(); });
+    },
+    // arrastar uma junta do esqueleto: ponta de membro = IK (braço e antebraço giram juntos); outra junta = gira a parte de cima dela. Fica na chave do quadro (k.partes)
+    arrastaRig(e, { n, al }) {
+      const P = App.P, q = App.q; if (n.id !== App.sel) App.selecionar(n.id);
+      const est = Modelo.estadoPersonagem(n, q), dv = Modelo.naVista(P.personagens[n.ref], est.vista), ep0 = Modelo.partesNoEstado(dv, est), inv = Rig.matNo(P, n, q).inverse();
+      const antes = JSON.stringify(n.chaves?.[q] || null), cad = al.tipo === 'ik' ? al.cad : null; let mexeu = false; App._ikAtivo = al.pid;
+      const lado = cad && (() => { const J = Rig.juntas(dv, ep0), S = J[cad.raiz], E = J[cad.meio], W = J[cad.fim]; const c = (E.x - S.x) * (W.y - E.y) - (E.y - S.y) * (W.x - E.x); return Math.sign(c) || (cad.tipo === 'perna' ? -1 : 1); })();
+      this.fim(e, ev => {
+        const w = this.paraMundo(ev), loc = inv.transformPoint(new DOMPoint(w.x, w.y)), alvo = { x: loc.x, y: loc.y };
+        const r = cad ? Rig.ik(dv, ep0, cad, alvo, { dobra: ev.altKey ? -lado : lado }) : Rig.giraPara(dv, ep0, al, alvo); if (!r) return;
+        const k = Modelo.chave(n, q); k.partes = { ...(k.partes || {}) }; for (const [id, rr] of Object.entries(r)) k.partes[id] = { ...(k.partes[id] || {}), r: ev.shiftKey && !cad ? Math.round(rr / 15) * 15 : rr };
+        mexeu = true; App.pinta();
+      }, () => { App._ikAtivo = null; if (mexeu && JSON.stringify(n.chaves?.[q] || null) !== antes) App.commit(cad ? 'Mover ' + (dv.partes.find(p => p.id === cad.fim)?.nome || 'membro') + ' (IK)' : 'Girar ' + (dv.partes.find(p => p.id === al.mae)?.nome || 'parte'), { semArvore: true }); else App.pinta(); });
     },
     arrastaGiro(e, n, al) {
       const t0 = Modelo.transf(n, App.q), ang = p => Math.atan2(p.y - al.cen.y, p.x - al.cen.x) * 180 / Math.PI, a0 = ang({ x: e.offsetX, y: e.offsetY });
@@ -380,6 +395,20 @@ const App = {
     },
   },
   _raf: 0,
+  // ESQUELETO (js/rig.js): ossos e juntas dos personagens do quadro; laranja = ponta de membro (arrastar = IK), azul = gira a parte de cima (FK)
+  desenhaEsqueleto(ctx, V) {
+    const P = this.P, s = this.noSel();
+    for (const n of Modelo.noQuadro(P, this.q)) { if (n.trava) continue; const ee = Render.estadoPartes(P, n, this.q); if (!ee) continue;
+      ctx.save(); if (s && s !== n) ctx.globalAlpha = .45; Rig.desenha(ctx, ee.dv, ee.ep, V.multiply(Rig.matNo(P, n, this.q)), { ativo: this._ikAtivo }); ctx.restore(); }
+  },
+  // ponto do esqueleto embaixo do mouse (tela em px css) → { n, al }
+  alcaEsqueleto(tela) {
+    if (!this.esqueleto || this.tocando) return null; const P = this.P, v = this.vista, sel = this.noSel(); let melhor = null;
+    for (const n of Modelo.noQuadro(P, this.q)) { if (n.trava) continue; const ee = Render.estadoPartes(P, n, this.q); if (!ee) continue; const M = Rig.matNo(P, n, this.q);
+      for (const al of Rig.alcas(ee.dv, ee.ep)) { const w = M.transformPoint(new DOMPoint(al.x, al.y)), d = Math.hypot(w.x * v.z + v.x - tela.x, w.y * v.z + v.y - tela.y) - (n === sel ? 3 : 0);
+        if (d < (al.tipo === 'ik' ? 13 : 10) && (!melhor || d < melhor.d)) melhor = { n, al, d }; } }
+    return melhor;
+  },
   pinta() { if (!this._raf) this._raf = requestAnimationFrame(() => { this._raf = 0; this.desenhaPalco(); }); },
   desenhaPalco() {
     const pc = this.palco, P = this.P; if (!P || !pc.ctx) return;
@@ -400,6 +429,7 @@ const App = {
     ctx.strokeStyle = this.sel === 'camera' ? '#9fc3ff' : 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5 * pc.dpr; ctx.beginPath(); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = `${11 * pc.dpr}px Segoe UI`; ctx.fillText(`Câmera · ${P.w}×${P.h}`, ct[0].x + 6 * pc.dpr, ct[0].y - 6 * pc.dpr);
     this.desenhaRegua(ctx, V, W, H, pc.dpr); AoVivo.desenha(ctx, V, pc.dpr);
+    if (this.esqueleto && !this.tocando) this.desenhaEsqueleto(ctx, V);
     if (Deformar.ativo && Deformar.desenhaAlcas(ctx, V, pc.dpr)) return; // deformando: os pontos no lugar das alças
     // seleção com alças (girar em cima, tamanho no canto)
     const al = this.palco.alcas();

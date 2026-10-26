@@ -6,8 +6,8 @@
 const IA = {
   get srv() { return Nuvem.srv; },
   // todo pedido à IA mostra a tela "A IA está trabalhando" (bloqueia a tela, tempo passado/aproximado e %)
-  async chama(sistema, pedido, aoEscrever) {
-    const qual = sistema === this.SIS_ORGANIZAR ? ['organizar', 'Organizando o personagem', 60] : sistema === this.SIS_REF ? ['referencia', 'A IA está olhando a referência', 30] : sistema === this.SIS_PRESET ? ['preset', 'Criando o preset', 20] : sistema === this.SIS_CENA ? ['cena', 'Animando a cena', 40]
+  async chama(sistema, pedido, aoEscrever, oc = {}) {
+    const qual = oc.titulo ? [oc.tipo || 'ia', oc.titulo, 30] : sistema === this.SIS_ORGANIZAR ? ['organizar', 'Organizando o personagem', 60] : sistema === this.SIS_REF ? ['referencia', 'A IA está olhando a referência', 30] : sistema === this.SIS_PRESET ? ['preset', 'Criando o preset', 20] : sistema === this.SIS_CENA ? ['cena', 'Animando a cena', 40]
       : /CORES/.test(sistema) ? ['cores', 'Ajustando as cores', 20] : /cen[aá]rio/i.test(sistema) ? ['cenario', 'Desenhando o cenário', 60] : ['ia', 'A IA está trabalhando', 30];
     const fim = Ocupado.inicio({ tipo: qual[0], titulo: qual[1], est: qual[2], subtitulo: 'A IA está pensando…' });
     try { return await this._chama(sistema, pedido, txt => { Ocupado.texto(txt.length); Ocupado.passo(`A IA está escrevendo… (${txt.length} letras)`); aoEscrever?.(txt); }); } finally { fim(); }
@@ -51,11 +51,27 @@ const IA = {
     const pers = Object.values(P.personagens).map(d => ({ personagem: d.nome, sessoes: d.sessoes.map(s => ({ sessao: s.nome, presets: s.presets.map(p => p.nome) })),
       partes: d.partes.map(p => ({ parte: p.nome, imagens: p.imgs.slice(0, 14).map(i => i.nome) })), raiz: d.partes.find(p => p.id === d.raiz)?.nome,
       animacoes: (d.animacoes || []).map(a => ({ animacao: a.nome, passos: Math.max(0, ...a.trilhas.map(t => t.length)), ms_por_passo: +a.vel || 250, quadros_por_passo_aqui: Math.max(1, Math.round((+a.q || Math.max(1, Math.round((+a.vel || 250) / 1000 * Modelo.fpsDe(d)))) * P.fps / Modelo.fpsDe(d))) })), fps_personagem: Modelo.fpsDe(d),
+      membros: Rig.cadeias(d).map(c => ({ membro: c.nome, tipo: c.tipo, ossos: [c.raiz, c.meio, c.fim].map(id => d.partes.find(p => p.id === id)?.nome) })),
+      ossos: d.partes.filter(p => p.pai && !Rig.NAO.test(p.nome)).map(p => `${p.nome} ← ${d.partes.find(x => x.id === p.pai)?.nome} (giro base ${Math.round(p.base.r || 0)}°)`),
       vistas: d.vistas?.length > 1 ? d.vistas.map(v => { const dv = Modelo.naVista(d, v.id); return { vista: v.nome, tipo: Modelo.nomeTipo(v.tipo), sessoes: (dv.sessoes || []).map(s => s.nome), animacoes: (dv.animacoes || []).map(a => a.nome) }; }) : undefined }));
-    const camadas = Modelo.todos(P).map(n => ({ camada: n.nome, tipo: n.tipo, personagem: n.tipo === 'personagem' ? P.personagens[n.ref]?.nome : undefined, de: (n.de || 0) + 1, ate: Modelo.fimNo(P, n) + 1, posicao: (({ x, y, s }) => ({ x: Math.round(x), y: Math.round(y), s: round(s, 2) }))(Modelo.transf(n, App.q)) }));
+    const camadas = Modelo.todos(P).map(n => ({ camada: n.nome, tipo: n.tipo, personagem: n.tipo === 'personagem' ? P.personagens[n.ref]?.nome : undefined, de: (n.de || 0) + 1, ate: Modelo.fimNo(P, n) + 1, posicao: (({ x, y, s }) => ({ x: Math.round(x), y: Math.round(y), s: round(s, 2) }))(Modelo.transf(n, App.q)),
+      ...(n.tipo === 'personagem' ? this.rigNo(P, n, Math.max(App.q, n.de || 0)) : {}) }));
     const fala = (P.legendas || []).map(g => `${g.de + 1}-${g.ate + 1}: ${g.texto}`).join('\n');
     const audios = (P.audios || []).map(a => ({ audio: a.nome, de: (a.de || 0) + 1, ate: (a.de || 0) + Math.round((Som.dur(a.arq) || 0) * P.fps), volume: round(a.vol ?? 1, 2), volume_em_trechos: (a.volTrechos || []).map(t => ({ de: t.de + 1, ate: t.ate + 1, volume: t.vol })) }));
     return { quadros: P.duracao, fps: P.fps, tamanho: `${P.w}x${P.h}`, quadroAtual: App.q + 1, personagens: pers, camadas, audios, efeitos: Efeitos.TELA.map(e => e.id), visuais: Efeitos.VISUAIS.map(v => v.id), fala };
+  },
+  // lado para onde o membro dobra agora (1/-1); "inverter" usa o contrário
+  ladoDobra(dv, ep, cad) { const J = Rig.juntas(dv, ep), S = J[cad.raiz], E = J[cad.meio], W = J[cad.fim]; if (!S || !E || !W) return 1; const c = (E.x - S.x) * (W.y - E.y) - (E.y - S.y) * (W.x - E.x); return -(Math.sign(c) || 1); },
+  // matriz da camada no quadro q (coordenadas do projeto), com as pastas de cima
+  matCamada(P, n, q) { return Rig.matNo(P, n, q); },
+  // onde estão as mãos/pés e a caixa do personagem no quadro (px do projeto): a IA usa para apontar, alcançar e enquadrar
+  rigNo(P, n, q) {
+    try { const def = P.personagens[n.ref]; if (!def) return {}; const est = Modelo.estadoPersonagem(n, q), dv = Modelo.naVista(def, est.vista), ep = Modelo.partesNoEstado(dv, est), M = this.matCamada(P, n, q), J = Rig.juntas(dv, ep), b = Modelo.caixaPersonagem(dv, ep);
+      const pt = id => { const v = J[id] && M.transformPoint(new DOMPoint(J[id].x, J[id].y)); return v ? { x: Math.round(v.x), y: Math.round(v.y) } : undefined; };
+      const cs = [[b.x, b.y], [b.x + b.w, b.y + b.h]].map(([x, y]) => M.transformPoint(new DOMPoint(x, y)));
+      return { caixa_no_quadro: { x0: Math.round(Math.min(cs[0].x, cs[1].x)), y0: Math.round(Math.min(cs[0].y, cs[1].y)), x1: Math.round(Math.max(cs[0].x, cs[1].x)), y1: Math.round(Math.max(cs[0].y, cs[1].y)) },
+        pontas_no_quadro: Object.fromEntries(Rig.cadeias(dv).map(c => [dv.partes.find(p => p.id === c.fim)?.nome, pt(c.fim)])), partes_suaves: !!n.suaveP };
+    } catch { return {}; }
   },
   SIS_CENA: `Você é o animador assistente do ANIMADOR do Estúdio Problems (canal Problems, animação 2D de personagens montados por partes).
 Você recebe o projeto em JSON: quadros (numerados a partir de 1), fps, personagens com SESSÕES e PRESETS (ex.: sessão "Olhos" com "assustado", "fechado"; sessão "Pose" com "chutando"), camadas e a fala com os quadros de cada frase.
@@ -70,6 +86,9 @@ Ações possíveis:
  {"tipo":"visual","visual":"normal|vivo|quente|frio|noite|por-do-sol|vintage|pb|sonho|terror|desbotado|neon"}
  {"tipo":"cenario","descricao":"o lugar em português, sem personagens"}   (só se a pessoa pedir um cenário/fundo novo; sai no estilo da casa e fica só nesta animação)
  {"tipo":"vista","camada":"nome","quadro":N,"vista":"Lado"}   (troca o ÂNGULO do personagem a partir do quadro N: frente, três-quartos, lado, costas… — para virar, andar de lado, dar as costas)
+ {"tipo":"parte","camada":"nome","quadro":N,"parte":"Cabeça","r":10,"x":0,"y":0,"s":1,"img":"nome da imagem","curva":"suave"}   (RIG: gira/move UMA parte a partir do quadro N; r, x e y SOMAM ao que a pose de agora tem (r=10 = inclina mais 10°), "absoluto":true usa o valor exato; "duracao":Q = quantos quadros o movimento leva para chegar nesta chave (padrão ~0,75 s; antes disso a pose fica parada); "soltar":true tira o ajuste e a parte volta ao que a pose manda. Use para inclinar a cabeça, dobrar o tronco, balançar o braço. Com "partes_suaves" a parte vai mudando aos poucos até essa chave, como no Toon Boom; escolher uma pose nova tira os ajustes das partes dela)
+ {"tipo":"alcancar","camada":"nome","quadro":N,"membro":"Mão direita","alvo":{"x":0,"y":0},"dobra":"igual|inverter"}   (IK: leva a mão/pé até o ponto (px do projeto) girando braço e antebraço/perna e canela; o alvo pode ser "camada":"nome da camada" em vez de x,y. Use para apontar, pegar, tocar, chutar, pisar no lugar certo)
+ {"tipo":"suave","camada":"nome","ligado":true}   (partes mudam aos poucos entre as chaves — true — ou trocam seco — false, estilo animação limitada)
  {"tipo":"animacao","camada":"nome","animacao":"Andar","quadro":N,"repeticoes":2,"quadros_por_passo":3}   (põe um CICLO pronto do personagem — andar, falar, piscar, respirar… — como chaves a partir do quadro N)
  {"tipo":"apagar_chaves","camada":"nome ou camera","de":N,"ate":N}   (tira as chaves da camada nesse trecho, para refazer o que ficou ruim)
  {"tipo":"volume","audio":"nome do áudio","de":N,"ate":N,"volume":0.5}   (muda o volume SÓ nesse trecho: 1 = como está, 0.5 = metade, 0 = mudo, até 2)
@@ -78,6 +97,7 @@ CICLOS: para andar/correr/falar/piscar/respirar, use as "animacoes" do personage
 Se não existir a animação que precisa, crie com "criar_animacao" seguindo: ciclo emendado (o último passo liga no primeiro), andar com pernas alternando e braços opostos e o corpo subindo/descendo poucos px, piscar com olhos abertos muito tempo e fechando rápido, falar variando as bocas.
 VÍDEOS DE REFERÊNCIA: se vierem folhas de quadros de vídeos, copie o estilo de animação e de edição deles (timing, poses, câmera, cortes, zooms, efeitos nos impactos).
 TRECHOS: se o pedido disser "SÓ ESTES TRECHOS", todas as ações têm que cair dentro deles (quadros, de/ate); não mexa em mais nada.
+RIG (como no Toon Boom): cada personagem tem "membros" (braço › antebraço › mão, perna › canela › pé) e "ossos" (cada parte gira no encaixe da mãe). Os presets das sessões são as poses prontas (substituição de desenho); combine presets + "parte" + "alcancar" para atuar: antecipação antes de um movimento grande (1-3 quadros para o lado contrário), a pose-chave forte, um pequeno exagero e o assentamento; cabeça e tronco acompanham a intenção (inclinar 4-10°), quem escuta reage. "pontas_no_quadro" e "caixa_no_quadro" dizem onde estão as mãos/pés e o personagem agora (px do projeto). Se vier a FOLHA DO PERSONAGEM (imagem com cada preset desenhado), escolha o preset pelo desenho, não só pelo nome.
 Regras: use só nomes de sessões, presets, partes, imagens e animações que existem (ou que você criou nesta resposta). Para atuação pela fala, mude expressões nas palavras fortes (piscar de vez em quando: olhos fechados por 2-3 quadros), sem trocar a cada quadro. Respeite o pedido.`,
   // faz o pedido na animação aberta (o mesmo do botão IA) e devolve o texto do que fez
   async executar(txt, foco, mostra, o = {}) {
@@ -86,14 +106,44 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
     // no ANIMADOR os vídeos de referência (test drive da equipe + os desta animação) vão em todo pedido: a IA copia o estilo de animação e de edição
     const refC = await RefsAnim.conteudo(P.refsAnim, { modo: 'editor' }).catch(() => []);
     const trC = tr.length ? await Trechos.quadros(P, tr).catch(() => []) : [];
-    const imgs = o.imgs || [], content = refC.length || trC.length || imgs.length ? [...refC, ...trC, ...imgs, { type: 'text', text: texto }] : texto;
+    const folhas = await this.folhas(P).catch(e => { console.warn('[folha]', e); return []; }); // FOLHA DO PERSONAGEM: cada preset desenhado (a IA escolhe a pose pelo desenho)
+    const imgs = o.imgs || [], extra = [...folhas, ...refC, ...trC, ...imgs], content = extra.length ? [...extra, { type: 'text', text: texto }] : texto;
     const foto = tr.length ? Trechos.foto(P) : null;
     const out = await this.chama(this.SIS_CENA, content, t => mostra?.(t.slice(-600)));
     this.trechos = tr.length ? tr : null;
     const j = this.json(out); let n; try { n = this.aplicar(j.acoes || [], foto); } finally { this.trechos = null; }
     for (const c of this.cenariosPedidos) { mostra?.('Montando o cenário: ' + c.descricao + '…'); const r = await Cenarios.pedirIA(c.descricao, null, t => mostra?.('Montando o cenário… (' + t.length + ' letras)')); Cenarios.guardaUltimo(r.cena); const est = await Cenarios.estadoDe({ ...r.cena, ia: true }); est.ia = true; await Cenarios.porEmCamadas(est, { semAviso: true }); App.commit('Cenário da IA'); const nn = App.noSel(); if (nn) { nn.ia = true; if (tr.length) { nn.de = Math.min(...tr.map(t => t.de)); nn.ate = Math.max(...tr.map(t => t.ate)); App.commit('Cenário no trecho'); } } n++; }
+    const cenPed = this.cenariosPedidos; // a 2ª passada limpa a lista
+    // CONFERIR: desenha os quadros do que mudou e pede para a IA olhar e corrigir (2ª passada, como um animador revendo o próprio trabalho)
+    let conf = null; if (o.conferir !== false && (j.acoes || []).length) { try { conf = await this.conferir(P, j.acoes, tr, folhas, mostra); n += conf.n; } catch (e) { console.warn('[conferir]', e); } }
+    this.cenariosPedidos = cenPed;
     const cr = this.criadas || 0; this.criadas = 0;
-    return (j.explica || 'Pronto.') + (tr.length ? `\n\nSó mexi ${tr.length > 1 ? 'nos trechos' : 'no trecho'} ${tr.map(t => Trechos.rotulo(t, P)).join(', ')}; o resto ficou igual.` : '') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (cr ? `\n${cr} animação(ões) nova(s) no personagem desta animação: para guardar no personagem da equipe, botão direito nele › Editar no Ateliê e salve lá.` : '') + (this.cenariosPedidos.length ? '\nO cenário entrou como uma pasta com uma camada por peça (só nesta animação). Para mudar: botão direito › Editar cenário; para guardar na equipe: Salvar na nuvem.' : '');
+    return (j.explica || 'Pronto.') + (conf?.explica ? `\n\nConferi os quadros: ${conf.explica}` : '') + (tr.length ? `\n\nSó mexi ${tr.length > 1 ? 'nos trechos' : 'no trecho'} ${tr.map(t => Trechos.rotulo(t, P)).join(', ')}; o resto ficou igual.` : '') + `\n\n${n} ação(ões) aplicada(s). Dá para desfazer com Ctrl+Z.` + (cr ? `\n${cr} animação(ões) nova(s) no personagem desta animação: para guardar no personagem da equipe, botão direito nele › Editar no Ateliê e salve lá.` : '') + (this.cenariosPedidos.length ? '\nO cenário entrou como uma pasta com uma camada por peça (só nesta animação). Para mudar: botão direito › Editar cenário; para guardar na equipe: Salvar na nuvem.' : '');
+  },
+  // folhas dos personagens do projeto (vistas que aparecem nas chaves; sem chave de vista = a principal), no máx. 3 personagens × 2 vistas
+  async folhas(P) {
+    const out = [], usados = {}; for (const n of Modelo.todos(P)) if (n.tipo === 'personagem' && P.personagens[n.ref]) { const L = usados[n.ref] ||= new Set(); L.add(null); for (const c of Object.values(n.chaves || {})) if (c.vista) L.add(c.vista); }
+    for (const [id, vs] of Object.entries(usados).slice(0, 3)) { const def = P.personagens[id], vids = [...new Set([...vs].map(v => v || def.vistas?.[0]?.id || null))].slice(0, 2);
+      for (const v of vids) { const f = await Rig.folha(def, v); const b = RefsAnim.bloco(f.url); if (b) out.push(b, { type: 'text', text: `↑ FOLHA DO PERSONAGEM "${def.nome}"${f.vista ? ` (vista ${f.vista})` : ''}: cada linha é uma sessão e cada desenho um preset dela (nome embaixo; a 1ª linha é a pose base). Escolha as poses pelo desenho.` }); } }
+    return out;
+  },
+  // 2ª passada: quadros desenhados do trecho mexido → a IA devolve só correções
+  async conferir(P, acoes, tr, folhas, mostra) {
+    const qs = acoes.flatMap(a => [a.quadro, a.de, a.ate]).filter(v => isFinite(+v) && +v > 0).map(v => clamp(Math.round(+v) - 1, 0, P.duracao - 1));
+    let de = tr.length ? Math.min(...tr.map(t => t.de)) : qs.length ? Math.min(...qs) : 0, ate = tr.length ? Math.max(...tr.map(t => t.ate)) : qs.length ? Math.max(...qs) : P.duracao - 1;
+    ate = Math.min(P.duracao - 1, Math.max(ate + Math.round(P.fps * .5), de)); // um pouco depois da última chave (o movimento assentando)
+    await Arq.garantir(Object.values(P.personagens).flatMap(d => Modelo.chavesImgs(d))).catch(() => { });
+    const N = clamp(ate - de + 1, 1, 16), larg = P.h > P.w ? 150 : 230, H = Math.round(larg * P.h / P.w), ims = [], rot = [];
+    for (let j = 0; j < N; j++) { const q = Math.round(de + (ate - de) * (N === 1 ? 0 : j / (N - 1))), c = document.createElement('canvas'); c.width = larg; c.height = H; try { Render.quadro(c.getContext('2d'), P, q, larg, H); } catch { } ims.push(c); rot.push(`q${q + 1} · ${Trechos.txt(q, P.fps)}`); }
+    const b = RefsAnim.bloco(await RefsAnim.b64(await RefsAnim.folha(ims, 4, larg, rot))); if (!b) return { n: 0 };
+    mostra?.('Conferindo os quadros…');
+    const txt = `CONFERÊNCIA (2ª passada). Você acabou de aplicar estas ações:\n${JSON.stringify(acoes).slice(0, 6000)}\n\nA imagem mostra COMO FICOU (quadros ${de + 1} a ${ate + 1}, a área da câmera). PROJETO agora:\n${JSON.stringify(this.contexto(P))}\n\n`
+      + `Olhe como um animador revendo o próprio trabalho e corrija SÓ o que está errado: personagem cortado ou fora da câmera, pose quebrada (braço/perna dobrado ao contrário, peça solta ou no lugar errado), mão/pé que não chegou onde devia, personagem de costas para quem fala, nada se mexendo num trecho longo, falta de antecipação ou de reação, câmera que não mostra a ação. `
+      + `Devolva o JSON de sempre {"explica":"o que corrigiu, curto","acoes":[...]} só com as correções; se estiver bom, {"explica":"","acoes":[]}.${tr.length ? ' Continue só dentro dos trechos.' : ''}`;
+    const out = await this.chama(this.SIS_CENA, [...folhas, b, { type: 'text', text: txt }], t => mostra?.(t.slice(-600)), { tipo: 'cena', titulo: 'Conferindo a animação' });
+    const j = this.json(out), L = j.acoes || []; if (!L.length) return { n: 0, explica: j.explica || '' };
+    this.trechos = tr.length ? tr : null; let n; try { n = this.aplicar(L, tr.length ? Trechos.foto(P) : null); } finally { this.trechos = null; }
+    return { n, explica: j.explica || '' };
   },
   // a janela do Assistente (js/assistente.js): fica aberta, guarda a conversa e aceita citações
   abrir(foco, o = {}) { return Assistente.abrir({ ...o, foco: foco || null }); },
@@ -107,7 +157,8 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
         if (a.tipo === 'pose' || a.tipo === 'mover') {
           const no = this.acha(todos, a.camada); if (!no) continue;
           if (a.tipo === 'pose' && no.tipo === 'personagem') { const def = Modelo.naVista(P.personagens[no.ref], Modelo.estadoPersonagem(no, q(a.quadro)).vista), k = Modelo.chave(no, q(a.quadro)); k.sessoes = k.sessoes || {};
-            for (const [sn, pn] of Object.entries(a.sessoes || {})) { const s = this.acha(def.sessoes, sn); const p = s && (pn ? this.acha(s.presets, pn) : null); if (s) { k.sessoes[s.id] = p ? p.id : null; } } n++; }
+            const ajustes = Modelo.estadoPersonagem(no, q(a.quadro)).partes || {};
+            for (const [sn, pn] of Object.entries(a.sessoes || {})) { const s = this.acha(def.sessoes, sn); const p = s && (pn ? this.acha(s.presets, pn) : null); if (s) { k.sessoes[s.id] = p ? p.id : null; for (const pid of Object.keys(p?.estado || {})) if (ajustes[pid] && !(k.partes && pid in k.partes)) (k.partes ||= {})[pid] = null; } } n++; } // pose nova: os ajustes soltos das partes dela saem
           if (a.tipo === 'mover') { const v = {}; for (const c of ['x', 'y', 'r', 's', 'op']) if (a[c] != null && isFinite(+a[c])) v[c] = +a[c]; Modelo.poeTransf(no, q(a.quadro), v); const ck = no.chaves[q(a.quadro)];
             if (a.curva && Ease.IR[a.curva] && a.curva !== 'livre') { if (a.curva === 'suave') delete ck.ir; else ck.ir = a.curva; if (a.curva !== 'corte') no.interp = true; } n++; }
         } else if (a.tipo === 'camera') { const k = q(a.quadro); P.camera.chaves[k] = { ...Modelo.camera(P, k), ...Object.fromEntries(['x', 'y', 'zoom', 'r'].filter(c => a[c] != null).map(c => [c, +a[c]])) };
@@ -124,6 +175,22 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
         else if (a.tipo === 'visual' && tr && Efeitos.VISUAIS.some(v => v.id === a.visual)) { if (a.visual === 'normal') continue; const t = App.efeitoTopo(); for (const x of tr) t.efeitos.push({ id: uid('ef'), tipo: 'cor', visual: a.visual, de: x.de, ate: x.ate }); App.nomeEfeito(t); n++; }
         else if (a.tipo === 'tremulo') { const no = this.acha(todos, a.camada); if (no) { if (a.modo === 'nenhum') delete no.tremulo; else no.tremulo = { modo: a.modo === 'ondular' ? 'ondular' : 'tremer', forca: clamp(+a.forca || .4, .05, 1), ritmo: 2 }; n++; } }
         else if (a.tipo === 'visual' && Efeitos.VISUAIS.some(v => v.id === a.visual)) { const t = App.efeitoTopo(); t.efeitos = t.efeitos.filter(e => e.tipo !== 'cor'); if (a.visual !== 'normal') t.efeitos.push({ id: uid('ef'), tipo: 'cor', visual: a.visual }); App.nomeEfeito(t); n++; }
+        else if (a.tipo === 'parte' || a.tipo === 'alcancar') { const no = this.acha(todos, a.camada); const def = no?.tipo === 'personagem' && P.personagens[no.ref]; if (!def) continue; const qq = q(a.quadro);
+          const est = Modelo.estadoPersonagem(no, qq), dv = Modelo.naVista(def, est.vista), k = Modelo.chave(no, qq); let v = {};
+          if (a.tipo === 'parte') { const pt = this.acha(dv.partes, a.parte); if (!pt) continue;
+            if (a.soltar) { k.partes = { ...(k.partes || {}), [pt.id]: null }; n++; continue; } // volta ao que a pose (preset) manda
+            const ag = Modelo.partesNoEstado(dv, est)[pt.id] || pt.base; for (const c of ['x', 'y', 's']) if (a[c] != null && isFinite(+a[c])) v[c] = c === 's' ? clamp(+a[c], .05, 5) : (ag[c] || 0) + +a[c];
+            if (a.r != null && isFinite(+a.r)) v.r = round((a.absoluto ? 0 : ag.r || 0) + +a.r, 2); if (a.img) { const im = this.acha(pt.imgs, a.img); if (im) v.img = im.id; } if (!Object.keys(v).length) continue; v = { [pt.id]: v }; }
+          else { const cad = Rig.membro(dv, a.membro || a.parte); if (!cad) continue; let alvo = null;
+            if (a.alvo?.camada || typeof a.alvo === 'string') { const outro = this.acha(todos, a.alvo.camada || a.alvo); if (outro) { const m = this.matCamada(P, outro, qq); alvo = m.transformPoint(new DOMPoint(0, 0)); } }
+            else if (a.alvo && isFinite(+a.alvo.x) && isFinite(+a.alvo.y)) alvo = { x: +a.alvo.x, y: +a.alvo.y };
+            if (!alvo) continue; const loc = this.matCamada(P, no, qq).inverse().transformPoint(new DOMPoint(alvo.x, alvo.y)), ep = Modelo.partesNoEstado(dv, est);
+            const r = Rig.ik(dv, ep, cad, { x: loc.x, y: loc.y }, { dobra: a.dobra === 'inverter' ? this.ladoDobra(dv, ep, cad) : undefined }); if (!r) continue; v = Object.fromEntries(Object.entries(r).map(([id, rr]) => [id, { r: rr }])); }
+          k.partes = { ...(k.partes || {}) }; for (const [id, x] of Object.entries(v)) k.partes[id] = { ...(k.partes[id] || {}), ...x };
+          if (a.curva && Ease.IR[a.curva] && a.curva !== 'livre') { if (a.curva === 'suave') delete k.ir; else k.ir = a.curva; }
+          if (+a.duracao > 0) k.dur = clamp(Math.round(+a.duracao), 1, 600);
+          if (no.suaveP == null) no.suaveP = true; n++; }
+        else if (a.tipo === 'suave') { const no = this.acha(todos, a.camada); if (no?.tipo === 'personagem') { no.suaveP = a.ligado !== false; n++; } }
         else if (a.tipo === 'cenario' && a.descricao) this.cenariosPedidos.push(a);
         else if (a.tipo === 'criar_animacao') { const def = this.acha(Object.values(P.personagens), a.personagem) || Object.values(P.personagens)[0]; if (!def) continue; const trilhas = this.trilhasDe(def, a.trilhas); if (!trilhas.length) continue;
           const L = def.animacoes ||= [], velha = L.find(x => x.nome.toLowerCase() === String(a.nome || '').toLowerCase()), an = { id: velha?.id || uid('an'), nome: String(a.nome || 'Animação').slice(0, 40), vel: clamp(+a.vel || 250, 60, 2000), trilhas };

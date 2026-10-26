@@ -351,7 +351,7 @@ const Atelie = {
     $$('#at-abas [data-aba]').forEach(b => b.onclick = () => { this.aba = b.dataset.aba; this.pinta(); });
     $('#at-base').onclick = () => { this.edit = null; this.pinta(); };
     $('#at-mover').onchange = e => this.setModo(e.target.value);
-    $('#at-enq').onclick = () => this.enquadrar(); $('#at-regua').onclick = () => this.trocaRegua(); this.pintaRegua(); this.cv.addEventListener('pointerup', () => { if (this.guias) { this.guias = null; this.desenha(); } }); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 15); $('#at-enq').innerHTML = ic('frame', 15); $('#at-ed-ok').onclick = () => this.fecharEditor(); $('#at-ed-ok').innerHTML = `${ic('check', 13)} Salvar`; $('#at-ed-ok').title = 'Guarda o que mudou nesta imagem e volta ao Ateliê (Esc)'; $('#at-ed-ok').classList.add('ed-salvar'); { const bv = h(`<button class="btn sm ed-voltar" id="at-ed-voltar" hidden title="Fecha o editor SEM guardar o que mudou nesta imagem desde que abriu">${ic('x', 13)} Voltar</button>`); $('#at-ed-ok').before(bv); bv.onclick = () => this.voltarEditor(); } this.cv.addEventListener('dblclick', e => { if (this.edImg || Pintura.ferr !== 'mover') return; const it = this.acha(this.mundo(e)); if (it?.img) this.abrirEditor(it.parte, it.img); }); /* dois cliques numa peça: edita a imagem dela */
+    $('#at-enq').onclick = () => this.enquadrar(); $('#at-osso').onclick = () => this.trocaOssos(); this.pintaOssos(); $('#at-regua').onclick = () => this.trocaRegua(); this.pintaRegua(); this.cv.addEventListener('pointerup', () => { if (this.guias) { this.guias = null; this.desenha(); } }); $('#at-ref').onclick = () => Referencia.aplicar(this); $('#at-ref').innerHTML = ic('magnet', 15); $('#at-enq').innerHTML = ic('frame', 15); $('#at-ed-ok').onclick = () => this.fecharEditor(); $('#at-ed-ok').innerHTML = `${ic('check', 13)} Salvar`; $('#at-ed-ok').title = 'Guarda o que mudou nesta imagem e volta ao Ateliê (Esc)'; $('#at-ed-ok').classList.add('ed-salvar'); { const bv = h(`<button class="btn sm ed-voltar" id="at-ed-voltar" hidden title="Fecha o editor SEM guardar o que mudou nesta imagem desde que abriu">${ic('x', 13)} Voltar</button>`); $('#at-ed-ok').before(bv); bv.onclick = () => this.voltarEditor(); } this.cv.addEventListener('dblclick', e => { if (this.edImg || Pintura.ferr !== 'mover') return; const it = this.acha(this.mundo(e)); if (it?.img) this.abrirEditor(it.parte, it.img); }); /* dois cliques numa peça: edita a imagem dela */
     $('#at-ia').innerHTML = `${ic('sparkles', 15)}<span>IA</span>`; $('#at-ia').onclick = () => this.ia();
     $('#at-cor').onclick = () => this.corInterna();
     addEventListener('keydown', e => this.teclas(e));
@@ -389,6 +389,7 @@ const Atelie = {
       if (this.imgSo && this.imgSo.p === it.parte.id && this.imgSo.img === it.img.id) ctx.drawImage(this.tingido(bm, it.img.k + (it.ap?.k || ''), 'rgba(255,92,92,.45)'), -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); // MOVER ESTA IMAGEM EM TUDO: vermelho só nela (o que está na frente continua na frente) // MOVER TODOS: roxo meio transparente em tudo que vai junto
       ctx.restore(); }
     ctx.save(); ctx.setTransform(V); Animacoes.desenhaFantasma(ctx); ctx.restore();
+    if (this.ossos() && !this.edImg) { ctx.save(); Rig.desenha(ctx, this.def, est, V, { ativo: this._ikAtivo }); ctx.restore(); } // esqueleto (botão de osso)
     // parte escolhida: só a caixa tracejada (numa cor que contrasta com a peça) e uma cruzinha discreta no centro.
     // O pivô (ponto de giro) só aparece segurando Alt (Alt+arrastar muda o pivô); a alça com seta circular (ou Ctrl+arrastar) gira a peça.
     const it = itens.find(x => x.parte.id === this.sel); this._giro = null; // a caixa aparece até com a animação tocando (acompanha a peça)
@@ -416,6 +417,20 @@ const Atelie = {
     AoVivo.desenha(ctx, V, d); // quem está junto: cursor com cor e nome
   },
   /* ---------- régua e ímã (como no editor): R liga/desliga; arrastando, a peça gruda nas bordas e no meio das outras e no centro (0,0); Ctrl segura para não grudar ---------- */
+  // ESQUELETO (js/rig.js): ossos por cima do personagem; arrastar a ponta de um membro = IK, outra junta = gira a parte de cima dela (FK)
+  ossos() { if (this._ossos == null) { try { this._ossos = localStorage.getItem('animador-atelie-ossos') === '1'; } catch { this._ossos = false; } } return this._ossos; },
+  trocaOssos() { this._ossos = !this.ossos(); try { localStorage.setItem('animador-atelie-ossos', this._ossos ? '1' : '0'); } catch { } this.pintaOssos(); const n = Rig.cadeias(this.def || { partes: [] }).length; UI.toast(this._ossos ? `Esqueleto ligado${n ? ` · ${n} membro${n > 1 ? 's' : ''} com IK (arraste a bolinha laranja)` : ' · nenhum membro com IK achado (braço › antebraço › mão)'}` : 'Esqueleto desligado'); this.desenha(); },
+  pintaOssos() { const b = $('#at-osso'); if (b) { b.innerHTML = ic('bone', 15); b.classList.toggle('on', this.ossos()); } },
+  alcaOsso(e) { if (!this.ossos() || this.edImg || !this.def) return null; const d = devicePixelRatio || 1, V = this.V(); let m = null;
+    for (const al of Rig.alcas(this.def, this.estado())) { const t = V.transformPoint(new DOMPoint(al.x, al.y)), dd = Math.hypot(t.x - e.offsetX * d, t.y - e.offsetY * d) / d; if (dd < (al.tipo === 'ik' ? 13 : 10) && (!m || dd < m.dd)) m = { al, dd }; } return m?.al || null; },
+  arrastaOsso(e, al, fim) {
+    const est0 = this.estado(), cad = al.tipo === 'ik' ? al.cad : null; this._ikAtivo = al.pid; this.escolhe(cad ? cad.fim : al.mae);
+    const lado = cad && (() => { const J = Rig.juntas(this.def, est0), S = J[cad.raiz], E = J[cad.meio], W = J[cad.fim]; return Math.sign((E.x - S.x) * (W.y - E.y) - (E.y - S.y) * (W.x - E.x)) || (cad.tipo === 'perna' ? -1 : 1); })();
+    let mexeu = false;
+    return fim(ev => { const alvo = this.mundo(ev), r = cad ? Rig.ik(this.def, est0, cad, alvo, { dobra: ev.altKey ? -lado : lado }) : Rig.giraPara(this.def, est0, al, alvo); if (!r) return;
+      for (const [id, rr] of Object.entries(r)) { if (Animacoes.passoAtual()) { this.editPasso = null; Animacoes.alvoPausa(id); } this.mudar(id, { r: ev.shiftKey && !cad ? Math.round(rr / 15) * 15 : rr }); } mexeu = true; this.desenha(); },
+      () => { this._ikAtivo = null; if (mexeu) this.commit(); else this.desenha(); });
+  },
   regua() { if (this._regua == null) { try { this._regua = localStorage.getItem('animador-atelie-regua') !== '0'; } catch { this._regua = true; } } return this._regua; },
   trocaRegua() { this._regua = !this.regua(); try { localStorage.setItem('animador-atelie-regua', this._regua ? '1' : '0'); } catch { } this.pintaRegua(); UI.toast(this._regua ? 'Régua e ímã ligados (Ctrl segura para não grudar)' : 'Régua e ímã desligados'); this.desenha(); },
   pintaRegua() { const b = $('#at-regua'); if (b) { b.innerHTML = ic('ruler', 14); b.classList.toggle('on', this.regua()); } $('.at-palco')?.classList.toggle('com-regua', this.regua()); if (typeof Ima !== 'undefined') Ima.arruma(); },
@@ -477,6 +492,7 @@ const Atelie = {
     }
     if (e.button === 0 && Pintura.ferr !== 'mover') return Pintura.desce(e); // pincel, borracha, balde, conta-gotas
     if (this.edImg) { const v = this.vista, x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y; return fim(ev => { v.x = vx + ev.clientX - x0; v.y = vy + ev.clientY - y0; this.desenha(); }); } // editor de imagem: a mão só move a tela
+    if (e.button === 0) { const al = this.alcaOsso(e); if (al) return this.arrastaOsso(e, al, fim); } // esqueleto ligado: IK / FK pelas juntas
     // girar: Ctrl+arrastar na peça escolhida (gira em volta do pivô)
     let pegaGiro = this._giro && Math.hypot(e.offsetX * d - this._giro.x, e.offsetY * d - this._giro.y) < 14 * d; // a alça de girar
     if (!pegaGiro && (e.ctrlKey || e.metaKey) && this.parte() && !this.teste) { const p = this.parte(), piv = this.V().multiply(this.matParte(p.id)).transformPoint(new DOMPoint(0, 0)); this._giro = { piv }; pegaGiro = true; }

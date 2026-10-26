@@ -101,7 +101,7 @@ const Atuacao = {
     let ult = null; for (const t of lista) { if (t.q <= q) ult = t; else break; }
     if (ult && q - ult.q < SET) {
       const { d, mesma, ok } = this.delta(p, ult);
-      if (ok && Math.abs(d) > .5) { const ini = mesma ? d : Math.max(-30, Math.min(30, d * .5)); const t = (q - ult.q) / SET; r -= ini * this.mola(t) * (mesma ? 1 : f); ev = Math.max(ev, Math.min(1, Math.abs(d) / 110) * (1 - t)); }
+      if (ok && Math.abs(d) > .5 && !(o.suave && mesma)) { const ini = mesma ? d : Math.max(-30, Math.min(30, d * .5)); const t = (q - ult.q) / SET; r -= ini * this.mola(t) * (mesma ? 1 : f); ev = Math.max(ev, Math.min(1, Math.abs(d) / 110) * (1 - t)); }
     }
     // a PRÓXIMA troca (lê a próxima pose): recua para o lado contrário antes de ir
     const prox = lista.find(t => t.q > q);
@@ -133,7 +133,7 @@ const Atuacao = {
 
   /* ---------- aplica no estado das partes do quadro q (devolve um estado novo; o de entrada não muda) ---------- */
   aplica(P, n, q, dv, ep) {
-    const def = P.personagens[n.ref]; if (!def) return ep; const o = this.opcoes(n), fps = P.fps || 24, f = o.forca;
+    const def = P.personagens[n.ref]; if (!def) return ep; const o = { ...this.opcoes(n), suave: !!n.suaveP }, fps = P.fps || 24, f = o.forca;
     if (!(f > 0)) return ep;
     const L = this.linha(n, def), out = {}; for (const [k, v] of Object.entries(ep)) out[k] = { ...v };
     const raiz = dv.partes.find(p => p.id === dv.raiz) || dv.partes.find(p => !p.pai);

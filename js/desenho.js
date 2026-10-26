@@ -48,11 +48,17 @@ const Render = {
     for (let sy = 0; sy < bm.height; sy += faixa) { const sh = Math.min(faixa * 2, bm.height - sy), /* faixa dobrada: a próxima cobre a emenda (sem risquinhos) */ dx = Math.sin((sy * ky) * freq + fase) * amp + Math.sin((sy * ky) * freq * 2.3 - fase) * amp * .35;
       ctx.drawImage(bm, 0, sy, bm.width, sh, x + dx, y + sy * ky, w, sh * ky); }
   },
-  pecasPersonagem(P, n, q, m) {
-    const def = P.personagens[n.ref]; if (!def) return [];
+  // estado de cada parte do personagem no quadro q, como aparece na tela (vista, poses, partes suaves e atuação)
+  estadoPartes(P, n, q) {
+    const def = P.personagens[n.ref]; if (!def) return null;
     const est = Modelo.estadoPersonagem(n, q), dv = Modelo.naVista(def, est.vista); // a vista escolhida neste quadro (frente, lado…)
     let ep = Modelo.partesNoEstado(dv, est);
+    if (n.suaveP && typeof Rig !== 'undefined') { try { ep = Rig.tween(P, n, q, dv, ep); } catch (e) { console.warn('[Rig]', e); } } // partes mudam aos poucos até a próxima chave (js/rig.js)
     if (typeof Atuacao !== 'undefined' && Atuacao.ligada(n)) { try { ep = Atuacao.aplica(P, n, q, dv, ep); } catch (e) { console.warn('[Atuação]', e); } } // atuação automática (js/atuacao.js)
+    return { def, dv, ep, est };
+  },
+  pecasPersonagem(P, n, q, m) {
+    const ee = this.estadoPartes(P, n, q); if (!ee) return []; const { def, dv, ep } = ee;
     const cor = n.cor === 'original' ? null : n.cor || dv.corInterna; // cor interna: a deste personagem na animação, ou a do Ateliê
     return Modelo.montar(cor === dv.corInterna ? dv : { ...dv, corInterna: cor }, ep, m);
   },

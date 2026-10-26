@@ -237,6 +237,11 @@ const Lado = {
       c.appendChild(h(`<div class="pr-info">${vn ? `Vista <b>${esc(vn)}</b> neste quadro · ` : ''}${Atuacao.ligada(n) ? 'atuação automática ligada' : 'atuação automática desligada'}</div>`));
       const a = h(`<div class="pr-acoes"><button class="btn sm" data-nq>${ic('layers', 13)} Poses e vista</button><button class="btn sm" data-at><span class="ic-ep" data-estudio-icone="at" style="width:14px;height:14px"></span> Ateliê…</button></div>`);
       $('[data-nq]', a).onclick = () => this.aba('quadro'); $('[data-at]', a).onclick = () => App.abrirAtelie(); c.appendChild(a);
+      // RIG (js/rig.js): partes mudam aos poucos entre as chaves de pose (como no Toon Boom) e o esqueleto por cima
+      const mv = h(`<div class="pr-seg" title="Como as partes (braço, cabeça…) vão de uma pose para a outra"><span>Partes</span><div><button data-sp="1" class="${n.suaveP ? 'on' : ''}" title="Giram e andam aos poucos até a pose da próxima chave (a troca de desenho acontece na chave)">Suave</button><button data-sp="0" class="${n.suaveP ? '' : 'on'}" title="A pose fica parada até a próxima chave">Quadro a quadro</button></div></div>`);
+      $$('[data-sp]', mv).forEach(b => b.onclick = () => { n.suaveP = b.dataset.sp === '1'; App.commit(n.suaveP ? 'Partes suaves' : 'Partes quadro a quadro', { semArvore: true }); }); c.appendChild(mv);
+      const cads = Rig.cadeias(Modelo.naVista(defP, est.vista)), esq = h(`<label class="chk" style="margin-top:6px" title="Mostra os ossos e as juntas deste personagem no palco. Arraste a bolinha de uma mão ou pé para dobrar o braço/perna inteiro (IK)."><input type="checkbox" ${App.esqueleto ? 'checked' : ''}> Mostrar o esqueleto${cads.length ? ` <small style="color:var(--tx3)">· ${cads.length} membro${cads.length > 1 ? 's' : ''} com IK</small>` : ''}</label>`);
+      $('input', esq).onchange = ev => { App.esqueleto = ev.target.checked; try { localStorage.setItem('animador-esqueleto', App.esqueleto ? '1' : ''); } catch { } App.pinta(); }; c.appendChild(esq);
     }, true));
     { const ef = h(`<button class="pr-ir-ef">${ic('sparkles', 13)}<span>Trêmulo e efeitos desta camada</span><small>${n.tremulo ? (n.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : ''}</small>${ic('right', 12)}</button>`); ef.onclick = () => this.aba('efeitos'); el.appendChild(ef); }
   },

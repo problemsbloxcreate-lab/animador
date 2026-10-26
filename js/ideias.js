@@ -152,7 +152,7 @@ ${g}`,
       + (I0.lista.length && !o.tudo ? `IDEIAS QUE JÁ EXISTEM (não repita):\n${I0.lista.map(x => `- [${x.formato}] ${x.titulo}`).join('\n')}\n\n` : '')
       + (I0.escolhidas?.length ? `O GOSTO DA EQUIPE — ideias que ela já escolheu para virar roteiro (aprenda com elas, sem repetir):\n${I0.escolhidas.slice(-20).map(x => `- [${x.formato}] ${x.titulo}`).join('\n')}\n\n` : '')
       + `${this._dir ? `DIREÇÃO DA EQUIPE: ${this._dir}\n` : ''}Escreva ${n} ideias${refazer ? ' (na mesma ordem das que vão ser trocadas)' : ''}.`;
-    let j; try { const imgs = await this.miniaturas(); j = IA.json(await IA.chama(this.SIS_IDEIAS(await this.guia()), imgs.length ? [...imgs, { type: 'text', text: pedido }] : pedido)); }
+    let j; try { const imgs = await this.miniaturas(); j = IA.json(await IA.chama(this.SIS_IDEIAS(await this.guia()), imgs.length ? [...imgs, { type: 'text', text: pedido }] : pedido, null, { titulo: 'Pensando em ideias' })); }
     catch (e) { return UI.toast('A IA não conseguiu: ' + esc(e.message), { kind: 'err' }); }
     const novas = (j.ideias || []).filter(x => x?.titulo).map(x => ({ id: uid('ide'), formato: x.formato === 'longo' ? 'longo' : 'short', titulo: String(x.titulo).slice(0, 140), gancho: String(x.gancho || '').slice(0, 240), resumo: String(x.resumo || '').slice(0, 700), porque: String(x.porque || '').slice(0, 400), inspirado: (x.inspirado || []).filter(i => /^[\w-]{11}$/.test(i)).slice(0, 4), personagens: (x.personagens || []).map(String).slice(0, 8), esforco: ['baixo', 'médio', 'alto'].includes(x.esforco) ? x.esforco : '', aposta: !!x.aposta }));
     if (!novas.length) return UI.toast('A IA não devolveu ideias. Tente de novo.', { kind: 'warn' });
@@ -307,7 +307,7 @@ ${g}`,
     const pedido = `FORMATO: ${R.formato === 'short' ? 'SHORT vertical (25–55 s)' : 'VÍDEO LONGO horizontal (4–12 min)'}\n\nIDEIAS ESCOLHIDAS:\n${this.ideiasTexto(R)}\n\nPERSONAGENS:\n${this.persTexto(R)}\n\n`
       + (ref ? `REFAÇA estas situações (diferentes e melhores):\n${JSON.stringify(ref.map(({ id, usar, marca, ...x }) => x))}\n\n` : R.situacoes.length && !o.tudo ? `JÁ EXISTEM (não repita):\n${R.situacoes.map(s => '- ' + s.titulo).join('\n')}\n\n` : '')
       + `${R.dirSit ? `DIREÇÃO: ${R.dirSit}\n` : ''}Escreva ${n} situações.`;
-    let j; try { j = IA.json(await IA.chama(this.SIS_SIT(await this.guia()), pedido)); } catch (e) { return UI.toast('A IA não conseguiu: ' + esc(e.message), { kind: 'err' }); }
+    let j; try { j = IA.json(await IA.chama(this.SIS_SIT(await this.guia()), pedido, null, { titulo: 'Inventando situações' })); } catch (e) { return UI.toast('A IA não conseguiu: ' + esc(e.message), { kind: 'err' }); }
     const novas = (j.situacoes || []).filter(x => x?.titulo).map(x => ({ id: uid('st'), titulo: String(x.titulo).slice(0, 120), resumo: String(x.resumo || '').slice(0, 600), batidas: (x.batidas || []).map(String).slice(0, 10), lugares: (x.lugares || []).map(String).slice(0, 8), personagens: (x.personagens || []).map(String).slice(0, 8), final: String(x.final || '').slice(0, 300) }));
     if (ref) ref.forEach((s, i) => { const k = R.situacoes.indexOf(s); if (k >= 0 && novas[i]) R.situacoes[k] = novas[i]; });
     else R.situacoes = o.tudo ? novas : [...R.situacoes, ...novas];
@@ -369,11 +369,11 @@ ${g}`,
     const sits = R.situacoes.filter(s => s.usar), base = `FORMATO: ${R.formato === 'short' ? 'SHORT vertical (25–55 s, 8–18 falas, um lugar)' : 'VÍDEO LONGO horizontal (4–12 min, 3–6 cenas)'}\n\nIDEIAS:\n${this.ideiasTexto(R)}\n\nPERSONAGENS:\n${this.persTexto(R)}\n\nSITUAÇÕES ESCOLHIDAS:\n${sits.map(s => `- ${s.titulo}: ${s.resumo}\n  batidas: ${(s.batidas || []).join(' / ')}\n  lugares: ${(s.lugares || []).join(', ')}\n  final: ${s.final}`).join('\n')}\n\n${R.dirRot ? `DIREÇÃO: ${R.dirRot}\n\n` : ''}`;
     if (o.refazer) {
       const pedido = base + `ROTEIRO ATUAL (JSON; cada fala tem id):\n${JSON.stringify(R.roteiro.cenas.map(c => ({ lugar: c.lugar, falas: c.falas.map(f => ({ id: f.id, personagem: f.personagem, texto: f.texto, emocao: f.emocao, acao: f.acao, camera: f.camera })) })))}\n\nREESCREVA SÓ as falas com estes ids: ${o.refazer.join(', ')} (melhores, combinando com o que vem antes e depois). Cada uma pode virar 1 a 3 falas.\nResponda SÓ um JSON: {"trocas":[{"id":"id da fala","falas":[{"personagem":"","texto":"","emocao":"","acao":"","camera":""}]}]}`;
-      let j; try { j = IA.json(await IA.chama(this.SIS_ROT(await this.guia()), pedido)); } catch (e) { return UI.toast('A IA não conseguiu: ' + esc(e.message), { kind: 'err' }); }
+      let j; try { j = IA.json(await IA.chama(this.SIS_ROT(await this.guia()), pedido, null, { titulo: 'Reescrevendo as falas' })); } catch (e) { return UI.toast('A IA não conseguiu: ' + esc(e.message), { kind: 'err' }); }
       let n = 0; for (const t of j.trocas || []) for (const c of R.roteiro.cenas) { const i = c.falas.findIndex(f => f.id === t.id); if (i < 0) continue; const novas = (t.falas || []).filter(f => f?.texto).map(f => this.normFala(f, R)); if (!novas.length) continue; delete R.vozes[t.id]; c.falas.splice(i, 1, ...novas); n++; }
       UI.toast(`${n} fala${n === 1 ? '' : 's'} reescrita${n === 1 ? '' : 's'}.`, { kind: n ? 'ok' : 'warn' });
     } else {
-      let j; try { j = IA.json(await IA.chama(this.SIS_ROT(await this.guia()), base + 'Escreva o roteiro completo.')); } catch (e) { return UI.toast('A IA não conseguiu: ' + esc(e.message), { kind: 'err' }); }
+      let j; try { j = IA.json(await IA.chama(this.SIS_ROT(await this.guia()), base + 'Escreva o roteiro completo.', null, { titulo: 'Escrevendo o roteiro' })); } catch (e) { return UI.toast('A IA não conseguiu: ' + esc(e.message), { kind: 'err' }); }
       const T = this.normRot(j, R); if (!T.cenas.length) return UI.toast('A IA não devolveu falas. Tente de novo.', { kind: 'warn' });
       R.roteiro = T; R.vozes = {}; if (T.titulo) R.nome = T.titulo;
     }
@@ -399,7 +399,7 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
     const txt = ta.value.trim(); if (!ok || !txt) return false;
     if (R.roteiro && !novo && !await UI.confirm({ title: 'Trocar o roteiro de agora?', msg: 'O roteiro atual sai e as vozes já gravadas deixam de bater com as falas.', ok: 'Trocar' })) return false;
     const pedido = `FORMATO: ${R.formato === 'short' ? 'SHORT vertical' : 'VÍDEO LONGO horizontal'}\nPERSONAGENS JÁ ESCOLHIDOS: ${R.pers.map(p => p.nome).join(', ') || '(nenhum ainda)'}\n${$('[data-igual]', body).checked ? 'NÃO mude o texto das falas: só separe e organize.' : 'Pode melhorar o texto das falas (mais natural e no estilo do canal), sem mudar a história.'}\n\nROTEIRO:\n${txt.slice(0, 60000)}`;
-    let j; try { j = IA.json(await IA.chama(this.SIS_ORG, pedido)); } catch (e) { UI.toast('A IA não conseguiu organizar: ' + esc(e.message), { kind: 'err' }); return false; }
+    let j; try { j = IA.json(await IA.chama(this.SIS_ORG, pedido, null, { titulo: 'Organizando o roteiro' })); } catch (e) { UI.toast('A IA não conseguiu organizar: ' + esc(e.message), { kind: 'err' }); return false; }
     const T = this.normRot(j, R); if (!T.cenas.length) { UI.toast('Não achei falas nesse texto.', { kind: 'warn' }); return false; }
     R.roteiro = T; R.vozes = {}; if (T.titulo) R.nome = T.titulo; R.pronto = true; await this.guarda(R);
     const falta = [...new Set(this.falas(R).map(f => f.personagem).filter(n => n && !this.persDe(R, n)))];
@@ -509,7 +509,7 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
       cenas.forEach((cn, ci) => {
         const quem = [...new Set([...cn.falas.map(x => x.p).filter(Boolean), ...(cn.ce.personagens || []).map(nm => this.persDe(R, nm)).filter(Boolean)])];
         quem.forEach((p, i) => { const def = defs[p.id]; const b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, {})), s = b.h > 0 ? clamp(H * (R.formato === 'short' ? .42 : .6) / b.h, .05, 4) : 1;
-          const n = Modelo.novoNo('personagem', { ref: def.id, nome: cenas.length > 1 ? `${p.nome} · cena ${ci + 1}` : p.nome, s: round(s, 3) }); n.atuacao = { ...Atuacao.PADRAO }; n.interp = true;
+          const n = Modelo.novoNo('personagem', { ref: def.id, nome: cenas.length > 1 ? `${p.nome} · cena ${ci + 1}` : p.nome, s: round(s, 3) }); n.atuacao = { ...Atuacao.PADRAO }; n.interp = true; n.suaveP = true;
           n.de = cn.de; n.ate = cn.ate; n.chaves = { [cn.de]: { x: Math.round(W * (i + 1) / (quem.length + 1)), y: Math.round(H * (R.formato === 'short' ? .62 : .58)), r: 0, s: round(s, 3), sx: i >= quem.length / 2 && quem.length > 1 ? -1 : 1, op: 1 } };
           P.raiz.unshift(n); (nos[ci] ||= {})[p.id] = n; });
       });
