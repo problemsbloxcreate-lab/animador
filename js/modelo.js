@@ -99,6 +99,20 @@ const Modelo = {
     }
     return out;
   },
+  // COR E LUZ da camada no quadro q (chave.fx = { luz, con, sat, mat }: iluminação/contraste/saturação em %, matiz em graus).
+  // Vai mudando entre as chaves como x/y (ou segura, sem interp). Usado nas camadas dos cenários em camadas (js/cenlib.js);
+  // vale para qualquer camada e para a pasta (a da pasta soma por cima das de dentro). null = sem ajuste.
+  FX0: { luz: 100, con: 100, sat: 100, mat: 0 },
+  fxNo(n, q) {
+    const ks = Modelo.quadrosChave(n).filter(k => n.chaves[k].fx); if (!ks.length) return null;
+    const out = { ...Modelo.FX0 }; let algum = false;
+    for (const c of Object.keys(Modelo.FX0)) {
+      let a = null, b = null; for (const k of ks) { const v = n.chaves[k].fx[c]; if (v == null) continue; if (k <= q) a = [k, v]; else { b = [k, v]; break; } }
+      if (!a && b) out[c] = b[1]; else if (a && b && n.interp) out[c] = Modelo.mistura(n.chaves, a, b, c, q); else if (a) out[c] = a[1]; else continue; algum = true;
+    }
+    return algum && Object.keys(Modelo.FX0).some(c => Math.abs(out[c] - Modelo.FX0[c]) > .01) ? out : null;
+  },
+  filtroFx(f) { return f ? `brightness(${f.luz / 100}) contrast(${f.con / 100}) saturate(${f.sat / 100}) hue-rotate(${f.mat}deg)` : ''; },
   // escolhas do personagem no quadro q (sessões e ajustes de parte seguram até a próxima chave)
   estadoPersonagem(n, q) {
     const ks = Modelo.quadrosChave(n), sessoes = {}, partes = {}; let vista = null;
@@ -270,6 +284,7 @@ const Arq = {
     if (!this.carregando.has(id)) this.carregando.set(id, (async () => {
       let b = await this.pegaBlob(id);
       if (!b && /^personagens\//.test(id)) b = await Nuvem.baixar(id).catch(() => null); // imagem de personagem: da nuvem da equipe
+      if (!b && /^cenarios\/[a-z0-9-]+\/camadas\//.test(id)) { b = await fetch(id).then(r => r.ok ? r.blob() : null).catch(() => null); if (b) { await DB.put('arquivos', b, id).catch(() => { }); this.blob.set(id, b); } } // camada de um cenário da casa (js/cenlib.js): vem do site
       if (!b) return null;
       const bm = await this.deBlob(b, id); if (bm) this.img.set(id, bm); return bm;
     })().then(bm => { this.carregando.delete(id); const l = this.avisar.get(id); this.avisar.delete(id); l?.forEach(f => { try { f(bm); } catch (e) { console.error(e); } }); return bm; }));

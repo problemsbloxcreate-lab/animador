@@ -217,6 +217,7 @@ const App = {
   },
   menuCenario(x, y) {
     UI.ctx(x, y, [
+      { label: 'Cenários em camadas (biblioteca)…', icon: 'layers', action: () => CenLib.abrir() },
       { label: 'Prontos e com a IA (estilo da casa)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() },
       { label: 'Salvos na nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() },
     ]);
@@ -341,7 +342,7 @@ const App = {
       if (sob && sob.id !== App.sel) App.selecionar(sob.id);
       const s = App.noSel();
       UI.ctx(e.clientX, e.clientY, [
-        { label: 'Personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Imagem…', icon: 'image', action: () => App.addImagem() }, { label: 'Cenário (prontos e IA)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() }, { label: 'Cenário da nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() }, { label: 'Texto', icon: 'text', action: () => App.addTexto() }, '-',
+        { label: 'Personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Imagem…', icon: 'image', action: () => App.addImagem() }, { label: 'Cenários (biblioteca em camadas)…', icon: 'layers', action: () => CenLib.abrir() }, { label: 'Cenário (prontos e IA)…', icon: 'paisagem', ai: true, action: () => Cenarios.abrir() }, { label: 'Cenário da nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() }, { label: 'Texto', icon: 'text', action: () => App.addTexto() }, '-',
         s?.tipo === 'imagem' && { label: 'Trocar a imagem…', icon: 'image', action: () => App.trocarImagem(s) },
         (s?.tipo === 'imagem' || s?.cenaEd) && (s.nuvem ? { label: 'Já está na nuvem da equipe', icon: 'check', disabled: true } : { label: 'Salvar na nuvem', icon: 'cloud', action: () => App.salvarNaNuvem(s) }),
         s?.tipo === 'personagem' && { label: `Arrumar o quadro ${App.q + 1} aqui (Ateliê ao lado)`, icon: 'brush', action: () => QuadroEd.abrir(s) },

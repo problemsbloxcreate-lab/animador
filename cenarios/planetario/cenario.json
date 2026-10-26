@@ -1,0 +1,627 @@
+{
+ "formato": "cenario-camadas",
+ "v": 1,
+ "id": "planetario",
+ "nome": "Planetário do Problems",
+ "estilo": "pintado-azul",
+ "descricao": "Quarto-planetário azul do Problems, pintado com luz e profundidade (ponto de fuga, sombras, primeiro plano desfocado).",
+ "tags": [
+  "quarto",
+  "Problems",
+  "azul",
+  "gelo"
+ ],
+ "w": 1920,
+ "h": 1080,
+ "miniatura": "miniatura.jpg",
+ "cena": {
+  "luz": 100,
+  "con": 100,
+  "sat": 100,
+  "mat": 0
+ },
+ "camadas": [
+  {
+   "id": "fundo",
+   "nome": "Parede e chão",
+   "arq": "camadas/fundo.png",
+   "tipo": "png",
+   "w": 1920,
+   "h": 1080,
+   "cx": 960,
+   "cy": 540,
+   "s": 1,
+   "r": 0,
+   "trava": true,
+   "fx": {
+    "luz": 100,
+    "con": 100,
+    "sat": 171,
+    "mat": 0
+   }
+  },
+  {
+   "id": "estrelas",
+   "nome": "Estrelas que brilham (teste)",
+   "arq": "camadas/estrelas.svg",
+   "tipo": "svg",
+   "w": 818,
+   "h": 296,
+   "cx": 1221,
+   "cy": 256,
+   "s": 1.3331,
+   "r": 0,
+   "fx": {
+    "luz": 114,
+    "con": 100,
+    "sat": 199,
+    "mat": 0
+   }
+  },
+  {
+   "id": "estante",
+   "nome": "Estante",
+   "arq": "camadas/estante.svg",
+   "tipo": "svg",
+   "w": 611,
+   "h": 800,
+   "cx": 403,
+   "cy": 569,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 139,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "gelo_parede",
+   "nome": "Gelo na parede (teste)",
+   "arq": "camadas/gelo_parede.png",
+   "tipo": "png",
+   "w": 445,
+   "h": 281,
+   "cx": 1708,
+   "cy": 130,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 112,
+    "con": 100,
+    "sat": 111,
+    "mat": 0
+   }
+  },
+  {
+   "id": "boneco1",
+   "nome": "Boneco verde",
+   "arq": "camadas/boneco1.png",
+   "tipo": "png",
+   "w": 132,
+   "h": 166,
+   "cx": 313,
+   "cy": 363,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 141,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "boneco0",
+   "nome": "Boneco laranja",
+   "arq": "camadas/boneco0.png",
+   "tipo": "png",
+   "w": 129,
+   "h": 166,
+   "cx": 183,
+   "cy": 365,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 158,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "boneco2",
+   "nome": "Boneco azul",
+   "arq": "camadas/boneco2.png",
+   "tipo": "png",
+   "w": 143,
+   "h": 166,
+   "cx": 246,
+   "cy": 138,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 160,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "boneco3",
+   "nome": "Boneco vermelho",
+   "arq": "camadas/boneco3.png",
+   "tipo": "png",
+   "w": 131,
+   "h": 179,
+   "cx": 446,
+   "cy": 356,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 145,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "boneco4",
+   "nome": "Boneco rosa",
+   "arq": "camadas/boneco4.png",
+   "tipo": "png",
+   "w": 140,
+   "h": 166,
+   "cx": 410,
+   "cy": 140,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 148,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "boneco5",
+   "nome": "Boneco amarelo",
+   "arq": "camadas/boneco5.png",
+   "tipo": "png",
+   "w": 125,
+   "h": 166,
+   "cx": 584,
+   "cy": 360,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 150,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "cristais",
+   "nome": "Cristais de gelo",
+   "arq": "camadas/cristais.svg",
+   "tipo": "svg",
+   "w": 126,
+   "h": 124,
+   "cx": 199,
+   "cy": 538,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 151,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "floco",
+   "nome": "Floco de gelo na cúpula",
+   "arq": "camadas/floco.png",
+   "tipo": "png",
+   "w": 90,
+   "h": 100,
+   "cx": 380,
+   "cy": 538,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 151,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "caixa_saturno",
+   "nome": "Caixa Saturno (prateleira 2)",
+   "arq": "camadas/caixa_saturno.svg",
+   "tipo": "svg",
+   "w": 187,
+   "h": 127,
+   "cx": 507,
+   "cy": 546,
+   "s": 1,
+   "r": 0,
+   "oculta": true,
+   "fx": {
+    "luz": 171,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "quadro_irma",
+   "nome": "Porta-retrato da irmã",
+   "arq": "camadas/quadro_irma.svg",
+   "tipo": "svg",
+   "w": 134,
+   "h": 139,
+   "cx": 215,
+   "cy": 674,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 160,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "quadro_amarelo",
+   "nome": "Porta-retrato da família",
+   "arq": "camadas/quadro_amarelo.svg",
+   "tipo": "svg",
+   "w": 125,
+   "h": 148,
+   "cx": 330,
+   "cy": 674,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 150,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "caixas3",
+   "nome": "Caixa da lua (prateleira 3)",
+   "arq": "camadas/caixas3.svg",
+   "tipo": "svg",
+   "w": 221,
+   "h": 129,
+   "cx": 511,
+   "cy": 690,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 152,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "quadro_planeta2",
+   "nome": "Quadro da Terra desenhada (teste)",
+   "arq": "camadas/quadro_planeta2.png",
+   "tipo": "png",
+   "w": 439,
+   "h": 439,
+   "cx": 1240,
+   "cy": 329,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 128,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "livro",
+   "nome": "Livro A Cor Escondida",
+   "arq": "camadas/livro.svg",
+   "tipo": "svg",
+   "w": 176,
+   "h": 200,
+   "cx": 558,
+   "cy": 150,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 158,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "carta",
+   "nome": "Carta para o Problems",
+   "arq": "camadas/carta.png",
+   "tipo": "png",
+   "w": 145,
+   "h": 97,
+   "cx": 397,
+   "cy": 859,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 171,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "prat4",
+   "nome": "Planta e globo (prateleira 4)",
+   "arq": "camadas/prat4.svg",
+   "tipo": "svg",
+   "w": 373,
+   "h": 130,
+   "cx": 769,
+   "cy": 868,
+   "s": 1,
+   "r": 0,
+   "oculta": true
+  },
+  {
+   "id": "movel",
+   "nome": "Móvel baixo",
+   "arq": "camadas/movel.svg",
+   "tipo": "svg",
+   "w": 910,
+   "h": 229,
+   "cx": 1237,
+   "cy": 865,
+   "s": 1,
+   "r": 0
+  },
+  {
+   "id": "movel_itens",
+   "nome": "Caixas e lua do móvel",
+   "arq": "camadas/movel_itens.svg",
+   "tipo": "svg",
+   "w": 813,
+   "h": 136,
+   "cx": 1244,
+   "cy": 895,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 146,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "planeta_laranja",
+   "nome": "Planeta laranja",
+   "arq": "camadas/planeta_laranja.svg",
+   "tipo": "svg",
+   "w": 149,
+   "h": 168,
+   "cx": 861.5,
+   "cy": 702,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 153,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "planeta_verde",
+   "nome": "Planeta verde",
+   "arq": "camadas/planeta_verde.svg",
+   "tipo": "svg",
+   "w": 149,
+   "h": 168,
+   "cx": 1009.5,
+   "cy": 702,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 146,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "planeta_azul_claro",
+   "nome": "Planeta azul",
+   "arq": "camadas/planeta_azul_claro.svg",
+   "tipo": "svg",
+   "w": 149,
+   "h": 168,
+   "cx": 1157.5,
+   "cy": 702,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 141,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "planeta_vermelho",
+   "nome": "Planeta vermelho",
+   "arq": "camadas/planeta_vermelho.svg",
+   "tipo": "svg",
+   "w": 149,
+   "h": 168,
+   "cx": 1305.5,
+   "cy": 702,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 138,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "planeta_rosa",
+   "nome": "Planeta roxo",
+   "arq": "camadas/planeta_rosa.svg",
+   "tipo": "svg",
+   "w": 149,
+   "h": 168,
+   "cx": 1453.5,
+   "cy": 702,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 141,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "planeta_amarelo",
+   "nome": "Planeta amarelo",
+   "arq": "camadas/planeta_amarelo.svg",
+   "tipo": "svg",
+   "w": 149,
+   "h": 168,
+   "cx": 1599,
+   "cy": 699,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 145,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "planta",
+   "nome": "Planta",
+   "arq": "camadas/planta.svg",
+   "tipo": "svg",
+   "w": 268,
+   "h": 290,
+   "cx": 1785,
+   "cy": 883,
+   "s": 1,
+   "r": 0,
+   "oculta": true,
+   "trava": true
+  },
+  {
+   "id": "caixa_marrom",
+   "nome": "Caixa marrom",
+   "arq": "camadas/caixa_marrom.svg",
+   "tipo": "svg",
+   "w": 312,
+   "h": 215,
+   "cx": 1722,
+   "cy": 901,
+   "s": 1,
+   "r": 0,
+   "oculta": true
+  },
+  {
+   "id": "lumi",
+   "nome": "Lumi (teste)",
+   "arq": "camadas/lumi.png",
+   "tipo": "png",
+   "w": 523,
+   "h": 680,
+   "cx": 460,
+   "cy": 898,
+   "s": 2.4064,
+   "r": 0,
+   "oculta": true
+  },
+  {
+   "id": "mesa",
+   "nome": "Mesa (na frente)",
+   "arq": "camadas/mesa.svg",
+   "tipo": "svg",
+   "w": 1920,
+   "h": 87,
+   "cx": 955,
+   "cy": 1050,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 131,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "caneca",
+   "nome": "Caneca (na frente)",
+   "arq": "camadas/caneca.svg",
+   "tipo": "svg",
+   "w": 284,
+   "h": 1080,
+   "cx": 182,
+   "cy": 540,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 139,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  },
+  {
+   "id": "teclado",
+   "nome": "Teclado",
+   "arq": "camadas/teclado.svg",
+   "tipo": "svg",
+   "w": 355,
+   "h": 74,
+   "cx": 975.5,
+   "cy": 1043,
+   "s": 1,
+   "r": 0,
+   "oculta": true
+  },
+  {
+   "id": "caderno",
+   "nome": "Caderno",
+   "arq": "camadas/caderno.png",
+   "tipo": "png",
+   "w": 324,
+   "h": 77,
+   "cx": 972,
+   "cy": 1039,
+   "s": 1,
+   "r": 0,
+   "fx": {
+    "luz": 128,
+    "con": 100,
+    "sat": 100,
+    "mat": 0
+   }
+  }
+ ]
+}

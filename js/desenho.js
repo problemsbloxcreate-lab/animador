@@ -88,8 +88,9 @@ const Render = {
   umNo(ctx, P, q, base, n, m, alfa, fr, nivel) {
     if (!this.vivo(P, n, q) || n.tipo === 'efeito') return false;
     const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
-    if (n.filhos) { this.lista(ctx, P, q, base, n.filhos, mm, a, fr, nivel + 1); return true; }
-    ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a));
+    const fx = n.chaves && Modelo.filtroFx(Modelo.fxNo(n, q)), fxPai = this._fx || ''; // cor e luz (chave.fx): a da pasta vale para tudo dentro
+    if (n.filhos) { this._fx = (fxPai + ' ' + (fx || '')).trim(); try { this.lista(ctx, P, q, base, n.filhos, mm, a, fr, nivel + 1); } finally { this._fx = fxPai; } return true; }
+    ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a)); const filtro = ((fx || '') + ' ' + fxPai).trim(); if (filtro) ctx.filter = filtro;
     const df = n.chaves && Deformar.em(n, q); if (df && Deformar.desenha(ctx, P, q, base, n, mm, df)) { ctx.restore(); return true; } // deformada (js/deformar.js)
     if (n.tipo === 'personagem') {
       for (const it of this.pecasPersonagem(P, n, q, mm)) {

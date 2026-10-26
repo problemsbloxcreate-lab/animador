@@ -82,7 +82,9 @@ Object.assign(Cenarios, {
     return new Blob([JSON.stringify({ v: 1, tipo: 'cenario-animador', ...s })], { type: 'application/json' });
   },
   async abrirArquivo(f, parte) {
-    const j = JSON.parse(await f.text()); if (j?.tipo !== 'cenario-animador') throw new Error('Este arquivo não é um cenário do Animador.');
+    const j = JSON.parse(await f.text());
+    if (j?.tipo === 'cenario-camadas') { if (!App.P) await Home.nova({ w: 1920, h: 1080, fps: 24 }, { nome: 'Cenário: ' + String(j.nome || '').slice(0, 30) }); for (let i = 0; i < 50 && !App.P; i++) await sleep(100); return CenLib.abrir({ def: { ...(await CenLib.importar(j)), origem: 'meu' } }); } // cenário em camadas (js/cenlib.js)
+    if (j?.tipo !== 'cenario-animador') throw new Error('Este arquivo não é um cenário do Animador.');
     if (!App.P) await Home.nova({ w: 1920, h: 1080, fps: 24 }, { nome: 'Cenário: ' + String(j.nome || '').slice(0, 30) });
     for (let i = 0; i < 50 && !App.P; i++) await sleep(100);
     return this.abrir({ estado: await this.deSerial(j), sel: parte?.peca || null, area: parte?.area || null });

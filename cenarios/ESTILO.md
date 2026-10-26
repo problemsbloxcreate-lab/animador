@@ -1,5 +1,7 @@
 # Estilo dos cenários do Animador — rabiscado imperfeito
 
+> Cenário NOVO pedido ao Claude segue o formato em CAMADAS do Planetário: veja `CAMADAS.md`. Este guia é o do estilo rabiscado da IA do Animador.
+
 Cenários de fundo simples com cara de **rascunho feito à mão**, para combinar com os personagens.
 O estilo antigo (feltro/giz) foi abandonado. Os prontos daqui (`*.json`) foram aprovados pelo dono e são os exemplos que a
 IA do Animador usa para aprender (o texto que ensina a IA está em `js/cenarios.js`, em `Cenarios.SIS`).
