@@ -349,10 +349,10 @@ const App = {
       const lado = cad && (() => { const J = Rig.juntas(dv, ep0), S = J[cad.raiz], E = J[cad.meio], W = J[cad.fim]; const c = (E.x - S.x) * (W.y - E.y) - (E.y - S.y) * (W.x - E.x); return Math.sign(c) || (cad.tipo === 'perna' ? -1 : 1); })();
       this.fim(e, ev => {
         const w = this.paraMundo(ev), loc = inv.transformPoint(new DOMPoint(w.x, w.y)), alvo = { x: loc.x, y: loc.y };
-        const r = cad ? Rig.ik(dv, ep0, cad, alvo, { dobra: ev.altKey ? -lado : lado }) : Rig.giraPara(dv, ep0, al, alvo); if (!r) return;
+        const r = cad ? Rig.ik(dv, ep0, cad, alvo, { dobra: ev.altKey ? -lado : undefined, ponta: 'centro' }) : Rig.giraPara(dv, ep0, al, alvo); if (!r) return;
         const k = Modelo.chave(n, q); k.partes = { ...(k.partes || {}) }; for (const [id, rr] of Object.entries(r)) k.partes[id] = { ...(k.partes[id] || {}), r: ev.shiftKey && !cad ? Math.round(rr / 15) * 15 : rr };
         mexeu = true; App.pinta();
-      }, () => { App._ikAtivo = null; if (mexeu && JSON.stringify(n.chaves?.[q] || null) !== antes) App.commit(cad ? 'Mover ' + (dv.partes.find(p => p.id === cad.fim)?.nome || 'membro') + ' (IK)' : 'Girar ' + (dv.partes.find(p => p.id === al.mae)?.nome || 'parte'), { semArvore: true }); else App.pinta(); });
+      }, () => { App._ikAtivo = null; if (mexeu && JSON.stringify(n.chaves?.[q] || null) !== antes) App.commit(cad ? 'Mover ' + (dv.partes.find(p => p.id === cad.fim)?.nome || 'membro') + ' (IK)' : 'Girar ' + (dv.partes.find(p => p.id === al.pid)?.nome || 'parte'), { semArvore: true }); else App.pinta(); });
     },
     arrastaGiro(e, n, al) {
       const t0 = Modelo.transf(n, App.q), ang = p => Math.atan2(p.y - al.cen.y, p.x - al.cen.x) * 180 / Math.PI, a0 = ang({ x: e.offsetX, y: e.offsetY });
@@ -406,7 +406,7 @@ const App = {
     if (!this.esqueleto || this.tocando) return null; const P = this.P, v = this.vista, sel = this.noSel(); let melhor = null;
     for (const n of Modelo.noQuadro(P, this.q)) { if (n.trava) continue; const ee = Render.estadoPartes(P, n, this.q); if (!ee) continue; const M = Rig.matNo(P, n, this.q);
       for (const al of Rig.alcas(ee.dv, ee.ep)) { const w = M.transformPoint(new DOMPoint(al.x, al.y)), d = Math.hypot(w.x * v.z + v.x - tela.x, w.y * v.z + v.y - tela.y) - (n === sel ? 3 : 0);
-        if (d < (al.tipo === 'ik' ? 13 : 10) && (!melhor || d < melhor.d)) melhor = { n, al, d }; } }
+        if (d < (al.tipo === 'ik' ? 14 : al.cabelo ? 8 : 11) && (!melhor || d < melhor.d)) melhor = { n, al, d }; } }
     return melhor;
   },
   pinta() { if (!this._raf) this._raf = requestAnimationFrame(() => { this._raf = 0; this.desenhaPalco(); }); },

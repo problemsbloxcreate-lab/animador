@@ -424,10 +424,10 @@ const Atelie = {
   alcaOsso(e) { if (!this.ossos() || this.edImg || !this.def) return null; const d = devicePixelRatio || 1, V = this.V(); let m = null;
     for (const al of Rig.alcas(this.def, this.estado())) { const t = V.transformPoint(new DOMPoint(al.x, al.y)), dd = Math.hypot(t.x - e.offsetX * d, t.y - e.offsetY * d) / d; if (dd < (al.tipo === 'ik' ? 13 : 10) && (!m || dd < m.dd)) m = { al, dd }; } return m?.al || null; },
   arrastaOsso(e, al, fim) {
-    const est0 = this.estado(), cad = al.tipo === 'ik' ? al.cad : null; this._ikAtivo = al.pid; this.escolhe(cad ? cad.fim : al.mae);
+    const est0 = this.estado(), cad = al.tipo === 'ik' ? al.cad : null; this._ikAtivo = al.pid; this.escolhe(al.pid);
     const lado = cad && (() => { const J = Rig.juntas(this.def, est0), S = J[cad.raiz], E = J[cad.meio], W = J[cad.fim]; return Math.sign((E.x - S.x) * (W.y - E.y) - (E.y - S.y) * (W.x - E.x)) || (cad.tipo === 'perna' ? -1 : 1); })();
     let mexeu = false;
-    return fim(ev => { const alvo = this.mundo(ev), r = cad ? Rig.ik(this.def, est0, cad, alvo, { dobra: ev.altKey ? -lado : lado }) : Rig.giraPara(this.def, est0, al, alvo); if (!r) return;
+    return fim(ev => { const alvo = this.mundo(ev), r = cad ? Rig.ik(this.def, est0, cad, alvo, { dobra: ev.altKey ? -lado : undefined, ponta: 'centro' }) : Rig.giraPara(this.def, est0, al, alvo); if (!r) return;
       for (const [id, rr] of Object.entries(r)) { if (Animacoes.passoAtual()) { this.editPasso = null; Animacoes.alvoPausa(id); } this.mudar(id, { r: ev.shiftKey && !cad ? Math.round(rr / 15) * 15 : rr }); } mexeu = true; this.desenha(); },
       () => { this._ikAtivo = null; if (mexeu) this.commit(); else this.desenha(); });
   },

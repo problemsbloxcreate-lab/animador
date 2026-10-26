@@ -38,30 +38,49 @@ const Rig = {
   sinal(def, est, pid) { const p = def.partes.find(x => x.id === pid), pm = p?.pai ? this._matSo(def, est, p.pai) : new DOMMatrix(); return pm.a * pm.d - pm.b * pm.c < 0 ? -1 : 1; },
   ang(a, b) { return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; },
   norm(d) { return ((d + 540) % 360) - 180; },
+  ROSTO: /olho|boca|sobrancelh|c[íi]lio|pupila|nariz|bochecha|l[áa]bio|dente|l[íi]ngua|blush|express/i,
+  visivel(def, est, id) { const e = est[id], p = def.partes.find(x => x.id === id); return !!(e && p && e.vis !== false && p.imgs.some(i => i.id === e.img)); },
+  // meio da tinta da imagem da parte (coordenadas do personagem): "onde a mão está" para quem olha
+  centroTinta(def, est, pid) { const it = Modelo.montar(def, est).find(i => i.parte.id === pid); if (!it?.img) return null; const t = this.tinta(it.img) || { x0: 0, y0: 0, x1: 1, y1: 1 }, im = it.img;
+    const px = im.pivo?.x ?? im.w / 2, py = im.pivo?.y ?? im.h / 2, q = it.m.transformPoint(new DOMPoint((t.x0 + t.x1) / 2 * im.w - px + (im.ajuste?.x || 0), (t.y0 + t.y1) / 2 * im.h - py + (im.ajuste?.y || 0))); return { x: q.x, y: q.y }; },
+  // LIMITES de cada junta aprendidos com as poses prontas (base + presets): o IK não dobra o cotovelo/joelho para um lado que nenhuma pose usa
+  _lims: new WeakMap(),
+  limites(def, pid) { let M = this._lims.get(def); if (!M) this._lims.set(def, M = new Map()); if (M.has(pid)) return M.get(pid);
+    const p = def.partes.find(x => x.id === pid), rs = [p?.base?.r || 0]; for (const s of def.sessoes || []) for (const pr of s.presets || []) { const e = pr.estado?.[pid]; if (e && e.r != null) rs.push(+e.r); }
+    const L = rs.length > 1 ? { min: Math.min(...rs), max: Math.max(...rs), n: rs.length } : null; M.set(pid, L); return L; },
+  foraDoLimite(def, pid, r, folga = 20) { const L = this.limites(def, pid); if (!L) return 0; return r < L.min - folga ? L.min - folga - r : r > L.max + folga ? r - L.max - folga : 0; },
   // IK de dois ossos: devolve { [raiz]: r, [meio]: r } (giros novos) para a ponta (fim) chegar em alvo {x,y} (coordenadas do personagem)
-  // o.dobra: 1/-1 força o lado da dobra; sem = continua para o mesmo lado de agora
+  // o.dobra: 1/-1 força o lado da dobra; sem = o lado que respeita os limites das poses (empate: o de agora)
+  // o.ponta = 'centro': quem chega no alvo é o MEIO da mão/pé (não o pulso/tornozelo)
   ik(def, est, cad, alvo, o = {}) {
-    const e = Object.fromEntries(Object.entries(est).map(([k, v]) => [k, { ...v }])), r0 = id => e[id]?.r || 0, base = id => def.partes.find(p => p.id === id)?.base;
-    for (const id of [cad.raiz, cad.meio, cad.fim]) if (!e[id]) e[id] = { ...(base(id) || {}) };
-    let J = this.juntas(def, e); const S = J[cad.raiz], E = J[cad.meio], W = J[cad.fim]; if (!S || !E || !W) return null;
+    const e0 = Object.fromEntries(Object.entries(est).map(([k, v]) => [k, { ...v }])), base = id => def.partes.find(p => p.id === id)?.base;
+    for (const id of [cad.raiz, cad.meio, cad.fim]) if (!e0[id]) e0[id] = { ...(base(id) || {}) };
+    const J0 = this.juntas(def, e0), S = J0[cad.raiz], E = J0[cad.meio], W = J0[cad.fim]; if (!S || !E || !W) return null;
     const L1 = Math.hypot(E.x - S.x, E.y - S.y), L2 = Math.hypot(W.x - E.x, W.y - E.y); if (L1 < 1 || L2 < 1) return null;
-    const cruz = (E.x - S.x) * (W.y - E.y) - (E.y - S.y) * (W.x - E.x), lado = o.dobra || (Math.abs(cruz) > 1e-3 ? Math.sign(cruz) : (cad.tipo === 'perna' ? -1 : 1));
-    let dx = alvo.x - S.x, dy = alvo.y - S.y, d = Math.hypot(dx, dy); const dmin = Math.abs(L1 - L2) + .5, dmax = L1 + L2 - .5; d = clamp(d, dmin, dmax);
-    const th = Math.atan2(dy, dx), a = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1)), phi1 = th - lado * a;
-    const E2 = { x: S.x + Math.cos(phi1) * L1, y: S.y + Math.sin(phi1) * L1 }, T = { x: S.x + Math.cos(th) * d, y: S.y + Math.sin(th) * d };
-    // 1º osso
-    const d1 = this.norm(phi1 * 180 / Math.PI - this.ang(S, E)); e[cad.raiz].r = r0(cad.raiz) + d1 * this.sinal(def, e, cad.raiz);
-    // 2º osso (com o 1º já girado)
-    J = this.juntas(def, e); const d2 = this.norm(this.ang(E2, T) - this.ang(J[cad.meio], J[cad.fim])); e[cad.meio].r = r0(cad.meio) + d2 * this.sinal(def, e, cad.meio);
-    const out = { [cad.raiz]: round(e[cad.raiz].r, 2), [cad.meio]: round(e[cad.meio].r, 2) };
-    if (o.manterMao) { const J2 = this.juntas(def, e), giroMao = this.ang(J[cad.meio], J[cad.fim]) - this.ang(J2[cad.meio], J2[cad.fim]); if (Math.abs(giroMao) > .1) out[cad.fim] = round(r0(cad.fim) + giroMao * this.sinal(def, e, cad.fim), 2); }
+    const cruz = (E.x - S.x) * (W.y - E.y) - (E.y - S.y) * (W.x - E.x), agora = Math.abs(cruz) > 1e-3 ? Math.sign(cruz) : (cad.tipo === 'perna' ? -1 : 1);
+    const resolve = (al, lado) => { const e = Object.fromEntries(Object.entries(e0).map(([k, v]) => [k, { ...v }]));
+      const dx = al.x - S.x, dy = al.y - S.y, d = clamp(Math.hypot(dx, dy), Math.abs(L1 - L2) + .5, L1 + L2 - .5);
+      const th = Math.atan2(dy, dx), a = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1)), phi1 = th - lado * a;
+      const E2 = { x: S.x + Math.cos(phi1) * L1, y: S.y + Math.sin(phi1) * L1 }, T = { x: S.x + Math.cos(th) * d, y: S.y + Math.sin(th) * d };
+      e[cad.raiz].r = (e0[cad.raiz].r || 0) + this.norm(phi1 * 180 / Math.PI - this.ang(S, E)) * this.sinal(def, e, cad.raiz); // 1º osso
+      const J = this.juntas(def, e); e[cad.meio].r = (e0[cad.meio].r || 0) + this.norm(this.ang(E2, T) - this.ang(J[cad.meio], J[cad.fim])) * this.sinal(def, e, cad.meio); // 2º osso (com o 1º já girado)
+      // mesmo giro, perto do de antes (evita dar a volta: 190° vira -170°)
+      for (const id of [cad.raiz, cad.meio]) { const r0 = e0[id].r || 0; e[id].r = r0 + this.norm(e[id].r - r0); }
+      return e; };
+    const comPonta = lado => { let al = alvo, e = resolve(al, lado);
+      if (o.ponta === 'centro') for (let i = 0; i < 3; i++) { const C = this.centroTinta(def, e, cad.fim), Wn = this.juntas(def, e)[cad.fim]; if (!C || !Wn) break; al = { x: alvo.x - (C.x - Wn.x), y: alvo.y - (C.y - Wn.y) }; e = resolve(al, lado); }
+      return e; };
+    let lados = o.dobra ? [o.dobra] : [agora, -agora], melhor = null;
+    for (const l of lados) { const e = comPonta(l), custo = this.foraDoLimite(def, cad.meio, e[cad.meio].r) * 2 + this.foraDoLimite(def, cad.raiz, e[cad.raiz].r, 35) + (l === agora ? 0 : 6); if (!melhor || custo < melhor.custo) melhor = { e, custo }; }
+    const e = melhor.e, out = { [cad.raiz]: round(e[cad.raiz].r, 2), [cad.meio]: round(e[cad.meio].r, 2) };
+    if (o.manterMao) { const J2 = this.juntas(def, e), giroMao = this.ang(J0[cad.meio], J0[cad.fim]) - this.ang(J2[cad.meio], J2[cad.fim]); if (Math.abs(giroMao) > .1) out[cad.fim] = round((e0[cad.fim].r || 0) + giroMao * this.sinal(def, e, cad.fim), 2); }
     return out;
   },
   // PONTO DE PARTIDA DO IK: entre os presets das sessões que mexem neste membro, o que já deixa a ponta mais perto do alvo
   // (assim o braço erguido usa o desenho/camada do preset "Erguido/Acenando" — na frente do cabelo — e o IK só acerta o resto)
   melhorPose(def, est, cad, alvo) {
     const ids = new Set([cad.raiz, cad.meio, cad.fim]), semAj = { ...est, partes: Object.fromEntries(Object.entries(est.partes || {}).filter(([id]) => !ids.has(id))) };
-    const dist = e => { const J = this.juntas(def, e)[cad.fim]; return J ? Math.hypot(J.x - alvo.x, J.y - alvo.y) : Infinity; };
+    const dist = e => { const J = this.centroTinta(def, e, cad.fim) || this.juntas(def, e)[cad.fim]; return J ? Math.hypot(J.x - alvo.x, J.y - alvo.y) : Infinity; };
     let m = { d: dist(Modelo.partesNoEstado(def, semAj)) * .9, s: null, p: null }; // a pose de agora ganha um empate
     for (const s of def.sessoes || []) { if (!s.presets?.some(pr => Object.keys(pr.estado || {}).some(id => id === cad.raiz || id === cad.meio))) continue;
       for (const pr of s.presets) { const d = dist(Modelo.partesNoEstado(def, { ...semAj, sessoes: { ...(semAj.sessoes || {}), [s.id]: pr.id } })); if (d < m.d) m = { d, s, p: pr }; } }
@@ -83,9 +102,12 @@ const Rig = {
     const def = P.personagens[n.ref], eb = Modelo.estadoPersonagem(n, qb), ea = Modelo.estadoPersonagem(n, qa); if ((eb.vista || null) !== (ea.vista || null)) return ep;
     const ch = n.chaves[qb]; if (ch?.ir === 'corte') return ep;
     // o movimento ocupa os últimos "dur" quadros antes da chave (chave.dur; padrão até 0,75 s) — antes disso a pose fica parada (hold)
-    const dur = Math.max(1, Math.min(qb - qa, Math.round(+ch.dur > 0 ? +ch.dur : (P.fps || 24) * .75))), q0 = qb - dur; if (q <= q0) return ep;
-    const epB = Modelo.partesNoEstado(Modelo.naVista(def, eb.vista), eb), t = Ease.daChave(ch)((q - q0) / dur), out = {};
-    for (const [pid, a] of Object.entries(ep)) {
+    // padrão: até 1,25 s o movimento ocupa o intervalo inteiro (fluido); intervalo maior = segura a pose e o movimento leva ~45% dele
+    const fps = P.fps || 24, gap = qb - qa, dur = Math.max(1, Math.min(gap, Math.round(+ch.dur > 0 ? +ch.dur : gap <= fps * 1.25 ? gap : Math.max(fps * .75, gap * .45)))), q0 = qb - dur; if (q <= q0) return ep;
+    const dv0 = Modelo.naVista(def, eb.vista), epB = Modelo.partesNoEstado(dv0, eb), ease = Ease.daChave(ch), out = {}, prof = this.profundidades(dv0);
+    // SOBREPOSIÇÃO (follow-through): cada nível da hierarquia sai ~1 quadro depois da mãe e chega junto (mão atrasa do antebraço, que atrasa do braço)
+    const lag = dur >= 8 ? Math.min(1.2, dur / 10) : 0, tDe = pid => { const atr = Math.min(3, (prof[pid] || 0)) * lag; return ease(clamp((q - q0 - atr) / Math.max(1, dur - atr), 0, 1)); };
+    for (const [pid, a] of Object.entries(ep)) { const t = tDe(pid);
       const b = epB[pid]; if (!a || !b || (a.vis === false) !== (b.vis === false)) { out[pid] = a; continue; }
       let x = { ...a }; if ((a.img || null) !== (b.img || null)) { // troca de desenho: só a troca (boca, olhos) fica para a chave; se a parte também gira/anda bastante, o desenho troca no meio do caminho
         const dr = Math.abs(this.norm((b.r || 0) - (a.r || 0))), dp = Math.hypot((b.x || 0) - (a.x || 0), (b.y || 0) - (a.y || 0)); if (dr < 8 && dp < 4) { out[pid] = a; continue; }
@@ -95,29 +117,43 @@ const Rig = {
     }
     return out;
   },
+  _prof: new WeakMap(),
+  profundidades(def) { let r = this._prof.get(def); if (r && r.n === def.partes.length) return r.m; const porId = Object.fromEntries(def.partes.map(p => [p.id, p])), m = {};
+    for (const p of def.partes) { let d = 0, x = p; while (x?.pai && d < 30) { x = porId[x.pai]; d++; } m[p.id] = Math.max(0, d - 1); } this._prof.set(def, { n: def.partes.length, m }); return m; },
   // matriz da camada do personagem no projeto (pastas de cima + a própria camada), quadro q
   matNo(P, n, q) { let m = new DOMMatrix(); for (const a of Modelo.ancestrais(P, n.id)) m = Render.matNo(m, Modelo.transf(a, q)); return Render.matNo(m, Modelo.transf(n, q)); },
-  // pontos que dá para arrastar no esqueleto (coordenadas do personagem): ponta de membro = IK; junta de outra parte = gira a MÃE (FK)
+  // pontos que dá para arrastar no esqueleto (coordenadas do personagem), sempre na PONTA do osso:
+  //  • laranja (ik) = meio da mão/pé: leva o membro inteiro até lá;  • azul (fk) = ponta de uma parte: gira ESSA parte no encaixe dela
+  //  (ponta = a junta da próxima parte do membro, o pescoço/cabeça para o corpo, ou o meio do desenho para cabeça e mechas). Rosto e peças de acabamento ficam de fora.
   alcas(def, est) {
-    const J = this.juntas(def, est), L = this.cadeias(def), porId = Object.fromEntries(def.partes.map(p => [p.id, p])), out = [], fins = new Set(L.map(c => c.fim));
-    for (const c of L) if (J[c.fim]) out.push({ tipo: 'ik', cad: c, pid: c.fim, ...J[c.fim] });
+    const J = this.juntas(def, est), L = this.cadeias(def), porId = Object.fromEntries(def.partes.map(p => [p.id, p])), out = [], vis = id => this.visivel(def, est, id);
+    const prox = {}; for (const c of L) { prox[c.raiz] = c.meio; prox[c.meio] = c.fim; } const fins = new Set(L.map(c => c.fim));
+    for (const c of L) if (vis(c.fim) && J[c.fim]) { const t = this.centroTinta(def, est, c.fim) || J[c.fim]; out.push({ tipo: 'ik', cad: c, pid: c.fim, x: t.x, y: t.y, de: J[c.fim] }); }
     for (const p of def.partes) {
-      if (fins.has(p.id) || !p.pai || !J[p.id] || this.NAO.test(p.nome)) continue; const mae = porId[p.pai]; if (!mae || mae.id === def.raiz || !mae.pai || !J[mae.id]) continue;
-      if (Math.hypot(J[p.id].x - J[mae.id].x, J[p.id].y - J[mae.id].y) < 4) continue; // junta em cima da junta da mãe: girar não daria para ver
-      if (out.some(o => o.pid === p.id)) continue; out.push({ tipo: 'fk', pid: p.id, mae: mae.id, ...J[p.id] });
+      if (fins.has(p.id) || !J[p.id] || this.NAO.test(p.nome) || this.ROSTO.test(p.nome) || !vis(p.id)) continue;
+      let t = null; if (prox[p.id]) t = J[prox[p.id]];
+      else { const f = def.partes.find(x => x.pai === p.id && /pesco|cabe[cç]a|tronco|peito|torso/i.test(x.nome) && !this.NAO.test(x.nome)); if (f) t = J[f.id]; else if (p.id !== def.raiz) t = this.centroTinta(def, est, p.id); }
+      if (!t || Math.hypot(t.x - J[p.id].x, t.y - J[p.id].y) < 12) continue;
+      out.push({ tipo: 'fk', pid: p.id, x: t.x, y: t.y, de: J[p.id], raiz: p.id === def.raiz, cabelo: /cabel|mecha|cacho|franja|trança/i.test(p.nome) });
     }
     return out;
   },
-  // FK: giro novo da mãe para a junta da filha apontar para o ponto
-  giraPara(def, est, al, alvo) { const J = this.juntas(def, est), O = J[al.mae], A = J[al.pid]; if (!O || !A) return null; const d = this.norm(this.ang(O, alvo) - this.ang(O, A)); return { [al.mae]: round((est[al.mae]?.r || 0) + d * this.sinal(def, est, al.mae), 2) }; },
-  // desenha o esqueleto (ossos e juntas) por cima do personagem — editor com "Mostrar o esqueleto" ligado
+  // FK: giro novo da parte para a ponta dela apontar para o ponto
+  giraPara(def, est, al, alvo) { const O = al.de, d = this.norm(this.ang(O, alvo) - this.ang(O, al)); return { [al.pid]: round((est[al.pid]?.r || 0) + d * this.sinal(def, est, al.pid), 2) }; },
+  // desenha o esqueleto por cima do personagem: osso = da junta até a ponta; a bolinha da ponta é o que se arrasta
   desenha(ctx, def, est, m, o = {}) {
-    const J = this.juntas(def, est), cor = o.cor || "#5ee0ff"; ctx.save(); ctx.setTransform(m); const k = (devicePixelRatio || 1) / Math.hypot(m.a, m.b);
-    ctx.lineWidth = 2.5 * k; ctx.strokeStyle = cor; ctx.globalAlpha = .9; ctx.setLineDash([]);
-    for (const p of def.partes) { if (!p.pai || !J[p.id] || !J[p.pai] || this.NAO.test(p.nome)) continue; ctx.beginPath(); ctx.moveTo(J[p.pai].x, J[p.pai].y); ctx.lineTo(J[p.id].x, J[p.id].y); ctx.stroke(); }
-    for (const a of this.alcas(def, est)) { const ativo = o.ativo === a.pid; ctx.beginPath(); ctx.arc(a.x, a.y, (a.tipo === 'ik' ? 8 : 5.5) * k * (ativo ? 1.3 : 1), 0, 7);
-      ctx.fillStyle = a.tipo === 'ik' ? (ativo ? '#ffd166' : '#ff9f43') : cor; ctx.fill(); ctx.lineWidth = 1.5 * k; ctx.strokeStyle = '#0b1a22'; ctx.stroke(); }
-    if (def.raiz && J[def.raiz]) { ctx.beginPath(); ctx.arc(J[def.raiz].x, J[def.raiz].y, 6 * k, 0, 7); ctx.strokeStyle = cor; ctx.lineWidth = 2 * k; ctx.stroke(); }
+    const J = this.juntas(def, est), cor = o.cor || '#5ee0ff', AL = this.alcas(def, est); ctx.save(); ctx.setTransform(m); const k = (devicePixelRatio || 1) / Math.hypot(m.a, m.b);
+    ctx.lineCap = 'round'; ctx.globalAlpha = .9;
+    // ombros e quadris ligados ao pescoço/corpo (só para ler o esqueleto)
+    const pesc = def.partes.find(p => /pesco/i.test(p.nome) && !this.NAO.test(p.nome) && J[p.id]);
+    ctx.setLineDash([4 * k, 4 * k]); ctx.lineWidth = 1.5 * k; ctx.strokeStyle = cor;
+    for (const c of this.cadeias(def)) { if (!J[c.raiz]) continue; const de = c.tipo === 'braco' && pesc ? J[pesc.id] : J[def.raiz]; if (!de) continue; ctx.beginPath(); ctx.moveTo(de.x, de.y); ctx.lineTo(J[c.raiz].x, J[c.raiz].y); ctx.stroke(); }
+    ctx.setLineDash([]);
+    for (const a of AL) { if (a.tipo !== 'fk') continue; ctx.lineWidth = (a.cabelo ? 1.6 : 3) * k; ctx.strokeStyle = a.cabelo ? 'rgba(94,224,255,.55)' : cor; ctx.beginPath(); ctx.moveTo(a.de.x, a.de.y); ctx.lineTo(a.x, a.y); ctx.stroke(); }
+    for (const a of AL) if (a.tipo === 'ik') { ctx.lineWidth = 2 * k; ctx.strokeStyle = '#ff9f43'; ctx.beginPath(); ctx.moveTo(a.de.x, a.de.y); ctx.lineTo(a.x, a.y); ctx.stroke(); }
+    for (const a of AL) { ctx.beginPath(); ctx.arc(a.de.x, a.de.y, 3.2 * k, 0, 7); ctx.fillStyle = '#0b1a22'; ctx.fill(); ctx.lineWidth = 1.4 * k; ctx.strokeStyle = cor; ctx.stroke(); } // juntas (onde gira)
+    for (const a of AL) { const ativo = o.ativo === a.pid, R = (a.tipo === 'ik' ? 9 : a.cabelo ? 4.5 : 6) * k * (ativo ? 1.3 : 1); ctx.beginPath(); ctx.arc(a.x, a.y, R, 0, 7);
+      ctx.fillStyle = a.tipo === 'ik' ? (ativo ? '#ffd166' : '#ff9f43') : ativo ? '#b9f3ff' : cor; ctx.fill(); ctx.lineWidth = 1.5 * k; ctx.strokeStyle = '#0b1a22'; ctx.stroke(); }
     ctx.restore();
   },
 

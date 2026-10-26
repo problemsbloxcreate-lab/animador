@@ -190,7 +190,7 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
             const mp = a.preset !== false && Rig.melhorPose(dv, est, cad, lp); // parte do preset mais parecido (desenho e camada certos)
             if (mp) { k.sessoes = { ...(k.sessoes || {}), [mp.sessao]: mp.preset }; est.sessoes = { ...est.sessoes, [mp.sessao]: mp.preset }; for (const id of [cad.raiz, cad.meio, cad.fim]) if (est.partes?.[id]) { delete est.partes[id]; k.partes = { ...(k.partes || {}), [id]: null }; } }
             const ep = Modelo.partesNoEstado(dv, est);
-            const r = Rig.ik(dv, ep, cad, lp, { dobra: a.dobra === 'inverter' ? this.ladoDobra(dv, ep, cad) : undefined }); if (!r) continue; v = Object.fromEntries(Object.entries(r).map(([id, rr]) => [id, { r: rr }])); }
+            const r = Rig.ik(dv, ep, cad, lp, { dobra: a.dobra === 'inverter' ? this.ladoDobra(dv, ep, cad) : undefined, ponta: 'centro' }); if (!r) continue; v = Object.fromEntries(Object.entries(r).map(([id, rr]) => [id, { r: rr }])); }
           k.partes = { ...(k.partes || {}) }; for (const [id, x] of Object.entries(v)) k.partes[id] = { ...(k.partes[id] || {}), ...x };
           if (a.curva && Ease.IR[a.curva] && a.curva !== 'livre') { if (a.curva === 'suave') delete k.ir; else k.ir = a.curva; }
           if (+a.duracao > 0) k.dur = clamp(Math.round(+a.duracao), 1, 600);
