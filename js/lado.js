@@ -228,7 +228,7 @@ const Lado = {
     if (defP) el.appendChild(this.secao('p-pers', 'Personagem', '', c => {
       const est = Modelo.estadoPersonagem(n, q), vn = defP.vistas?.length > 1 ? defP.vistas.find(v => v.id === (est.vista || defP.vistas[0].id))?.nome : '';
       c.appendChild(h(`<div class="pr-info">${vn ? `Vista <b>${esc(vn)}</b> neste quadro · ` : ''}${Atuacao.ligada(n) ? 'atuação automática ligada' : 'atuação automática desligada'}</div>`));
-      const a = h(`<div class="pr-acoes"><button class="btn sm" data-nq>${ic('layers', 13)} Poses e vista</button><button class="btn sm" data-at><img src="icones/atelie.svg" alt="" width="14" height="14" style="border-radius:3px"> Ateliê…</button></div>`);
+      const a = h(`<div class="pr-acoes"><button class="btn sm" data-nq>${ic('layers', 13)} Poses e vista</button><button class="btn sm" data-at><span class="ic-ep" data-estudio-icone="at" style="width:14px;height:14px"></span> Ateliê…</button></div>`);
       $('[data-nq]', a).onclick = () => this.aba('quadro'); $('[data-at]', a).onclick = () => App.abrirAtelie(); c.appendChild(a);
     }, true));
     { const ef = h(`<button class="pr-ir-ef">${ic('sparkles', 13)}<span>Trêmulo e efeitos desta camada</span><small>${n.tremulo ? (n.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : ''}</small>${ic('right', 12)}</button>`); ef.onclick = () => this.aba('efeitos'); el.appendChild(ef); }
