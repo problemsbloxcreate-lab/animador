@@ -1345,3 +1345,59 @@ body.qed-trava #palco-cv{cursor:default}
 .qed-aviso span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.qed-aviso>svg{flex:none;color:#9fd0f7}.qed-aviso .btn{flex:none}
 .qed.trocando .qed-carr{animation:qed-tarde .15s .45s both;background:rgba(20,20,20,.82)} /* trocar de quadro é rápido: a tela de carregamento só aparece se demorar */
 @keyframes qed-tarde{from{opacity:0;visibility:hidden}to{opacity:1;visibility:visible}}
+/* ===== PROPRIEDADES (lado.js › props): cabeçalho da camada, chave, seções e campos arrastáveis ===== */
+.pr-topo{padding:10px 10px 8px;border-bottom:1px solid var(--bd);background:linear-gradient(180deg,var(--bg2),transparent)}
+.pr-cab{display:flex;align-items:center;gap:8px}
+.pr-ic{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:8px;background:var(--bg3);color:var(--tx2)}
+.pr-ic .ico-p{width:26px!important;height:26px!important}
+.pr-nm{flex:1;min-width:0;font-size:13px;font-weight:600}.pr-nm small{display:block;font-size:11px;font-weight:400;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr-nome{width:100%;height:24px;padding:0 6px;margin-left:-6px;border:1px solid transparent;border-radius:6px;background:none;color:var(--tx);font:600 13px inherit}
+.pr-nome:hover{border-color:var(--bd2)}.pr-nome:focus{border-color:#5aa9e8;background:var(--bg0);outline:0}
+.pr-cab .ibtn{width:28px;height:28px}.pr-cab .ibtn.off{color:#ff9b9b}.pr-cab .ibtn.on{color:#ffcf6b}
+.pr-chave{display:flex;align-items:center;gap:4px;margin-top:9px}
+.pr-chave .ibtn{width:26px;height:26px}
+.pr-chave small{margin-left:auto;color:var(--tx3);font-size:11px}
+.pr-k{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;border:1px dashed var(--bd2);background:none;color:var(--tx3);font:inherit;font-size:12px;cursor:pointer}
+.pr-k:hover{color:var(--tx);border-color:#aaa}
+.pr-chave.on .pr-k{border:1px solid #ffd36b;background:rgba(255,211,107,.12);color:#ffe3a3}.pr-chave.on .pr-k svg{color:#ffd36b;fill:#ffd36b}
+.pr-vazio{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:26px 22px;color:var(--tx3);font-size:12.5px;border-bottom:1px solid var(--bd)}
+.pn-grade{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.pn{display:flex;align-items:center;height:30px;border:1px solid var(--bd);border-radius:7px;background:var(--bg0);min-width:0;overflow:hidden}
+.pn:focus-within{border-color:#5aa9e8}
+.pn-n{flex:none;padding:0 7px 0 8px;font-size:11px;color:var(--tx3);cursor:ew-resize;user-select:none;height:100%;display:flex;align-items:center;border-right:1px solid var(--bd);background:var(--bg2)}
+.pn-n:hover{color:var(--tx);background:var(--bg3)}
+.pn input{flex:1;min-width:0;width:100%;height:100%;border:0!important;background:none!important;padding:0 4px 0 7px;font:12px var(--mono);color:var(--tx);outline:0}
+.pn i{flex:none;font-style:normal;font-size:10.5px;color:var(--tx3);padding-right:7px}
+body.arrastando-num,body.arrastando-num *{cursor:ew-resize!important;user-select:none}
+.pb{display:grid;grid-template-columns:92px minmax(0,1fr) 40px;align-items:center;gap:8px;margin:2px 0 8px;font-size:12px;color:var(--tx2)}
+.pb input{width:100%;min-width:0}.pb b{font:500 11.5px var(--mono);color:var(--tx);text-align:right}
+.pc{display:flex;align-items:center;gap:8px;margin:0 0 7px;font-size:12px;color:var(--tx2)}
+.pc span{width:84px;flex:none}.pc input[type=color]{width:28px;height:24px;padding:0;border:1px solid var(--bd2);border-radius:6px;background:none;cursor:pointer}
+.pc code{font:11.5px var(--mono);color:var(--tx3)}
+.pr-acoes{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 8px}
+.pr-acoes .btn.on{background:#2b3a4d;border-color:#6aa6e0;color:#fff}
+.pr-seg{display:flex;align-items:center;gap:8px;margin:2px 0 4px;font-size:12px;color:var(--tx2)}
+.pr-seg>span{width:84px;flex:none}
+.pr-seg>div{flex:1;display:flex;gap:2px;padding:2px;border-radius:8px;background:var(--bg0);border:1px solid var(--bd)}
+.pr-seg button{flex:1;height:24px;border:0;border-radius:6px;background:none;color:var(--tx2);font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap}
+.pr-seg button:hover{color:var(--tx);background:var(--bg3)}.pr-seg button.on{background:#e3e3e3;color:#141414;font-weight:600}
+.pr-tempo{display:grid;gap:6px;margin-bottom:8px}
+.pr-tempo label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2)}
+.pr-tempo span{width:84px;flex:none}.pr-tempo input{flex:1;min-width:0;height:28px}.pr-tempo .ibtn{width:28px;height:28px}
+.pr-es{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--tx2)}
+.pr-es>span{width:84px;flex:none}.pr-es select{flex:1;min-width:0;height:28px}.pr-es input{width:46px;height:28px}.pr-es i{font-style:normal;font-size:10.5px;color:var(--tx3)}
+.pr-icones{display:grid;grid-template-columns:repeat(auto-fit,minmax(56px,1fr));gap:4px;margin-bottom:8px}
+.pr-icones button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:40px;padding:4px;border:1px solid var(--bd);border-radius:8px;background:var(--bg2);color:var(--tx2);font:inherit;font-size:11px;cursor:pointer}
+.pr-icones button:hover{background:var(--bg3);color:var(--tx)}.pr-icones button.on{border-color:#6aa6e0;background:#2b3a4d;color:#fff}
+.pr-ret{display:block;height:16px;max-width:26px;border:1.5px solid currentColor;border-radius:2px}
+.pr-txt{width:100%;margin-bottom:6px;resize:vertical}
+.pr-info{font-size:11.5px;color:var(--tx3);margin:0 0 8px;line-height:1.45}.pr-info b{color:var(--tx2)}
+.pr-campo{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--tx2)}.pr-campo span{width:84px;flex:none}.pr-campo input{flex:1;min-width:0;height:28px}
+.pr-enq select{width:100%;height:28px;margin-bottom:6px}
+#lado .nq-sec .sessao{border-top:0}
+.pr-seg>span,.pr-tempo span,.pr-es>span,.pc span,.pr-campo span{width:74px}
+.pb{grid-template-columns:74px minmax(0,1fr) 40px}
+.pr-tempo label,.pr-es,.pr-seg,.pr-campo{min-width:0}
+.pr-tempo input,.pr-es select,.pr-campo input{width:0!important;flex:1 1 0;min-width:0}
+.pr-es input{flex:none}
+.pr-5 .pr-icones{grid-template-columns:repeat(5,minmax(0,1fr))}.pr-5 .pr-icones button{font-size:10.5px;min-height:32px}

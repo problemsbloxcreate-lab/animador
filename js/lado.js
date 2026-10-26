@@ -21,9 +21,9 @@ const Lado = {
      (Poses, Animações, Ajustar uma parte, Atuação automática; o que fica aberto é lembrado em localStorage `animador-nq-abertas`). */
   CH_NQ: 'animador-nq-abertas',
   nqAbertas() { if (!this._nq) { try { this._nq = JSON.parse(localStorage.getItem(this.CH_NQ) || 'null'); } catch { } this._nq = this._nq || { poses: true, anims: true }; } return this._nq; },
-  secao(id, titulo, extra, corpo) {
-    const ab = this.nqAbertas(), d = h(`<details class="nq-sec" data-sec="${id}" ${ab[id] ? 'open' : ''}><summary><span class="nq-seta">${ic('right', 11)}</span><b>${titulo}</b>${extra ? `<small>${extra}</small>` : ''}</summary><div class="nq-corpo"></div></details>`);
-    d.ontoggle = () => { ab[id] = d.open; try { localStorage.setItem(this.CH_NQ, JSON.stringify(ab)); } catch { } };
+  secao(id, titulo, extra, corpo, padrao = false) {
+    const ab = this.nqAbertas(), d = h(`<details class="nq-sec" data-sec="${id}" ${(ab[id] ?? padrao) ? 'open' : ''}><summary><span class="nq-seta">${ic('right', 11)}</span><b>${titulo}</b>${extra ? `<small>${extra}</small>` : ''}</summary><div class="nq-corpo"></div></details>`);
+    $('summary', d).addEventListener('click', () => { ab[id] = !d.open; try { localStorage.setItem(this.CH_NQ, JSON.stringify(ab)); } catch { } }); // só o clique da pessoa conta (o 'toggle' também dispara ao nascer aberto)
     corpo($('.nq-corpo', d)); return d;
   },
   quadro(el) {
@@ -117,92 +117,173 @@ const Lado = {
     P.camera.chaves[q] = { ...c, ...(P.camera.chaves[q] || {}), x: round(cx, 1), y: round(cy, 1), zoom: round(zoom, 3) };
     App.commit('Enquadrar: ' + plano);
   },
+  /* ---------- Propriedades ----------
+     Cabeçalho da camada (nome, tipo, ver/travar, CHAVE neste quadro e pular de chave em chave) e seções que abrem/fecham
+     (lembradas junto com as do No quadro): Transformar, Tempo e entrada/saída, o próprio tipo (forma, texto, imagem, personagem),
+     Trêmulo; Câmera tem Posição, Movimento e Enquadrar; Projeto e Fundo ficam por último (abertos quando nada está escolhido).
+     Campos numéricos: arrastar o nome do campo para os lados muda o valor (Shift = mais rápido, Alt = fino), ou digitar. */
+  num(nome, v, o, aoMudar, aoSoltar) {
+    const m = o.mult || 1, dec = o.dec ?? 1, mostra = x => String(round(x * m, dec)).replace('.', ',');
+    const el = h(`<label class="pn" title="${esc(o.dica || 'Arraste o nome para os lados para mudar · Shift = rápido · Alt = fino')}"><span class="pn-n">${esc(nome)}</span><input type="text" inputmode="decimal" value="${mostra(v)}">${o.unid ? `<i>${o.unid}</i>` : ''}</label>`);
+    const inp = $('input', el), lim = x => clamp(x, o.min ?? -Infinity, o.max ?? Infinity), le = () => { const x = parseFloat(String(inp.value).replace(',', '.')); return isNaN(x) ? null : x / m; };
+    inp.onchange = () => { const x = le(); if (x == null) { inp.value = mostra(v); return; } v = lim(x); inp.value = mostra(v); aoMudar(v); aoSoltar?.(); };
+    inp.onkeydown = e => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); v = lim((le() ?? v) + (e.key === 'ArrowUp' ? 1 : -1) * (o.passo || 1) * (e.shiftKey ? 10 : 1)); inp.value = mostra(v); aoMudar(v); clearTimeout(this._tSol); this._tSol = setTimeout(() => aoSoltar?.(), 400); } if (e.key === 'Enter') inp.blur(); };
+    const nm = $('.pn-n', el); nm.onpointerdown = e => { if (e.button !== 0) return; e.preventDefault(); nm.setPointerCapture(e.pointerId); const x0 = e.clientX, v0 = v; let mexeu = false; document.body.classList.add('arrastando-num');
+      const mv = ev => { const dx = ev.clientX - x0; if (!mexeu && Math.abs(dx) < 2) return; mexeu = true; v = lim(v0 + dx * (o.passo || 1) * (ev.shiftKey ? 10 : ev.altKey ? .1 : 1)); inp.value = mostra(v); aoMudar(v); };
+      const up = () => { nm.removeEventListener('pointermove', mv); nm.removeEventListener('pointerup', up); nm.removeEventListener('pointercancel', up); document.body.classList.remove('arrastando-num'); if (mexeu) aoSoltar?.(); else inp.focus(); };
+      nm.addEventListener('pointermove', mv); nm.addEventListener('pointerup', up); nm.addEventListener('pointercancel', up); };
+    return el;
+  },
+  // barrinha (0–100%) com número, para opacidade e afins
+  barra(nome, v, aoMudar, aoSoltar) {
+    const el = h(`<label class="pb"><span>${esc(nome)}</span><input type="range" min="0" max="100" step="1" value="${Math.round(v * 100)}"><b>${Math.round(v * 100)}%</b></label>`), r = $('input', el), b = $('b', el);
+    r.oninput = () => { b.textContent = r.value + '%'; aoMudar(+r.value / 100); }; r.onchange = () => aoSoltar?.(); return el;
+  },
+  // linha de cor: bolinha de cor + código
+  cor(nome, v, aoMudar, aoSoltar) {
+    const el = h(`<label class="pc"><span>${esc(nome)}</span><input type="color" value="${v}"><code>${esc(v)}</code></label>`), c = $('input', el);
+    c.oninput = () => { $('code', el).textContent = c.value; aoMudar(c.value); }; c.onchange = () => aoSoltar?.(); return el;
+  },
+  cabecalho(icone, titulo, tipo, extra) { return h(`<div class="pr-cab"><span class="pr-ic">${icone}</span><div class="pr-nm">${titulo}<small>${tipo}</small></div>${extra || ''}</div>`); },
+  // chave neste quadro: botão de pôr/tirar + pular para a anterior/próxima
+  barraChave(temChave, total) {
+    const b = h(`<div class="pr-chave ${temChave ? 'on' : ''}"><button class="ibtn" data-ant title="Chave anterior ( [ )">${ic('prev', 13)}</button>
+      <button class="pr-k" data-k title="${temChave ? 'Tirar a chave deste quadro (Shift+K)' : 'Pôr uma chave neste quadro (K)'}">${ic('diamond', 13)}<span>${temChave ? 'Chave neste quadro' : 'Sem chave neste quadro'}</span></button>
+      <button class="ibtn" data-prox title="Próxima chave ( ] )">${ic('next', 13)}</button><small>${total} chave${total === 1 ? '' : 's'}</small></div>`);
+    $('[data-ant]', b).onclick = () => App.pulaChave(-1); $('[data-prox]', b).onclick = () => App.pulaChave(1);
+    $('[data-k]', b).onclick = () => temChave ? App.tiraChave() : App.chaveAqui(); return b;
+  },
   props(el) {
-    const P = App.P, q = App.q, n = App.noSel(), box = h('<div class="props"></div>'); el.appendChild(box);
-    if (App.sel === 'camera') {
-      box.appendChild(h(`<div class="titulo-p">Câmera no quadro ${q + 1}</div>`));
-      const c = Modelo.camera(P, q), muda = (k, v) => { P.camera.chaves[q] = { ...c, ...(P.camera.chaves[q] || {}), [k]: v }; App.pinta(); };
-      box.appendChild(this.campo('X', c.x, -P.w, P.w * 2, 1, v => muda('x', v), () => App.commit('Câmera')));
-      box.appendChild(this.campo('Y', c.y, -P.h, P.h * 2, 1, v => muda('y', v), () => App.commit('Câmera')));
-      box.appendChild(this.campo('Zoom', c.zoom, .2, 6, .01, v => muda('zoom', v), () => App.commit('Zoom da câmera')));
-      box.appendChild(this.campo('Girar', c.r, -45, 45, .5, v => muda('r', v), () => App.commit('Câmera')));
-      box.appendChild(this.campo('Tremor', c.tremor || 0, 0, 1, .01, v => muda('tremor', v), () => App.commit('Tremor da câmera')));
-      box.appendChild(this.campo('Câmera na mão', +P.camera.viva || 0, 0, 1, .01, v => { P.camera.viva = v; App.pinta(); }, () => App.commit('Câmera na mão')));
-      // PLANOS (como os enquadramentos dos Shorts): a câmera enquadra a camada escolhida numa chave aqui
-      const alvos = Render.caixas(P, q).filter(x => ['personagem', 'imagem', 'texto', 'forma'].includes(x.no.tipo));
-      if (alvos.length) {
-        const pl = h(`<div class="cam-planos"><div class="titulo-p" style="margin-top:8px">Enquadrar</div><select data-alvo>${alvos.map((x, i) => `<option value="${i}" ${x.no.id === this._camAlvo ? 'selected' : ''}>${esc(x.no.nome)}</option>`).join('')}</select>
-          <div class="campo2">${[['close', 'Close'], ['medio', 'Médio'], ['americano', 'Americano'], ['inteiro', 'Inteiro'], ['geral', 'Geral']].map(([id, nm]) => `<button class="btn sm" data-pl="${id}">${nm}</button>`).join('')}</div></div>`);
-        $('[data-alvo]', pl).onchange = ev => { this._camAlvo = alvos[+ev.target.value]?.no.id; };
-        $$('[data-pl]', pl).forEach(bt => bt.onclick = () => { const x = alvos[+$('[data-alvo]', pl).value]; if (!x) return; this._camAlvo = x.no.id; this.enquadra(P, q, x, bt.dataset.pl); });
-        box.appendChild(pl);
-      }
-      box.appendChild(h('<div class="dica" style="position:static">Curva do movimento: botão direito na chave da câmera na timeline (corte seco, linear, freando, curva própria…). Arraste no palco com a ferramenta Câmera (C) para mover. Cada mudança vira chave neste quadro.</div>'));
-    } else if (n?.tipo === 'efeito') { box.remove(); el.appendChild(this.camadaEfeito(n)); return;
-    } else if (n) {
-      const t = Modelo.transf(n, q), muda = (k, v) => { Modelo.poeTransf(n, q, { [k]: v }); App.pinta(); }, sol = () => App.commit('Propriedade', { semArvore: true });
-      box.appendChild(h(`<div class="titulo-p">${esc(n.nome)} · quadro ${q + 1}${n.chaves[q] ? ' ◆' : ''}</div>`));
-      box.appendChild(this.campo('X', t.x, -P.w, P.w * 2, 1, v => muda('x', v), sol)); box.appendChild(this.campo('Y', t.y, -P.h, P.h * 2, 1, v => muda('y', v), sol));
-      box.appendChild(this.campo('Girar', t.r, -360, 360, .5, v => muda('r', v), sol)); box.appendChild(this.campo('Tamanho', t.s, .02, 5, .01, v => muda('s', v), sol));
-      box.appendChild(this.campo('Opacidade', t.op, 0, 1, .01, v => muda('op', v), sol));
-      const o = h(`<div class="campo2"><label class="chk"><input type="checkbox" data-sx ${t.sx < 0 ? 'checked' : ''}> Espelhar</label><label class="chk" title="Liga: o movimento anda sozinho entre as chaves. Desliga: segura até a próxima chave (quadro a quadro)."><input type="checkbox" data-it ${n.interp ? 'checked' : ''}> Intercalar movimento</label></div>`);
-      $('[data-sx]', o).onchange = ev => { Modelo.poeTransf(n, q, { sx: ev.target.checked ? -1 : 1 }); App.commit('Espelhar'); };
-      $('[data-it]', o).onchange = ev => { n.interp = ev.target.checked; App.commit('Movimento'); }; box.appendChild(o);
-      const tm = h(`<div class="campo2"><span style="color:var(--tx2)">Aparece do quadro</span><input type="number" min="1" value="${(n.de || 0) + 1}" data-de style="width:60px"><span style="color:var(--tx2)">até</span><input type="number" min="1" value="${n.ate == null ? '' : n.ate + 1}" placeholder="fim" data-ate style="width:60px"></div>`);
-      $('[data-de]', tm).onchange = ev => { n.de = clamp(+ev.target.value - 1, 0, P.duracao - 1); App.commit('Começo'); }; $('[data-ate]', tm).onchange = ev => { n.ate = ev.target.value === '' ? null : Math.max(n.de || 0, +ev.target.value - 1); App.commit('Fim'); };
-      box.appendChild(tm);
-      // ENTRADA / SAÍDA (Modelo.transfVis): pop, carimbo, aparecer… em quantos quadros
+    const P = App.P, q = App.q, n = App.noSel();
+    if (App.sel === 'camera') this.propsCamera(el, P, q);
+    else if (n?.tipo === 'efeito') { el.appendChild(this.camadaEfeito(n)); return; }
+    else if (n) this.propsCamada(el, P, q, n);
+    else el.appendChild(h(`<div class="pr-vazio">${ic('cursor', 20)}<span>Escolha uma camada no palco, na hierarquia ou na timeline para ver as propriedades dela.</span></div>`));
+    this.propsProjeto(el, P, !n && App.sel !== 'camera');
+  },
+  propsCamada(el, P, q, n) {
+    const t = Modelo.transf(n, q), muda = (k, v) => { Modelo.poeTransf(n, q, { [k]: v }); App.pinta(); }, sol = () => App.commit('Propriedade', { semArvore: true });
+    const nomeTipo = { pasta: 'Pasta', personagem: 'Personagem', imagem: n.vetor ? 'Imagem (vetor)' : 'Imagem', texto: 'Texto', forma: 'Forma', efeito: 'Efeito' }[n.tipo] || n.tipo;
+    const defP = n.tipo === 'personagem' ? P.personagens[n.ref] : null;
+    const cab = this.cabecalho(defP ? Icone.html(defP, 26) : ic(TIPO_IC[n.tipo] || 'layers', 16), `<input class="pr-nome" value="${esc(n.nome)}" title="Nome da camada">`, `${nomeTipo}${defP ? ' · ' + esc(defP.nome) : ''}`,
+      `<button class="ibtn ${n.vis === false ? 'off' : ''}" data-vis title="${n.vis === false ? 'Mostrar' : 'Esconder'}">${ic(n.vis === false ? 'eyeOff' : 'eye', 14)}</button><button class="ibtn ${n.trava ? 'on' : ''}" data-tr title="${n.trava ? 'Destravar' : 'Travar (não mexe no palco)'}">${ic(n.trava ? 'lock' : 'unlock', 14)}</button>`);
+    $('.pr-nome', cab).onchange = ev => { n.nome = ev.target.value.trim() || n.nome; App.commit('Nome da camada'); };
+    $('.pr-nome', cab).onkeydown = ev => { if (ev.key === 'Enter') ev.target.blur(); };
+    $('[data-vis]', cab).onclick = () => { n.vis = n.vis === false; App.commit(n.vis ? 'Mostrar' : 'Esconder'); };
+    $('[data-tr]', cab).onclick = () => { n.trava = !n.trava; App.commit(n.trava ? 'Travar' : 'Destravar'); };
+    const topo = h('<div class="pr-topo"></div>'); topo.append(cab, this.barraChave(!!n.chaves?.[q], Object.keys(n.chaves || {}).length)); el.appendChild(topo);
+    // TRANSFORMAR
+    el.appendChild(this.secao('p-transf', 'Transformar', `quadro ${q + 1}`, c => {
+      const g = h('<div class="pn-grade"></div>');
+      g.append(this.num('X', t.x, { passo: 1, dec: 1, unid: 'px' }, v => muda('x', v), sol), this.num('Y', t.y, { passo: 1, dec: 1, unid: 'px' }, v => muda('y', v), sol),
+        this.num('Tamanho', t.s, { passo: .005, min: .01, max: 20, mult: 100, dec: 1, unid: '%' }, v => muda('s', v), sol), this.num('Girar', t.r, { passo: .5, min: -3600, max: 3600, dec: 1, unid: '°' }, v => muda('r', v), sol));
+      c.appendChild(g); c.appendChild(this.barra('Opacidade', t.op ?? 1, v => muda('op', v), sol));
+      const at = h(`<div class="pr-acoes"><button class="btn sm ${t.sx < 0 ? 'on' : ''}" data-sx title="Espelhar na horizontal">${ic('flip', 13)} Espelhar</button><button class="btn sm" data-cen title="Pôr no meio da câmera">${ic('camera', 13)} No meio</button><button class="btn sm" data-zero title="Giro 0°, tamanho 100%, opacidade 100%">${ic('undo', 13)} Zerar</button></div>`);
+      $('[data-sx]', at).onclick = () => { Modelo.poeTransf(n, q, { sx: t.sx < 0 ? 1 : -1 }); App.commit('Espelhar'); };
+      $('[data-cen]', at).onclick = () => { const c0 = Modelo.camera(P, q); Modelo.poeTransf(n, q, { x: round(c0.x, 1), y: round(c0.y, 1) }); App.commit('No meio da câmera'); };
+      $('[data-zero]', at).onclick = () => { Modelo.poeTransf(n, q, { r: 0, s: 1, op: 1 }); App.commit('Zerar'); };
+      c.appendChild(at);
+      const mv = h(`<div class="pr-seg" title="Como a camada vai de uma chave para a outra"><span>Movimento</span><div><button data-i="1" class="${n.interp ? 'on' : ''}" title="Anda sozinho entre as chaves">Suave</button><button data-i="0" class="${n.interp ? '' : 'on'}" title="Segura até a próxima chave">Quadro a quadro</button></div></div>`);
+      $$('[data-i]', mv).forEach(b => b.onclick = () => { n.interp = b.dataset.i === '1'; App.commit('Movimento'); }); c.appendChild(mv);
+    }, true));
+    // TEMPO
+    const fim = Modelo.fimNo(P, n);
+    el.appendChild(this.secao('p-tempo', 'Tempo', `quadros ${(n.de || 0) + 1}–${n.ate == null ? 'fim' : fim + 1}`, c => {
+      const tm = h(`<div><div class="pr-tempo"><label><span>Começa</span><input type="number" min="1" value="${(n.de || 0) + 1}" data-de><button class="ibtn" data-dq title="Começar no quadro de agora (${q + 1})">${ic('marker', 13)}</button></label>
+        <label><span>Termina</span><input type="number" min="1" value="${n.ate == null ? '' : n.ate + 1}" placeholder="no fim" data-ate><button class="ibtn" data-aq title="Terminar no quadro de agora (${q + 1})">${ic('marker', 13)}</button></label></div>
+        <div class="pr-acoes"><button class="btn sm" data-toda title="Do primeiro ao último quadro">${ic('loop', 13)} A animação toda</button></div></div>`);
+      $('[data-de]', tm).onchange = ev => { n.de = clamp(+ev.target.value - 1, 0, P.duracao - 1); App.commit('Começo'); };
+      $('[data-ate]', tm).onchange = ev => { n.ate = ev.target.value === '' ? null : Math.max(n.de || 0, +ev.target.value - 1); App.commit('Fim'); };
+      $('[data-dq]', tm).onclick = () => { n.de = q; if (n.ate != null && n.ate < q) n.ate = q; App.commit('Começo'); };
+      $('[data-aq]', tm).onclick = () => { n.ate = Math.max(n.de || 0, q); App.commit('Fim'); };
+      $('[data-toda]', tm).onclick = () => { n.de = 0; n.ate = null; App.commit('A animação toda'); };
+      c.appendChild(tm);
       const opA = cur => `<option value="">Nenhuma</option>${Object.entries(Modelo.ANIMS).map(([id, nm]) => `<option value="${id}" ${cur === id ? 'selected' : ''}>${nm}</option>`).join('')}`;
-      const es = h(`<div class="campo2 entra-sai"><span style="color:var(--tx2)">Entrada</span><select data-en>${opA(n.entra?.tipo)}</select><input type="number" min="1" max="120" value="${n.entra?.q || Math.round(P.fps * .25)}" data-enq title="Quadros" style="width:48px">
-        <span style="color:var(--tx2)">Saída</span><select data-sa ${n.ate == null ? 'disabled title="Ponha um fim na camada (até o quadro…) para ter saída"' : ''}>${opA(n.sai?.tipo)}</select><input type="number" min="1" max="120" value="${n.sai?.q || Math.round(P.fps * .25)}" data-saq title="Quadros" style="width:48px"></div>`);
-      const poeA = (k, tipo, qq) => { if (!tipo) delete n[k]; else n[k] = { tipo, q: clamp(Math.round(+qq || 6), 1, 120) }; App.commit(k === 'entra' ? 'Entrada' : 'Saída'); };
-      $('[data-en]', es).onchange = ev => poeA('entra', ev.target.value, $('[data-enq]', es).value); $('[data-enq]', es).onchange = ev => n.entra && poeA('entra', n.entra.tipo, ev.target.value);
-      $('[data-sa]', es).onchange = ev => poeA('sai', ev.target.value, $('[data-saq]', es).value); $('[data-saq]', es).onchange = ev => n.sai && poeA('sai', n.sai.tipo, ev.target.value);
-      box.appendChild(es);
-      box.appendChild(this.tremulo(n));
-      if (n.tipo === 'forma') {
-        box.appendChild(h(`<div class="titulo-p">Forma${n.fundoPadrao ? ' · fundo padrão' : ''}</div>`));
-        const fs = h(`<div class="presets">${[['ret', 'Retângulo'], ['elipse', 'Círculo'], ['tri', 'Triângulo'], ['estrela', 'Estrela']].map(([f, l]) => `<button data-f="${f}" class="${n.forma === f ? 'on' : ''}">${l}</button>`).join('')}</div>`);
-        $$('[data-f]', fs).forEach(b => b.onclick = () => { n.forma = b.dataset.f; App.commit('Forma'); }); box.appendChild(fs);
-        const sf = () => App.commit('Forma', { semArvore: true });
-        box.appendChild(this.campo('Largura', n.w, 2, Math.max(4000, n.w), 1, v => { n.w = v; App.pinta(); }, sf));
-        box.appendChild(this.campo('Altura', n.h, 2, Math.max(4000, n.h), 1, v => { n.h = v; App.pinta(); }, sf));
-        if (n.forma === 'ret') box.appendChild(this.campo('Cantos', n.raio || 0, 0, 400, 1, v => { n.raio = v; App.pinta(); }, sf));
-        const ct = h(`<div class="campo2"><span style="color:var(--tx2)">Cor</span><input type="color" value="${n.cor}" data-c><span style="color:var(--tx2)">Borda</span><input type="color" value="${n.borda}" data-b><input type="number" value="${n.bordaL}" min="0" max="80" data-bl style="width:52px" title="Grossura da borda"></div>`);
-        $('[data-c]', ct).oninput = ev => { n.cor = ev.target.value; App.pinta(); }; $('[data-b]', ct).oninput = ev => { n.borda = ev.target.value; App.pinta(); };
-        $('[data-bl]', ct).onchange = ev => { n.bordaL = clamp(+ev.target.value, 0, 80); App.commit('Borda'); }; ct.addEventListener('change', sf); box.appendChild(ct);
-        if (n.fundoPadrao) { const bt = h(`<button class="btn sm">${ic('camera', 13)} Do tamanho da câmera</button>`); bt.onclick = () => { n.w = App.P.w; n.h = App.P.h; Modelo.poeTransf(n, App.q, { x: App.P.w / 2, y: App.P.h / 2, r: 0, s: 1 }); App.commit('Fundo do tamanho da câmera'); }; box.appendChild(bt); }
-      }
-      if (n.tipo === 'texto') {
-        box.appendChild(h('<div class="titulo-p">Texto</div>'));
-        const tx = h(`<textarea rows="3" style="width:100%">${esc(n.texto)}</textarea>`); tx.oninput = () => { n.texto = tx.value; App.pinta(); }; tx.onchange = () => App.commit('Texto'); box.appendChild(tx);
-        const ct = h(`<div class="campo2"><input type="color" value="${n.cor}" data-c title="Cor"><input type="color" value="${n.borda}" data-b title="Cor da borda"><input type="number" value="${n.tam}" min="8" max="600" data-t style="width:64px" title="Tamanho"><input type="number" value="${n.bordaL}" min="0" max="60" data-bl style="width:52px" title="Grossura da borda"><label class="chk"><input type="checkbox" data-n ${n.negrito ? 'checked' : ''}> Negrito</label></div>`);
-        $('[data-c]', ct).oninput = ev => { n.cor = ev.target.value; App.pinta(); }; $('[data-b]', ct).oninput = ev => { n.borda = ev.target.value; App.pinta(); };
-        $('[data-t]', ct).onchange = ev => { n.tam = +ev.target.value; App.commit('Texto'); }; $('[data-bl]', ct).onchange = ev => { n.bordaL = +ev.target.value; App.commit('Texto'); };
-        $('[data-n]', ct).onchange = ev => { n.negrito = ev.target.checked; App.commit('Texto'); };
-        ct.addEventListener('change', () => App.commit('Texto')); box.appendChild(ct);
-      }
-    } else box.appendChild(h('<div class="vazio">Escolha uma camada no palco, na hierarquia ou na timeline.</div>'));
-    // projeto
-    const pj = h(`<div class="props" style="border-top:1px solid var(--bd)"><div class="titulo-p">Projeto</div>
-      <label class="field">Nome<input type="text" value="${esc(P.nome)}" data-nm></label>
-      <div class="campo2"><span style="color:var(--tx2)">Tamanho</span><input type="number" value="${P.w}" data-w style="width:70px"> × <input type="number" value="${P.h}" data-h style="width:70px"></div></div>`);
-    $('[data-nm]', pj).onchange = ev => { P.nome = ev.target.value.trim() || P.nome; $('#proj-nome').textContent = P.nome; App.titulo(); App.commit('Nome'); };
-    $('[data-w]', pj).onchange = ev => { P.w = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); }; $('[data-h]', pj).onchange = ev => { P.h = clamp(+ev.target.value, 64, 4096); App.commit('Tamanho'); App.enquadrar(); };
-    el.appendChild(pj);
-    // fundo onde não tem nada (canvas infinito): quadriculado ou cor lisa. Aparece na Cena, na Câmera e no vídeo
-    const fp = App.fundoPalco(), pa = h(`<div class="props" style="border-top:1px solid var(--bd)"><div class="titulo-p">Fundo <small style="color:var(--tx3);text-transform:none;letter-spacing:0">onde não tem nada · aparece na câmera, no vídeo e recebe os efeitos</small></div>
-      <div class="presets"><button data-m="quadriculado" class="${fp.modo === 'quadriculado' ? 'on' : ''}">Quadriculado</button><button data-m="cor" class="${fp.modo === 'cor' ? 'on' : ''}">Cor lisa</button></div>
-      <div class="campo2"><span style="color:var(--tx2)">Cor</span><input type="color" value="${fp.cor}" data-c><span class="sp"></span><button class="btn sm" data-pad title="Cinza claro padrão">Padrão</button></div><div data-f></div></div>`);
-    $$('[data-m]', pa).forEach(b => b.onclick = () => { App.mudaFundoPalco({ modo: b.dataset.m }); this.pinta(); });
-    $('[data-c]', pa).oninput = ev => App.mudaFundoPalco({ cor: ev.target.value }, false); $('[data-c]', pa).onchange = () => App.mudaFundoPalco({});
-    $('[data-pad]', pa).onclick = () => { App.mudaFundoPalco({ modo: 'quadriculado', cor: '#cfcfcf', forca: .35 }); this.pinta(); };
-    if (fp.modo === 'quadriculado') $('[data-f]', pa).appendChild(this.campo('Intensidade', fp.forca, 0, 1, .01, v => App.mudaFundoPalco({ forca: v }, false), () => App.mudaFundoPalco({})));
-    el.appendChild(pa);
+      const linhaA = (k, nome, ok) => { const r = h(`<div class="pr-es"><span>${nome}</span><select ${ok ? '' : 'disabled title="Ponha um fim na camada (Termina) para ter saída"'}>${opA(n[k]?.tipo)}</select><input type="number" min="1" max="120" value="${n[k]?.q || Math.round(P.fps * .25)}" title="Quantos quadros dura"><i>quadros</i></div>`);
+        const sel = $('select', r), qq = $('input', r), poe = () => { if (!sel.value) delete n[k]; else n[k] = { tipo: sel.value, q: clamp(Math.round(+qq.value || 6), 1, 120) }; App.commit(k === 'entra' ? 'Entrada' : 'Saída'); };
+        sel.onchange = poe; qq.onchange = () => n[k] && poe(); return r; };
+      c.append(linhaA('entra', 'Entrada', true), linhaA('sai', 'Saída', n.ate != null));
+    }, true));
+    // DO TIPO
+    if (n.tipo === 'forma') el.appendChild(this.secao('p-forma', n.fundoPadrao ? 'Forma · fundo padrão' : 'Forma', '', c => {
+      const fs = h(`<div class="pr-icones">${[['ret', 'square', 'Retângulo'], ['elipse', 'circle', 'Círculo'], ['tri', 'shapes', 'Triângulo'], ['estrela', 'star', 'Estrela']].map(([f, i, l]) => `<button data-f="${f}" class="${n.forma === f ? 'on' : ''}" title="${l}">${ic(i, 15)}<span>${l}</span></button>`).join('')}</div>`);
+      $$('[data-f]', fs).forEach(b => b.onclick = () => { n.forma = b.dataset.f; App.commit('Forma'); }); c.appendChild(fs);
+      const sf = () => App.commit('Forma', { semArvore: true }), g = h('<div class="pn-grade"></div>');
+      g.append(this.num('Largura', n.w, { passo: 1, min: 2, max: 20000, dec: 0, unid: 'px' }, v => { n.w = v; App.pinta(); }, sf), this.num('Altura', n.h, { passo: 1, min: 2, max: 20000, dec: 0, unid: 'px' }, v => { n.h = v; App.pinta(); }, sf));
+      if (n.forma === 'ret') g.append(this.num('Cantos', n.raio || 0, { passo: 1, min: 0, max: 2000, dec: 0, unid: 'px' }, v => { n.raio = v; App.pinta(); }, sf));
+      g.append(this.num('Borda', n.bordaL || 0, { passo: .5, min: 0, max: 200, dec: 1, unid: 'px' }, v => { n.bordaL = v; App.pinta(); }, sf)); c.appendChild(g);
+      c.append(this.cor('Cor', n.cor, v => { n.cor = v; App.pinta(); }, sf), this.cor('Cor da borda', n.borda, v => { n.borda = v; App.pinta(); }, sf));
+      const bt = h(`<button class="btn sm">${ic('camera', 13)} Do tamanho da câmera</button>`); bt.onclick = () => { n.w = P.w; n.h = P.h; Modelo.poeTransf(n, q, { x: P.w / 2, y: P.h / 2, r: 0, s: 1 }); App.commit('Do tamanho da câmera'); }; c.appendChild(bt);
+    }, true));
+    if (n.tipo === 'texto') el.appendChild(this.secao('p-texto', 'Texto', '', c => {
+      const st = () => App.commit('Texto', { semArvore: true });
+      const tx = h(`<textarea rows="3" class="pr-txt">${esc(n.texto)}</textarea>`); tx.oninput = () => { n.texto = tx.value; App.pinta(); }; tx.onchange = st; c.appendChild(tx);
+      const est = h(`<div class="pr-acoes"><button class="btn sm ${n.negrito ? 'on' : ''}" data-n title="Negrito"><b>N</b> Negrito</button></div>`); $('[data-n]', est).onclick = () => { n.negrito = !n.negrito; st(); }; c.appendChild(est);
+      const g = h('<div class="pn-grade"></div>'); g.append(this.num('Tamanho', n.tam, { passo: 1, min: 8, max: 1000, dec: 0, unid: 'px' }, v => { n.tam = v; App.pinta(); }, st), this.num('Borda', n.bordaL || 0, { passo: .5, min: 0, max: 100, dec: 1, unid: 'px' }, v => { n.bordaL = v; App.pinta(); }, st)); c.appendChild(g);
+      c.append(this.cor('Cor', n.cor, v => { n.cor = v; App.pinta(); }, st), this.cor('Cor da borda', n.borda, v => { n.borda = v; App.pinta(); }, st));
+    }, true));
+    if (n.tipo === 'imagem') el.appendChild(this.secao('p-img', 'Imagem', '', c => {
+      const a = h(`<div class="pr-acoes"><button class="btn sm" data-tr>${ic('image', 13)} Trocar a imagem…</button></div>`); $('[data-tr]', a).onclick = () => App.trocarImagem(n); c.appendChild(a);
+    }, true));
+    if (defP) el.appendChild(this.secao('p-pers', 'Personagem', '', c => {
+      const est = Modelo.estadoPersonagem(n, q), vn = defP.vistas?.length > 1 ? defP.vistas.find(v => v.id === (est.vista || defP.vistas[0].id))?.nome : '';
+      c.appendChild(h(`<div class="pr-info">${vn ? `Vista <b>${esc(vn)}</b> neste quadro · ` : ''}${Atuacao.ligada(n) ? 'atuação automática ligada' : 'atuação automática desligada'}</div>`));
+      const a = h(`<div class="pr-acoes"><button class="btn sm" data-nq>${ic('layers', 13)} Poses e vista</button><button class="btn sm" data-at><img src="icones/atelie.svg" alt="" width="14" height="14" style="border-radius:3px"> Ateliê…</button></div>`);
+      $('[data-nq]', a).onclick = () => this.aba('quadro'); $('[data-at]', a).onclick = () => App.abrirAtelie(); c.appendChild(a);
+    }, true));
+    el.appendChild(this.secao('p-trem', 'Trêmulo', n.tremulo ? (n.tremulo.modo === 'ondular' ? 'ondular' : 'tremer') : 'desligado', c => c.appendChild(this.tremulo(n, true))));
+  },
+  propsCamera(el, P, q) {
+    const c = Modelo.camera(P, q), muda = (k, v) => { P.camera.chaves[q] = { ...c, ...(P.camera.chaves[q] || {}), [k]: v }; App.pinta(); }, sol = () => App.commit('Câmera', { semArvore: true });
+    const topo = h('<div class="pr-topo"></div>'); topo.append(this.cabecalho(ic('camera', 16), 'Câmera', `${P.w} × ${P.h}`), this.barraChave(!!P.camera.chaves[q], Object.keys(P.camera.chaves).length)); el.appendChild(topo);
+    el.appendChild(this.secao('c-pos', 'Posição', `quadro ${q + 1}`, b => {
+      const g = h('<div class="pn-grade"></div>');
+      g.append(this.num('X', c.x, { passo: 1, dec: 1, unid: 'px' }, v => muda('x', v), sol), this.num('Y', c.y, { passo: 1, dec: 1, unid: 'px' }, v => muda('y', v), sol),
+        this.num('Zoom', c.zoom, { passo: .005, min: .2, max: 6, mult: 100, dec: 0, unid: '%' }, v => muda('zoom', v), sol), this.num('Girar', c.r || 0, { passo: .25, min: -45, max: 45, dec: 1, unid: '°' }, v => muda('r', v), sol));
+      b.appendChild(g);
+      const a = h(`<div class="pr-acoes"><button class="btn sm" data-cen title="Câmera no meio do vídeo, sem zoom nem giro">${ic('undo', 13)} Centralizar</button></div>`);
+      $('[data-cen]', a).onclick = () => { P.camera.chaves[q] = { ...c, ...(P.camera.chaves[q] || {}), x: P.w / 2, y: P.h / 2, zoom: 1, r: 0 }; App.commit('Centralizar a câmera'); }; b.appendChild(a);
+    }, true));
+    el.appendChild(this.secao('c-mov', 'Movimento', '', b => {
+      b.appendChild(this.barra('Tremor', c.tremor || 0, v => muda('tremor', v), () => App.commit('Tremor da câmera', { semArvore: true })));
+      b.appendChild(this.barra('Na mão', +P.camera.viva || 0, v => { P.camera.viva = v; App.pinta(); }, () => App.commit('Câmera na mão', { semArvore: true })));
+      b.appendChild(h('<div class="pr-info">Curva do movimento: botão direito na chave da câmera na timeline. Para mover, arraste no palco com a ferramenta Câmera (C).</div>'));
+    }, true));
+    const alvos = Render.caixas(P, q).filter(x => ['personagem', 'imagem', 'texto', 'forma'].includes(x.no.tipo) && !x.no.fundoPadrao);
+    if (alvos.length) el.appendChild(this.secao('c-enq', 'Enquadrar', 'cria uma chave aqui', b => {
+      const pl = h(`<div class="pr-enq pr-5"><select data-alvo>${alvos.map((x, i) => `<option value="${i}" ${x.no.id === this._camAlvo ? 'selected' : ''}>${esc(x.no.nome)}</option>`).join('')}</select>
+        <div class="pr-icones">${[['close', 'Close'], ['medio', 'Médio'], ['americano', 'Americano'], ['inteiro', 'Inteiro'], ['geral', 'Geral']].map(([id, nm]) => `<button data-pl="${id}"><span>${nm}</span></button>`).join('')}</div></div>`);
+      $('[data-alvo]', pl).onchange = ev => { this._camAlvo = alvos[+ev.target.value]?.no.id; };
+      $$('[data-pl]', pl).forEach(bt => bt.onclick = () => { const x = alvos[+$('[data-alvo]', pl).value]; if (!x) return; this._camAlvo = x.no.id; this.enquadra(P, q, x, bt.dataset.pl); });
+      b.appendChild(pl);
+    }, true));
+  },
+  TAMANHOS: [['16:9', 1920, 1080], ['9:16', 1080, 1920], ['1:1', 1080, 1080], ['4:5', 1080, 1350]],
+  propsProjeto(el, P, aberto) {
+    el.appendChild(this.secao('p-proj', 'Projeto', `${P.w} × ${P.h} · ${P.fps} fps`, c => {
+      const nm = h(`<label class="pr-campo"><span>Nome</span><input type="text" value="${esc(P.nome)}"></label>`);
+      $('input', nm).onchange = ev => { P.nome = ev.target.value.trim() || P.nome; $('#proj-nome').textContent = P.nome; App.titulo(); App.commit('Nome'); }; c.appendChild(nm);
+      const tam = h(`<div class="pr-icones">${this.TAMANHOS.map(([r, w, hh]) => `<button data-r="${r}" class="${P.w === w && P.h === hh ? 'on' : ''}" title="${w} × ${hh}"><i class="pr-ret" style="aspect-ratio:${w}/${hh}"></i><span>${r}</span></button>`).join('')}</div>`);
+      $$('[data-r]', tam).forEach(b => b.onclick = () => { const [, w, hh] = this.TAMANHOS.find(x => x[0] === b.dataset.r); P.w = w; P.h = hh; App.commit('Tamanho'); App.enquadrar(); }); c.appendChild(tam);
+      const g = h('<div class="pn-grade"></div>'), sz = () => { App.commit('Tamanho'); App.enquadrar(); };
+      g.append(this.num('Largura', P.w, { passo: 2, min: 64, max: 4096, dec: 0, unid: 'px' }, v => { P.w = Math.round(v); }, sz), this.num('Altura', P.h, { passo: 2, min: 64, max: 4096, dec: 0, unid: 'px' }, v => { P.h = Math.round(v); }, sz),
+        this.num('FPS', P.fps, { passo: .1, min: 1, max: 60, dec: 0, dica: 'Quadros por segundo' }, v => { P.fps = Math.round(v); }, () => App.commit('fps')),
+        this.num('Duração', P.duracao, { passo: 1, min: 1, max: 20000, dec: 0, unid: 'q', dica: `Quantos quadros a animação tem (${(P.duracao / P.fps).toFixed(1).replace('.', ',')} s)` }, v => { P.duracao = Math.round(v); }, () => { if (App.q > P.duracao - 1) App.q = P.duracao - 1; App.commit('Duração'); }));
+      c.appendChild(g);
+    }, aberto));
+    const fp = App.fundoPalco();
+    el.appendChild(this.secao('p-fundo', 'Fundo', fp.modo === 'cor' ? 'cor lisa' : 'quadriculado', c => {
+      c.appendChild(h('<div class="pr-info">Onde não tem nada: aparece na câmera, no vídeo e recebe os efeitos.</div>'));
+      const m = h(`<div class="pr-seg"><span>Tipo</span><div><button data-m="quadriculado" class="${fp.modo === 'quadriculado' ? 'on' : ''}">Quadriculado</button><button data-m="cor" class="${fp.modo === 'cor' ? 'on' : ''}">Cor lisa</button></div></div>`);
+      $$('[data-m]', m).forEach(b => b.onclick = () => { App.mudaFundoPalco({ modo: b.dataset.m }); this.pinta(); }); c.appendChild(m);
+      c.appendChild(this.cor('Cor', fp.cor, v => App.mudaFundoPalco({ cor: v }, false), () => App.mudaFundoPalco({})));
+      if (fp.modo === 'quadriculado') c.appendChild(this.barra('Intensidade', fp.forca, v => App.mudaFundoPalco({ forca: v }, false), () => App.mudaFundoPalco({})));
+      const pad = h(`<div class="pr-acoes"><button class="btn sm">${ic('undo', 13)} Padrão</button></div>`); $('button', pad).onclick = () => { App.mudaFundoPalco({ modo: 'quadriculado', cor: '#cfcfcf', forca: .35 }); this.pinta(); }; c.appendChild(pad);
+    }, aberto));
   },
   // Trêmulo: deixa a camada parada "viva" (treme ou ondula sozinha, quadro a quadro), como o efeito do Premiere
-  tremulo(n) {
-    const T = n.tremulo, box = h(`<div class="sessao" style="margin:6px -10px 0;padding:8px 10px"><h4>Trêmulo <small>a camada parada treme sozinha</small></h4>
+  tremulo(n, semCab) {
+    const T = n.tremulo, box = h(`<div class="sessao" style="${semCab ? 'border:0;padding:0' : 'margin:6px -10px 0;padding:8px 10px'}">${semCab ? '' : '<h4>Trêmulo <small>a camada parada treme sozinha</small></h4>'}
       <div class="presets">${[['', 'Desligado'], ['tremer', 'Tremer'], ['ondular', 'Ondular']].map(([m, nm]) => `<button data-m="${m}" class="${(T?.modo || '') === m ? 'on' : ''}">${nm}</button>`).join('')}</div><div data-c></div></div>`);
     $$('[data-m]', box).forEach(b => b.onclick = () => { const m = b.dataset.m; if (!m) delete n.tremulo; else n.tremulo = { forca: .4, ritmo: 2, ...(n.tremulo || {}), modo: m }; App.commit(m ? 'Trêmulo' : 'Sem trêmulo', { semArvore: true }); });
     if (T) { const c = $('[data-c]', box);
