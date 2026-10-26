@@ -407,50 +407,116 @@ const Lado = {
     return box;
   },
 
-  /* ---------- Voz e legendas ---------- */
+  /* ---------- Voz e legendas ----------
+     Mesmo visual das Propriedades: topo com Gravar/Pôr áudio/Transcrever e o resumo; MIXAGEM (música abaixa na fala) em seção;
+     cada áudio é um CARTÃO que abre/fecha (aberto = o escolhido na timeline, `_audAb` guarda os abertos nesta aba): cabeçalho com
+     a cor do tipo, nome editável, M/S, ouvir só ele, ir até lá e tirar; dentro a ONDA do pedaço usado (clicar leva o quadro até lá),
+     tipo em botões, tempo (começa/corte/duração/termina), volume 0–200%, fades, repetir, e as ferramentas (corte, limpar, duplicar). */
+  COR_AUD: { voz: '#8fe0b4', musica: '#9fb7ff', efeito: '#ffd27a' },
+  IC_AUD: { voz: 'mic', musica: 'music', efeito: 'bolt' },
   som(el) {
-    const P = App.P;
-    const top = h(`<div class="sessao"><h4>Voz e sons</h4><div class="campo2"><button class="btn sm" data-gravar>${ic('mic', 13)} Gravar</button><button class="btn sm" data-add>${ic('upload', 13)} Pôr áudio</button>${P.audios.length ? `<button class="btn sm ia" data-tr>${ic('text', 13)} Transcrever para legendas</button>` : ''}</div></div>`);
+    const P = App.P, fps = P.fps, tot = P.audios.reduce((m, a) => Math.max(m, Som.buf.get(a.arq) ? (Som.fimQ(P, a) + 1) / fps : 0), 0);
+    const top = h(`<div class="pr-topo"><div class="pr-cab"><span class="pr-ic">${ic('music', 16)}</span><div class="pr-nm">Voz e sons<small>${P.audios.length ? `${P.audios.length} áudio${P.audios.length > 1 ? 's' : ''} · até ${Exportar.tc(tot)}` : 'nenhum áudio ainda'}</small></div></div>
+      <div class="pr-acoes" style="margin:9px 0 0"><button class="btn sm" data-gravar>${ic('mic', 13)} Gravar</button><button class="btn sm" data-add>${ic('upload', 13)} Pôr áudio</button>${P.audios.length ? `<button class="btn sm ia" data-tr>${ic('text', 13)} Transcrever</button>` : ''}</div></div>`);
     $('[data-add]', top).onclick = () => Som.importar(); $('[data-gravar]', top).onclick = () => Som.gravar(); if ($('[data-tr]', top)) $('[data-tr]', top).onclick = () => Som.transcrever();
     el.appendChild(top);
-    // mixagem do projeto: a música abaixa sozinha enquanto alguém fala (P.mix)
-    if (P.audios.some(a => Som.tipo(a) === 'musica')) {
-      const mx = P.mix || {}, dk = h(`<div class="sessao"><label class="chk"><input type="checkbox" data-duck ${mx.duck !== false ? 'checked' : ''}> Abaixar a música quando alguém fala</label><div class="props" style="padding:0"></div></div>`);
-      $('[data-duck]', dk).onchange = ev => { P.mix = { ...(P.mix || {}), duck: ev.target.checked }; App.commit('Música abaixa na fala'); };
-      $('.props', dk).appendChild(this.campo('Música na fala', mx.nivel ?? .45, .05, 1, .01, v => { P.mix = { ...(P.mix || {}), nivel: v }; }, () => App.commit('Nível da música na fala')));
-      el.appendChild(dk);
-    }
-    for (const a of P.audios) {
-      const b = h(`<div class="sessao" style="${App.sel === a.id ? 'background:var(--bg2)' : ''}"><h4>${ic('mic', 12)} ${esc(a.nome)}<span class="sp"></span><button class="ibtn" data-x title="Tirar">${ic('trash', 13)}</button></h4>
-        <div class="campo2" style="margin-bottom:4px"><span style="color:var(--tx2)">Começa no quadro</span><input type="number" min="1" value="${(a.de || 0) + 1}" style="width:64px" data-de></div><div class="props" style="padding:0"></div></div>`);
-      const tp = h(`<div class="campo2 au-tipo"><select data-tipo>${Object.entries(Som.TIPOS).map(([id, nm]) => `<option value="${id}" ${Som.tipo(a) === id ? 'selected' : ''}>${nm}</option>`).join('')}</select>
-        <label class="chk"><input type="checkbox" data-mudo ${a.mudo ? 'checked' : ''}> Mudo</label><label class="chk"><input type="checkbox" data-solo ${a.solo ? 'checked' : ''}> Solo</label><label class="chk" title="Repete o som até o fim do bloco (bom para música)"><input type="checkbox" data-loop ${a.loop ? 'checked' : ''}> Repetir</label></div>`);
-      $('[data-tipo]', tp).onchange = ev => { a.tipo = ev.target.value; App.commit('Tipo do áudio'); };
-      $('[data-mudo]', tp).onchange = ev => { a.mudo = ev.target.checked; App.commit('Mudo'); }; $('[data-solo]', tp).onchange = ev => { a.solo = ev.target.checked; App.commit('Solo'); };
-      $('[data-loop]', tp).onchange = ev => { a.loop = ev.target.checked; if (!a.loop && a.dur != null && a.dur > Som.compr({ ...a, dur: null })) delete a.dur; App.commit('Repetir'); };
-      $('.props', b).appendChild(tp);
-      $('.props', b).appendChild(this.campo('Volume', a.vol ?? 1, 0, 2, .01, v => { a.vol = v; Folha.desenha(); }, () => App.commit('Volume')));
-      const maxF = Math.max(.1, Math.min(5, Som.compr(a) / 2));
-      $('.props', b).appendChild(this.campo('Entrar aos poucos (s)', +a.fi || 0, 0, maxF, .05, v => { a.fi = v || undefined; Folha.desenha(); }, () => App.commit('Fade de entrada')));
-      $('.props', b).appendChild(this.campo('Sair aos poucos (s)', +a.fo || 0, 0, maxF, .05, v => { a.fo = v || undefined; Folha.desenha(); }, () => App.commit('Fade de saída')));
-      const ct = h(`<div class="campo2 au-corte"><span style="color:var(--tx2)" title="Arraste as pontas do áudio na timeline para cortar (Alt + arrastar no meio desliza o som)">Corte</span>
-        <span style="color:var(--tx3)">começo</span><input type="number" step=".05" min="0" value="${round(Som.ini(a), 2)}" data-ini style="width:62px"><span style="color:var(--tx3)">dura</span><input type="number" step=".05" min=".05" value="${round(Som.compr(a), 2)}" data-dur style="width:62px"><span style="color:var(--tx3)">s</span></div>`);
-      $('[data-ini]', ct).onchange = ev => { const v = Math.max(0, +ev.target.value || 0); if (v) a.ini = v; else delete a.ini; App.commit('Cortar o áudio'); };
-      $('[data-dur]', ct).onchange = ev => { a.dur = Math.max(.05, +ev.target.value || .05); App.commit('Cortar o áudio'); };
-      $('.props', b).appendChild(ct);
-      const lp = h(`<div class="campo2"><button class="btn sm" data-corte title="Janela com a onda grande: cortar, dividir, tirar silêncios (dois cliques no áudio na timeline também abre)">${ic('cut', 13)} Editar o corte…</button><button class="btn sm" data-limpa title="Tira ronco e zumbido, deixa a voz mais clara, comprime e nivela o volume (vira um áudio novo; dá para voltar)">${ic('wand', 13)} Limpar e nivelar a voz</button>${a.arqOrig ? `<button class="btn sm" data-orig>${ic('undo', 13)} Voltar ao original</button>` : ''}</div>`);
-      $('[data-corte]', lp).onclick = () => CorteVoz.abrir(a); $('[data-limpa]', lp).onclick = () => Som.limpar(a); if ($('[data-orig]', lp)) $('[data-orig]', lp).onclick = () => Som.voltarOriginal(a);
-      $('.props', b).appendChild(lp);
-      if ((a.volTrechos || []).length) { const vt = h(`<div class="vol-trechos"><div class="vt-cab">Volume em trechos</div></div>`);
-        a.volTrechos.slice().sort((x, y) => x.de - y.de).forEach(t => { const r = h(`<div class="campo2 vt-row"><button class="btn sm" data-ir title="Ir até lá">${esc(Trechos.rotulo(t, P))}</button><span class="sp"></span><input type="number" min="0" max="200" step="5" value="${Math.round(t.vol * 100)}" style="width:62px"><span>%</span><button class="ibtn" data-x title="Tirar (volta ao volume geral)">${ic('x', 12)}</button></div>`);
-          $('[data-ir]', r).onclick = () => App.setQ(t.de); $('input', r).onchange = ev => { t.vol = clamp(+ev.target.value / 100, 0, 2); App.commit('Volume do trecho'); };
-          $('[data-x]', r).onclick = () => { a.volTrechos = a.volTrechos.filter(x => x !== t); App.commit('Volume do trecho'); }; vt.appendChild(r); });
-        b.appendChild(vt); }
-      $('[data-de]', b).onchange = ev => { a.de = Math.max(0, +ev.target.value - 1); App.commit('Áudio'); };
-      $('[data-x]', b).onclick = () => { P.audios = P.audios.filter(x => x !== a); App.commit('Tirar áudio'); };
-      el.appendChild(b);
-    }
-    const lg = h(`<div class="sessao"><h4>Legendas <small>${P.legendas.length}</small><span class="sp"></span>${P.legendas.length ? `<button class="btn sm" data-lmp>Apagar todas</button>` : ''}<button class="btn sm" data-nova>+ Nova</button></h4><div class="lg" style="display:grid;gap:4px"></div></div>`);
+    if (!P.audios.length) el.appendChild(h(`<div class="pr-vazio">${ic('music', 22)}Grave a voz, ponha uma música ou solte um arquivo de áudio na timeline.</div>`));
+    // MIXAGEM do projeto: a música abaixa sozinha enquanto alguém fala (P.mix)
+    if (P.audios.some(a => Som.tipo(a) === 'musica')) el.appendChild(this.secao('v-mix', 'Mixagem', (P.mix || {}).duck !== false ? 'música abaixa na fala' : '', c => {
+      const mx = P.mix || {}, ck = h(`<label class="chk" style="margin-bottom:8px"><input type="checkbox" ${mx.duck !== false ? 'checked' : ''}> Abaixar a música quando alguém fala</label>`);
+      $('input', ck).onchange = ev => { P.mix = { ...(P.mix || {}), duck: ev.target.checked }; App.commit('Música abaixa na fala'); };
+      c.append(ck, this.barra('Música na fala', mx.nivel ?? .45, v => { P.mix = { ...(P.mix || {}), nivel: v }; Folha.desenha(); }, () => App.commit('Nível da música na fala')));
+      c.appendChild(h('<div class="pr-info">Enquanto uma <b>voz</b> toca, as <b>músicas</b> descem para esse volume e voltam devagar depois.</div>'));
+    }, true));
+    this._audAb ||= new Set();
+    for (const a of P.audios) el.appendChild(this.cartaoAudio(P, a));
+    this.legendas(el, P);
+  },
+  cartaoAudio(P, a) {
+    const fps = P.fps, tipo = Som.tipo(a), cor = this.COR_AUD[tipo], b = Som.buf.get(a.arq), len = Som.compr(a), sg = x => String(round(x, 2)).replace('.', ',');
+    const sel = App.sel === a.id, ab = sel || this._audAb.has(a.id) || P.audios.length === 1, ouv = this._ouve?.id === a.id;
+    const ca = h(`<div class="au-c ${ab ? 'ab' : ''} ${sel ? 'sel' : ''} ${a.mudo || !Som.ouve(P, a) ? 'mudo' : ''}" style="--au:${cor}">
+      <div class="au-cab"><button class="au-seta" data-ab title="Abrir/fechar">${ic('right', 11)}</button><span class="au-ic">${ic(this.IC_AUD[tipo], 14)}</span>
+        <div class="au-nm"><input class="pr-nome" value="${esc(a.nome)}" title="Nome do áudio"><small>${Som.TIPOS[tipo]} · ${b ? `${Exportar.tc((a.de || 0) / fps)}–${Exportar.tc((Som.fimQ(P, a) + 1) / fps)} · ${sg(len)} s` : 'carregando…'}</small></div>
+        <button class="au-t ${a.mudo ? 'on m' : ''}" data-m title="Mudo (não sai no vídeo)">M</button><button class="au-t ${a.solo ? 'on s' : ''}" data-s title="Solo (só os áudios em solo saem)">S</button>
+        <button class="ibtn ${ouv ? 'on' : ''}" data-ouv title="${ouv ? 'Parar' : 'Ouvir só este áudio'}">${ic(ouv ? 'pause' : 'play', 13)}</button></div>
+      <div class="au-corpo"></div></div>`);
+    const nm = $('.pr-nome', ca); nm.onchange = () => { a.nome = nm.value.trim() || a.nome; App.commit('Nome do áudio'); }; nm.onkeydown = e => { if (e.key === 'Enter') nm.blur(); }; nm.onfocus = () => App.selecionar?.(a.id);
+    $('[data-ab]', ca).onclick = () => { const v = !ca.classList.contains('ab'); ca.classList.toggle('ab', v); v ? this._audAb.add(a.id) : this._audAb.delete(a.id); };
+    $('[data-m]', ca).onclick = () => { a.mudo = !a.mudo; if (!a.mudo) delete a.mudo; App.commit('Mudo'); };
+    $('[data-s]', ca).onclick = () => { a.solo = !a.solo; if (!a.solo) delete a.solo; App.commit('Solo'); };
+    $('[data-ouv]', ca).onclick = () => this.ouvir(P, a);
+    const c = $('.au-corpo', ca);
+    if (!a.mudo && !Som.ouve(P, a)) c.appendChild(h(`<div class="pr-info au-aviso">${ic('alert', 12)} Não sai no vídeo: tem outro áudio em <b>Solo</b>.</div>`));
+    // a ONDA do pedaço usado (com volume e fades); clicar leva o quadro até lá
+    if (b) { const cv = h('<canvas class="au-onda" width="560" height="64" title="Clique para ir até esse ponto"></canvas>'); this.ondaAudio(cv, P, a); c.appendChild(cv);
+      cv.onclick = e => { const r = cv.getBoundingClientRect(); App.setQ(clamp((a.de || 0) + Math.round((e.clientX - r.left) / r.width * len * fps), 0, P.duracao - 1)); }; }
+    // TIPO
+    const tp = h(`<div class="pr-seg"><span>Tipo</span><div>${Object.entries(Som.TIPOS).map(([id, n]) => `<button data-t="${id}" class="${tipo === id ? 'on' : ''}">${ic(this.IC_AUD[id], 12)} ${id === 'efeito' ? 'Efeito' : n}</button>`).join('')}</div></div>`);
+    $$('[data-t]', tp).forEach(x => x.onclick = () => { a.tipo = x.dataset.t; App.commit('Tipo do áudio'); }); c.appendChild(tp);
+    // TEMPO: começa (quadro), corte (onde começa no arquivo) e duração
+    const sol = nome => () => App.commit(nome), g = h('<div class="pr-num-grade" style="margin-top:8px"></div>');
+    g.append(this.num('Começa', (a.de || 0) + 1, { passo: 1, min: 1, max: P.duracao, dec: 0, unid: 'q', dica: `Quadro onde o áudio começa na timeline (${Exportar.tc((a.de || 0) / fps)})` }, v => { a.de = Math.round(v) - 1; Folha.desenha(); }, sol('Mover o áudio')),
+      this.num('Dura', len, { passo: .05, min: .05, max: a.loop ? 3600 : Math.max(.05, (b?.duration || len) - Som.ini(a)), dec: 2, unid: 's', dica: 'Quanto do áudio toca (arraste as pontas na timeline também)' }, v => { a.dur = round(v, 3); Folha.desenha(); }, sol('Cortar o áudio')),
+      this.num('Corte', Som.ini(a), { passo: .05, min: 0, max: Math.max(0, (b?.duration || 1) - .05), dec: 2, unid: 's', dica: 'Pula esse tanto do começo do arquivo (Alt + arrastar no meio do áudio na timeline desliza)' }, v => { if (v > 0) a.ini = round(v, 3); else delete a.ini; Folha.desenha(); }, sol('Cortar o áudio')),
+      this.num('Termina', Som.fimQ(P, a) + 1, { passo: 1, min: (a.de || 0) + 1, max: 999999, dec: 0, unid: 'q', dica: 'Quadro onde o áudio termina (muda a duração)' }, v => { a.dur = round(Math.max(1, v - (a.de || 0)) / fps, 3); Folha.desenha(); }, sol('Cortar o áudio')));
+    c.appendChild(g);
+    const aq = h(`<div class="pr-acoes"><button class="btn sm" data-aq title="O áudio passa a começar no quadro de agora (${App.q + 1})">${ic('marker', 13)} Começar aqui</button><button class="btn sm" data-ir title="Levar o quadro até o começo do áudio">${ic('jump', 13)} Ir até lá</button>${a.dur != null || a.ini ? `<button class="btn sm" data-int title="Volta a tocar o arquivo inteiro">${ic('undo', 13)} Arquivo inteiro</button>` : ''}</div>`);
+    $('[data-aq]', aq).onclick = () => { a.de = App.q; App.commit('Mover o áudio'); }; $('[data-ir]', aq).onclick = () => App.setQ(a.de || 0);
+    if ($('[data-int]', aq)) $('[data-int]', aq).onclick = () => { delete a.dur; delete a.ini; App.commit('Arquivo inteiro'); };
+    c.appendChild(aq);
+    // VOLUME (0–200%) e FADES
+    c.appendChild(this.volume(a));
+    const maxF = Math.max(.1, Math.min(10, len / 2)), gf = h('<div class="pr-num-grade"></div>');
+    gf.append(this.num('Entrar', +a.fi || 0, { passo: .05, min: 0, max: maxF, dec: 2, unid: 's', dica: 'Fade de entrada: o som começa baixinho e sobe nesse tempo' }, v => { if (v > 0) a.fi = round(v, 3); else delete a.fi; Folha.desenha(); }, sol('Fade de entrada')),
+      this.num('Sair', +a.fo || 0, { passo: .05, min: 0, max: maxF, dec: 2, unid: 's', dica: 'Fade de saída: o som desce até sumir nesse tempo' }, v => { if (v > 0) a.fo = round(v, 3); else delete a.fo; Folha.desenha(); }, sol('Fade de saída')));
+    c.appendChild(gf);
+    const fr = h(`<div class="pr-acoes au-fades"><span>Fades</span>${[[0, 'Sem'], [.15, 'Curto'], [.5, 'Médio'], [1.5, 'Longo']].map(([v, n]) => `<button class="btn sm ${(+a.fi || 0) === v && (+a.fo || 0) === v ? 'on' : ''}" data-f="${v}">${n}</button>`).join('')}</div>`);
+    $$('[data-f]', fr).forEach(x => x.onclick = () => { const v = Math.min(+x.dataset.f, maxF); if (v) { a.fi = v; a.fo = v; } else { delete a.fi; delete a.fo; } App.commit('Fades'); }); c.appendChild(fr);
+    const lp = h(`<label class="chk" style="margin:0 0 8px" title="Repete o som até o fim do bloco (bom para música de fundo)"><input type="checkbox" ${a.loop ? 'checked' : ''}> Repetir (loop)${a.loop ? ' · estique o bloco na timeline' : ''}</label>`);
+    $('input', lp).onchange = ev => { a.loop = ev.target.checked; if (!a.loop) { delete a.loop; if (a.dur != null && a.dur > Som.compr({ ...a, dur: null })) delete a.dur; } App.commit('Repetir'); }; c.appendChild(lp);
+    // VOLUME EM TRECHOS (feito pela IA ou pelo trecho marcado)
+    if ((a.volTrechos || []).length) { const vt = h(`<div class="vol-trechos"><div class="vt-cab">Volume em trechos</div></div>`);
+      a.volTrechos.slice().sort((x, y) => x.de - y.de).forEach(t => { const r = h(`<div class="campo2 vt-row"><button class="btn sm" data-ir title="Ir até lá">${esc(Trechos.rotulo(t, P))}</button><span class="sp"></span><input type="number" min="0" max="200" step="5" value="${Math.round(t.vol * 100)}" style="width:62px"><span>%</span><button class="ibtn" data-x title="Tirar (volta ao volume geral)">${ic('x', 12)}</button></div>`);
+        $('[data-ir]', r).onclick = () => App.setQ(t.de); $('input', r).onchange = ev => { t.vol = clamp(+ev.target.value / 100, 0, 2); App.commit('Volume do trecho'); };
+        $('[data-x]', r).onclick = () => { a.volTrechos = a.volTrechos.filter(x => x !== t); App.commit('Volume do trecho'); }; vt.appendChild(r); });
+      c.appendChild(vt); }
+    // FERRAMENTAS
+    const fe = h(`<div class="pr-acoes au-ferr"><button class="btn sm" data-corte title="Janela com a onda grande: cortar, dividir, tirar silêncios (dois cliques no áudio na timeline também abre)">${ic('cut', 13)} Editar o corte…</button>
+      ${tipo === 'voz' ? `<button class="btn sm" data-limpa title="Tira ronco e zumbido, deixa a voz mais clara, comprime e nivela o volume (vira um áudio novo; dá para voltar)">${ic('wand', 13)} Limpar e nivelar</button>` : ''}
+      ${a.arqOrig ? `<button class="btn sm" data-orig>${ic('undo', 13)} Voltar ao original</button>` : ''}
+      <button class="btn sm" data-dup title="Mais uma cópia deste áudio, logo depois dele">${ic('copy', 13)} Duplicar</button><span class="sp"></span><button class="ibtn" data-x title="Tirar o áudio">${ic('trash', 13)}</button></div>`);
+    $('[data-corte]', fe).onclick = () => CorteVoz.abrir(a); if ($('[data-limpa]', fe)) $('[data-limpa]', fe).onclick = () => Som.limpar(a); if ($('[data-orig]', fe)) $('[data-orig]', fe).onclick = () => Som.voltarOriginal(a);
+    $('[data-dup]', fe).onclick = () => { const n = JSON.parse(JSON.stringify(a)); n.id = uid(); n.nome = a.nome + ' (cópia)'; n.de = Som.fimQ(P, a) + 1; delete n.solo; P.audios.splice(P.audios.indexOf(a) + 1, 0, n); this._audAb.add(n.id); App.commit('Duplicar áudio'); };
+    $('[data-x]', fe).onclick = () => { if (this._ouve?.id === a.id) this.ouvir(P, a); P.audios = P.audios.filter(x => x !== a); App.commit('Tirar áudio'); };
+    c.appendChild(fe);
+    return ca;
+  },
+  // volume 0–200% (100% = como o arquivo está), com o valor em dB na dica
+  volume(a) {
+    const v0 = a.vol ?? 1, el = h(`<label class="pr-barra au-vol"><span>Volume</span><input type="range" min="0" max="200" step="1" value="${Math.round(v0 * 100)}"><b>${Math.round(v0 * 100)}%</b></label>`), r = $('input', el), b = $('b', el);
+    const db = v => v <= 0 ? 'mudo' : (20 * Math.log10(v) >= 0 ? '+' : '') + (20 * Math.log10(v)).toFixed(1).replace('.', ',') + ' dB', dica = v => el.title = `${Math.round(v * 100)}% · ${db(v)} · dois cliques volta a 100%`; dica(v0);
+    r.oninput = () => { const v = +r.value / 100; b.textContent = r.value + '%'; dica(v); a.vol = v; Folha.desenha(); }; r.onchange = () => App.commit('Volume');
+    el.ondblclick = () => { a.vol = 1; App.commit('Volume'); }; return el;
+  },
+  ondaAudio(cv, P, a) {
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height, f = Som.finos(a.arq), b = Som.buf.get(a.arq); if (!f || !b) return;
+    const ini = Som.ini(a), len = Som.compr(a), L = Math.max(.05, b.duration - ini), cor = this.COR_AUD[Som.tipo(a)], vol = a.vol ?? 1, fi = +a.fi || 0, fo = +a.fo || 0;
+    g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(255,255,255,.04)'; g.fillRect(0, 0, W, H); g.fillStyle = cor; g.globalAlpha = a.mudo ? .3 : .85;
+    for (let x = 0; x < W; x++) { const t0 = x / W * len, t1 = (x + 1) / W * len, m = a => a.loop ? ini + (((a.t) % L) + L) % L : ini + a.t;
+      let v = Som.picoEntre(a.arq, m({ loop: a.loop, t: t0 }), m({ loop: a.loop, t: t1 })) * f.top * vol; if (fi && t0 < fi) v *= t0 / fi; if (fo && t0 > len - fo) v *= Math.max(0, (len - t0) / fo);
+      const hh = Math.max(1, Math.min(1, v) * (H / 2 - 3)); g.fillRect(x, H / 2 - hh, 1, hh * 2); if (v > 1) { g.fillStyle = '#ff6b6b'; g.fillRect(x, 0, 1, 3); g.fillRect(x, H - 3, 1, 3); g.fillStyle = cor; } }
+    g.globalAlpha = 1; const dq = App.q - (a.de || 0); if (dq >= 0 && dq / P.fps <= len) { g.fillStyle = '#ff5a5a'; g.fillRect(Math.round(dq / P.fps / len * W), 0, 2, H); }
+  },
+  // ouvir SÓ este áudio (do corte, com volume e fades), sem tocar a animação; clicar de novo para
+  ouvir(P, a) {
+    const ja = this._ouve; if (ja) { try { ja.src.stop(); } catch { } this._ouve = null; if (ja.id === a.id) return this.pinta(); }
+    const b = Som.buf.get(a.arq); if (!b) return UI.toast('O áudio ainda está carregando.', { kind: 'warn' });
+    const ac = Som.ac(); ac.resume(); const t0 = ac.currentTime + .03, src = Som.fonte(ac, ac.destination, P, { ...a, de: 0, mudo: false }, b, 0, t0, []);
+    if (!src) return; this._ouve = { id: a.id, src }; src.onended = () => { if (this._ouve?.src === src) { this._ouve = null; this.pinta(); } }; this.pinta();
+  },
+  legendas(el, P) {
+    const lg = h(`<div><div class="pr-acoes"><button class="btn sm" data-nova title="Legenda nova no quadro de agora">${ic('plus', 13)} Nova legenda</button>${P.legendas.length ? `<span class="sp"></span><button class="btn sm" data-lmp>${ic('trash', 13)} Apagar todas</button>` : ''}</div><div class="lg" style="display:grid;gap:4px"></div></div>`);
     const box = $('.lg', lg);
     // estilo das legendas (como nos Shorts): posição, tamanho, cores, caixa alta, palavra falada acesa, pop ao entrar
     const st = P.legEstilo || {}, est = h(`<div class="leg-estilo"><div class="campo2"><span style="color:var(--tx2)">Onde</span><select data-pos><option value="baixo">Embaixo</option><option value="meio" ${st.pos === 'meio' ? 'selected' : ''}>No meio</option><option value="alto" ${st.pos === 'alto' ? 'selected' : ''}>Em cima</option></select>
@@ -461,7 +527,7 @@ const Lado = {
     $('[data-pos]', est).onchange = ev => poeE('pos', ev.target.value); $('[data-cor]', est).onchange = ev => poeE('cor', ev.target.value); $('[data-dest]', est).onchange = ev => poeE('destaque', ev.target.value); $('[data-fala]', est).onchange = ev => poeE('fala', ev.target.value);
     $('[data-kar]', est).onchange = ev => poeE('karaoke', ev.target.checked); $('[data-caixa]', est).onchange = ev => poeE('caixa', ev.target.checked); $('[data-pop]', est).onchange = ev => poeE('pop', ev.target.checked);
     $('.props', est).appendChild(this.campo('Tamanho', st.tam || 1, .5, 2, .05, v => { P.legEstilo = { ...(P.legEstilo || {}), tam: v }; App.pinta(); }, () => App.commit('Tamanho das legendas')));
-    if (P.legendas.length) box.before(est);
+
     P.legendas.forEach((g, i) => {
       const r = h(`<div class="campo2" style="flex-wrap:nowrap"><input type="number" value="${g.de + 1}" style="width:54px" title="Começa"><input type="number" value="${g.ate + 1}" style="width:54px" title="Termina"><input type="text" value="${esc(g.texto)}" style="flex:1"><button class="ibtn" title="Ir até ela">${ic('jump', 13)}</button></div>`);
       const [a, b, t] = $$('input', r); a.onchange = () => { g.de = Math.max(0, +a.value - 1); App.commit('Legenda'); }; b.onchange = () => { g.ate = Math.max(g.de, +b.value - 1); App.commit('Legenda'); }; t.onchange = () => { g.texto = t.value; App.commit('Legenda'); };
@@ -469,6 +535,8 @@ const Lado = {
     });
     $('[data-nova]', lg).onclick = () => { P.legendas.push({ de: App.q, ate: Math.min(P.duracao - 1, App.q + P.fps * 2), texto: 'Legenda' }); App.commit('Legenda'); };
     if ($('[data-lmp]', lg)) $('[data-lmp]', lg).onclick = async () => { if (await UI.confirm({ title: 'Apagar todas as legendas?', ok: 'Apagar', danger: true })) { P.legendas = []; App.commit('Apagar legendas'); } };
-    el.appendChild(lg);
+    if (!P.legendas.length) box.appendChild(h('<div class="pr-info">Sem legendas. Use <b>Transcrever</b> para criar pela voz, ou <b>Nova legenda</b>.</div>'));
+    el.appendChild(this.secao('v-leg', 'Legendas', P.legendas.length ? `${P.legendas.length}` : '', c => c.appendChild(lg), true));
+    if (P.legendas.length) el.appendChild(this.secao('v-legest', 'Estilo das legendas', '', c => c.appendChild(est)));
   },
 };

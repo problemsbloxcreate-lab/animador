@@ -1470,3 +1470,20 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .atz-it input{margin-top:3px}.atz-it b{display:block;font-size:13px}.atz-it small{display:block;color:var(--tx3);font-size:12px;margin-top:2px}
 #b-junto.so-icone,#b-exportar.so-icone{padding:0;width:34px;justify-content:center}
 .ibtn{padding:0}.ibtn>svg{display:block}
+/* Voz: cartão de cada áudio */
+.au-c{border-bottom:1px solid var(--bd);border-left:3px solid transparent}.au-c.sel{border-left-color:var(--au);background:rgba(255,255,255,.025)}
+.au-cab{display:flex;align-items:center;gap:6px;padding:7px 8px 7px 6px}
+.au-seta{width:20px;height:22px;display:grid;place-items:center;border:0;background:none;color:var(--tx3);cursor:pointer;transition:transform .15s;flex:none}.au-c.ab .au-seta{transform:rotate(90deg)}
+.au-ic{width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:7px;background:color-mix(in srgb,var(--au) 18%,transparent);color:var(--au)}
+.au-nm{flex:1;min-width:0}.au-nm .pr-nome{font-size:12.5px;height:22px}.au-nm small{display:block;font-size:10.5px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.au-t{width:22px;height:22px;flex:none;border:1px solid var(--bd2);border-radius:5px;background:none;color:var(--tx3);font:700 10.5px inherit;cursor:pointer}.au-t:hover{color:var(--tx)}
+.au-t.on.m{background:#5a2a2a;border-color:#ff7a7a;color:#ffb3b3}.au-t.on.s{background:#4d4128;border-color:#ffd27a;color:#ffe3a3}
+.au-cab .ibtn{width:26px;height:26px}.au-cab .ibtn.on{color:var(--au)}
+.au-c.mudo .au-ic,.au-c.mudo .au-nm{opacity:.5}
+.au-corpo{display:none;padding:0 10px 10px}.au-c.ab .au-corpo{display:block}
+.au-onda{display:block;width:100%;height:38px;border-radius:7px;margin:0 0 8px;cursor:pointer;border:1px solid var(--bd)}
+.au-c .pr-seg button{display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.au-vol{grid-template-columns:84px minmax(0,1fr) 44px}
+.au-fades{align-items:center}.au-fades>span{font-size:11.5px;color:var(--tx3);margin-right:2px}.au-fades .btn.sm{padding:2px 8px;font-size:11.5px}
+.au-ferr{margin-bottom:0;align-items:center}.au-ferr .sp{flex:1}
+.au-aviso{color:#ffd27a}.au-aviso svg{vertical-align:-2px;margin-right:4px}
