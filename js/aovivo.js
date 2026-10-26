@@ -75,6 +75,9 @@ const AoVivoFirebase = {
   async putArq(sala, k, b64) { const n = Math.ceil(b64.length / 4e6), o = { n }; for (let i = 0; i < n; i++) o['c' + i] = b64.slice(i * 4e6, (i + 1) * 4e6); await this.com(this.r(`salas/${sala}/arq/${this.chaveArq(k)}`).set(o), 90000); }, // com prazo: um envio travado não pode parar a fila (as mudanças deixavam de ir)
   async getArq(sala, k) { const o = (await this.com(this.r(`salas/${sala}/arq/${this.chaveArq(k)}`).once('value'), 30000)).val(); if (!o) return null; let s = ''; for (let i = 0; i < o.n; i++) s += o['c' + i] || ''; return s; },
   async sair(sala, id) { for (const f of this.offs.splice(0)) try { f(); } catch { } try { await this.r(`salas/${sala}/gente/${id}`).remove(); const g = (await this.r(`salas/${sala}/gente`).once('value')).val(); if (!g) await this.apagar(sala); } catch { } },
+  // apaga mudanças que já entraram numa foto da sala (economia de espaço; quem entra depois lê só as de depois da foto)
+  async podaOps(sala, ks) { const up = {}; for (const k of ks) up[k] = null; if (ks.length) await this.r(`salas/${sala}/ops`).update(up); },
+  async genteDe(sala) { return (await this.com(this.r(`salas/${sala}/gente`).once('value'))).val(); },
   async apagar(sala) { await this.r(`salas/${sala}`).remove(); await this.r(`lista/${sala}`).remove(); },
   ouvirLista(cb) { const r = this.r('lista'); r.on('value', s => cb(s.val() || {}), () => cb({})); return () => r.off(); },
 };
@@ -145,7 +148,7 @@ const AoVivo = {
   async fixaSala() {
     if (!this.ativo) return false; for (let n = 0; this.pend.length && n < 150; n++) await new Promise(r => setTimeout(r, 100)); // as minhas mudanças voltaram confirmadas
     const ate = this.log.length ? this.log[this.log.length - 1].k : this.ate; this.local = JSON.stringify(this.ad.get());
-    try { await this.t.setSnap(this.sala, { j: this.local, ate: ate || '', t: Date.now() }); this.base = this.confirmado = this.local; this.ate = ate || ''; this.log = []; this._n = 0; return true; } catch (e) { console.warn('ao vivo', e); return false; }
+    const ks = this.log.map(x => x.k); try { await this.t.setSnap(this.sala, { j: this.local, ate: ate || '', t: Date.now() }); this.base = this.confirmado = this.local; this.ate = ate || ''; this.log = []; this._n = 0; this.poda(ks); return true; } catch (e) { console.warn('ao vivo', e); return false; }
   },
   async ressinc() {
     if (!this.ativo) return; const st = await this.t.estado(this.sala); if (!st.snap) return;
@@ -216,7 +219,16 @@ const AoVivo = {
   // quem entrou primeiro (que ainda está) guarda o estado de tempos em tempos: quem chega depois carrega rápido
   async talvezSnap() {
     if (!this.ativo || !this.log.length || !this._n) return; const ids = Object.entries(this.gente).sort((a, b) => (a[1].t || 0) - (b[1].t || 0)).map(x => x[0]); if (ids[0] && ids[0] !== this.eu.id) return;
-    this._n = 0; const ate = this.log[this.log.length - 1].k; try { await this.t.setSnap(this.sala, { j: this.confirmado, ate, t: Date.now() }); this.base = this.confirmado; this.log = []; } catch { }
+    this._n = 0; const ate = this.log[this.log.length - 1].k, ks = this.log.map(x => x.k); try { await this.t.setSnap(this.sala, { j: this.confirmado, ate, t: Date.now() }); this.base = this.confirmado; this.log = []; this.poda(ks); } catch { }
+  },
+  // ECONOMIA: as mudanças que já estão numa foto da sala são apagadas da nuvem — as da foto ANTERIOR, uma foto depois
+  // (dá tempo de quem estava chegando/reconectando receber); antes ficavam todas guardadas até a sala acabar
+  poda(ks) { const velhas = this._podar || []; this._podar = ks; if (velhas.length && this.t?.podaOps) this.t.podaOps(this.sala, velhas).catch(() => { }); },
+  // SALAS ABANDONADAS (a aba de todo mundo fechou de repente: ninguém apagou a sala): sem ninguém há mais de 15 min = apaga.
+  // Roda no máximo de 30 em 30 min por computador, quando a lista de salas é lida (tela inicial).
+  async limpaSobras(t, l) {
+    try { const ag = Date.now(), k = 'animador-aovivo-limpo'; if (ag - (+localStorage.getItem(k) || 0) < 1800000 || !t.genteDe) return; localStorage.setItem(k, String(ag));
+      for (const [sala, m] of Object.entries(l || {})) { if (sala === this.sala || !(m?.em < ag - 900000)) continue; const g = await t.genteDe(sala).catch(() => 1); if (!g) await t.apagar(sala).catch(() => { }); } } catch { }
   },
   // Ctrl+Z / Ctrl+Y juntos: só as MINHAS mudanças
   desfazer() { const m = this.minhas.pop(); if (!m) return UI.toast('Nada seu para desfazer'); this.refazerL.push(m); this._troca(m.inv, 'desfez'); },
@@ -229,8 +241,13 @@ const AoVivo = {
   async emLote(lista, fn, n = 6) { let i = 0; await Promise.all(Array.from({ length: Math.min(n, lista.length) }, async () => { while (i < lista.length) { const x = lista[i++]; try { await fn(x); } catch (e) { console.warn('ao vivo', e); } } })); },
   async subirArqs(chaves, todas) {
     const novas = [...new Set(chaves)].filter(k => k && !this.subidas.has(k)); let n = 0; novas.forEach(k => this.subidas.add(k));
-    await this.emLote(novas, async k => { const b = await Arq.pegaBlob(k).catch(() => null); if (!b) return; if (!todas && /^personagens\//.test(k) && this.ad?.ctx === 'atelie' && this._naNuvem?.has(k)) return; await this.t.putArq(this.sala, k, await this.b64(b)); n++; if (novas.length > 3 && typeof Ocupado !== 'undefined' && Ocupado.n) Ocupado.parte(n, novas.length); });
+    await this.emLote(novas, async k => { const b = await Arq.pegaBlob(k).catch(() => null); if (!b) return; if (this.naNuvem(k)) return; /* já está na nuvem da equipe: quem precisar baixa de lá (antes TODAS as imagens subiam para o tempo real a cada vez que alguém abria o personagem) */ await this.t.putArq(this.sala, k, await this.b64(b)); n++; if (novas.length > 3 && typeof Ocupado !== 'undefined' && Ocupado.n) Ocupado.parte(n, novas.length); });
     return n;
+  },
+  // imagem do personagem que JÁ está salva na nuvem da equipe (Ateliê): a lista vem da última versão mandada para a nuvem (`Atelie.baseNuvem`)
+  naNuvem(k) {
+    if (this.ad?.ctx !== 'atelie' || !/^personagens\//.test(k) || typeof Atelie === 'undefined') return false; const b = Atelie.baseNuvem; if (!b) return false;
+    if (this._nnB !== b) { this._nnB = b; try { this._nnS = new Set(Modelo.chavesImgs(JSON.parse(b))); } catch { this._nnS = new Set(); } } return this._nnS.has(k);
   },
   // as imagens que faltam neste computador: baixa (6 de cada vez). RÁPIDO: o que já se sabe que está aqui não é conferido de novo (antes
   // cada mudança relia TODAS as imagens do personagem no banco, uma por uma, e as mudanças de fora iam se acumulando atrasadas);
@@ -242,7 +259,10 @@ const AoVivo = {
     let feitas = 0; const conta = () => { if (faltam.length > 3 && this._trocaFim) { Ocupado.passo('Baixando as imagens da versão nova…'); Ocupado.parte(feitas, faltam.length); } };
     const prazo = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
     conta(); const tudo = this.emLote(faltam, async k => {
-      let b = null; try { const s = await prazo(this.t.getArq(this.sala, k), 30000); if (s) b = this.doB64(s); } catch { } if (!b && /^personagens\//.test(k)) b = await prazo(Nuvem.baixar(k).catch(() => null), 30000);
+      let b = null; const daNuvem = () => prazo(Nuvem.baixar(k).catch(() => null), 30000);
+      if (/^personagens\//.test(k) && this.ad?.ctx === 'atelie') b = await daNuvem(); // Ateliê: a imagem salva vem da nuvem da equipe (não gasta o tempo real)
+      if (!b) { try { const s = await prazo(this.t.getArq(this.sala, k), 30000); if (s) b = this.doB64(s); } catch { } }
+      if (!b && /^personagens\//.test(k) && this.ad?.ctx !== 'atelie') b = await daNuvem();
       if (b) { await Arq.guardar(b, k); if (/^image\//.test(b.type) || /\.(png|webp|jpe?g|gif|svg)$/i.test(k)) Arq.img.set(k, await Arq.deBlob(b, k)); tem.add(k); falhou.delete(k); this.ad?.redesenha?.(); } else falhou.set(k, Date.now()); feitas++; conta(); });
     await (espera === Infinity ? tudo : Promise.race([tudo, new Promise(r => setTimeout(r, espera))])); // mudança de fora: espera as imagens no máximo uns segundos; o resto chega e aparece depois
   },
@@ -304,7 +324,7 @@ const AoVivo = {
   focoAgora() {
     if (this.ad?.ctx === 'atelie') { const A = typeof Animacoes !== 'undefined' ? Animacoes : null, an = A?.passoSel && (A.tocando || A.sel);
       return { parte: Atelie.sel || null, preset: Atelie.edit?.p || null, img: Atelie.edImg?.iid || Atelie.focoImg?.img || null, passo: an ? `${an}:${A.passoSel.t}:${A.passoSel.i}` : null }; }
-    if (this.ad?.ctx === 'animador') return { no: App.sel || null, q: App.q ?? null };
+    if (this.ad?.ctx === 'animador') return { no: App.sel || null, q: App.tocando ? (this._focoQ ?? null) : (this._focoQ = App.q ?? null) }; // tocando: não manda o quadro a cada passo
     return null;
   },
   // fotinhas nas listas: põe/atualiza em cada item que alguém está usando
@@ -423,8 +443,8 @@ const AoVivo = {
   canonVista(d) { if (!d?.vistas?.length) return d; const id = d.vistas.map(v => v.id).sort()[0]; if (d.vistaAtual !== id) Modelo.ativaVista(d, id); return d; },
   adAtelie() {
     const def = Atelie.def; return { ctx: 'atelie', sala: 'at-' + def.id, nome: def.nome,
-      get: () => this.canonVista(JSON.parse(JSON.stringify(Atelie.def))), canon: d => this.canonVista(d),
-      set: d => { const v = Atelie.def?.vistaAtual; Modelo.garanteVistas(d); if (v && d.vistaAtual !== v && d.vistas.some(x => x.id === v)) Modelo.ativaVista(d, v);
+      get: () => { const d = this.canonVista(JSON.parse(JSON.stringify(Atelie.def))); delete d.thumb; return d; }, canon: d => this.canonVista(d), // a miniatura não vai nas mudanças (cada um tem a sua; quem salva na nuvem faz a nova)
+      set: d => { const v = Atelie.def?.vistaAtual; if (Atelie.def?.thumb && !d.thumb) d.thumb = Atelie.def.thumb; Modelo.garanteVistas(d); if (v && d.vistaAtual !== v && d.vistas.some(x => x.id === v)) Modelo.ativaVista(d, v);
         if (Atelie.sel && !d.partes.some(p => p.id === Atelie.sel)) Atelie.sel = null; Atelie.def = d; Atelie.ultimo = JSON.stringify(d); Atelie.sujo = true; Atelie.rascunho(); Atelie.pinta(); },
       vista: () => Atelie.def?.vistaAtual || '', gente: () => Atelie.pintaVistas?.(),
       chaves: d => [...new Set((JSON.stringify(d).match(/personagens\/[a-z0-9-]+\/(?:img|aud)\/[^"\\]+/g) || []))], redesenha: () => Atelie.desenha() };
@@ -435,7 +455,8 @@ const AoVivo = {
   naVista(id) { return this.ativo && this.ad?.ctx === 'atelie' ? this.outros().filter(g => g.vista === id) : []; },
   adAnimador(dono) {
     const P = App.P; return { ctx: 'animador', sala: 'an-' + P.id, nome: P.nome, dono,
-      get: () => App.P, set: d => { App.troca(d); App.ultimo = JSON.stringify(App.P); }, chaves: d => Toon.ids(d), redesenha: () => App.pinta(), salvar: () => App.salvarJa?.() };
+      get: () => { const { thumb, modificado, ...r } = App.P; return r; }, // miniatura e hora de salvar mudam a cada salvamento: não vão para os outros
+      set: d => { if (App.P?.thumb && !d.thumb) d.thumb = App.P.thumb; d.modificado = Date.now(); App.troca(d); App.ultimo = JSON.stringify(App.P); }, chaves: d => Toon.ids(d), redesenha: () => App.pinta(), salvar: () => App.salvarJa?.() };
   },
   // Ateliê: personagem da nuvem → entra sozinho
   // logo depois do login o servidor ainda pode estar liberando a conta no tempo real: tenta de novo algumas vezes e, se não der, avisa o motivo
@@ -458,5 +479,5 @@ const AoVivo = {
     return { P: d, meta: st.meta };
   },
   // lista das salas do Animador abertas agora (para "Entrar")
-  ouvirLista(cb) { if (!this.ligado()) return () => { }; let off = () => { }; this.transporte().then(t => { off = t.ouvirLista(l => cb(Object.entries(l).map(([sala, m]) => ({ sala, ...m })).filter(x => x.tipo === 'animador' && !x.fim))); }).catch(() => cb([])); return () => off(); },
+  ouvirLista(cb) { if (!this.ligado()) return () => { }; let off = () => { }; this.transporte().then(t => { off = t.ouvirLista(l => (this.limpaSobras(t, l), cb)(Object.entries(l).map(([sala, m]) => ({ sala, ...m })).filter(x => x.tipo === 'animador' && !x.fim))); }).catch(() => cb([])); return () => off(); },
 };

@@ -18,6 +18,7 @@ const AoVivoLocal = {
   ouvirGente(sala, cb) { this.gente[sala] = this.gente[sala] || {}; this.cbs.push({ sala, cb: m => { const G = this.gente[sala];
     if (m.tipo === 'gente') { G[m.id] = m.g; cb({ ...G }); } else if (m.tipo === 'sai') { delete G[m.id]; cb({ ...G }); }
     else if (m.tipo === 'quem' && AoVivo.ativo && AoVivo.sala === sala) this.bc.postMessage({ tipo: 'gente', sala, id: AoVivo.eu.id, g: G[AoVivo.eu.id] }); } }); },
+  async podaOps(sala, ks) { const l = (this.le(`${sala}/ops`) || []).filter(o => !ks.includes(o.k)); this.grava(`${sala}/ops`, l); }, async genteDe(sala) { const G = this.le(`${sala}/gente`) || {}; return Object.keys(G).length ? G : null; },
   async putArq(sala, k, b64) { this.grava(`${sala}/arq/${k}`, b64); }, async getArq(sala, k) { return this.le(`${sala}/arq/${k}`); },
   async sair(sala, id) { this.cbs = this.cbs.filter(c => c.tipo === 'lista'); this.manda({ tipo: 'sai', sala, id }); delete this.gente[sala]?.[id]; const G = this.le(`${sala}/gente`) || {}; delete G[id]; this.grava(`${sala}/gente`, G); if (!Object.keys(G).length) await this.apagar(sala); },
   async apagar(sala) { for (const k of Object.keys(localStorage)) if (k.startsWith(this.k(sala + '/'))) localStorage.removeItem(k); const l = this.le('lista') || {}; delete l[sala]; this.grava('lista', l); this.manda({ tipo: 'lista' }); },

@@ -1469,3 +1469,4 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .atz{display:grid;gap:8px}.atz-it{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--bd2);border-radius:9px;background:var(--bg2);cursor:pointer}
 .atz-it input{margin-top:3px}.atz-it b{display:block;font-size:13px}.atz-it small{display:block;color:var(--tx3);font-size:12px;margin-top:2px}
 #b-junto.so-icone,#b-exportar.so-icone{padding:0;width:34px;justify-content:center}
+.ibtn{padding:0}.ibtn>svg{display:block}
