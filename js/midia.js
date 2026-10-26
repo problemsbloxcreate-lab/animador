@@ -48,8 +48,8 @@ const Midia = {
     const l = this.lista(), ps = this.pastas(), fechadas = this.fechadas || (this.fechadas = new Set());
     // botões no cabeçalho da Mídia (na esquerda), para sobrar espaço para as imagens
     const cab = $('#midia-cab'); if (cab && el.id === 'midia-corpo') { $$('[data-mbt]', cab).forEach(b => b.remove());
-      for (const [k, icn, t, fn] of [['add', 'plus', 'Do computador (imagens ou SVG)', () => this.doComputador()], ['cen', 'paisagem', 'Cenários (biblioteca em camadas, prontos ou da IA)', () => CenLib.abrir()], ['pasta', 'folder', 'Pasta nova na Mídia', () => this.novaPasta()]]) {
-        const b = h(`<button class="ibtn${k === 'cen' ? ' ia' : ''}" data-mbt="${k}" title="${t}">${ic(icn, 14)}</button>`); b.onclick = fn; cab.appendChild(b); } }
+      for (const [k, icn, t, fn] of [['add', 'plus', 'Do computador (imagens ou SVG)', () => this.doComputador()], ['cen', 'paisagem', 'Abrir a janela Cenários (biblioteca em camadas)', () => CenLib.abrir()], ['pasta', 'folder', 'Pasta nova na Mídia', () => this.novaPasta()]]) {
+        const b = h(`<button class="ibtn" data-mbt="${k}" title="${t}">${k === 'cen' ? '<span class="ic-ep ic-cn" data-estudio-icone="cn" aria-label="Cenários"></span>' : ic(icn, 14)}</button>`); b.onclick = fn; cab.appendChild(b); } }
     else {     const topo = h(`<div class="sessao"><div class="campo2"><button class="btn sm" data-add>${ic('plus', 13)} Do computador</button><button class="btn sm ia" data-cen>${ic('paisagem', 13)} Cenários</button><button class="btn sm" data-pasta>${ic('folder', 13)} Pasta</button></div></div>`);
     $('[data-add]', topo).onclick = () => this.doComputador(); $('[data-cen]', topo).onclick = () => CenLib.abrir(); $('[data-pasta]', topo).onclick = () => this.novaPasta(); el.appendChild(topo); }
     if (!l.length && !ps.length) { el.appendChild(h('<div class="vazio">A Mídia está vazia.<br>Mande peças de um cenário para cá (janela <b>Cenário</b> → Peças) ou traga imagens do computador.</div>')); return; }

@@ -160,7 +160,7 @@ const CenLib = {
   desenhaCamada(x, c, k, o = {}) {
     if ((c.oculta || c.op === 0) && !o.fantasma?.(c)) return; const bm = Arq.img.get(c.k); if (!bm) return;
     const s = c.s ?? 1, w = c.w * s, h = c.h * s;
-    x.save(); x.globalAlpha = (c.oculta || c.op === 0) ? .25 : (c.op ?? 1); x.filter = this.fil(c.fx); x.setTransform(k, 0, 0, k, 0, 0); x.translate(c.cx, c.cy); x.rotate((c.r || 0) * Math.PI / 180); if (c.flip) x.scale(-1, 1);
+    x.save(); x.globalAlpha = (c.oculta || c.op === 0) ? .25 : (c.op ?? 1); x.filter = this.fil(c.fx); x.setTransform(k, 0, 0, k, o.ox || 0, o.oy || 0); x.translate(c.cx, c.cy); x.rotate((c.r || 0) * Math.PI / 180); if (c.flip) x.scale(-1, 1);
     x.drawImage(bm, -w / 2, -h / 2, w, h); x.restore();
   },
 };
@@ -188,7 +188,7 @@ Object.assign(CenLib, {
         <div class="cl-topo"><b class="cl-nome" title="Clique para renomear">Escolha um cenário</b><span class="cl-selo"></span><span class="sp"></span>
           <div class="cl-seg" role="tablist" hidden><button data-m="padrao" title="Mudanças valem em todos os quadros">Padrão</button><button data-m="quadro" title="Mudanças valem só a partir deste quadro até o próximo keyframe">Neste keyframe</button></div>
           <button class="ibtn" data-un title="Desfazer (Ctrl+Z)">${ic('undo', 14)}</button><button class="ibtn" data-re title="Refazer (Ctrl+Shift+Z)">${ic('redo', 14)}</button></div>
-        <div class="cl-palco"><canvas width="1280" height="720" tabindex="0" aria-label="Cenário: clique numa camada para escolher, arraste para mover"></canvas><div class="cl-vazio">${ic('paisagem', 28)}<span>Escolha um cenário na biblioteca</span></div></div>
+        <div class="cl-palco"><canvas width="1280" height="720" tabindex="0" aria-label="Cenário: clique numa camada para escolher, arraste para mover; rodinha = zoom, espaço ou botão do meio = mover a vista"></canvas><div class="cl-zoom"><button class="ibtn" data-z="-" title="Diminuir o zoom (−)">${ic('minus', 13)}</button><button class="cl-zp" data-z="100" title="Zoom 100% (1)">100%</button><button class="ibtn" data-z="+" title="Aumentar o zoom (+)">${ic('plus', 13)}</button><button class="ibtn" data-z="f" title="Enquadrar o cenário inteiro (F ou 0)">${ic('crop', 13)}</button></div><div class="cl-vazio">${ic('paisagem', 28)}<span>Escolha um cenário na biblioteca</span></div></div>
         <div class="cl-tempo" hidden>
           <button class="ibtn" data-kp title="Keyframe anterior">${ic('prev', 14)}</button>
           <div class="cl-kfs"></div>
@@ -200,7 +200,19 @@ Object.assign(CenLib, {
       </section>
       <aside class="cl-lado"><div class="cl-sub">Camadas <span>(em cima = na frente)</span></div><div class="cl-camadas"></div><div class="cl-props"></div></aside>
     </div>`);
-    const cv = $('canvas', body), g = cv.getContext('2d'), K = cv.width / this.W;
+    const cv = $('canvas', body), g = cv.getContext('2d');
+    // VISTA com zoom: S = px do canvas por px do cenário, ox/oy = onde fica o canto do cenário; KP = px da tela (CSS) por px do cenário
+    const vz = { z: 1, x: 0, y: 0 }, dpr = () => window.devicePixelRatio || 1;
+    let S = 1, ox = 0, oy = 0, KP = 1, espaco = false;
+    const encaixe = () => Math.min(cv.width / this.W, cv.height / this.H) * .92;
+    const conta = () => { S = encaixe() * vz.z; ox = cv.width / 2 - this.W / 2 * S + vz.x * dpr(); oy = cv.height / 2 - this.H / 2 * S + vz.y * dpr(); KP = S / dpr(); };
+    const tam = () => { const r = cv.parentElement.getBoundingClientRect(), w = Math.max(50, Math.round(r.width * dpr())), hh = Math.max(50, Math.round(r.height * dpr())); if (cv.width !== w || cv.height !== hh) { cv.width = w; cv.height = hh; } conta(); };
+    const pintaZoom = () => { const b = $('.cl-zp', body); if (b) b.textContent = Math.round(S / dpr() * 100) + '%'; };
+    const zoomEm = (z, cx, cy) => { // cx/cy em px CSS dentro do canvas (o ponto debaixo do mouse fica parado)
+      const r = cv.getBoundingClientRect(); cx ??= r.width / 2; cy ??= r.height / 2; const wx = (cx * dpr() - ox) / S, wy = (cy * dpr() - oy) / S;
+      vz.z = clamp(z, .1, 12); conta(); vz.x += (cx * dpr() - (wx * S + ox)) / dpr(); vz.y += (cy * dpr() - (wy * S + oy)) / dpr(); conta(); desenha(); pintaZoom(); };
+    const enquadra = () => { vz.z = 1; vz.x = vz.y = 0; conta(); desenha(); pintaZoom(); };
+    const zoom100 = () => zoomEm(dpr() / encaixe());
     let api = null, btPor = null, btSalvar = null, btExp = null;
     const pasta = () => st.pasta ? Modelo.achar(App.P, st.pasta)?.no || null : null;
     const naCena = () => !!pasta();
@@ -209,14 +221,19 @@ Object.assign(CenLib, {
     const camada = id => st.def?.camadas.find(c => c.id === id) || null;
     // ---- desenho ----
     const desenha = (vivo) => {
-      g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#151515'; g.fillRect(0, 0, cv.width, cv.height);
-      $('.cl-vazio', body).hidden = !!st.def; if (!st.def) return;
+      tam(); pintaZoom(); g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#0e0f11'; g.fillRect(0, 0, cv.width, cv.height);
+      $('.cl-vazio', body).hidden = !!st.def; $('.cl-zoom', body).hidden = !st.def; if (!st.def) return;
+      g.fillStyle = '#151515'; g.fillRect(ox, oy, this.W * S, this.H * S);
       const t = this._tela ||= document.createElement('canvas'); t.width = cv.width; t.height = cv.height; const x = t.getContext('2d'); x.clearRect(0, 0, t.width, t.height); x.imageSmoothingQuality = 'high';
-      for (const c of st.def.camadas) this.desenhaCamada(x, vivo?.id === c.id ? { ...c, ...vivo } : c, K, { fantasma: c2 => c2.id === st.sel });
+      for (const c of st.def.camadas) this.desenhaCamada(x, vivo?.id === c.id ? { ...c, ...vivo } : c, S, { fantasma: c2 => c2.id === st.sel, ox, oy });
       g.filter = this.fil(st.def.cena); g.drawImage(t, 0, 0); g.filter = 'none';
+      // fora do quadro do cenário (o que não aparece no vídeo) fica escurecido, com a borda do quadro
+      g.save(); g.beginPath(); g.rect(0, 0, cv.width, cv.height); g.rect(ox, oy, this.W * S, this.H * S); g.fillStyle = 'rgba(8,9,11,.62)'; g.fill('evenodd');
+      g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; g.strokeRect(Math.round(ox) + .5, Math.round(oy) + .5, Math.round(this.W * S), Math.round(this.H * S)); g.restore();
+      if (guia) { g.save(); g.strokeStyle = '#ff4fd8'; g.lineWidth = 1; g.setLineDash([4, 4]); g.beginPath(); for (const gx of guia.x) { g.moveTo(gx * S + ox, 0); g.lineTo(gx * S + ox, cv.height); } for (const gy of guia.y) { g.moveTo(0, gy * S + oy); g.lineTo(cv.width, gy * S + oy); } g.stroke(); g.restore(); }
       const c = camada(st.sel); if (c) { const v = vivo?.id === c.id ? { ...c, ...vivo } : c, q = this.cantosDe(v);
-        g.save(); g.strokeStyle = st.modo === 'quadro' && naCena() ? '#ffb347' : '#19d3f0'; g.lineWidth = 1.5; g.setLineDash([6, 4]); g.beginPath(); q.forEach(([a, b], i) => i ? g.lineTo(a * K, b * K) : g.moveTo(a * K, b * K)); g.closePath(); g.stroke(); g.setLineDash([]);
-        if (!c.trava) { g.fillStyle = g.strokeStyle; for (const [a, b] of q) g.fillRect(a * K - 5, b * K - 5, 10, 10); const [rx, ry] = this.alcaGiro(v); g.beginPath(); g.arc(rx * K, ry * K, 6, 0, 7); g.fill(); g.beginPath(); g.moveTo(rx * K, ry * K); g.lineTo((q[0][0] + q[1][0]) / 2 * K, (q[0][1] + q[1][1]) / 2 * K); g.stroke(); }
+        g.save(); g.strokeStyle = st.modo === 'quadro' && naCena() ? '#ffb347' : '#19d3f0'; g.lineWidth = 1.5; g.setLineDash([6, 4]); g.beginPath(); q.forEach(([a, b], i) => i ? g.lineTo(a * S + ox, b * S + oy) : g.moveTo(a * S + ox, b * S + oy)); g.closePath(); g.stroke(); g.setLineDash([]);
+        if (!c.trava) { g.fillStyle = g.strokeStyle; const L5 = 5 * dpr(); for (const [a, b] of q) g.fillRect(a * S + ox - L5, b * S + oy - L5, L5 * 2, L5 * 2); const [rx, ry] = this.alcaGiro(v, 28 / KP); g.beginPath(); g.arc(rx * S + ox, ry * S + oy, 6 * dpr(), 0, 7); g.fill(); g.beginPath(); g.moveTo(rx * S + ox, ry * S + oy); g.lineTo((q[0][0] + q[1][0]) / 2 * S + ox, (q[0][1] + q[1][1]) / 2 * S + oy); g.stroke(); }
         g.restore(); }
     };
     const pinta = () => { desenha(); pintaCamadas(); pintaProps(); pintaTopo(); pintaTempo(); };
@@ -334,7 +351,9 @@ Object.assign(CenLib, {
     const ordem = (c, para) => { // frente/trás: no padrão do cenário mexe na lista; na cena mexe na pasta (vale no tempo todo)
       if (naCena()) { const p = pasta(), L = p.filhos, i = L.findIndex(n => n.id === c.id), j = clamp(para === 'frente' ? 0 : para === 'tras' ? L.length - 1 : i - para, 0, L.length - 1); if (i < 0 || i === j) return; L.splice(j, 0, L.splice(i, 1)[0]); App.commit('Ordem do cenário'); relê(); return pinta(); }
       guarda(); const L = st.def.camadas, i = L.indexOf(c), j = clamp(para === 'frente' ? L.length - 1 : para === 'tras' ? 0 : i + para, 0, L.length - 1); if (i === j) return; L.splice(j, 0, L.splice(i, 1)[0]); pinta(); };
+    const duplica = c => { if (naCena()) return UI.toast('Na cena, duplique a camada pela Hierarquia (botão direito › Duplicar).'); guarda(); const L = st.def.camadas, n = { ...clone(c), id: slugCen(c.nome) + '-' + uid('c').slice(-4), nome: (c.nome + ' (cópia)').slice(0, 40), cx: c.cx + 24, cy: c.cy + 24 }; L.splice(L.indexOf(c) + 1, 0, n); st.sel = n.id; pinta(); };
     const menuCamada = (x, y, c) => UI.ctx(x, y, [{ head: c.nome },
+      !naCena() && { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => duplica(c) },
       { label: 'Para a frente de tudo', icon: 'up', action: () => ordem(c, 'frente') }, { label: 'Um para a frente', icon: 'up', action: () => ordem(c, 1) },
       { label: 'Um para trás', icon: 'down', action: () => ordem(c, -1) }, { label: 'Para trás de tudo', icon: 'down', action: () => ordem(c, 'tras') }, '-',
       { label: 'Espelhar', icon: 'flip', action: () => muda(c.id, { flip: !c.flip }) },
@@ -381,7 +400,8 @@ Object.assign(CenLib, {
         if (tem) { const b = h(`<button class="btn sm" style="margin-top:6px">${ic('undo', 13)} Voltar ao padrão neste keyframe</button>`); b.onclick = () => { if (this.tiraDoKeyframe(n, App.q)) { App.commit('Cenário: tirar do keyframe'); relê(); pinta(); } }; box.appendChild(b); } }
     };
     // ---- mouse no cenário: escolher, mover, cantos, girar ----
-    const aTela = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * this.W, (e.clientY - r.top) / r.height * this.H]; };
+    let guia = null; // linhas do ímã enquanto arrasta
+    const aTela = e => { const r = cv.getBoundingClientRect(); return [((e.clientX - r.left) * dpr() - ox) / S, ((e.clientY - r.top) * dpr() - oy) / S]; };
     const acha = (x, y) => { // a de cima que tem pintura debaixo do mouse (pela transparência de verdade)
       const L = st.def?.camadas || [], t = this._toque ||= Object.assign(document.createElement('canvas'), { width: 1, height: 1 }), tg = t.getContext('2d', { willReadFrequently: true });
       for (let i = L.length - 1; i >= 0; i--) { const c = L[i]; if (c.oculta || c.op === 0) continue;
@@ -390,22 +410,42 @@ Object.assign(CenLib, {
       return null;
     };
     cv.addEventListener('pointerdown', e => {
-      if (!st.def || e.button !== 0) return; cv.focus(); const [x, y] = aTela(e); let c = camada(st.sel), modo = null, canto = -1;
-      if (c && !c.trava) { const q = this.cantosDe(c), [rx, ry] = this.alcaGiro(c); if (Math.hypot(rx - x, ry - y) * K < 10) modo = 'giro'; else { canto = q.findIndex(([a, b]) => Math.hypot(a - x, b - y) * K < 10); if (canto >= 0) modo = 'tam'; } }
+      if (!st.def) return;
+      if (e.button === 1 || (e.button === 0 && espaco)) { // MOVER A VISTA: botão do meio ou espaço + arrastar
+        e.preventDefault(); cv.setPointerCapture(e.pointerId); const x0 = e.clientX, y0 = e.clientY, v0 = { x: vz.x, y: vz.y }; cv.style.cursor = 'grabbing';
+        const mv = ev => { vz.x = v0.x + ev.clientX - x0; vz.y = v0.y + ev.clientY - y0; conta(); desenha(); };
+        const up = () => { cv.removeEventListener('pointermove', mv); cv.removeEventListener('pointerup', up); cv.removeEventListener('pointercancel', up); cv.style.cursor = espaco ? 'grab' : 'default'; };
+        cv.addEventListener('pointermove', mv); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up); return; }
+      if (e.button !== 0) return; cv.focus(); const [x, y] = aTela(e); let c = camada(st.sel), modo = null, canto = -1;
+      if (c && !c.trava) { const q = this.cantosDe(c), [rx, ry] = this.alcaGiro(c, 28 / KP); if (Math.hypot(rx - x, ry - y) * KP < 10) modo = 'giro'; else { canto = q.findIndex(([a, b]) => Math.hypot(a - x, b - y) * KP < 10); if (canto >= 0) modo = 'tam'; } }
       if (!modo) { c = acha(x, y); st.sel = c?.id || null; pinta(); if (!c || c.trava) return; modo = 'mover'; }
       cv.setPointerCapture(e.pointerId); const v0 = { cx: c.cx, cy: c.cy, s: c.s ?? 1, r: c.r || 0 }; let vivo = null;
       const d0 = Math.hypot(x - c.cx, y - c.cy) || 1, a0 = Math.atan2(y - c.cy, x - c.cx);
       const move = ev => { const [mx, my] = aTela(ev); let dx = mx - x, dy = my - y;
-        if (modo === 'mover') { if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; } vivo = { id: c.id, cx: round(v0.cx + dx, 1), cy: round(v0.cy + dy, 1) }; }
+        if (modo === 'mover') { if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+          let ncx = v0.cx + dx, ncy = v0.cy + dy; guia = null;
+          if (!(ev.ctrlKey || ev.metaKey)) { const q = this.cantosDe({ ...c, cx: ncx, cy: ncy }), xs = q.map(p => p[0]), ys = q.map(p => p[1]), tol = 8 / KP, gx = [], gy = [];
+            const tenta = (vals, alvos, lista) => { let melhor = null; for (const [v, de] of vals) for (const a of alvos) { const d = a - v; if (Math.abs(d) < tol && (!melhor || Math.abs(d) < Math.abs(melhor[0]))) melhor = [d, a]; } if (melhor) lista.push(melhor[1]); return melhor ? melhor[0] : 0; };
+            ncx += tenta([[Math.min(...xs)], [ncx], [Math.max(...xs)]], [0, this.W / 2, this.W], gx); ncy += tenta([[Math.min(...ys)], [ncy], [Math.max(...ys)]], [0, this.H / 2, this.H], gy);
+            if (gx.length || gy.length) guia = { x: gx, y: gy }; }
+          vivo = { id: c.id, cx: round(ncx, 1), cy: round(ncy, 1) }; }
         else if (modo === 'tam') vivo = { id: c.id, s: round(Math.max(.03, v0.s * Math.hypot(mx - c.cx, my - c.cy) / d0), 4) };
         else { let r = v0.r + (Math.atan2(my - c.cy, mx - c.cx) - a0) * 180 / Math.PI; r = ((r + 540) % 360) - 180; if (ev.shiftKey) r = Math.round(r / 15) * 15; vivo = { id: c.id, r: round(r, 1) }; }
         desenha(vivo); };
-      const sobe = () => { cv.removeEventListener('pointermove', move); cv.removeEventListener('pointerup', sobe); cv.removeEventListener('pointercancel', sobe); if (vivo) { const { id, ...v } = vivo; muda(id, v); } };
+      const sobe = () => { cv.removeEventListener('pointermove', move); cv.removeEventListener('pointerup', sobe); cv.removeEventListener('pointercancel', sobe); guia = null; if (vivo) { const { id, ...v } = vivo; muda(id, v); } else desenha(); };
       cv.addEventListener('pointermove', move); cv.addEventListener('pointerup', sobe); cv.addEventListener('pointercancel', sobe);
     });
     cv.addEventListener('mousemove', e => { if (!st.def || e.buttons) return; const [x, y] = aTela(e), c = camada(st.sel);
-      if (c && !c.trava) { const [rx, ry] = this.alcaGiro(c); if (Math.hypot(rx - x, ry - y) * K < 10) return cv.style.cursor = 'grab'; if (this.cantosDe(c).some(([a, b]) => Math.hypot(a - x, b - y) * K < 10)) return cv.style.cursor = 'nwse-resize'; }
+      if (espaco) return cv.style.cursor = 'grab'; if (c && !c.trava) { const [rx, ry] = this.alcaGiro(c, 28 / KP); if (Math.hypot(rx - x, ry - y) * KP < 10) return cv.style.cursor = 'grab'; if (this.cantosDe(c).some(([a, b]) => Math.hypot(a - x, b - y) * KP < 10)) return cv.style.cursor = 'nwse-resize'; }
       cv.style.cursor = acha(x, y)?.trava === false ? 'move' : 'default'; });
+    cv.addEventListener('wheel', e => { if (!st.def) return; e.preventDefault(); const r = cv.getBoundingClientRect();
+      if (e.shiftKey && !e.ctrlKey) { vz.x -= e.deltaY; conta(); return desenha(); } // Shift + rodinha = andar para o lado
+      zoomEm(vz.z * Math.pow(1.0018, -e.deltaY * (e.deltaMode === 1 ? 30 : 1)), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    cv.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
+    $$('.cl-zoom [data-z]', body).forEach(b => b.onclick = () => { const z = b.dataset.z; if (z === 'f') enquadra(); else if (z === '100') zoom100(); else zoomEm(vz.z * (z === '+' ? 1.25 : .8)); cv.focus(); });
+    cv.addEventListener('dblclick', e => { if (st.def && !acha(...aTela(e))) enquadra(); }); // dois cliques no vazio = enquadrar
+    const solto = e => { if (e.key === ' ' && espaco) { espaco = false; cv.style.cursor = 'default'; } }; document.addEventListener('keyup', solto, true);
+    new ResizeObserver(() => { if (cv.isConnected) desenha(); }).observe(cv.parentElement);
     cv.addEventListener('contextmenu', e => { e.preventDefault(); if (!st.def) return; const c = acha(...aTela(e)); if (!c) return; st.sel = c.id; pinta(); menuCamada(e.clientX, e.clientY, c); });
     const tecla = e => {
       if (!cv.isConnected) return document.removeEventListener('keydown', tecla, true);
@@ -413,7 +453,17 @@ Object.assign(CenLib, {
       const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
       if (ctrl && k === 'z') { e.preventDefault(); e.stopPropagation(); return desfaz(e.shiftKey); }
       if (ctrl && k === 'y') { e.preventDefault(); e.stopPropagation(); return desfaz(true); }
+      if (e.key === ' ' && !ctrl) { e.preventDefault(); e.stopPropagation(); if (!espaco) { espaco = true; cv.style.cursor = 'grab'; } return; }
+      if (!ctrl && (e.key === '+' || e.key === '=')) { e.preventDefault(); return zoomEm(vz.z * 1.25); }
+      if (!ctrl && (e.key === '-' || e.key === '_')) { e.preventDefault(); return zoomEm(vz.z * .8); }
+      if (!ctrl && (k === 'f' || e.key === '0')) { e.preventDefault(); return enquadra(); }
+      if (!ctrl && e.key === '1') { e.preventDefault(); return zoom100(); }
+      if (e.key === 'Escape' && st.sel) { e.preventDefault(); e.stopPropagation(); st.sel = null; return pinta(); }
+      if (e.key === 'Tab' && st.def.camadas.length) { e.preventDefault(); e.stopPropagation(); const L = st.def.camadas, i = L.findIndex(x => x.id === st.sel); st.sel = L[(i + (e.shiftKey ? -1 : 1) + L.length) % L.length].id; return pinta(); } // Tab = próxima camada
       const c = camada(st.sel); if (!c || st.sel === '__cena') return;
+      if (ctrl && k === 'd') { e.preventDefault(); e.stopPropagation(); return duplica(c); }
+      if (!ctrl && k === 'h') { e.preventDefault(); return muda(c.id, { flip: !c.flip }); }
+      if (!ctrl && (e.key === ']' || e.key === '[')) { e.preventDefault(); return ordem(c, e.key === ']' ? 1 : -1); }
       const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
       if (d && !c.trava) { e.preventDefault(); e.stopPropagation(); const n = e.shiftKey ? 10 : 1; muda(c.id, { cx: round(c.cx + d[0] * n, 1), cy: round(c.cy + d[1] * n, 1) }); }
       if (e.key === 'Delete') { e.preventDefault(); e.stopPropagation(); muda(c.id, { oculta: true }); }
@@ -448,9 +498,9 @@ Object.assign(CenLib, {
         { label: 'Fechar', value: null, onClick: async () => !st.mexido || naCena() || await UI.confirm({ title: 'Fechar sem salvar?', msg: 'As mudanças no padrão deste cenário não foram salvas nem postas na cena.', ok: 'Fechar' }) || false },
         { label: 'Pôr na cena', kind: 'primary', onClick: async () => { if (!st.def) return false; if (naCena()) return true; let ok = false; await ocupa('Pondo na cena…', async () => { const p = await this.porNaCena(st.def); ok = true; UI.toast(`<b>${esc(st.def.nome)}</b> entrou na cena com ${p.filhos.length} camadas. Botão direito no cenário › <b>Cenário: padrão e keyframes…</b> para mexer.`, { kind: 'ok', time: 6000 }); }); return ok; } },
       ] });
-    document.removeEventListener('keydown', tecla, true);
+    document.removeEventListener('keydown', tecla, true); document.removeEventListener('keyup', solto, true);
   },
   cantosDe(c) { const s = c.s ?? 1, w = c.w * s / 2, h = c.h * s / 2, a = (c.r || 0) * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
     return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => [c.cx + x * co - y * si, c.cy + x * si + y * co]); },
-  alcaGiro(c) { const s = c.s ?? 1, h = c.h * s / 2 + 28, a = (c.r || 0) * Math.PI / 180; return [c.cx + h * Math.sin(a), c.cy - h * Math.cos(a)]; },
+  alcaGiro(c, folga = 28) { const s = c.s ?? 1, h = c.h * s / 2 + folga, a = (c.r || 0) * Math.PI / 180; return [c.cx + h * Math.sin(a), c.cy - h * Math.cos(a)]; },
 });
