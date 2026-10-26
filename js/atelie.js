@@ -586,7 +586,7 @@ const Atelie = {
     for (const x of ['#at-mover', '#at-regua', '#at-ref']) { const e = $(x); if (e) e.hidden = !!ed; }
     Pintura.pintaBarra(); Linha.pinta(); Ima.arruma(); // a barra de ferramentas vai para o lugar dela (o editor tem o seu)
     let bp = $('#at-abas [data-aba="pintar"]'); if (!bp && $('#at-abas')) { bp = h(`<button data-aba="pintar" title="Camadas, cores e opções de pintar da parte escolhida">${ic('layers', 12)} Camadas</button>`); $('#at-abas').appendChild(bp); bp.onclick = () => { this.aba = 'pintar'; this.pinta(); }; }
-    if (bp) bp.hidden = Pintura.ferr === 'mover' && this.aba !== 'pintar';
+    if (bp) bp.hidden = !this.soQuadro && Pintura.ferr === 'mover' && this.aba !== 'pintar'; // no painel do quadro (Animador) a aba Camadas fica sempre à vista
     if (this.imgSo) this.barraImgSo();
     this.pintaIcone(); this.pintaVistas(); this.pintaPartes(); this.pintaImgs(); $$('#at-abas [data-aba]').forEach(b => b.classList.toggle('on', b.dataset.aba === this.aba));
     const lado = $('#at-lado'), rol = lado.scrollTop; lado.innerHTML = ''; if (this.aba === 'pintar' && !$('#at-abas [data-aba="pintar"]')) this.aba = 'peca';

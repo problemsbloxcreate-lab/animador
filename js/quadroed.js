@@ -48,10 +48,10 @@ const QuadroEd = {
     this.ouve(); const c = this.cfg();
     if (!this.el) {
       this.el = h(`<div class="qed"><div class="qed-bar" title="Arraste para mover (encaixado: arrastar solta como janela) · dois cliques: minimizar"><span class="qed-pega">${ic('grip', 13)}</span><span class="qed-ic">${ic('brush', 14)}</span><span class="qed-t"></span><span class="sp"></span>
-        <button class="ibtn" data-undo title="Desfazer no quadro (Ctrl+Z)">${ic('undo', 14)}</button><button class="ibtn" data-redo title="Refazer no quadro">${ic('redo', 14)}</button>
+        <button class="ibtn qed-atelie" data-completo title="Abrir o Ateliê completo numa aba nova"><img src="icones/atelie.svg" alt="" width="16" height="16"></button><span class="qed-sep"></span><button class="ibtn" data-undo title="Desfazer no quadro (Ctrl+Z)">${ic('undo', 14)}</button><button class="ibtn" data-redo title="Refazer no quadro">${ic('redo', 14)}</button>
         <button class="ibtn" data-aqui title="Passar para o quadro que está na tela agora">${ic('jump', 14)}</button>
         <button class="ibtn" data-modo></button><button class="ibtn" data-min></button><button class="ibtn" data-x title="Fechar (o que já mudou fica no quadro)">${ic('x', 14)}</button></div>
-        <div class="qed-corpo"><div class="qed-carr"><div class="qed-pbox"><div class="qed-ptit">${ic('brush', 16)} Abrindo o Ateliê neste quadro</div><b class="qed-pct">0%</b><div class="qed-pbar"><i></i></div><small class="qed-ptxt">Carregando o Ateliê…</small></div></div><div class="qed-tampa"></div></div><div class="qed-borda" title="Arraste para mudar a largura"></div></div>`);
+        <div class="qed-corpo"><div class="qed-carr"><div class="qed-pbox"><div class="qed-ptit">${ic('brush', 16)} Abrindo o Ateliê neste quadro</div><b class="qed-pct">0%</b><div class="qed-pbar"><i></i></div><small class="qed-ptxt">Carregando o Ateliê…</small></div></div><div class="qed-tampa"></div></div><div class="qed-borda" title="Arraste para mudar a largura"></div>${['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map(d => `<div class="qed-rz" data-rz="${d}"></div>`).join('')}</div>`);
       document.body.appendChild(this.el);
       const B = s => $(s, this.el), manda = tipo => this.ifr?.contentWindow?.postMessage({ tipo }, location.origin);
       B('[data-undo]').onclick = () => manda('desfazer'); B('[data-redo]').onclick = () => manda('refazer');
@@ -59,8 +59,9 @@ const QuadroEd = {
       B('[data-modo]').onclick = () => { c.modo = c.modo === 'lado' ? 'solto' : 'lado'; c.min = false; this.grava(); this.arruma(); };
       B('[data-min]').onclick = () => { c.min = !c.min; this.grava(); this.arruma(); };
       B('[data-x]').onclick = () => this.fechar();
+      B('[data-completo]').onclick = () => this.completo();
       B('.qed-bar').ondblclick = e => { if (e.target.closest('button')) return; c.min = !c.min; this.grava(); this.arruma(); };
-      this.arrasta(); this.borda(); new ResizeObserver(() => { if (c.modo === 'solto' && !c.min && this.el.offsetWidth) { c.W = this.el.offsetWidth; c.H = this.el.offsetHeight; this.grava(); } }).observe(this.el);
+      this.arrasta(); this.borda(); this.tamanhos(); new ResizeObserver(() => { if (c.modo === 'solto' && !c.min && this.el.offsetWidth) { c.W = this.el.offsetWidth; c.H = this.el.offsetHeight; this.grava(); } }).observe(this.el);
     }
     c.min = false; this.el.hidden = false; this.arruma();
   },
@@ -98,6 +99,25 @@ const QuadroEd = {
       b.onpointermove = ev => { c.w = clamp(Math.round(innerWidth - ev.clientX), 340, innerWidth * .7); this.el.style.width = c.w + 'px'; document.body.style.setProperty('--qed-w', c.w + 'px'); };
       b.onpointerup = b.onpointercancel = () => { b.onpointermove = b.onpointerup = b.onpointercancel = null; this.el.classList.remove('mexendo'); this.grava(); dispatchEvent(new Event('resize')); }; };
   },
+  // janela solta: muda de tamanho por qualquer borda ou canto (o iframe fica tampado enquanto arrasta)
+  tamanhos() {
+    const c = this.cfg();
+    for (const z of $$('.qed-rz', this.el)) z.onpointerdown = e => { if (c.modo !== 'solto' || c.min || e.button !== 0) return; e.preventDefault(); z.setPointerCapture(e.pointerId); this.el.classList.add('mexendo');
+      const d = z.dataset.rz, r = this.el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY, MW = 320, MH = 240;
+      z.onpointermove = ev => { const dx = ev.clientX - x0, dy = ev.clientY - y0; let { left: x, top: y, width: W, height: H } = r;
+        if (d.includes('e')) W = clamp(r.width + dx, MW, innerWidth - r.left);
+        if (d.includes('s')) H = clamp(r.height + dy, MH, innerHeight - r.top);
+        if (d.includes('w')) { W = clamp(r.width - dx, MW, r.right); x = r.right - W; }
+        if (d.includes('n')) { H = clamp(r.height - dy, MH, r.bottom); y = r.bottom - H; }
+        c.x = Math.round(x); c.y = Math.round(y); c.W = Math.round(W); c.H = Math.round(H); Object.assign(this.el.style, { left: c.x + 'px', top: c.y + 'px', width: c.W + 'px', height: c.H + 'px' }); };
+      z.onpointerup = z.onpointercancel = () => { z.onpointermove = z.onpointerup = z.onpointercancel = null; this.el.classList.remove('mexendo'); this.grava(); }; };
+  },
+  // o ícone do Ateliê na barra: pergunta e abre o Ateliê COMPLETO numa aba nova, no personagem, parado na pose deste quadro
+  async completo() {
+    const a = this.atual, n = a && Modelo.achar(App.P, a.no)?.no, def = n && App.P?.personagens?.[n.ref]; if (!def) return;
+    const ok = await UI.confirm({ title: 'Abrir o Ateliê completo?', msg: `<b>${esc(def.nome)}</b> abre numa <b>aba nova</b> com o Ateliê inteiro (timeline, vistas, animações de teste…), parado na pose do quadro ${a.quadro + 1}.<br><br>O que você mudar lá vale para o <b>personagem</b> (todos os quadros e animações quando for salvo); este painel continua mudando só o quadro ${a.quadro + 1}.`, ok: 'Abrir numa aba nova' });
+    if (!ok) return; const q0 = App.q; App.q = a.quadro; try { await Animacoes.editarNoAtelie(n); } finally { App.q = q0; }
+  },
   fechar() { if (this.el) this.el.hidden = true; document.body.classList.remove('qed-lado'); document.body.style.setProperty('--qed-w', '0px'); this.atual = null; if (typeof App !== 'undefined') App._enqCorta = true; dispatchEvent(new Event('resize')); },
   // o painel mandou o quadro: a chave daquele quadro recebe; a seguinte segura como era (só este quadro muda)
   async recebe(d) {
@@ -121,7 +141,7 @@ const QuadroEd = {
     { const ch = Pintura.chLugar.bind(Pintura); Pintura.chLugar = () => ch() + '-quadro'; }
     { const lug = Pintura.lugar.bind(Pintura); Pintura.lugar = () => lug() || { x: 0, y: 0, preso: { alvo: 'palco', lado: 'baixo', off: 8, esticar: false } }; } // espaço pequeno: a barra de ferramentas nasce deitada embaixo da tela
     { const ap = Paineis.aplica.bind(Paineis); Paineis.aplica = () => { ap(); this.arrumaLugares(); }; } // painéis mudados de lugar: as colunas de baixo se dividem o espaço todo
-    for (const nm of ['commit', 'undo', 'redo']) { const f = Atelie[nm]; Atelie[nm] = function (...x) { const r = f.apply(this, x); QuadroEd.agenda(); return r; }; }
+    for (const nm of ['commit', 'undo', 'redo']) { const f = Atelie[nm]; Atelie[nm] = function (...x) { if (nm === 'commit') QuadroEd.protege(); const r = f.apply(this, x); QuadroEd.foto(); QuadroEd.agenda(); return r; }; }
     addEventListener('message', e => { if (e.origin !== location.origin) return; const t = e.data?.tipo;
       if (t === 'abre-quadro') this.abreQuadro(); else if (t === 'desfazer') Atelie.desfazJa(false); else if (t === 'refazer') Atelie.desfazJa(true); });
     this.prog(30, 'Conta conferida'); parent.postMessage({ tipo: 'quadro-pronto' }, location.origin);
@@ -147,7 +167,7 @@ const QuadroEd = {
     const ks = Modelo.chavesImgs(def).filter(k => !Arq.img.get(k)); let feitas = 0; this.prog(38, ks.length ? `Imagens 0 de ${ks.length}` : 'Montando o quadro…');
     { let i = 0; await Promise.all(Array.from({ length: Math.min(6, ks.length) }, async () => { while (i < ks.length) { const k = ks[i++]; try { await Arq.garantir([k]); } catch { } feitas++; this.prog(38 + 52 * feitas / ks.length, `Imagens ${feitas} de ${ks.length}`); } })); }
     this.prog(93, 'Montando o quadro…');
-    await Atelie.abrir(null, { def }); this.defJ0 = JSON.stringify(this.semQuadro(Atelie.def));
+    await Atelie.abrir(null, { def }); this.defJ0 = JSON.stringify(this.semQuadro(Atelie.def)); this.foto();
     Animacoes.irPara(a, 0, 0); Atelie.pilha = []; Atelie.refazer = []; Atelie.ultimo = JSON.stringify(Atelie.def); Atelie.enquadrar();
     parent.postMessage({ tipo: 'quadro-aberto' }, location.origin);
   },
@@ -162,6 +182,19 @@ const QuadroEd = {
     const dj = JSON.stringify(out), msg = { tipo: 'quadro-editado', projeto: S.projeto, no: S.no, quadro: S.quadro, personagem: Atelie.def.id, sessoes: clone(ps.s || {}), partes: clone(ps.p || {}) };
     if (dj !== (S.defJ || this.defJ0)) { msg.def = out; S.defJ = dj; } // o personagem da animação só vai junto quando mudou (imagem copiada para o quadro, máscara…)
     parent.postMessage(msg, location.origin);
+  },
+  // CAMADAS no painel (ver/esconder, opacidade, ordem, juntar, + camada…) mexem direto na imagem: antes de cada commit, a imagem do
+  // personagem que mudou volta como era e a mudança vai para a CÓPIA só deste quadro (a mesma de pintar). Escolher a camada ativa não conta.
+  assina(img) { return JSON.stringify([img.k, img.camadas || null, img.vCam || null]); },
+  foto() { if (!Atelie.soQuadro || !Atelie.def) return; const m = new Map(); for (const p of Atelie.def.partes || []) for (const i of p.imgs || []) if (!i.doQuadro) m.set(i.id, { a: this.assina(i), v: clone({ k: i.k, camadas: i.camadas, camAtiva: i.camAtiva }) }); this._fotos = m; },
+  protege() {
+    const S = Atelie.soQuadro, m = this._fotos; if (!S || !m) return;
+    for (const p of Atelie.def.partes || []) for (const img of [...(p.imgs || [])]) {
+      const f = img.doQuadro ? null : m.get(img.id); if (!f || this.assina(img) === f.a) continue;
+      const novo = { k: img.k, camadas: clone(img.camadas), camAtiva: img.camAtiva }, ja = S.copias[img.id] && p.imgs.find(i => i.id === S.copias[img.id]);
+      const c = ja || this.imgDoQuadro(img); Object.assign(c, novo); if (!novo.camadas) delete c.camadas;
+      img.k = f.v.k; if (f.v.camadas) img.camadas = clone(f.v.camadas); else delete img.camadas; if (f.v.camAtiva) img.camAtiva = f.v.camAtiva; else delete img.camAtiva;
+    }
   },
   // pintar no painel: a imagem do personagem não muda — o quadro ganha uma CÓPIA dela (com a mesma posição) e a pintura vai nela
   imgDoQuadro(img) {

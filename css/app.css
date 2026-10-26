@@ -1110,7 +1110,7 @@ body.ajuda-on #atelie .at-palco::after{content:'Ajuda ligada · tela pausada';po
 .qed{position:fixed;z-index:60;display:flex;flex-direction:column;background:var(--bg1);border:1px solid #3a6f9e;box-shadow:0 10px 40px rgba(0,0,0,.5)}
 .qed[hidden]{display:none}
 .qed.lado{border-width:0 0 0 1px;border-radius:0}
-.qed.solto{border-radius:12px;overflow:hidden;resize:both;min-width:320px;min-height:240px}
+.qed.solto{border-radius:12px;min-width:320px;min-height:240px}.qed.solto>.qed-bar{border-radius:11px 11px 0 0}.qed.solto .qed-corpo{border-radius:0 0 11px 11px;overflow:hidden}
 .qed.min{resize:none;min-height:0;height:auto!important}.qed.min .qed-corpo,.qed.min .qed-borda{display:none}
 .qed.lado.min{top:auto!important;bottom:12px!important;right:12px!important;border:1px solid #3a6f9e;border-radius:10px}
 .qed-bar{display:flex;align-items:center;gap:4px;height:36px;padding:0 6px 0 10px;flex:none;background:#17273a;border-bottom:1px solid #3a6f9e;user-select:none}
@@ -1254,3 +1254,13 @@ body.embed-quadro #atelie .at.com-docks.qe-sem-baixo{grid-template-rows:minmax(0
 .at-qual{display:grid;gap:6px;max-height:60vh;overflow:auto}
 .at-qt{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx3);margin:6px 0 0}.at-qt small{text-transform:none;letter-spacing:0}
 .at-pers{padding:8px 10px}.at-pers.novo{border-style:dashed}.at-pers.novo>svg{color:var(--tx2);margin:0 4px}
+
+/* painel do quadro: bordas e cantos da janela solta mudam o tamanho; ícone do Ateliê completo */
+.qed-rz{position:absolute;z-index:4;display:none}.qed.solto:not(.min) .qed-rz{display:block}
+.qed-rz[data-rz=n]{top:-4px;left:10px;right:10px;height:8px;cursor:ns-resize}.qed-rz[data-rz=s]{bottom:-4px;left:10px;right:10px;height:8px;cursor:ns-resize}
+.qed-rz[data-rz=e]{right:-4px;top:10px;bottom:10px;width:8px;cursor:ew-resize}.qed-rz[data-rz=w]{left:-4px;top:10px;bottom:10px;width:8px;cursor:ew-resize}
+.qed-rz[data-rz=ne]{top:-5px;right:-5px;width:14px;height:14px;cursor:nesw-resize}.qed-rz[data-rz=sw]{bottom:-5px;left:-5px;width:14px;height:14px;cursor:nesw-resize}
+.qed-rz[data-rz=nw]{top:-5px;left:-5px;width:14px;height:14px;cursor:nwse-resize}.qed-rz[data-rz=se]{bottom:-5px;right:-5px;width:16px;height:16px;cursor:nwse-resize}
+.qed.solto:not(.min) .qed-rz[data-rz=se]::after{content:'';position:absolute;right:7px;bottom:7px;width:8px;height:8px;border-right:2px solid #5a8fbf;border-bottom:2px solid #5a8fbf;border-radius:0 0 3px 0;opacity:.8}
+.qed-atelie img{display:block;border-radius:4px}.qed-atelie:hover{background:rgba(255,154,98,.15)!important}
+.qed-sep{width:1px;height:16px;background:#3a6f9e;margin:0 3px;flex:none}
