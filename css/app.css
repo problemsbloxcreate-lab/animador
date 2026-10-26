@@ -1124,16 +1124,15 @@ body.ajuda-on #atelie .at-palco::after{content:'Ajuda ligada · tela pausada';po
 .qed-borda{position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3}.qed.solto .qed-borda{display:none}.qed-borda:hover{background:rgba(90,169,232,.4)}
 body.qed-lado #editor{right:var(--qed-w,0px)}
 /* dentro do painel (iframe ?embed=quadro): sem cabeçalho, timeline, vistas e aba Animações; palco em cima, Partes/Imagens e o painel da direita embaixo */
-body.embed-quadro #atelie>header.bar,body.embed-quadro [data-estudio-conta],body.embed-quadro #atelie [data-dock=linha],body.embed-quadro #atelie [data-dock=vistas],body.embed-quadro #at-tl,body.embed-quadro #at-abas [data-aba=animacoes],body.embed-quadro .dock-pega,body.embed-quadro .dock-col-borda,body.embed-quadro #at-layout-padrao,body.embed-quadro .estudio-limite{display:none!important}
+body.embed-quadro #atelie>header.bar,body.embed-quadro [data-estudio-conta],body.embed-quadro #atelie [data-dock=linha],body.embed-quadro #atelie [data-dock=vistas],body.embed-quadro #at-tl,body.embed-quadro #at-abas [data-aba=animacoes],body.embed-quadro .dock-col-borda,body.embed-quadro #at-layout-padrao,body.embed-quadro .estudio-limite{display:none!important}
 body.embed-quadro #atelie .at.com-docks{grid-template-columns:1fr 1fr!important;grid-template-rows:minmax(0,1fr) minmax(170px,44%)!important}
 body.embed-quadro #atelie .at>.at-palco{grid-column:1/-1;grid-row:1}
-body.embed-quadro #atelie .at>aside:first-child{grid-column:1;grid-row:2;border-top:1px solid var(--bd)}
-body.embed-quadro #atelie .at>aside:last-child{grid-column:2;grid-row:2;border-top:1px solid var(--bd)}
+body.embed-quadro #atelie .at>aside{grid-row:2;grid-column:auto;border-top:1px solid var(--bd)}
+body.embed-quadro #atelie .at>aside.qe-fora,body.embed-quadro #atelie .dock-col.qe-fora{display:none} /* lugar vazio (ou só com o que não aparece aqui) não deixa buraco */
 body.embed-quadro #atelie .at>aside.dock-area>.dock-col{width:auto!important;flex:1 1 0;min-width:0}
-body.embed-quadro #atelie .dock>:nth-child(2){padding-left:0}
 body.embed-quadro #atelie .kf-aviso{display:none}
 body.embed-quadro #atelie .p-cab h3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-body.embed-quadro #atelie .at.com-docks{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)!important}
+body.embed-quadro #atelie .at.com-docks{grid-template-columns:var(--qe-cols,minmax(0,1fr) minmax(0,1.15fr))!important}
 body.embed-quadro #atelie .ed-aviso{display:none}
 body.embed-quadro #at-ferr button{width:27px;height:27px}body.embed-quadro #at-ferr button svg{width:15px;height:15px}body.embed-quadro #at-ferr.deitada{gap:1px;padding:3px}
 .qed-pbox{width:min(300px,80%);display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
@@ -1240,3 +1239,7 @@ body.qed-lado #editor>header.bar #b-junto,body.qed-lado #editor>header.bar #b-at
 .dock-col > .dock[data-dock="midia"], .dock-janela > .dock[data-dock="midia"]{flex:.6 1 0}
 #editor .dock[data-dock=midia]>.p-cab{padding-left:24px}
 #midia-cab .ibtn{flex:none}
+body.embed-quadro #atelie .at.com-docks.qe-sem-baixo{grid-template-rows:minmax(0,1fr)!important}
+/* painel do quadro: encaixado vai até o topo (a barra dele na altura do cabeçalho do Animador) e a alça de pontinhos mostra que ele se move */
+.qed.lado .qed-bar{height:46px;cursor:grab}.qed.lado.mexendo .qed-bar{cursor:grabbing}
+.qed-pega{display:grid;place-items:center;width:14px;margin-left:-4px;color:var(--tx3);opacity:.7;flex:none}.qed-bar:hover .qed-pega{opacity:1;color:#9fd0f7}

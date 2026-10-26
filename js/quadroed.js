@@ -47,7 +47,7 @@ const QuadroEd = {
   mostra() {
     this.ouve(); const c = this.cfg();
     if (!this.el) {
-      this.el = h(`<div class="qed"><div class="qed-bar" title="Arraste para mover (janela solta) · dois cliques: minimizar"><span class="qed-ic">${ic('brush', 14)}</span><span class="qed-t"></span><span class="sp"></span>
+      this.el = h(`<div class="qed"><div class="qed-bar" title="Arraste para mover (encaixado: arrastar solta como janela) · dois cliques: minimizar"><span class="qed-pega">${ic('grip', 13)}</span><span class="qed-ic">${ic('brush', 14)}</span><span class="qed-t"></span><span class="sp"></span>
         <button class="ibtn" data-undo title="Desfazer no quadro (Ctrl+Z)">${ic('undo', 14)}</button><button class="ibtn" data-redo title="Refazer no quadro">${ic('redo', 14)}</button>
         <button class="ibtn" data-aqui title="Passar para o quadro que está na tela agora">${ic('jump', 14)}</button>
         <button class="ibtn" data-modo></button><button class="ibtn" data-min></button><button class="ibtn" data-x title="Fechar (o que já mudou fica no quadro)">${ic('x', 14)}</button></div>
@@ -71,7 +71,7 @@ const QuadroEd = {
     $('[data-modo]', el).innerHTML = ic(c.modo === 'lado' ? 'copy' : 'right', 14); $('[data-modo]', el).title = c.modo === 'lado' ? 'Soltar como janela' : 'Encaixar do lado direito';
     $('[data-min]', el).innerHTML = ic(c.min ? 'up' : 'minus', 14); $('[data-min]', el).title = c.min ? 'Abrir de novo' : 'Minimizar';
     const top = Math.round($('#editor header')?.getBoundingClientRect().bottom || 46);
-    if (c.modo === 'lado') { const w = clamp(c.w || 460, 340, Math.max(360, innerWidth * .7)); Object.assign(el.style, { top: top + 'px', left: '', right: '0', bottom: c.min ? '' : '0', width: c.min ? '' : w + 'px', height: '' });
+    if (c.modo === 'lado') { const w = clamp(c.w || 460, 340, Math.max(360, innerWidth * .7)); Object.assign(el.style, { top: c.min ? '' : '0px', left: '', right: '0', bottom: c.min ? '' : '0', width: c.min ? '' : w + 'px', height: '' });
       document.body.style.setProperty('--qed-w', (c.min ? 0 : w) + 'px'); }
     else { const W = clamp(c.W || 480, 320, innerWidth - 16), H = clamp(c.H || 620, 260, innerHeight - 16), x = clamp(c.x || innerWidth - W - 24, 8, innerWidth - 120), y = clamp(c.y || top + 16, 8, innerHeight - 40);
       Object.assign(el.style, { left: x + 'px', top: y + 'px', right: '', bottom: '', width: c.min ? '' : W + 'px', height: c.min ? '' : H + 'px' }); document.body.style.setProperty('--qed-w', '0px'); }
@@ -81,10 +81,16 @@ const QuadroEd = {
   },
   arrasta() {
     const bar = $('.qed-bar', this.el), c = this.cfg();
-    bar.onpointerdown = e => { if (c.modo !== 'solto' || e.button !== 0 || e.target.closest('button')) return; e.preventDefault(); bar.setPointerCapture(e.pointerId); this.el.classList.add('mexendo');
-      const r = this.el.getBoundingClientRect(), gx = e.clientX - r.left, gy = e.clientY - r.top;
-      bar.onpointermove = ev => { c.x = Math.round(ev.clientX - gx); c.y = Math.round(ev.clientY - gy); this.el.style.left = clamp(c.x, 0, innerWidth - 80) + 'px'; this.el.style.top = clamp(c.y, 0, innerHeight - 30) + 'px'; };
-      bar.onpointerup = bar.onpointercancel = () => { bar.onpointermove = bar.onpointerup = bar.onpointercancel = null; this.el.classList.remove('mexendo'); this.grava(); }; };
+    bar.onpointerdown = e => { if (c.modo === 'lado' && c.min) return; if (e.button !== 0 || e.target.closest('button')) return; e.preventDefault(); bar.setPointerCapture(e.pointerId); this.el.classList.add('mexendo');
+      let r = this.el.getBoundingClientRect(), gx = e.clientX - r.left, gy = e.clientY - r.top; const x0 = e.clientX, y0 = e.clientY;
+      bar.onpointermove = ev => {
+        if (c.modo === 'lado') { // encaixado: puxar a barra solta o painel como janela, embaixo do mouse
+          if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 12) return;
+          const W = clamp(c.W || 480, 320, innerWidth - 16); c.modo = 'solto'; c.min = false; gx = Math.min(gx, W - 60); gy = 18; c.x = ev.clientX - gx; c.y = ev.clientY - gy; this.arruma(); this.el.classList.add('mexendo'); }
+        c.x = Math.round(ev.clientX - gx); c.y = Math.round(ev.clientY - gy); this.el.style.left = clamp(c.x, 0, innerWidth - 80) + 'px'; this.el.style.top = clamp(c.y, 0, innerHeight - 30) + 'px'; };
+      bar.onpointerup = bar.onpointercancel = ev => { bar.onpointermove = bar.onpointerup = bar.onpointercancel = null; this.el.classList.remove('mexendo');
+        if (c.modo === 'solto' && ev.type === 'pointerup' && ev.clientX >= innerWidth - 24) { c.modo = 'lado'; this.arruma(); } // solto na beira direita: encaixa de novo
+        this.grava(); }; };
   },
   borda() {
     const b = $('.qed-borda', this.el), c = this.cfg();
@@ -114,10 +120,19 @@ const QuadroEd = {
     Paineis.CHAVE = 'animador-atelie-layout-quadro'; Paineis.CH_ALT = 'animador-atelie-alturas-quadro';
     { const ch = Pintura.chLugar.bind(Pintura); Pintura.chLugar = () => ch() + '-quadro'; }
     { const lug = Pintura.lugar.bind(Pintura); Pintura.lugar = () => lug() || { x: 0, y: 0, preso: { alvo: 'palco', lado: 'baixo', off: 8, esticar: false } }; } // espaço pequeno: a barra de ferramentas nasce deitada embaixo da tela
+    { const ap = Paineis.aplica.bind(Paineis); Paineis.aplica = () => { ap(); this.arrumaLugares(); }; } // painéis mudados de lugar: as colunas de baixo se dividem o espaço todo
     for (const nm of ['commit', 'undo', 'redo']) { const f = Atelie[nm]; Atelie[nm] = function (...x) { const r = f.apply(this, x); QuadroEd.agenda(); return r; }; }
     addEventListener('message', e => { if (e.origin !== location.origin) return; const t = e.data?.tipo;
       if (t === 'abre-quadro') this.abreQuadro(); else if (t === 'desfazer') Atelie.desfazJa(false); else if (t === 'refazer') Atelie.desfazJa(true); });
     this.prog(30, 'Conta conferida'); parent.postMessage({ tipo: 'quadro-pronto' }, location.origin);
+  },
+  // embaixo da tela do painel: uma coluna para cada lugar que tem algo à vista, dividindo a largura toda (sem buraco vazio)
+  arrumaLugares() {
+    const at = $('#atelie .at'); if (!at) return; const fora = ['vistas', 'linha'], st = Paineis.st || { cols: [] }; let n = 0, larg = [];
+    for (const lado of ['esq', 'dir']) { const area = Paineis.area?.[lado]; if (!area) continue; let tem = false;
+      for (const col of $$(':scope > .dock-col', area)) { const c = st.cols.find(x => x.id === col.dataset.col), vazio = !c || c.p.every(i => fora.includes(i)); col.classList.toggle('qe-fora', vazio); if (!vazio) tem = true; }
+      area.classList.toggle('qe-fora', !tem); if (tem) { n++; larg.push(lado === 'dir' ? 'minmax(0,1.15fr)' : 'minmax(0,1fr)'); } }
+    at.style.setProperty('--qe-cols', n ? larg.join(' ') : 'minmax(0,1fr)'); at.classList.toggle('qe-sem-baixo', !n);
   },
   prog(p, t) { try { parent.postMessage({ tipo: 'quadro-prog', p, t }, location.origin); } catch { } },
   async abreQuadro() {
