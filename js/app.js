@@ -9,6 +9,8 @@ const App = {
     if (AoVivo.ad?.ctx === 'animador' && AoVivo.ad.sala !== 'an-' + P.id) await AoVivo.sair();
     if (!P.temFundoPadrao) { P.temFundoPadrao = true; if (!Modelo.todos(P).some(n => n.fundoPadrao)) P.raiz.push(Modelo.fundoPadrao(P.w, P.h, P.fundo)); } // projetos de antes: a folha vira camada
     this.P = P; this.q = 0; this.sel = null; this.desfazer = []; this.refazer = []; this.ultimo = JSON.stringify(P);
+    // o endereço guarda a animação aberta (?projeto=<id>): F5 / "Atualizar todos os sites" volta para ela no ANIMADOR
+    try { const u = new URL(location.href); if (!u.searchParams.has('atelie') && !u.searchParams.has('embed') && u.searchParams.get('projeto') !== P.id) { u.searchParams.set('projeto', P.id); history.replaceState(null, '', u.pathname + u.search + u.hash); } } catch { }
     Promise.all(Object.values(P.personagens || {}).map(def => Arq.garantir(Modelo.chavesImgs(def)))).then(() => Icone.garanteNoEditor(P)); // personagens sem ícone/cor ganham (a cabeça e a cor que mais aparece)
     Telas.mostra('editor'); $('#proj-nome').textContent = P.nome; this.titulo();
     PaineisEd.liga(); // painéis que mudam de lugar e de tamanho (js/paineis.js)
@@ -46,7 +48,7 @@ const App = {
     if (modo === 'simples' && !Modelo.aparece(P, n, this.q)) this.setQ(n.de || 0); // fora do quadro: vai para onde ele aparece
     this.selecionar(n.id); return n;
   },
-  async fechar() { QuadroEd.fechar?.(); this.pausa(); await this.salvarJa(); if (AoVivo.ad?.ctx === 'animador') await this.sairJunto(false, true); this.P = null; Telas.mostra('home'); Home.pinta(); this.titulo(); },
+  async fechar() { QuadroEd.fechar?.(); this.pausa(); await this.salvarJa(); if (AoVivo.ad?.ctx === 'animador') await this.sairJunto(false, true); this.P = null; try { const u = new URL(location.href); if (u.searchParams.has('projeto')) { u.searchParams.delete('projeto'); history.replaceState(null, '', u.pathname + u.search + u.hash); } } catch { } Telas.mostra('home'); Home.pinta(); this.titulo(); },
   // TRABALHAR JUNTO: o arquivo vai TEMPORARIAMENTE para a nuvem enquanto as pessoas trabalham (js/aovivo.js)
   async trabalharJunto() {
     if (AoVivo.ativo && AoVivo.ad?.ctx === 'animador') return UI.toast('Já está ao vivo: quem é da equipe entra pela tela inicial, em "Ao vivo agora".');
@@ -461,3 +463,6 @@ const Telas = { mostra(id) { for (const t of ['home', 'editor', 'atelie']) $('#'
   // ATELIÊ: ícone próprio na aba (paleta laranja) e título em caixa alta; fora dele volta o do ANIMADOR
   marca(id) { if (window.EstudioIcones) window.EstudioIcones.usar(id === 'atelie' ? 'at' : 'an'); else { const l = document.querySelector('link[rel="icon"]'); if (l) { const novo = id === 'atelie' ? 'icones/atelie.svg' : 'icones/simbolo.svg'; if (!l.href.endsWith(novo)) l.href = novo; } } // ícone da aba = ícone novo do programa (An / At)
     if (id === 'atelie') document.title = (typeof Atelie !== 'undefined' && Atelie.def?.nome ? Atelie.def.nome + ' — ' : '') + 'ATELIÊ · Estúdio Problems'; else if (typeof App !== 'undefined' && App.titulo) App.titulo(); } };
+// F5 / fechar a aba com uma mudança ainda esperando os 700 ms do salvar: salva já (a animação reabre no mesmo ponto pelo ?projeto=)
+addEventListener('pagehide', () => { if (App.P && App._tSalvar) App.salvarJa(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && App.P && App._tSalvar) App.salvarJa(); });

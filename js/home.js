@@ -26,7 +26,7 @@ const Home = {
   aba(a) { this.atual = a; this.pinta(); },
   async pinta() {
     const el = $('#home-in'); if (!el) return;
-    el.innerHTML = `<div class="home-abas"><button data-a="animacoes" class="${this.atual === 'animacoes' ? 'on' : ''}">Animações</button><button data-a="personagens" class="${this.atual === 'personagens' ? 'on' : ''}">Personagens da equipe</button></div><div data-corpo></div>`;
+    el.innerHTML = `<div class="home-abas"><button data-a="animacoes" class="${this.atual === 'animacoes' ? 'on' : ''}">Animações</button><button data-a="personagens" class="${this.atual === 'personagens' ? 'on' : ''}"><span class="aba-ic-atelie" data-estudio-icone="at"><img src="icones/atelie.svg" alt=""></span>Personagens da equipe</button></div><div data-corpo></div>`;
     $$('[data-a]', el).forEach(b => b.onclick = () => this.aba(b.dataset.a));
     const c = $('[data-corpo]', el); this.atual === 'animacoes' ? this.animacoes(c) : this.personagens(c);
   },
@@ -259,7 +259,10 @@ addEventListener('DOMContentLoaded', async () => {
   if (at && daAnim) { Atelie.emAba = true; if (!(await AtelieAnim.entrar(at, daAnim))) { history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } } // a CÓPIA de uma animação (o que está na timeline)
   else if (at) { Atelie.emAba = true; await Atelie.abrir(at === 'novo' ? null : at, naPose ? { reserva: await Animacoes.reservaDaPose(at) } : {}); if (naPose && Atelie.def) await Animacoes.entrarNaPose(at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
     if (at && Atelie.def) { const rc = await Citacao.receber(); if (rc?.parte) Citacao.irAtelie(rc.parte); }
-  else { Home.pinta(); await Citacao.receber(); } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
+  else { // F5 / "Atualizar todos os sites" com uma animação aberta (?projeto=<id>): volta direto para ela
+    const pid = new URLSearchParams(location.search).get('projeto'), P = pid ? await DB.get('projetos', pid).catch(() => null) : null;
+    if (P) { await App.abrir(P); await Citacao.receber(); }
+    else { if (pid) history.replaceState(null, '', location.pathname); Home.pinta(); await Citacao.receber(); } } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
   // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
   try { new BroadcastChannel('animador').onmessage = async ev => {
     const d = ev.data;
