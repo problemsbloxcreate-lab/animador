@@ -58,7 +58,8 @@ const IA = {
       ...(n.tipo === 'personagem' ? this.rigNo(P, n, Math.max(App.q, n.de || 0)) : {}) }));
     const fala = (P.legendas || []).map(g => `${g.de + 1}-${g.ate + 1}: ${g.texto}`).join('\n');
     const audios = (P.audios || []).map(a => ({ audio: a.nome, de: (a.de || 0) + 1, ate: (a.de || 0) + Math.round((Som.dur(a.arq) || 0) * P.fps), volume: round(a.vol ?? 1, 2), volume_em_trechos: (a.volTrechos || []).map(t => ({ de: t.de + 1, ate: t.ate + 1, volume: t.vol })) }));
-    return { quadros: P.duracao, fps: P.fps, tamanho: `${P.w}x${P.h}`, quadroAtual: App.q + 1, personagens: pers, camadas, audios, efeitos: Efeitos.TELA.map(e => e.id), visuais: Efeitos.VISUAIS.map(v => v.id), fala };
+    const cq = Modelo.camera(P, App.q), camera = { explica: `x,y = ponto do projeto que fica NO MEIO do vídeo (o meio do projeto é ${P.w / 2},${P.h / 2}); zoom 1 = mostra o projeto inteiro, 2 = o dobro de perto`, agora: { x: Math.round(cq.x), y: Math.round(cq.y), zoom: round(cq.zoom || 1, 2) }, chaves: Object.keys(P.camera.chaves).map(k => +k + 1) };
+    return { quadros: P.duracao, fps: P.fps, tamanho: `${P.w}x${P.h}`, quadroAtual: App.q + 1, camera, personagens: pers, camadas, audios, efeitos: Efeitos.TELA.map(e => e.id), visuais: Efeitos.VISUAIS.map(v => v.id), fala };
   },
   // lado para onde o membro dobra agora (1/-1); "inverter" usa o contrário
   ladoDobra(dv, ep, cad) { const J = Rig.juntas(dv, ep), S = J[cad.raiz], E = J[cad.meio], W = J[cad.fim]; if (!S || !E || !W) return 1; const c = (E.x - S.x) * (W.y - E.y) - (E.y - S.y) * (W.x - E.x); return -(Math.sign(c) || 1); },
@@ -78,8 +79,8 @@ Você recebe o projeto em JSON: quadros (numerados a partir de 1), fps, personag
 Responda SÓ um JSON: {"explica":"frase curta do que fez","acoes":[...]}.
 Ações possíveis:
  {"tipo":"pose","camada":"nome da camada","quadro":N,"sessoes":{"Nome da sessão":"nome do preset"}}   (vale até a próxima pose daquela sessão)
- {"tipo":"mover","camada":"nome","quadro":N,"x":0,"y":0,"r":0,"s":1,"curva":"suave"}   (só os campos que mudam; x/y em pixels do projeto; "curva" = como o movimento CHEGA nesta chave: suave|linear|saida (freando)|entrada (acelerando)|sobra (passa do ponto e volta)|quicar|elastico|corte (pula seco))
- {"tipo":"camera","quadro":N,"x":0,"y":0,"zoom":1,"tremor":0,"curva":"suave"}   (tremor 0-1 = câmera tremendo nesse trecho, vai mudando até a próxima chave; "curva" igual ao mover; "corte" = corte seco de plano)
+ {"tipo":"mover","camada":"nome","quadro":N,"x":0,"y":0,"r":0,"s":1,"curva":"suave"}   (só os campos que mudam; x/y = POSIÇÃO no projeto em pixels (não é deslocamento: para andar 40 px some à "posicao" da camada); s = tamanho (o de agora está em "posicao"); "curva" = como o movimento CHEGA nesta chave: suave|linear|saida (freando)|entrada (acelerando)|sobra (passa do ponto e volta)|quicar|elastico|corte (pula seco))
+ {"tipo":"camera","quadro":N,"x":540,"y":960,"zoom":1,"tremor":0,"curva":"suave"}   (x/y = ponto do projeto que fica no MEIO do vídeo, veja "camera" — para dar zoom num personagem use a posição dele e zoom 1.3-2; só os campos que mudam; tremor 0-1 = câmera tremendo nesse trecho, vai mudando até a próxima chave; "curva" igual ao mover; "corte" = corte seco de plano)
  {"tipo":"entrada","camada":"nome","entra":"pop|carimbo|aparecer|subir|descer|girar|esticar|nenhuma","sai":"…","quadros":6}   (como a camada aparece no começo dela e some no fim; ótimo para textos e objetos)
  {"tipo":"efeito","efeito":"vinheta|granulado|cinema|flash|tremor|desfoque|brilho|vhs|escurecer|clarear|chicote|zoomcorte","de":N,"ate":N,"forca":0.5}   (chicote e zoomcorte são TRANSIÇÕES: ~0,4 s com o corte no meio)
  {"tipo":"tremulo","camada":"nome","modo":"tremer|ondular|nenhum","forca":0.4}   (deixa uma imagem/camada parada "viva", tremendo ou ondulando)
@@ -138,7 +139,7 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
     const b = RefsAnim.bloco(await RefsAnim.b64(await RefsAnim.folha(ims, 4, larg, rot))); if (!b) return { n: 0 };
     mostra?.('Conferindo os quadros…');
     const txt = `CONFERÊNCIA (2ª passada). Você acabou de aplicar estas ações:\n${JSON.stringify(acoes).slice(0, 6000)}\n\nA imagem mostra COMO FICOU (quadros ${de + 1} a ${ate + 1}, a área da câmera). PROJETO agora:\n${JSON.stringify(this.contexto(P))}\n\n`
-      + `Olhe como um animador revendo o próprio trabalho e corrija SÓ o que está errado: personagem cortado ou fora da câmera, pose quebrada (braço/perna dobrado ao contrário, peça solta ou no lugar errado), mão/pé que não chegou onde devia, personagem de costas para quem fala, nada se mexendo num trecho longo, falta de antecipação ou de reação, câmera que não mostra a ação. `
+      + `Olhe como um animador revendo o próprio trabalho e corrija SÓ o que está errado: personagem cortado ou fora da câmera, pose quebrada (braço/perna dobrado ao contrário, peça solta ou no lugar errado), mão/pé que não chegou onde devia, personagem de costas para quem fala, nada se mexendo num trecho longo, falta de antecipação ou de reação, câmera que não mostra a ação ou mostra o vazio/borda do projeto (xadrez cinza = fora do projeto), posição/câmera usada como deslocamento em vez de posição. `
       + `Devolva o JSON de sempre {"explica":"o que corrigiu, curto","acoes":[...]} só com as correções; se estiver bom, {"explica":"","acoes":[]}.${tr.length ? ' Continue só dentro dos trechos.' : ''}`;
     const out = await this.chama(this.SIS_CENA, [...folhas, b, { type: 'text', text: txt }], t => mostra?.(t.slice(-600)), { tipo: 'cena', titulo: 'Conferindo a animação' });
     const j = this.json(out), L = j.acoes || []; if (!L.length) return { n: 0, explica: j.explica || '' };
@@ -161,7 +162,8 @@ Regras: use só nomes de sessões, presets, partes, imagens e animações que ex
             for (const [sn, pn] of Object.entries(a.sessoes || {})) { const s = this.acha(def.sessoes, sn); const p = s && (pn ? this.acha(s.presets, pn) : null); if (s) { k.sessoes[s.id] = p ? p.id : null; for (const pid of Object.keys(p?.estado || {})) if (ajustes[pid] && !(k.partes && pid in k.partes)) (k.partes ||= {})[pid] = null; } } n++; } // pose nova: os ajustes soltos das partes dela saem
           if (a.tipo === 'mover') { const v = {}; for (const c of ['x', 'y', 'r', 's', 'op']) if (a[c] != null && isFinite(+a[c])) v[c] = +a[c]; Modelo.poeTransf(no, q(a.quadro), v); const ck = no.chaves[q(a.quadro)];
             if (a.curva && Ease.IR[a.curva] && a.curva !== 'livre') { if (a.curva === 'suave') delete ck.ir; else ck.ir = a.curva; if (a.curva !== 'corte') no.interp = true; } n++; }
-        } else if (a.tipo === 'camera') { const k = q(a.quadro); P.camera.chaves[k] = { ...Modelo.camera(P, k), ...Object.fromEntries(['x', 'y', 'zoom', 'r'].filter(c => a[c] != null).map(c => [c, +a[c]])) };
+        } else if (a.tipo === 'camera') { const k = q(a.quadro); if (+a.x === 0 && +a.y === 0) { delete a.x; delete a.y; } // 0,0 = canto do projeto: a IA quis dizer "não mexe"
+          P.camera.chaves[k] = { ...Modelo.camera(P, k), ...Object.fromEntries(['x', 'y', 'zoom', 'r'].filter(c => a[c] != null && isFinite(+a[c])).map(c => [c, +a[c]])) };
           if (a.tremor != null && isFinite(+a.tremor)) P.camera.chaves[k].tremor = clamp(+a.tremor, 0, 1); if (a.curva && Ease.IR[a.curva] && a.curva !== 'livre' && a.curva !== 'suave') P.camera.chaves[k].ir = a.curva; n++; }
         else if (a.tipo === 'entrada') { const no = this.acha(todos, a.camada); if (!no) continue; const qq = clamp(Math.round(+a.quadros || P.fps * .25), 1, 120);
           for (const [k, v] of [['entra', a.entra], ['sai', a.sai]]) { if (v == null) continue; if (!Modelo.ANIMS[v]) delete no[k]; else no[k] = { tipo: v, q: qq }; } n++; }
