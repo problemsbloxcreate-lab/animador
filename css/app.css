@@ -45,7 +45,7 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .ferr{display:flex;align-items:center;gap:2px;padding:2px;border-radius:7px;background:var(--bg0);border:1px solid var(--bd)}
 
 /* ---------- área do animador ---------- */
-.area{flex:1;min-height:0;display:grid;grid-template-columns:var(--esq,250px) 1fr var(--dir,300px);grid-template-rows:1fr var(--tl,250px)}
+.area{flex:1;min-height:0;min-width:0;display:grid;grid-template-columns:var(--esq,250px) minmax(0,1fr) var(--dir,300px);grid-template-rows:1fr var(--tl,250px)}
 .painel{background:var(--bg1);display:flex;flex-direction:column;min-height:0;min-width:0}
 .painel.esq{border-right:1px solid var(--bd);grid-row:1}.painel.dir{border-left:1px solid var(--bd);grid-row:1 / span 2;grid-column:3}
 .p-cab{display:flex;align-items:center;gap:4px;height:32px;padding:0 6px 0 10px;border-bottom:1px solid var(--bd);flex:none}
@@ -80,11 +80,17 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .vazio{padding:16px;color:var(--tx3);text-align:center;font-size:12px}
 
 /* timeline (folha de quadros) */
-.tl{grid-row:2;grid-column:1 / span 2;display:flex;flex-direction:column;min-height:0;background:var(--bg1);border-top:1px solid var(--bd)}
-.tl-barra{display:flex;align-items:center;gap:4px;height:34px;padding:0 8px;border-bottom:1px solid var(--bd);flex:none}
+.tl{grid-row:2;grid-column:1 / span 2;min-width:0;overflow:hidden;display:flex;flex-direction:column;min-height:0;background:var(--bg1);border-top:1px solid var(--bd)}
+.tl-barra{display:flex;align-items:center;gap:4px;height:34px;padding:0 8px;border-bottom:1px solid var(--bd);flex:none;min-width:0;overflow:hidden}
+.tl-barra>*{flex-shrink:0}.tl-barra .sp{flex:1 1 0;min-width:0}
+.tl-barra .tl-leg{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl{container-type:inline-size;container-name:tlan}
+@container tlan (max-width:1000px){.tl-barra .tl-leg{display:none}}
+@container tlan (max-width:820px){.tl-barra label{font-size:0;gap:0}.tl-barra label input{font-size:12px}.tl-barra .sep{display:none}.tl-barra .qd{min-width:0;padding:3px 5px}}
+@container tlan (max-width:600px){.tl-barra #t-chave,.tl-barra #t-tira{font-size:0;gap:0;padding:0 7px}.tl-barra #tl-zoom{display:none}}
 .tl-barra .qd{font:600 12px var(--mono);background:var(--bg0);border:1px solid var(--bd);border-radius:5px;padding:3px 8px;min-width:96px;text-align:center}
 .tl-barra input[type=number]{width:56px}
-.tl-corpo{flex:1;min-height:0;display:grid;grid-template-columns:var(--tln,220px) 1fr}
+.tl-corpo{flex:1;min-height:0;min-width:0;display:grid;grid-template-columns:var(--tln,220px) minmax(0,1fr)}
 .tl-nomes{overflow:hidden;border-right:1px solid var(--bd);background:var(--bg1)}
 .tl-nomes .reg{position:relative;display:flex;align-items:center;gap:6px;height:24px;padding:0 6px;border-bottom:1px solid #2a2a2a;white-space:nowrap;overflow:hidden;cursor:pointer}
 .tl-nomes .reg.sel{background:var(--sel2)}
@@ -110,8 +116,8 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .presets button{height:26px;padding:0 9px;border-radius:13px;border:1px solid var(--bd2);background:var(--bg3);cursor:pointer;font-size:12px}
 .presets button:hover{background:var(--bg4)}.presets button.on{background:#d9d9d9;color:#111;border-color:#d9d9d9;font-weight:600}
 .presets button.chave{box-shadow:inset 0 -2px 0 #fff}
-.props{padding:8px 10px;display:grid;gap:7px}
-.campo{display:grid;grid-template-columns:70px 1fr 54px;align-items:center;gap:6px}
+.props{padding:8px 10px;display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
+.campo{display:grid;grid-template-columns:70px minmax(0,1fr) 54px;align-items:center;gap:6px}
 .campo>span{color:var(--tx2);font-size:12px}
 .campo input[type=number]{width:54px;height:22px;padding:0 4px;font:11.5px var(--mono)}
 .campo2{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -1218,3 +1224,10 @@ body.arrastando-div{user-select:none}
 #editor .dock[data-dock=arvore]>.p-cab h3{letter-spacing:.4px}
 /* ícones novos dos programas (An, At; /estudio-icones.js — ADM › Ícones) */
 .brand .logo.logo-ep{background:none!important;border-radius:0;box-shadow:none;width:30px;height:30px}.brand .logo.logo-ep svg{width:100%;height:100%;display:block}
+.campo input[type=range]{min-width:0;width:100%}
+/* cabeçalho do Animador apertado (painel do quadro aberto, janela estreita): o logo fica, nome/salvo encolhem com "…" */
+#editor>header.bar .brand{flex:none}
+#editor>header.bar .proj-nome{flex:0 1 auto;overflow:hidden}
+#editor>header.bar .salvo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#editor>header.bar>*:not(.proj-nome):not(.sp){flex-shrink:0}
+body.qed-lado #editor>header.bar #b-junto,body.qed-lado #editor>header.bar #b-atelie{font-size:0;gap:0}

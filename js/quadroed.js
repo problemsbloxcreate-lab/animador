@@ -76,6 +76,7 @@ const QuadroEd = {
     else { const W = clamp(c.W || 480, 320, innerWidth - 16), H = clamp(c.H || 620, 260, innerHeight - 16), x = clamp(c.x || innerWidth - W - 24, 8, innerWidth - 120), y = clamp(c.y || top + 16, 8, innerHeight - 40);
       Object.assign(el.style, { left: x + 'px', top: y + 'px', right: '', bottom: '', width: c.min ? '' : W + 'px', height: c.min ? '' : H + 'px' }); document.body.style.setProperty('--qed-w', '0px'); }
     document.body.classList.toggle('qed-lado', !el.hidden && c.modo === 'lado' && !c.min);
+    if (typeof App !== 'undefined') App._enqCorta = true; // o palco do Animador se ajusta: a câmera cortada volta a caber
     dispatchEvent(new Event('resize')); // a tela do Animador muda de tamanho
   },
   arrasta() {
@@ -91,7 +92,7 @@ const QuadroEd = {
       b.onpointermove = ev => { c.w = clamp(Math.round(innerWidth - ev.clientX), 340, innerWidth * .7); this.el.style.width = c.w + 'px'; document.body.style.setProperty('--qed-w', c.w + 'px'); };
       b.onpointerup = b.onpointercancel = () => { b.onpointermove = b.onpointerup = b.onpointercancel = null; this.el.classList.remove('mexendo'); this.grava(); dispatchEvent(new Event('resize')); }; };
   },
-  fechar() { if (this.el) this.el.hidden = true; document.body.classList.remove('qed-lado'); document.body.style.setProperty('--qed-w', '0px'); this.atual = null; dispatchEvent(new Event('resize')); },
+  fechar() { if (this.el) this.el.hidden = true; document.body.classList.remove('qed-lado'); document.body.style.setProperty('--qed-w', '0px'); this.atual = null; if (typeof App !== 'undefined') App._enqCorta = true; dispatchEvent(new Event('resize')); },
   // o painel mandou o quadro: a chave daquele quadro recebe; a seguinte segura como era (só este quadro muda)
   async recebe(d) {
     const P = App.P; if (!P || P.id !== d.projeto) return; const n = Modelo.achar(P, d.no)?.no; if (!n) return;

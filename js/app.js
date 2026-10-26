@@ -239,7 +239,11 @@ const App = {
       document.addEventListener('visibilitychange', () => { if (document.hidden || !App.P) return; this.tamanho(); }); // aberto numa aba escondida: ao aparecer, desenha tudo (e enquadra se ainda não tinha tamanho)
       Render.aoChegarImagem = () => { if (App._rafImg) return; App._rafImg = requestAnimationFrame(() => { App._rafImg = 0; App.pinta(); Folha.pinta(); }); }; // várias imagens chegando: redesenha uma vez por quadro
     },
-    tamanho() { const r = this.cv.getBoundingClientRect(); this.dpr = devicePixelRatio || 1; this.cv.width = Math.max(2, r.width * this.dpr); this.cv.height = Math.max(2, r.height * this.dpr); if (App._enq && r.width >= 4) return App.enquadrar(); App.pinta(); }, // projeto aberto antes da tela ter tamanho: enquadra agora (antes ficava vazio até mexer)
+    tamanho() { const r = this.cv.getBoundingClientRect(); this.dpr = devicePixelRatio || 1; this.cv.width = Math.max(2, r.width * this.dpr); this.cv.height = Math.max(2, r.height * this.dpr); if (App._enq && r.width >= 4) return App.enquadrar();
+      const v = App.vista, a = this._wh; this._wh = { w: r.width, h: r.height }; // a tela mudou de tamanho (painel do quadro, janela…): o meio continua no meio
+      if (v && a && a.w >= 4 && r.width >= 4) { v.x += (r.width - a.w) / 2; v.y += (r.height - a.h) / 2; }
+      if (App._enqCorta && r.width >= 4) { App._enqCorta = false; if (!App.cameraCabe()) return App.enquadrar(); } // abriu/fechou o painel do quadro: a câmera cortada = enquadra
+      App.pinta(); }, // projeto aberto antes da tela ter tamanho: enquadra agora (antes ficava vazio até mexer)
     // mundo ↔ tela
     vista() { const v = App.vista; return new DOMMatrix().scale(this.dpr).translate(v.x, v.y).scale(v.z); },
     paraMundo(e) { const r = this.cv.getBoundingClientRect(), v = App.vista; return { x: (e.clientX - r.left - v.x) / v.z, y: (e.clientY - r.top - v.y) / v.z }; },
@@ -363,6 +367,8 @@ const App = {
   fundoPalco() { return Render.fundoDe(this.P); },
   mudaFundoPalco(m, salvar = true) { Object.assign(this.fundoPalco(), m); if (salvar) this.commit('Fundo', { semArvore: true }); else this.pinta(); },
   quadriculado(ctx, V, W, H) { Render.fundo(ctx, this.P, V, W, H); },
+  cameraCabe() { const v = this.vista, r = this.palco.cv?.getBoundingClientRect(); if (!v || !r || !this.P) return true; const c = Modelo.camera(this.P, this.q), hw = this.P.w / c.zoom / 2, hh = this.P.h / c.zoom / 2;
+    const x0 = v.x + (c.x - hw) * v.z, x1 = v.x + (c.x + hw) * v.z, y0 = v.y + (c.y - hh) * v.z, y1 = v.y + (c.y + hh) * v.z; return x0 >= -2 && y0 >= -2 && x1 <= r.width + 2 && y1 <= r.height + 2; },
   enquadrar() { const pc = this.palco; if (!pc.cv || !this.P) return; const r = pc.cv.getBoundingClientRect(); if (r.width < 4 || r.height < 4) { this._enq = true; return; } this._enq = false; const c = Modelo.camera(this.P, this.q), z = Math.min(r.width / (this.P.w / c.zoom), r.height / (this.P.h / c.zoom)) * .86;
     this.vista = { z, x: r.width / 2 - c.x * z, y: r.height / 2 - c.y * z }; this.pinta(); this.zoomTxt(); },
   zoomTxt() { const e = $('#zoom-txt'); if (e) e.textContent = Math.round(this.vista.z * 100) + '%'; },
