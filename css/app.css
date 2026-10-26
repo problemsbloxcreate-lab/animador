@@ -1264,3 +1264,4 @@ body.embed-quadro #atelie .at.com-docks.qe-sem-baixo{grid-template-rows:minmax(0
 .qed.solto:not(.min) .qed-rz[data-rz=se]::after{content:'';position:absolute;right:7px;bottom:7px;width:8px;height:8px;border-right:2px solid #5a8fbf;border-bottom:2px solid #5a8fbf;border-radius:0 0 3px 0;opacity:.8}
 .qed-atelie img{display:block;border-radius:4px}.qed-atelie:hover{background:rgba(255,154,98,.15)!important}
 .qed-sep{width:1px;height:16px;background:#3a6f9e;margin:0 3px;flex:none}
+#b-atelie.so-icone{padding:0;width:34px;justify-content:center}#b-atelie.so-icone .ic-atelie{width:20px;height:20px}
