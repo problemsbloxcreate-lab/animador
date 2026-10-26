@@ -531,7 +531,7 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .seg-pers button{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 14px;border:0;border-radius:7px;background:none;color:var(--tx2);font:inherit;font-weight:600;cursor:pointer}
 .seg-pers button small{min-width:20px;padding:1px 6px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:11px;text-align:center}
 .seg-pers button.on{background:var(--bg3);color:var(--tx)}.seg-pers button.on small{background:var(--bg5,#555);color:var(--tx)}
-.seg-pers button[data-s=local].on{box-shadow:inset 0 -2px 0 #e3b341}.seg-pers button[data-s=nuvem].on{box-shadow:inset 0 -2px 0 #9fc3ff}
+.seg-pers button[data-s=nuvem].on{background:rgba(159,195,255,.16);color:#d6e6ff}.seg-pers button[data-s=local].on{background:rgba(227,179,65,.16);color:#ffe6a8}.seg-pers button[data-s=anims].on{background:rgba(180,140,255,.16);color:#e4d6ff}
 .at-palco .modo-at{flex-wrap:wrap;right:12px}.mover-seg button{white-space:nowrap}
 /* folhas de peças / fundo / tamanho (js/folhas.js) */
 .fl-lista{display:flex;flex-direction:column;gap:12px;max-height:68vh;overflow:auto;user-select:none}.fl-intro{margin:0;color:var(--tx2);font-size:12.5px}
