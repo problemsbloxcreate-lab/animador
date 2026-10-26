@@ -150,11 +150,11 @@ const Lado = {
   // chave neste quadro: botão de pôr/tirar + pular para a anterior/próxima
   barraChave(temChave, total, ch) {
     const b = h(`<div class="pr-chave ${temChave ? 'on' : ''}"><button class="ibtn" data-ant title="Chave anterior ( [ )">${ic('prev', 13)}</button>
-      <button class="pr-k" data-k title="${temChave ? 'Tirar a chave deste quadro (Shift+K)' : 'Pôr uma chave neste quadro (K)'}">${ic('diamond', 13)}<span>${temChave ? 'Chave neste quadro' : 'Sem chave neste quadro'}</span></button>
+      <button class="pr-k" data-k title="${temChave ? 'Tirar a chave deste quadro (Shift+K)' : 'Pôr uma chave neste quadro (K)'}">${ic('diamond', 13)}<span>${temChave ? 'Chave neste quadro' : 'Sem chave aqui'}</span></button>
       <button class="ibtn" data-prox title="Próxima chave ( ] )">${ic('next', 13)}</button><small>${total} chave${total === 1 ? '' : 's'}</small></div>`);
     $('[data-ant]', b).onclick = () => App.pulaChave(-1); $('[data-prox]', b).onclick = () => App.pulaChave(1);
     $('[data-k]', b).onclick = () => (ch ? !!ch()?.[App.q] : temChave) ? App.tiraChave() : App.chaveAqui();
-    if (ch) (this._vivos ||= []).push(() => { const t = !!ch()?.[App.q]; b.classList.toggle('on', t); $('[data-k] span', b).textContent = t ? 'Chave neste quadro' : 'Sem chave neste quadro'; });
+    if (ch) (this._vivos ||= []).push(() => { const t = !!ch()?.[App.q]; b.classList.toggle('on', t); $('[data-k] span', b).textContent = t ? 'Chave neste quadro' : 'Sem chave aqui'; });
     return b;
   },
   // TOCANDO a timeline: os números das Propriedades andam junto (sem redesenhar o painel; o campo em uso não muda)
