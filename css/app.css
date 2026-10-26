@@ -1279,7 +1279,7 @@ body.embed-quadro #atelie .at.com-docks.qe-sem-baixo{grid-template-rows:minmax(0
 .ic-ep{display:inline-block;flex:none;line-height:0}.ic-ep svg{width:100%;height:100%;display:block}#b-atelie .ic-atelie.ic-ep{border-radius:0}
 /* janela solta encostando numa borda/canto (Ima.encaixa) */
 .qed.grudando,.iap.grudando{box-shadow:0 0 0 2px #3d8bfd,0 10px 30px rgba(0,0,0,.45)}
-/* ícone do ATELIÊ na aba "Personagens da equipe" da tela inicial (o /estudio-icones.js troca pelo ícone de agora) */
+/* ícone do ATELIÊ na aba "Personagens da equipe": SÓ o da ADM (/estudio-icones.js desenha dentro do span) */
 .home-abas button{display:inline-flex;align-items:center;gap:7px}.aba-ic-atelie{display:inline-grid;width:18px;height:18px;flex:none;border-radius:5px;overflow:hidden}.aba-ic-atelie>*{width:100%;height:100%;display:block}
 
 /* ===== janela Cenários (js/cenlib.js): biblioteca | cenário com camadas | camadas e ajustes ===== */

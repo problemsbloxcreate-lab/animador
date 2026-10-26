@@ -26,7 +26,7 @@ const Home = {
   aba(a) { this.atual = a; this.pinta(); },
   async pinta() {
     const el = $('#home-in'); if (!el) return;
-    el.innerHTML = `<div class="home-abas"><button data-a="animacoes" class="${this.atual === 'animacoes' ? 'on' : ''}">Animações</button><button data-a="personagens" class="${this.atual === 'personagens' ? 'on' : ''}"><span class="aba-ic-atelie" data-estudio-icone="at"><img src="icones/atelie.svg" alt=""></span>Personagens da equipe</button></div><div data-corpo></div>`;
+    el.innerHTML = `<div class="home-abas"><button data-a="animacoes" class="${this.atual === 'animacoes' ? 'on' : ''}"><span class="aba-ic-atelie" data-estudio-icone="an"></span>Animações</button><button data-a="personagens" class="${this.atual === 'personagens' ? 'on' : ''}"><span class="aba-ic-atelie" data-estudio-icone="at"></span>Personagens da equipe</button></div><div data-corpo></div>`;
     $$('[data-a]', el).forEach(b => b.onclick = () => this.aba(b.dataset.a));
     const c = $('[data-corpo]', el); this.atual === 'animacoes' ? this.animacoes(c) : this.personagens(c);
   },
