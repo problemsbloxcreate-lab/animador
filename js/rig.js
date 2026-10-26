@@ -114,9 +114,21 @@ const Rig = {
       const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2; ctx.setTransform(it.m); ctx.drawImage(bm, -px + (it.img.ajuste?.x || 0), -py + (it.img.ajuste?.y || 0), it.img.w, it.img.h); }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   },
+  // onde tem TINTA na imagem (frações 0..1 da imagem): as peças costumam vir no tamanho da folha inteira, quase tudo transparente
+  _tintas: new Map(),
+  tinta(img) {
+    if (!img?.k) return null; if (this._tintas.has(img.k)) return this._tintas.get(img.k); const bm = Arq.img.get(img.k); if (!bm) return null; let r = null;
+    try { const N = 96, c = this._cvT || (this._cvT = document.createElement('canvas')); c.width = N; c.height = N; const x = c.getContext('2d', { willReadFrequently: true }); x.clearRect(0, 0, N, N); x.drawImage(bm, 0, 0, N, N);
+      const d = x.getImageData(0, 0, N, N).data; let a = N, b = N, e = -1, f = -1; for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) if (d[(j * N + i) * 4 + 3] > 24) { if (i < a) a = i; if (i > e) e = i; if (j < b) b = j; if (j > f) f = j; }
+      r = e < 0 ? { x0: .5, y0: .5, x1: .5, y1: .5 } : { x0: a / N, y0: b / N, x1: (e + 1) / N, y1: (f + 1) / N }; } catch { r = null; }
+    if (this._tintas.size > 600) this._tintas.delete(this._tintas.keys().next().value); this._tintas.set(img.k, r); return r;
+  },
+  // cantos (no espaço da peça, já com pivô/ajuste) só da parte desenhada
+  cantosImg(img) { const px = img.pivo?.x ?? img.w / 2, py = img.pivo?.y ?? img.h / 2, ax = (img.ajuste?.x || 0) - px, ay = (img.ajuste?.y || 0) - py, t = this.tinta(img) || { x0: 0, y0: 0, x1: 1, y1: 1 };
+    return [[t.x0, t.y0], [t.x1, t.y0], [t.x0, t.y1], [t.x1, t.y1]].map(([u, v]) => [u * img.w + ax, v * img.h + ay]); },
   caixaDe(def, ep, ids) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const it of Modelo.montar(def, ep)) { if (!it.img || ids && !ids.has(it.parte.id)) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, ax = it.img.ajuste?.x || 0, ay = it.img.ajuste?.y || 0;
-      for (const [x, y] of [[0, 0], [it.img.w, 0], [0, it.img.h], [it.img.w, it.img.h]]) { const p = it.m.transformPoint(new DOMPoint(x - px + ax, y - py + ay)); x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); } }
+    for (const it of Modelo.montar(def, ep)) { if (!it.img || ids && !ids.has(it.parte.id)) continue;
+      for (const [x, y] of this.cantosImg(it.img)) { const p = it.m.transformPoint(new DOMPoint(x, y)); x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); } }
     return isFinite(x0) ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null; },
   descendentes(def, ids) { const out = new Set(ids); let mudou = true; while (mudou) { mudou = false; for (const p of def.partes) if (p.pai && out.has(p.pai) && !out.has(p.id)) { out.add(p.id); mudou = true; } } return out; },
   // FOLHA DO PERSONAGEM (model sheet) para a IA: cada sessão numa linha, cada preset desenhado (zoom nas partes que ele mexe), com o nome embaixo
@@ -124,7 +136,7 @@ const Rig = {
   async folha(def0, vistaId, o = {}) {
     const dv = Modelo.naVista(def0, vistaId), chave = def0.id + '|' + (def0.modificado || '') + '|' + (vistaId || '') + '|' + (dv.partes || []).length; if (this._folhas.has(chave)) return this._folhas.get(chave);
     await Arq.garantir(dv.partes.flatMap(p => p.imgs.map(i => i.k))).catch(() => { });
-    const C = o.cel || 118, LAB = 16, ESQ = 96, MAXP = o.maxPresets || 10, sess = (dv.sessoes || []).filter(s => s.presets?.length).slice(0, o.maxSessoes || 12);
+    const C = o.cel || 106, LAB = 16, ESQ = 96, MAXP = o.maxPresets || 14, sess = (dv.sessoes || []).filter(s => s.presets?.length).slice(0, o.maxSessoes || 12);
     const linhas = [{ nome: 'Pose base', presets: [{ nome: 'base', estado: {} }], todo: true }, ...sess.map(s => ({ nome: s.nome, presets: s.presets.slice(0, MAXP), s }))];
     const W = ESQ + MAXP * C, H = linhas.length * (C + LAB) + 6, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); ctx.font = '600 12px sans-serif'; ctx.textBaseline = 'middle';
@@ -141,7 +153,7 @@ const Rig = {
         ctx.restore(); ctx.fillStyle = '#1b2430'; ctx.font = '11px sans-serif'; this._texto(ctx, pr.nome, x + 4, y0 + C + LAB / 2 - 1, C - 8, 11); ctx.font = '600 12px sans-serif';
       });
     });
-    const url = cv.toDataURL('image/jpeg', .82), r = { url, w: W, h: H, nome: def0.nome, vista: dv.nome || '' }; if (this._folhas.size > 12) this._folhas.delete(this._folhas.keys().next().value); this._folhas.set(chave, r); return r;
+    const url = cv.toDataURL('image/jpeg', .82), r = { url, w: W, h: H, nome: def0.nome, vista: (def0.vistas || []).find(v => v.id === (vistaId || def0.vistas[0]?.id))?.nome || '' }; if (this._folhas.size > 12) this._folhas.delete(this._folhas.keys().next().value); this._folhas.set(chave, r); return r;
   },
   _texto(ctx, t, x, y, max, tam) { t = String(t || ''); while (t.length > 1 && ctx.measureText(t).width > max) t = t.slice(0, -2) + '…'; ctx.fillText(t, x, y); },
 };

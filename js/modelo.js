@@ -232,6 +232,7 @@ const Modelo = {
   },
   // caixa (em coordenadas locais do personagem) para seleção
   caixaPersonagem(def, est) {
+    if (typeof Rig !== 'undefined') { const b = Rig.caixaDe(def, est); if (b) return b; } // só onde tem tinta (as peças vêm no tamanho da folha inteira)
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const it of Modelo.montar(def, est)) {
       if (!it.img) continue; const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2, ax = it.img.ajuste?.x || 0, ay = it.img.ajuste?.y || 0;
