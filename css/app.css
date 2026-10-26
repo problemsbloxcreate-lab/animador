@@ -1462,3 +1462,9 @@ body.arrastando-num,body.arrastando-num *{cursor:ew-resize!important;user-select
 body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offset:-2px}
 @container tlan (max-width: 560px){.tl-modo span{display:none}}
 .ef-lib.duas{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+/* botão "Atualizar projeto" (js/atualizar.js): só aparece quando o projeto está atrás da versão atual */
+.b-atualizar{border-color:#e8a23a!important;color:#ffd08a!important;background:rgba(232,162,58,.12)!important;gap:6px}
+.b-atualizar i{font-style:normal;font-size:10.5px;font-weight:700;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#e8a23a;color:#1b1b1b;display:grid;place-items:center}
+.b-atualizar:hover{background:rgba(232,162,58,.22)!important}
+.atz{display:grid;gap:8px}.atz-it{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--bd2);border-radius:9px;background:var(--bg2);cursor:pointer}
+.atz-it input{margin-top:3px}.atz-it b{display:block;font-size:13px}.atz-it small{display:block;color:var(--tx3);font-size:12px;margin-top:2px}

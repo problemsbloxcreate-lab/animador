@@ -16,6 +16,7 @@ const App = {
     PaineisEd.liga(); // painéis que mudam de lugar e de tamanho (js/paineis.js)
     this.palco.liga(); this.enquadrar(); Arvore.pinta(); Folha.liga(); Lado.pinta(); Som.prepara(P);
     this.salvoTxt('Salvo neste computador'); this.pintaJunto();
+    AtualizaProj.lista = []; AtualizaProj.pinta(); AtualizaProj.confere(true); // botão "Atualizar projeto" só se este projeto estiver atrás da versão atual (js/atualizar.js)
   },
   /* ---------- botão ATELIÊ do topo: pergunta onde abrir ----------
      Simples = o Ateliê DENTRO do Animador (ao lado/janela, js/quadroed.js), arrumando só o personagem neste quadro.
