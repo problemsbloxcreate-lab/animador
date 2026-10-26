@@ -84,12 +84,12 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .tl-barra{display:flex;align-items:center;gap:4px;height:34px;padding:0 8px;border-bottom:1px solid var(--bd);flex:none;min-width:0;overflow:hidden}
 .tl-barra>*{flex-shrink:0}.tl-barra .sp{flex:1 1 0;min-width:0}
 .tl-barra .tl-leg{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-barra .qd{font:600 12px var(--mono);background:var(--bg0);border:1px solid var(--bd);border-radius:5px;padding:3px 8px;min-width:96px;text-align:center}
+.tl-barra input[type=number]{width:56px}
 .tl{container-type:inline-size;container-name:tlan}
 @container tlan (max-width:1000px){.tl-barra .tl-leg{display:none}}
 @container tlan (max-width:820px){.tl-barra label{font-size:0;gap:0}.tl-barra label input{font-size:12px}.tl-barra .sep{display:none}.tl-barra .qd{min-width:0;padding:3px 5px}}
 @container tlan (max-width:600px){.tl-barra #t-chave,.tl-barra #t-tira{font-size:0;gap:0;padding:0 7px}.tl-barra #tl-zoom{display:none}}
-.tl-barra .qd{font:600 12px var(--mono);background:var(--bg0);border:1px solid var(--bd);border-radius:5px;padding:3px 8px;min-width:96px;text-align:center}
-.tl-barra input[type=number]{width:56px}
 .tl-corpo{flex:1;min-height:0;min-width:0;display:grid;grid-template-columns:var(--tln,220px) minmax(0,1fr)}
 .tl-nomes{overflow:hidden;border-right:1px solid var(--bd);background:var(--bg1)}
 .tl-nomes .reg{position:relative;display:flex;align-items:center;gap:6px;height:24px;padding:0 6px;border-bottom:1px solid #2a2a2a;white-space:nowrap;overflow:hidden;cursor:pointer}
