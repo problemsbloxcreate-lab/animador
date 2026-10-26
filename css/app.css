@@ -1276,3 +1276,4 @@ body.embed-quadro #atelie .at.com-docks.qe-sem-baixo{grid-template-rows:minmax(0
 .at-estado.anim{color:#d6b4ff;background:rgba(168,110,255,.12);border:1px solid rgba(168,110,255,.45)}
 .anim-t{display:flex;align-items:center;gap:6px}.anim-t .btn{height:24px}
 .pc.anim-c{border-color:rgba(168,110,255,.35)}.pc.anim-c .in small{color:#c9a8f5}
+.ic-ep{display:inline-block;flex:none;line-height:0}.ic-ep svg{width:100%;height:100%;display:block}#b-atelie .ic-atelie.ic-ep{border-radius:0}
