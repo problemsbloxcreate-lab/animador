@@ -489,7 +489,7 @@ Object.assign(CenLib, {
       def.origem = 'meu'; def.camadas.forEach(c => { delete c.no; if (naCena()) c.id = slugCen(c.nome) + '-' + uid('c').slice(-4); });
       await ocupa('Salvando…', async () => { await this.salvaMeu(def, await this.miniDe(def)); meus = await this.meus(); if (!naCena()) { st.def = { ...def }; st.mexido = false; } pintaBib(); pintaTopo(); UI.toast(`<b>${esc(def.nome)}</b> está em Meus cenários.`, { kind: 'ok' }); });
     };
-    await UI.modal({ title: 'Cenários', icon: 'paisagem', width: 1240, body, sticky: true, noFocus: true,
+    await UI.modal({ title: 'Cenários', icon: 'paisagem', iconHtml: '<span class="ic-ep ic-cn" data-estudio-icone="cn" aria-label="Cenários"></span>', width: 1240, body, sticky: true, noFocus: true,
       onOpen: a => { api = a; a.el.querySelector('.modal').classList.add('cl-modal'); [btSalvar, btExp, , btPor] = a.foot.querySelectorAll('.btn');
         if (st.pasta) escolheCena(st.pasta); else if (o.def) escolhe(async () => o.def); else pintaBib(); pinta(); },
       buttons: [

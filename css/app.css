@@ -1597,3 +1597,5 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .ide-sec .sp{flex:1}
 .ide-av-b{display:block}.ide-av-b svg{vertical-align:-2px;margin-right:4px}
 .ibtn .ic-cn{width:18px;height:18px}
+
+.modal-icon.ep{background:none;padding:0}.modal-icon.ep .ic-cn{width:30px;height:30px} /* janela Cenários: o ícone Cn da ADM no cabeçalho */

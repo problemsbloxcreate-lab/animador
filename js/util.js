@@ -186,7 +186,7 @@ const UI = {
     return new Promise(resolve => {
       const root = $('#modal-root');
       const back = h(`<div class="modal-back"><div class="modal" style="${o.width ? 'width:' + o.width + 'px' : ''}">
-        <div class="modal-head">${o.icon ? `<div class="modal-icon ${o.kind || ''}">${ic(o.icon, 18)}</div>` : ''}<h3>${esc(o.title || '')}</h3>
+        <div class="modal-head">${o.iconHtml ? `<div class="modal-icon ep ${o.kind || ''}">${o.iconHtml}</div>` : o.icon ? `<div class="modal-icon ${o.kind || ''}">${ic(o.icon, 18)}</div>` : ''}<h3>${esc(o.title || '')}</h3>
         ${o.noClose ? '' : `<button class="ibtn" data-x title="Fechar (Esc)">${ic('x')}</button>`}</div>
         <div class="modal-body"></div><div class="modal-foot"></div></div></div>`);
       const body = $('.modal-body', back), foot = $('.modal-foot', back);
