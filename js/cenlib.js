@@ -214,9 +214,9 @@ Object.assign(CenLib, {
         <div class="cl-tags"></div>
         <div class="cl-lista"></div>
         <div class="cl-novo">
-          <div class="cl-ger">Gerar com a IA</div>
-          <button class="btn sm ia cl-gof" data-n="oficial" title="Estilo do Planetário: pintado azul com profundidade, uma camada SVG por objeto. Sai como rascunho para aprovar.">${ic('sparkles', 13)} Oficial (pintado)…</button>
-          <button class="btn sm ia" data-n="rep" title="Estilo rabiscado, rápido e barato: para lugares de passagem">${ic('sparkles', 13)} De representação (rabiscado)…</button>
+          <div class="cl-ger">Gerar com a IA · estilo</div>
+          <div class="it-fil cl-est" role="tablist"><button data-est="rep" title="Rabiscado: rápido e barato, para lugares de passagem">${ic('pencil', 12)} Rabiscado</button><button data-est="oficial" title="Estilo do Planetário: pintado azul com profundidade, uma camada SVG por objeto. Sai como rascunho para aprovar.">${ic('brush', 12)} Oficial</button></div>
+          <button class="btn sm ia" data-n="gerar">${ic('sparkles', 13)} <span>Gerar cenário…</span></button>
           <button class="btn sm" data-n="itens" title="Põe um item de cena (gerado ou da biblioteca) como camada nova deste cenário">${ic('package', 13)} Pôr um item…</button>
           <button class="btn sm" data-n="imgs" title="Cada imagem ou SVG vira uma camada (a primeira cobre a tela)">${ic('image', 13)} Novo com imagens…</button>
           ${App?.P ? `<button class="btn sm" data-n="nuvem">${ic('cloud', 13)} Da nuvem da equipe…</button>` : ''}
@@ -547,15 +547,18 @@ Object.assign(CenLib, {
     // ITENS DE CENA (js/itens.js): entram como camada nova no cenário aberto (padrão) ou na pasta dele na cena
     $('[data-n="itens"]', body).onclick = async () => {
       if (!st.def) return UI.toast('Escolha um cenário primeiro (ou ponha o item direto na cena pelo botão Itens da Mídia).', { kind: 'warn' });
-      const it = await Itens.abrir({ titulo: 'Pôr um item no cenário', botao: 'Pôr no cenário' }); if (!it || typeof it !== 'object') return;
+      const it = await Itens.abrir({ titulo: 'Pôr um item no cenário', botao: 'Pôr no cenário', estilo: this.catDe(st.def) === 'oficial' ? 'oficial' : 'rep' }); if (!it || typeof it !== 'object') return;
       await Arq.garantir([it.k]);
       if (naCena()) { const p = pasta(), c = Itens.camada(it); const n = Modelo.novoNo('imagem', { arq: it.k, nome: it.nome }); n.de = p.de ?? App.q; n.camCen = c.id; n.interp = false; if (it.tipo === 'svg') n.vetor = true; n.item = it.id;
         n.chaves = { [n.de]: { x: c.cx, y: c.cy, r: 0, s: this.escalaNo(c), sx: 1, op: 1 } }; p.filhos.unshift(n); App.commit('Item no cenário'); relê(); st.sel = n.id; }
       else { guarda(); const c = Itens.camada(it); st.def.camadas.push(c); st.sel = c.id; st.mexido = true; }
       pinta(); UI.toast(`<b>${esc(it.nome)}</b> entrou no cenário (na frente de tudo). Arraste para o lugar e mude o tamanho nos cantos.`, { kind: 'ok', time: 6000 });
     };
-    $('[data-n="oficial"]', body).onclick = () => gerar('oficial');
-    $('[data-n="rep"]', body).onclick = () => gerar('rep');
+    // ESTILO do gerador (abas Rabiscado | Oficial; lembrado no localStorage, o mesmo das janelas de itens)
+    let estilo = (() => { try { return localStorage.getItem('animador-cen-estilo') === 'oficial' ? 'oficial' : 'rep'; } catch { return 'rep'; } })();
+    const pintaEst = () => { $$('[data-est]', body).forEach(b => b.classList.toggle('on', b.dataset.est === estilo)); $('[data-n="gerar"] span', body).textContent = estilo === 'oficial' ? 'Gerar cenário oficial…' : 'Gerar cenário rabiscado…'; };
+    $$('[data-est]', body).forEach(b => b.onclick = () => { estilo = b.dataset.est; try { localStorage.setItem('animador-cen-estilo', estilo); } catch { } pintaEst(); }); pintaEst();
+    $('[data-n="gerar"]', body).onclick = () => gerar(estilo);
     if ($('[data-n="nuvem"]', body)) $('[data-n="nuvem"]', body).onclick = () => { api?.close(); setTimeout(() => CenariosNuvem.escolher(), 60); };
     const aprova = async id => { const m = meus.find(x => x.id === id); if (!m) return; delete m.aprovar; delete m.def.aprovar; await this.gravaMeus(meus); if (st.def?.id === id) delete st.def.aprovar; pintaBib(); pintaTopo(); UI.toast(`<b>${esc(m.nome)}</b> aprovado como oficial.`, { kind: 'ok' }); };
     $('[data-aprova]', body).onclick = () => st.def && aprova(st.def.id);

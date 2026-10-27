@@ -74,15 +74,19 @@ FORMA = {"f":FIG,"cor":COR,"sombra":true|false,"luz":true|false,"contorno":0..5,
 
   /* ---------- janela "Itens de cena" (escolher ou gerar) ---------- */
   // o.titulo, o.botao = texto do botão de usar. Devolve o item escolhido (ou null)
+  // ESTILO (decisão do dono): abas Rabiscado | Oficial — mostram os itens daquele estilo E é nele que o "Gerar" desenha.
+  // o.estilo = já abre no estilo do cenário (janela Cenários › Pôr um item); senão o último usado (localStorage)
+  estiloSalvo() { try { return localStorage.getItem('animador-itens-estilo') === 'oficial' ? 'oficial' : 'rep'; } catch { return 'rep'; } },
   async abrir(o = {}) {
-    let l = await this.lista(), filtro = 'todos', busca = '', escolhido = null, api = null;
-    const body = h(`<div class="it-j"><div class="it-topo"><input type="search" class="it-busca" placeholder="Buscar item…"><div class="it-fil"><button data-f="todos" class="on">Todos</button><button data-f="oficial">Oficiais</button><button data-f="rep">Rabiscados</button></div><span class="sp"></span>
-      <button class="btn sm ia" data-g="oficial" title="Estilo do Planetário: pintado azul, vetor (SVG)">${ic('sparkles', 13)} Gerar oficial…</button><button class="btn sm ia" data-g="rep" title="Rabiscado, rápido">${ic('sparkles', 13)} Gerar rabiscado…</button></div>
+    let l = await this.lista(), filtro = o.estilo || this.estiloSalvo(), busca = '', escolhido = null, api = null;
+    const body = h(`<div class="it-j"><div class="it-topo"><span class="it-rot">Estilo</span><div class="it-fil" role="tablist"><button data-f="rep">${ic('pencil', 12)} Rabiscado</button><button data-f="oficial">${ic('brush', 12)} Oficial (pintado azul)</button></div><input type="search" class="it-busca" placeholder="Buscar item…"><span class="sp"></span>
+      <button class="btn sm ia" data-g title="Gera no estilo escolhido nas abas">${ic('sparkles', 13)} <span></span></button></div>
       <div class="it-grade"></div><p class="it-dica">Um item é uma imagem só: anima com movimento (chaves, girar, tamanho, Trêmulo, Ondular, Deformar). Dois cliques usa o item; botão direito renomeia ou apaga.</p></div>`);
     const grade = $('.it-grade', body);
     const pinta = () => {
-      const b = busca.trim().toLowerCase(), L = l.filter(x => (filtro === 'todos' || x.estilo === filtro) && (!b || x.nome.toLowerCase().includes(b) || (x.tags || []).some(t => t.toLowerCase().includes(b))));
-      grade.innerHTML = ''; if (!L.length) { grade.appendChild(h(`<div class="it-vazio">${l.length ? 'Nada encontrado.' : 'Nenhum item ainda. Gere o primeiro com os botões aí em cima.'}</div>`)); return; }
+      $$('.it-fil button', body).forEach(x => x.classList.toggle('on', x.dataset.f === filtro)); $('[data-g] span', body).textContent = filtro === 'oficial' ? 'Gerar item oficial…' : 'Gerar item rabiscado…';
+      const b = busca.trim().toLowerCase(), L = l.filter(x => x.estilo === filtro && (!b || x.nome.toLowerCase().includes(b) || (x.tags || []).some(t => t.toLowerCase().includes(b))));
+      grade.innerHTML = ''; if (!L.length) { grade.appendChild(h(`<div class="it-vazio">${busca ? 'Nada encontrado.' : `Nenhum item ${filtro === 'oficial' ? 'oficial' : 'rabiscado'} ainda. Gere o primeiro no botão aí em cima.`}</div>`)); return; }
       for (const it of L) {
         const c = h(`<div class="it-card ${it.estilo} ${escolhido === it.id ? 'sel' : ''}" tabindex="0" title="${esc(it.nome)}">${it.mini ? `<img src="${it.mini}" alt="">` : '<i></i>'}<b>${esc(it.nome)}</b><small>${it.estilo === 'oficial' ? 'oficial · SVG' : 'rabiscado · PNG'}</small></div>`);
         c.onclick = () => { escolhido = it.id; pinta(); }; c.ondblclick = () => { escolhido = it.id; api?.close(it); };
@@ -94,11 +98,11 @@ FORMA = {"f":FIG,"cor":COR,"sombra":true|false,"luz":true|false,"contorno":0..5,
       }
     };
     $('.it-busca', body).oninput = e => { busca = e.target.value; pinta(); };
-    $$('.it-fil button', body).forEach(b => b.onclick = () => { filtro = b.dataset.f; $$('.it-fil button', body).forEach(x => x.classList.toggle('on', x === b)); pinta(); });
+    $$('.it-fil button', body).forEach(b => b.onclick = () => { filtro = b.dataset.f; try { localStorage.setItem('animador-itens-estilo', filtro); } catch { } pinta(); });
     $$('[data-g]', body).forEach(b => b.onclick = async () => {
-      const ofi = b.dataset.g === 'oficial', ped = await UI.prompt({ title: ofi ? 'Gerar um item OFICIAL (pintado azul)' : 'Gerar um item RABISCADO', label: 'Descreva o objeto', multiline: true, ia: true, placeholder: 'Ex.: cavalo marrom de crina escura, parado de lado, olhando para a esquerda' });
+      const ofi = filtro === 'oficial', ped = await UI.prompt({ title: ofi ? 'Gerar um item OFICIAL (pintado azul)' : 'Gerar um item RABISCADO', label: 'Descreva o objeto', multiline: true, ia: true, placeholder: 'Ex.: cavalo marrom de crina escura, parado de lado, olhando para a esquerda' });
       if (!ped?.trim()) return;
-      try { const it = await this.gerar(b.dataset.g, ped); l = await this.lista(); escolhido = it.id; filtro = 'todos'; $$('.it-fil button', body).forEach(x => x.classList.toggle('on', x.dataset.f === 'todos')); pinta(); UI.toast(`<b>${esc(it.nome)}</b> entrou na biblioteca de itens.`, { kind: 'ok' }); }
+      try { const it = await this.gerar(filtro, ped); l = await this.lista(); escolhido = it.id; pinta(); UI.toast(`<b>${esc(it.nome)}</b> entrou na biblioteca de itens.`, { kind: 'ok' }); }
       catch (e) { UI.toast('O item não saiu: ' + esc(e.message), { kind: 'err', time: 7000 }); }
     });
     return UI.modal({ title: o.titulo || 'Itens de cena', icon: 'package', width: 860, body, onOpen: a => { api = a; a.el.querySelector('.modal')?.classList.add('it-modal'); pinta(); },
