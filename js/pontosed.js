@@ -15,12 +15,19 @@ const PontosEd = {
     n = n || App.noSel(); if (!this.pode(n)) return UI.toast('Escolha uma imagem SVG ou um personagem com peças SVG para editar os pontos.', { kind: 'warn' });
     if (Deformar.ativo) Deformar.sair(); if (App.tocando) App.pausa?.();
     // SVG de fora: converte antes (as formas dele não têm pontos)
-    for (const a of this.alvos(n)) { let m; try { m = await this.modelo(a.k); } catch (e) { continue; } if (!Vetor.temRaw(m)) continue;
-      const r = Vetor.desembrulha(m), nomes = { text: 'textos', image: 'imagens', use: 'cópias (use)', foreignObject: 'objetos de fora' }, some = r.faltou.map(x => nomes[x] || x);
-      const ok = await UI.confirm({ title: 'Converter o desenho em pontos?', msg: 'Este SVG veio de outro programa e o desenho dele está "fechado". Para mexer nos pontos, cada forma vira uma curva editável e a aparência fica a mesma (degradês viram uma cor só).' + (some.length ? ` <b>Atenção: ${esc(some.join(', '))} não viram pontos e vão sumir desta imagem.</b>` : '') + ' Dá para desfazer com Ctrl+Z.', ok: 'Converter' });
-      if (!ok) return; await this.grava(n, a, r.m, 'Converter o SVG em pontos'); }
+    if (n.tipo === 'imagem') for (const a of this.alvos(n)) { let m; try { m = await this.modelo(a.k); } catch (e) { continue; } if (!Vetor.temRaw(m)) continue; if (!(await this.converte(n, a, m))) return; }
     this.ativo = { id: n.id, sel: null }; if (App.sel !== n.id) App.selecionar(n.id); this.barra(); App.pinta();
   },
+  // SVG de fora (peça ou imagem): pergunta e converte em pontos; true = pode seguir
+  async converte(n, a, m) {
+      const r = Vetor.desembrulha(m), nomes = { text: 'textos', image: 'imagens', use: 'cópias (use)', foreignObject: 'objetos de fora' }, some = r.faltou.map(x => nomes[x] || x);
+      const ok = await UI.confirm({ title: a.nome ? `Converter a peça "${esc(a.nome)}" em pontos?` : 'Converter o desenho em pontos?', msg: (a.nome ? 'Esta peça' : 'Este SVG') + ' veio de outro programa e o desenho dele está "fechado". Para mexer nos pontos, cada forma vira uma curva editável e a aparência fica a mesma (degradês viram uma cor só).' + (some.length ? ` <b>Atenção: ${esc(some.join(', '))} não viram pontos e vão sumir desta imagem.</b>` : '') + ' Dá para desfazer com Ctrl+Z.', ok: 'Converter' });
+      if (!ok) { (this._nao ||= new Set()).add(a.k); return false; } return !!(await this.grava(n, a, r.m, 'Converter o SVG em pontos' + (a.nome ? ' · ' + a.nome : '')));
+  },
+  // a peça de fora (sem pontos) tem tinta neste ponto da tela?
+  _alfa: new Map(),
+  tinta(a, m, t) { const bm = Arq.img.get(a.k); if (!bm) return false; let c = this._alfa.get(a.k); if (!c) { const W = Math.max(1, Math.round(Math.min(m.W, 1600))), H = Math.max(1, Math.round(m.H * W / m.W)); c = new OffscreenCanvas(W, H).getContext('2d', { willReadFrequently: true }); c.drawImage(bm, 0, 0, W, H); this._alfa.set(a.k, c); if (this._alfa.size > 40) this._alfa.delete(this._alfa.keys().next().value); }
+    const q = a.base.inverse().transformPoint(new DOMPoint(t.x, t.y)), x = Math.floor(q.x * c.canvas.width / m.W), y = Math.floor(q.y * c.canvas.height / m.H); if (x < 0 || y < 0 || x >= c.canvas.width || y >= c.canvas.height) return false; return c.getImageData(x, y, 1, 1).data[3] > 30; },
   sair() { this.ativo = null; $('#pe-barra')?.remove(); App.palco.cv && (App.palco.cv.style.cursor = ''); App.pinta(); },
   no() { const n = this.ativo && App.P && Modelo.achar(App.P, this.ativo.id)?.no; if (this.ativo && !n) { this.sair(); return null; } return n; },
   async modelo(k) { if (!this.mods.has(k)) this.mods.set(k, await Vetor.modelo(k)); return this.mods.get(k); },
@@ -49,7 +56,10 @@ const PontosEd = {
         if (hit) { if (e.altKey && !hit.h) return this.tiraPonto(hit); S.pt = { s: hit.s, i: hit.i }; App.pinta(); return this.arrasta(e, n, a, m, c, T, hit); } } }
     // 2) escolhe a forma clicada (peças de cima primeiro; dentro da peça, as camadas de cima)
     const ctx = (this._ctx ||= new OffscreenCanvas(1, 1).getContext('2d')), alvos = this.alvos(n);
-    for (const a of alvos) { let m; try { m = await this.modelo(a.k); } catch { continue; } const a2 = this.alvos(n).find(x => x.k === a.k && x.pid === a.pid) || a;
+    for (const a0 of alvos) { let m, a = a0; try { m = await this.modelo(a.k); } catch { continue; }
+      if (Vetor.temRaw(m)) { if (!this.tinta(a, m, t)) continue; if (this._nao?.has(a.k)) { UI.toast(`"${esc(a.nome || 'esta peça')}" veio de outro programa e não tem pontos (você escolheu não converter).`, { kind: 'warn' }); return; }
+        if (!(await this.converte(n, a, m))) return; a = this.alvos(n).find(x => x.pid === a.pid && x.iid === a.iid) || a; try { m = await this.modelo(a.k); } catch { return; } } // peça de fora: converte só ela, na hora do clique
+      const a2 = this.alvos(n).find(x => x.k === a.k && x.pid === a.pid) || a;
       for (const c of [...m.cam].reverse()) { if (c.vis === false) continue; const T = this.T(a2, m, c), inv = T.inverse(), q = inv.transformPoint(new DOMPoint(t.x, t.y)), z = Math.hypot(T.a, T.b) || 1;
         for (let i = c.f.length - 1; i >= 0; i--) { const f = c.f[i], P2 = new Path2D(f.d); let dentro;
           if (f.s) { ctx.lineWidth = Math.max(f.s, 8 * d / z); ctx.lineCap = ctx.lineJoin = 'round'; dentro = ctx.isPointInStroke(P2, q.x, q.y); } else dentro = ctx.isPointInPath(P2, q.x, q.y, f.r ? 'evenodd' : 'nonzero');
