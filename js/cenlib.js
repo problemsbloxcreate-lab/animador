@@ -217,6 +217,7 @@ Object.assign(CenLib, {
           <div class="cl-ger">Gerar com a IA</div>
           <button class="btn sm ia cl-gof" data-n="oficial" title="Estilo do Planetário: pintado azul com profundidade, uma camada SVG por objeto. Sai como rascunho para aprovar.">${ic('sparkles', 13)} Oficial (pintado)…</button>
           <button class="btn sm ia" data-n="rep" title="Estilo rabiscado, rápido e barato: para lugares de passagem">${ic('sparkles', 13)} De representação (rabiscado)…</button>
+          <button class="btn sm" data-n="itens" title="Põe um item de cena (gerado ou da biblioteca) como camada nova deste cenário">${ic('package', 13)} Pôr um item…</button>
           <button class="btn sm" data-n="imgs" title="Cada imagem ou SVG vira uma camada (a primeira cobre a tela)">${ic('image', 13)} Novo com imagens…</button>
           ${App?.P ? `<button class="btn sm" data-n="nuvem">${ic('cloud', 13)} Da nuvem da equipe…</button>` : ''}
           <button class="btn sm" data-n="arq" title="Abrir um arquivo .cenario">${ic('upload', 13)} Abrir arquivo…</button>
@@ -542,6 +543,16 @@ Object.assign(CenLib, {
         await recarrega(); await escolhe(async () => ({ ...clone(d), origem: 'meu' }));
         UI.toast(ofi ? `<b>${esc(d.nome)}</b> saiu como <b>rascunho para aprovar</b> (${d.camadas.length} camadas). Mexa no que quiser, peça ajustes à IA ou aprove.` : `<b>${esc(d.nome)}</b> entrou em De representação.`, { kind: 'ok', time: 7000 });
       });
+    };
+    // ITENS DE CENA (js/itens.js): entram como camada nova no cenário aberto (padrão) ou na pasta dele na cena
+    $('[data-n="itens"]', body).onclick = async () => {
+      if (!st.def) return UI.toast('Escolha um cenário primeiro (ou ponha o item direto na cena pelo botão Itens da Mídia).', { kind: 'warn' });
+      const it = await Itens.abrir({ titulo: 'Pôr um item no cenário', botao: 'Pôr no cenário' }); if (!it || typeof it !== 'object') return;
+      await Arq.garantir([it.k]);
+      if (naCena()) { const p = pasta(), c = Itens.camada(it); const n = Modelo.novoNo('imagem', { arq: it.k, nome: it.nome }); n.de = p.de ?? App.q; n.camCen = c.id; n.interp = false; if (it.tipo === 'svg') n.vetor = true; n.item = it.id;
+        n.chaves = { [n.de]: { x: c.cx, y: c.cy, r: 0, s: this.escalaNo(c), sx: 1, op: 1 } }; p.filhos.unshift(n); App.commit('Item no cenário'); relê(); st.sel = n.id; }
+      else { guarda(); const c = Itens.camada(it); st.def.camadas.push(c); st.sel = c.id; st.mexido = true; }
+      pinta(); UI.toast(`<b>${esc(it.nome)}</b> entrou no cenário (na frente de tudo). Arraste para o lugar e mude o tamanho nos cantos.`, { kind: 'ok', time: 6000 });
     };
     $('[data-n="oficial"]', body).onclick = () => gerar('oficial');
     $('[data-n="rep"]', body).onclick = () => gerar('rep');
