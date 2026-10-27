@@ -67,6 +67,45 @@ const Short = {
   pausa(a, b) { try { return this.EE().protocolo.pausaEntre({ quem: a.personagem, texto: a.texto, nota: a.acao }, { quem: b.personagem, texto: b.texto }); } catch { return .15; } },
 
   // ---------- LEGENDAS ----------
+  /* BOCA PELAS PALAVRAS (visemas): cada letra das palavras da legenda (com o tempo ouvido de cada uma) vira a boca do
+     Ateliê com o nome dela — A, A pequeno, E, I, O, U, M/B/P, F/V, L/T, Fechada, Gargalhada (rindo). Pausa curta = Fechada,
+     pausa longa = a boca de repouso (o.repouso(q) ou o Sorriso). Palavra em MAIÚSCULAS (grito) abre mais. Só mexe na sessão
+     da boca entre de e ate (apaga as bocas antigas nesse trecho). Volta quantas chaves gravou (0 = o personagem não tem as bocas). */
+  bocaPelasPalavras(P, n, de = 0, ate = P.duracao - 1, o = {}) {
+    const def = Modelo.naVista(P.personagens[n.ref], Modelo.estadoPersonagem(n, de).vista), s = def?.sessoes?.find(x => /boca|mouth/i.test(x.nome)); if (!s) return 0;
+    const ach = re => s.presets.find(p => re.test(p.nome.trim()))?.id;
+    const V = { A: ach(/^A$/i), O: ach(/^O$/i), M: ach(/^M\s*\/?\s*B/i), X: ach(/^Fechada/i) };
+    if (!V.A || !V.O || !V.M) return 0;
+    Object.assign(V, { a: ach(/^A pequeno/i) || V.A, E: ach(/^E$/i) || V.A, I: ach(/^I$/i) || ach(/^E$/i) || V.A, U: ach(/^U$/i) || V.O, F: ach(/^F\s*\/?\s*V/i) || V.M, L: ach(/^L\s*\/?\s*T/i) || ach(/^E$/i) || V.A, G: ach(/gargalh/i) || ach(/sorris[aã]o/i) || V.A });
+    V.X = V.X || V.M; const rep = q => o.repouso?.(q) || ach(/^Sorriso( \(base\))?$/i) || V.X;
+    const letra = c => /[aáàâã]/.test(c) ? 'A' : /[eéê]/.test(c) ? 'E' : /[iíy]/.test(c) ? 'I' : /[oóôõ]/.test(c) ? 'O' : /[uúü]/.test(c) ? 'U' : /[mbp]/.test(c) ? 'M' : /[fv]/.test(c) ? 'F' : /[ltdnr]/.test(c) ? 'L' : /[szxjç]/.test(c) ? 'I' : /[cgkq]/.test(c) ? 'a' : null;
+    const fps = P.fps, alvo = [];
+    for (const l of P.legendas || []) {
+      if (l.ate < de || l.de > ate) continue; const pal = (l.blocos || []).flat(); if (!pal.length) continue;
+      pal.forEach((p, i) => {
+        const bruto = String(p[0]), w = bruto.toLowerCase().replace(/[^a-záàâãéêíóôõúüç]/g, ''), q0 = l.de + p[1] * fps, q1 = l.de + p[2] * fps, grito = bruto === bruto.toUpperCase() && /[A-ZÁÉÍÓÚÂÊÔÃÕ]/.test(bruto); if (!w) return;
+        if (/^(ha|he|hi|rs)+h?$/.test(w)) { for (let q = q0, k = 0; q < q1; q += 3, k++) alvo.push([q, k % 2 ? 'a' : 'G']); }
+        else {
+          const seq = []; for (let j = 0; j < w.length; j++) { const c = w[j]; if (c === 'h') continue; if (c === 'c' && w[j + 1] === 'h') { seq.push('I'); j++; continue; }
+            let v = letra(c); if (v === 'A' && !grito) v = 'a'; if (v === 'a' && grito) v = 'A'; if (v && v !== seq[seq.length - 1]) seq.push(v); }
+          const peso = seq.map(v => /[AaEIOU]/.test(v) ? 2 : 1), tot = peso.reduce((a, b) => a + b, 0) || 1; let acc = 0;
+          seq.forEach((v, j) => { alvo.push([q0 + (q1 - q0) * acc / tot, v]); acc += peso[j]; });
+        }
+        const prox = pal[i + 1], vem = prox ? l.de + prox[1] * fps : l.ate; if (vem - q1 > fps * .12) alvo.push([q1, vem - q1 > fps * .4 ? 'R' : 'X']);
+      });
+    }
+    alvo.sort((a, b) => a[0] - b[0]);
+    const vis = q => Modelo.aparece(P, n, q);
+    for (const [q, k] of Object.entries(n.chaves || {})) { if (+q < de || +q > ate || !k.sessoes?.[s.id]) continue; delete k.sessoes[s.id]; if (!Object.keys(k.sessoes).length) delete k.sessoes; if (!Object.keys(k).length) delete n.chaves[q]; }
+    let ult = null, desde = -9, nk = 0;
+    for (const [qq, v] of alvo) {
+      const q = Math.round(qq); if (q < de || q > ate || !vis(q)) continue; const id = v === 'R' ? rep(q) : V[v]; if (!id || id === ult) continue;
+      if (q - desde < 2) { if (/^[AaEIOU]$/.test(v)) { const k0 = n.chaves[desde]; if (k0?.sessoes) { k0.sessoes[s.id] = id; ult = id; } } continue; }
+      const k = Modelo.chave(n, q); k.sessoes = { ...(k.sessoes || {}), [s.id]: id }; ult = id; desde = q; nk++;
+    }
+    if (ate + 1 < P.duracao && vis(ate + 1)) { const k = Modelo.chave(n, ate + 1); if (!k.sessoes?.[s.id]) k.sessoes = { ...(k.sessoes || {}), [s.id]: rep(ate + 1) }; }
+    return nk;
+  },
   /* item de legenda pelo motor: fala {texto, personagem}, de/ate em quadros, tempos ouvidos (s desde o começo da fala) */
   legenda(P, { texto, de, ate, cor, quem, tempos, chaves, nomes, qcor }) {
     const E = this.EE(), g = this.gosto || {}, fps = P.fps, t = E.legendas.boa(texto, g), ch = chaves || E.legendas.chavesDe(t, g);
