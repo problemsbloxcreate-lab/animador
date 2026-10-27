@@ -446,13 +446,16 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
   passoVoz(pc, R) {
     if (!R.roteiro) { pc.appendChild(h('<div class="vazio">Escreva o roteiro primeiro.</div>')); return; }
     const F = this.falas(R), com = F.filter(f => R.vozes[f.id]).length;
-    pc.appendChild(h(`<div class="ide-dica"><b>${com} de ${F.length}</b> falas com voz. Grave ou ponha um áudio em cada fala — ou ponha UM áudio com todas as falas de um personagem (na ordem do roteiro, com uma pausinha entre elas): ele é cortado nas pausas. Fala sem voz entra só com a legenda, no tempo estimado.</div>`));
+    const ndv = F.filter(f => R.vozes[f.id]?.aviso?.length).length;
+    const topo = h(`<div class="ide-dica"><b>${com} de ${F.length}</b> falas com voz${ndv ? ` · <span class="ide-aviso-t">${ic('alert', 11)} ${ndv} para conferir</span>` : ''}. Ponha os áudios gravados (um com tudo, ou um por personagem, em qualquer ordem): o estúdio limpa, ouve as falas, acha cada uma no roteiro e corta pelo protocolo da decupagem. Ou grave/ponha cada fala. Fala sem voz entra só com a legenda, no tempo estimado.<div class="ide-vtodas"><button class="btn sm primary" data-todas title="Um áudio com todas as falas, ou um arquivo por personagem">${ic('upload', 13)} Pôr os áudios gravados</button>${R.decup ? `<small>Última decupagem: ${R.decup.achadas} de ${R.decup.total} falas, ${R.decup.modo === 'whisper' ? 'ouvindo as palavras' : 'pelas pausas e pelo tom'}.</small>` : ''}</div></div>`);
+    $('[data-todas]', topo).onclick = async () => { const fs = await pickFiles('audio/*', true); if (!fs?.length) return; await this.decupaVozes(R, fs, F, 'todas'); };
+    pc.appendChild(topo);
     for (const p of R.pers) {
       const FP = F.filter(f => this.persDe(R, f.personagem) === p); if (!FP.length) continue;
       const box = h(`<div class="ide-vp" style="--pc:${esc(p.cor)}"><div class="ide-vcab"><span class="ide-pth">${p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : ic('users', 16)}</span><b>${esc(p.nome)}</b><small>${FP.filter(f => R.vozes[f.id]).length} de ${FP.length} falas</small><span class="sp"></span><button class="btn sm" data-um title="Um áudio com todas as falas deste personagem: é cortado nas pausas, na ordem do roteiro">${ic('upload', 13)} Um áudio com todas</button></div><div class="ide-vl"></div></div>`);
-      $('[data-um]', box).onclick = () => this.vozDoPersonagem(R, p, FP);
+      $('[data-um]', box).onclick = async () => { const [a] = await pickFiles('audio/*', false); if (a) await this.decupaVozes(R, [a], FP, p.nome); };
       for (const f of FP) {
-        const v = R.vozes[f.id], r = h(`<div class="ide-v ${v ? 'ok' : ''}"><span class="ide-vt">${esc(f.texto)}</span><small>${v ? `${String(round(v.dur, 1)).replace('.', ',')} s` : 'sem voz'}</small>
+        const v = R.vozes[f.id], r = h(`<div class="ide-v ${v ? 'ok' : ''} ${v?.aviso?.length ? 'av' : ''}"><span class="ide-vt">${esc(f.texto)}${v?.aviso?.length ? `<em>${ic('alert', 10)} ${esc(v.aviso.join(' · '))}</em>` : ''}</span><small>${v ? `${String(round(v.dur, 1)).replace('.', ',')} s` : 'sem voz'}</small>
           ${v ? `<button class="ibtn" data-ouv title="Ouvir">${ic('play', 12)}</button>` : ''}<button class="ibtn ${this._grav?.id === f.id ? 'rec' : ''}" data-rec title="${this._grav?.id === f.id ? 'Parar de gravar' : 'Gravar esta fala'}">${ic(this._grav?.id === f.id ? 'stop' : 'rec', 12)}</button><button class="ibtn" data-up title="Pôr um áudio">${ic('upload', 12)}</button>${v ? `<button class="ibtn" data-x title="Tirar a voz">${ic('x', 12)}</button>` : ''}</div>`);
         if (v) { $('[data-ouv]', r).onclick = () => this.ouve(v.k); $('[data-x]', r).onclick = () => { delete R.vozes[f.id]; this.guarda(R); this.pintaRoteiro(); }; }
         $('[data-rec]', r).onclick = () => this.grava(R, f);
@@ -465,7 +468,7 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
   },
   async poeVoz(R, f, blob) {
     const k = await Arq.guardar(blob), b = await Som.decod(k).catch(() => null); if (!b) return UI.toast('Esse áudio não abriu.', { kind: 'err' });
-    R.vozes[f.id] = { k, dur: round(b.duration, 3) }; await this.guarda(R);
+    R.vozes[f.id] = { k, dur: round(b.duration, 3) }; await this.guarda(R); // voz posta à mão: sem os tempos da decupagem
   },
   ouve(k) { try { this._toca?.stop(); } catch { } const b = Som.buf.get(k); if (!b) return Som.decod(k).then(() => this.ouve(k)); const ac = Som.ac(); ac.resume(); const s = ac.createBufferSource(); s.buffer = b; s.connect(ac.destination); s.start(); this._toca = s; },
   async grava(R, f) {
@@ -475,22 +478,13 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
     rec.onstop = async () => { st.getTracks().forEach(t => t.stop()); await this.poeVoz(R, f, new Blob(pedacos, { type: rec.mimeType || 'audio/webm' })); this.pintaRoteiro(); };
     this._grav = { id: f.id, rec }; rec.start(); this.pintaRoteiro(); UI.toast(`Gravando: “${esc(f.texto.slice(0, 60))}”. Clique no quadrado para parar.`, { kind: 'info' });
   },
-  // UM áudio com todas as falas do personagem: acha os trechos com voz (pausas de 0,18 s+), junta até dar o nº de falas e corta
-  async vozDoPersonagem(R, p, FP) {
-    const [a] = await pickFiles('audio/*', false); if (!a) return;
-    const k0 = await Arq.guardar(a), b = await Som.decod(k0).catch(() => null); if (!b) return UI.toast('Esse áudio não abriu.', { kind: 'err' });
-    const T = this.trechosDeVoz(b, FP.length); if (!T.length) return UI.toast('Não achei voz nesse áudio.', { kind: 'warn' });
-    for (let i = 0; i < FP.length && i < T.length; i++) { const [s, e] = T[i]; await this.poeVoz(R, FP[i], Som.wav(this.corta(b, s, e))); }
-    UI.toast(T.length === FP.length ? `Cortei em ${T.length} falas de ${esc(p.nome)}. Ouça cada uma para conferir.` : `Achei ${T.length} trechos para ${FP.length} falas de ${esc(p.nome)}: confira e grave as que faltaram.`, { kind: T.length === FP.length ? 'ok' : 'warn', time: 7000 });
+  // ÁUDIOS GRAVADOS → uma voz por fala, pelo motor de decupagem do estúdio (o mesmo do Shorts): limpa, ouve (Whisper), acha no roteiro,
+  // corta pelo protocolo e confere. quem = nome do personagem (um áudio só dele) ou 'todas'
+  async decupaVozes(R, arquivos, F, quem) {
+    try { const r = await Short.decupar(R, arquivos, F);
+      UI.toast(r.achadas === r.total && !r.avisos ? `Pronto: ${r.achadas} falas${quem !== 'todas' ? ' de ' + esc(quem) : ''} cortadas. Ouça para conferir.` : `Achei ${r.achadas} de ${r.total} falas${r.avisos ? ` · ${r.avisos} com aviso (marcadas em amarelo)` : ''}. Ouça e regrave ou ponha as que faltaram.`, { kind: r.achadas === r.total && !r.avisos ? 'ok' : 'warn', time: 8000 }); }
+    catch (e) { UI.toast('Não deu para decupar: ' + esc(e.message || e), { kind: 'err', time: 8000 }); }
     this.pintaRoteiro();
-  },
-  trechosDeVoz(b, n) {
-    const d = b.getChannelData(0), sr = b.sampleRate, J = Math.round(sr * .02), E = []; for (let i = 0; i < d.length; i += J) { let s = 0; for (let j = i; j < Math.min(d.length, i + J); j++) s += d[j] * d[j]; E.push(Math.sqrt(s / J)); }
-    const ord = [...E].sort((x, y) => x - y), chao = ord[Math.floor(ord.length * .15)] || 0, topo = ord[Math.floor(ord.length * .95)] || 1, lim = chao + (topo - chao) * .12;
-    let T = [], ini = null; E.forEach((v, i) => { if (v > lim && ini == null) ini = i; else if (v <= lim && ini != null) { T.push([ini, i]); ini = null; } }); if (ini != null) T.push([ini, E.length]);
-    const pausa = Math.round(.18 / .02); const J2 = []; for (const t of T) { const u = J2[J2.length - 1]; if (u && t[0] - u[1] < pausa) u[1] = t[1]; else J2.push([...t]); } T = J2.filter(t => t[1] - t[0] >= 6); // tira estalos (< 0,12 s)
-    while (T.length > n) { let m = 1, g = Infinity; for (let i = 1; i < T.length; i++) { const x = T[i][0] - T[i - 1][1]; if (x < g) { g = x; m = i; } } T[m - 1][1] = T[m][1]; T.splice(m, 1); } // junta as pausas menores
-    return T.map(([s, e]) => [Math.max(0, s * .02 - .08), Math.min(b.duration, e * .02 + .12)]);
   },
   corta(b, s, e) { const sr = b.sampleRate, i0 = Math.floor(s * sr), i1 = Math.min(b.length, Math.ceil(e * sr)), o = new AudioBuffer({ length: Math.max(1, i1 - i0), numberOfChannels: b.numberOfChannels, sampleRate: sr }); for (let c = 0; c < b.numberOfChannels; c++) o.getChannelData(c).set(b.getChannelData(c).subarray(i0, i1)); return o; },
 
@@ -533,11 +527,14 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
       Ocupado.passo('Trazendo os personagens…'); const defs = {};
       for (const p of R.pers) { const d = await this.defDe(R, p); defs[p.id] = d; P.personagens[d.id] = d; await Arq.garantir(Modelo.chavesImgs(d)).catch(() => { }); }
       // tempo de cada fala e de cada cena
-      let q = Math.round(fps * .3); const cenas = [];
+      // PROTOCOLO DA DECUPAGEM (o mesmo do Shorts): uma fala depois da outra, pausa de 0,10 s com a mesma pessoa, 0,15 s na troca,
+      // 0,4 s nas reticências e 0,6 s quando o roteiro pede "(pausa)"; nada de buraco
+      let q = Math.round(fps * .1); const cenas = [], todas = F0.slice();
       for (const ce of R.roteiro.cenas) { const c0 = q, falas = [];
-        for (const f of ce.falas) { const d = this.durFala(R, f), nq = Math.max(1, Math.round(d * fps)); falas.push({ f, de: q, ate: q + nq - 1, p: this.persDe(R, f.personagem) }); q += nq + Math.round(fps * .25); }
-        cenas.push({ ce, de: c0, ate: q - 1, falas }); q += Math.round(fps * .4); }
-      P.duracao = q + fps;
+        for (const f of ce.falas) { const d = this.durFala(R, f), nq = Math.max(1, Math.round(d * fps)); falas.push({ f, de: q, ate: q + nq - 1, p: this.persDe(R, f.personagem) });
+          const ix = todas.findIndex(x => x.id === f.id), nx = todas[ix + 1]; q += nq + (nx ? Math.round(Short.pausa(f, nx) * fps) : 0); }
+        cenas.push({ ce, de: c0, ate: Math.max(c0, q - 1), falas }); }
+      P.duracao = q + Math.round(fps * .3);
       // camadas: cada personagem que aparece na cena entra nela (do começo ao fim da cena), espalhados na largura
       const W = P.w, H = P.h, nos = {};
       cenas.forEach((cn, ci) => {
@@ -556,8 +553,12 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
         const fimS = Math.max(...X.map((x, i) => (x.de - q0) / fps + (bufs[i]?.duration || 0))) + .2, off = new OfflineAudioContext(1, Math.ceil(fimS * SR), SR);
         X.forEach((x, i) => { if (!bufs[i]) return; const s = off.createBufferSource(); s.buffer = bufs[i]; s.connect(off.destination); s.start((x.de - q0) / fps); });
         const k = await Arq.guardar(Som.wav(await off.startRendering())); P.audios.push({ id: uid('au'), nome: 'Voz · ' + p.nome, arq: k, de: q0, vol: 1, tipo: 'voz', _pers: p.id }); }
-      if (o.legendas) for (const cn of cenas) for (const x of cn.falas) P.legendas.push({ de: x.de, ate: x.ate, texto: x.f.texto, cor: x.p?.cor });
-      if (o.legendas) P.legEstilo = { karaoke: true, pop: true, pos: 'baixo' };
+      // legendas pelo motor do Shorts: blocos de 1 linha, na cor de quem fala, com o tempo de cada palavra ouvido na decupagem
+      if (o.legendas) { await Short.carregaGosto(); const qcor = Object.fromEntries(R.pers.map(p => [p.nome, p.cor])), nomes = Object.keys(qcor);
+        for (const cn of cenas) for (const x of cn.falas) P.legendas.push(Short.legenda(P, { texto: x.f.texto, de: x.de, ate: x.ate, cor: x.p?.cor, quem: x.p?.nome, tempos: R.vozes[x.f.id]?.pal, nomes, qcor }));
+        P.legEstilo = { pos: 'baixo', blocos: true, karaoke: false, pop: false }; }
+      // etapas do Short: os avisos da conferência da voz ficam no projeto (Revisor e etapa Voz)
+      P.short = { v: 1, etapas: {}, avisos: cenas.flatMap(cn => cn.falas).flatMap(x => (R.vozes[x.f.id]?.aviso || []).map(a => ({ q: x.de, texto: x.f.texto, aviso: a }))) };
       // referências de estilo (cenas dos vídeos analisados)
       P.refsAnim = [];
       for (const id of (o.refs || []).slice(0, 3)) { try { Ocupado.passo('Pegando as cenas do vídeo de referência…'); const r = await RefsAnim.doYoutube(id); const k = uid('a'); await Arq.guardar(r.blob, k); P.refsAnim.push({ id: uid('rf'), k, tipo: 'youtube', vid: id, url: 'https://youtu.be/' + id, nome: r.nome }); } catch { } }

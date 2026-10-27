@@ -214,8 +214,23 @@ const Render = {
     const pesos = ps.map(p => Math.max(1, (p.w.match(/[aeiouáéíóúâêôãõày]+/gi) || []).length) + (/[.,!?;:]$/.test(p.w) ? 1.2 : 0)), tot = pesos.reduce((a, b) => a + b, 0), n = l.ate - l.de + 1;
     let acc = 0; return pesos.map(w => { const a = l.de + Math.floor(acc / tot * n); acc += w; return [a, Math.max(a, l.de + Math.floor(acc / tot * n) - 1)]; });
   },
+  /* legenda em BLOCOS (motor do Shorts, /estudio-edicao.js): 1 linha por vez, o bloco cuja 1ª palavra já foi falada; tamanho igual na
+     legenda toda (cabe em 88% da largura); tudo na cor de quem fala, nome de personagem na cor dele; sem piscar nem pular (regra do dono).
+     Palavra-chave na cor de destaque só com P.legEstilo.realce. */
+  legBlocos(ctx, P, q, W, H, l) {
+    const st = P.legEstilo || {}, B = l.blocos, t = (q - l.de) / P.fps; let bi = 0; for (let i = 0; i < B.length; i++) if (B[i][0] && t >= B[i][0][1] - .001) bi = i;
+    const bl = B[bi]; if (!bl?.length) return; const caixa = !!st.caixa, tx = w => caixa ? String(w).toUpperCase() : String(w), fonte = n => `800 ${n}px 'Segoe UI', sans-serif`;
+    let tam = Math.round(Math.min(W, H) * .062 * (st.tam || 1)); ctx.save(); ctx.font = fonte(tam); ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round'; ctx.textAlign = 'left';
+    const maxW = W * .88, larg = b => ctx.measureText(tx(b.map(p => p[0]).join(' '))).width, wmax = Math.max(...B.map(larg)); if (wmax > maxW) { tam = Math.max(8, Math.floor(tam * maxW / wmax)); ctx.font = fonte(tam); }
+    const esp = ctx.measureText(' ').width, ws = bl.map(p => ctx.measureText(tx(p[0])).width), tw = ws.reduce((a, b) => a + b, 0) + esp * (bl.length - 1);
+    const y = { alto: H * .18, meio: H * .5, baixo: H - H * (H > W ? .2 : .09) }[st.pos || 'baixo'], cor = l.cor || st.cor || '#fff'; let x = (W - tw) / 2;
+    bl.forEach((p, i) => { const m = String(p[3] || ''); ctx.lineWidth = tam * .2; ctx.strokeStyle = '#000'; ctx.strokeText(tx(p[0]), x, y);
+      ctx.fillStyle = m.startsWith('q:') ? (l.qcor?.[m.slice(2)] || cor) : m === 'd' && st.realce ? (st.destaque || '#ffd84a') : cor; ctx.fillText(tx(p[0]), x, y); x += ws[i] + esp; });
+    ctx.restore();
+  },
   legenda(ctx, P, q, W, H) {
     const l = (P.legendas || []).find(x => q >= x.de && q <= x.ate); if (!l || !l.texto) return;
+    if (l.blocos?.length) return this.legBlocos(ctx, P, q, W, H, l);
     const st = P.legEstilo || {}, ps = this.legPalavras(l); if (!ps.length) return;
     const tam = Math.round(Math.min(W, H) * .062 * (st.tam || 1)), maxW = W * .86, caixa = !!st.caixa, tx = w => caixa ? w.toUpperCase() : w;
     ctx.save(); ctx.font = `800 ${tam}px 'Segoe UI', sans-serif`; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round'; ctx.textAlign = 'left';

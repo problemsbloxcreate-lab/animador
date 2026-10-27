@@ -1623,3 +1623,16 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .ibtn .ic-cn{width:18px;height:18px}
 
 .modal-icon.ep{background:none;padding:0}.modal-icon.ep .ic-cn{width:30px;height:30px} /* janela Cenários: o ícone Cn da ADM no cabeçalho */
+/* ---------- etapas do Short (short.js): barra no modo Vídeo da timeline + janelas Voz/Legendas ---------- */
+.sh-etapas{display:flex;gap:2px;padding:2px;margin-left:6px;border-radius:8px;background:var(--bg0);border:1px solid var(--bd);flex:none}
+.sh-etapas[hidden]{display:none}
+.sh-etapas button{display:flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:6px;background:none;color:var(--tx2);font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap}
+.sh-etapas button:hover{color:var(--tx);background:var(--bg3)}.sh-etapas button.ok{color:#8fe0b4}.sh-etapas button.breve{opacity:.45}
+@container tlan (max-width: 760px){.sh-etapas span{display:none}}
+.sh-dica{font-size:12.5px;color:var(--tx3);line-height:1.5;margin:0 0 8px}.sh-dica b{color:var(--tx2)}
+.sh-lista{display:grid;gap:3px;max-height:300px;overflow:auto;margin-bottom:8px}
+.sh-av{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;background:var(--bg1)}.sh-av>span{color:#ffd166;display:flex}
+.sh-av>div{flex:1;min-width:0;display:grid}.sh-av b{font-size:12.5px;font-weight:600}.sh-av small{font-size:11px;color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ide-v.av{background:rgba(255,209,102,.07)}.ide-vt em{display:flex;align-items:center;gap:4px;font-style:normal;font-size:11px;color:#ffd166;margin-top:2px}
+.ide-vtodas{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}.ide-vtodas small{color:var(--tx3);font-size:11.5px}
+.ide-aviso-t{display:inline-flex;align-items:center;gap:3px;color:#ffd166}

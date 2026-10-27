@@ -15,13 +15,14 @@
 Object.assign(Folha, {
   CH_MODO: 'animador-tl-modo',
   modo: (() => { try { return localStorage.getItem('animador-tl-modo') === 'video' ? 'video' : 'anim'; } catch { return 'anim'; } })(),
-  setModo(m) { this.modo = m === 'video' ? 'video' : 'anim'; try { localStorage.setItem(this.CH_MODO, this.modo); } catch { } this.pintaModo(); this.pinta(); },
+  setModo(m) { this.modo = m === 'video' ? 'video' : 'anim'; try { localStorage.setItem(this.CH_MODO, this.modo); } catch { } this.pintaModo(); this.pinta(); Short.pinta(); },
   pintaModo() { $$('#tl-modo [data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === this.modo)); $('#editor .tl')?.classList.toggle('modo-video', this.modo === 'video'); },
   ligaVideo() {
     if (this._video) return; this._video = true;
     const bar = $('#editor .tl-barra'), ref = $('#tl-q');
     if (bar && ref && !$('#tl-modo')) { const sw = h(`<div class="tl-modo" id="tl-modo" title="Animação: uma linha por camada, com as chaves · Vídeo: trilhas de efeitos, vídeo e som, como num editor de vídeo"><button data-m="anim">${ic('diamond', 12)}<span>Animação</span></button><button data-m="video">${ic('film', 12)}<span>Vídeo</span></button></div>`);
       $$('[data-m]', sw).forEach(b => b.onclick = () => this.setModo(b.dataset.m)); ref.after(sw); }
+    Short.liga();
     this.pintaModo();
     // soltar coisas da biblioteca de efeitos
     const g = this.grade;
@@ -40,6 +41,7 @@ Object.assign(Folha, {
   },
   // ---------- linhas do modo Vídeo ----------
   linhasVideo() {
+    Short.pinta(); // barra de etapas do Short (só em projeto vertical)
     const P = App.P, out = [], efs = []; Modelo.cada(P.raiz, n => { if (n.tipo === 'efeito') efs.push(n); });
     out.push({ tipo: 'sec', nome: 'Efeitos e transições', h: 20, ic: 'sparkles' });
     for (const n of efs) out.push({ tipo: 'no', no: n, nome: n.nome, video: true, h: 28 });

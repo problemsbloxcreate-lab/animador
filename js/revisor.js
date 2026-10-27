@@ -19,6 +19,7 @@ const Revisor = {
     musicaSeca: ['som', 'Música terminando seca (sem fade no fim)', 'dica', true, { nome: 'Fade sugerido', v: 1, min: .2, max: 4, passo: .1, un: 's' }],
     musicaEntra: ['som', 'Música começando seca (sem fade no começo)', 'dica', false, { nome: 'Fade sugerido', v: .5, min: .1, max: 3, passo: .1, un: 's' }],
     efeitosJuntos: ['som', 'Muitos efeitos sonoros ao mesmo tempo', 'dica', true, { nome: 'A partir de', v: 5, min: 2, max: 12, passo: 1, un: 'efeitos' }],
+    vozConfere: ['som', 'Fala marcada pela conferência da decupagem (Short)', 'aviso', true],
     legVazia: ['legenda', 'Legenda vazia ou fora do vídeo', 'aviso', true],
     legLonga: ['legenda', 'Legenda comprida demais', 'aviso', true, { nome: 'Máximo de letras', v: 52, min: 20, max: 120, passo: 1, un: 'letras' }],
     legRapida: ['legenda', 'Legenda rápida demais para ler', 'aviso', true, { nome: 'Letras por segundo', v: 20, min: 8, max: 40, passo: 1, un: 'letras/s' }],
@@ -68,13 +69,15 @@ const Revisor = {
     if (efs.length >= maxEf) for (let q = 0; q <= fim; q += Math.max(1, Math.round(fps / 4))) { const n = efs.filter(a => q >= (a.de || 0) && q <= Som.fimQ(P, a)).length; if (n >= maxEf) { poe('efeitosJuntos', 'q' + q, `${n} efeitos sonoros tocam juntos no quadro ${q + 1}: pode ficar embolado.`, q); break; } }
     if (!ouvidos.length) poe('semSom', 'x', auds.length ? 'Todos os áudios estão mudos: o vídeo vai sair sem som.' : 'O vídeo não tem som nenhum.', null, auds.length ? [{ rotulo: 'Tirar o mudo de todos', fn: () => auds.forEach(a => { delete a.mudo; delete a.solo; }) }] : []);
     // ---------- LEGENDAS ----------
+    // conferência da decupagem (motor do Shorts): sem voz, silêncio na ponta, palavra cortada, voz de outro personagem
+    (P.short?.avisos || []).forEach((a, i) => poe('vozConfere', 'vc' + a.q + ':' + i, `“${String(a.texto).slice(0, 40)}”: ${a.aviso}.`, a.q, [{ rotulo: 'Já conferi', fn: () => { P.short.avisos = P.short.avisos.filter(x => x !== a); } }]));
     const lg = (P.legendas || []).slice().sort((x, y) => x.de - y.de), maxL = this.num('legLonga'), cps = this.num('legRapida'), minS = this.num('legCurta');
     lg.forEach((g, i) => {
       const txt = String(g.texto || '').replace(/\*/g, '').trim(), k = 'l' + g.de + ':' + txt.slice(0, 12), seg = (g.ate - g.de + 1) / fps, tira = () => { P.legendas = P.legendas.filter(x => x !== g); };
       if (!txt) return poe('legVazia', k, `Legenda vazia no quadro ${g.de + 1}.`, g.de, [{ rotulo: 'Tirar', fn: tira }]);
       if (g.de > fim) poe('legVazia', k + 'f', `A legenda "${txt.slice(0, 30)}" fica depois do fim do vídeo.`, fim, [{ rotulo: 'Tirar', fn: tira }]);
       else if (g.ate > fim) poe('legVazia', k + 'p', `A legenda "${txt.slice(0, 30)}" passa do fim do vídeo.`, fim, [{ rotulo: 'Terminar no fim', fn: () => { g.ate = fim; } }]);
-      if (txt.length > maxL) poe('legLonga', k, `Legenda com ${txt.length} letras (máximo ${maxL}): "${txt.slice(0, 40)}…".`, g.de, [{ rotulo: 'Dividir em duas', fn: () => this.divideLegenda(P, g) }]);
+      if (!g.blocos?.length && txt.length > maxL) poe('legLonga', k, `Legenda com ${txt.length} letras (máximo ${maxL}): "${txt.slice(0, 40)}…".`, g.de, [{ rotulo: 'Dividir em duas', fn: () => this.divideLegenda(P, g) }]);
       const prox = lg[i + 1], espaco = prox ? prox.de - 1 : fim;
       if (txt.length / seg > cps) { const precisa = Math.ceil(txt.length / cps * fps), novoFim = Math.min(espaco, g.de + precisa - 1);
         poe('legRapida', k, `"${txt.slice(0, 30)}" fica só ${sg(seg)} s (${Math.round(txt.length / seg)} letras/s): rápido demais para ler.`, g.de, novoFim > g.ate ? [{ rotulo: `Esticar até ${sg((novoFim - g.de + 1) / fps)} s`, fn: () => { g.ate = novoFim; } }] : []); }
