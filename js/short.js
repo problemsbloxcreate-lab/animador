@@ -142,16 +142,16 @@ const Short = {
     const o = R.opcoes || {}; if (o.layout !== 'dividida') return null;
     const W = P.w, rH = this.retDe(P, o.cima === 'narracao' ? 'baixo' : 'cima'), rN = this.retDe(P, o.cima === 'narracao' ? 'cima' : 'baixo');
     const narr = R.pers.find(p => p.id === o.narrador) || R.pers[0]; if (!narr) return null;
-    const altura = def => { const b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, {})); return b.h > 0 ? b.h : 500; };
+    const caixa = def => { const b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, {})); return b.h > 0 ? b : { x: -150, y: -500, w: 300, h: 500 }; }, altura = def => caixa(def).h;
     const pH = Modelo.novoNo('pasta', { nome: 'História' }), pN = Modelo.novoNo('pasta', { nome: 'Narração' }); pH.recorte = rH; pN.recorte = rN; pH.aberto = pN.aberto = false;
     // quem VIVE a história: os nós das cenas vão para a metade da história, no tamanho dela
     const movidos = new Set();
     cenas.forEach((cn, ci) => { const ids = Object.keys(nos[ci] || {}); ids.forEach((pid, i) => { const n = nos[ci][pid], def = defs[pid], s = round(clamp(rH.h * .62 / altura(def), .05, 4), 3), k = n.chaves[cn.de];
-      Object.assign(k, { x: Math.round(W * (i + 1) / (ids.length + 1)), y: Math.round(rH.y + rH.h * .93), s }); n.nome = `${R.pers.find(p => p.id === pid)?.nome || 'Personagem'} · história${cenas.length > 1 ? ' · cena ' + (ci + 1) : ''}`; movidos.add(n); }); });
+      const bx = caixa(def); Object.assign(k, { x: Math.round(W * (i + 1) / (ids.length + 1)), y: Math.round(rH.y + rH.h * .93 - (bx.y + bx.h) * s), s }); /* os pés a 93% da metade */ n.nome = `${R.pers.find(p => p.id === pid)?.nome || 'Personagem'} · história${cenas.length > 1 ? ' · cena ' + (ci + 1) : ''}`; movidos.add(n); }); });
     P.raiz = P.raiz.filter(n => !movidos.has(n)); pH.filhos.push(...movidos);
     // quem NARRA: um nó só, o vídeo inteiro, de frente para a câmera, com um fundo liso na metade dele
-    const dN = defs[narr.id], sN = round(clamp(rN.h * .86 / altura(dN), .05, 4), 3), nN = Modelo.novoNo('personagem', { ref: dN.id, nome: narr.nome + ' · narra', s: sN });
-    nN.atuacao = { ...Atuacao.PADRAO }; nN.interp = true; nN.suaveP = true; nN.de = 0; nN.ate = null; nN.chaves = { 0: { x: Math.round(W / 2), y: Math.round(rN.y + rN.h * .98), r: 0, s: sN, sx: 1, op: 1 } };
+    const dN = defs[narr.id], bN = caixa(dN), sN = round(clamp(rN.h * .86 / bN.h, .05, 4), 3), nN = Modelo.novoNo('personagem', { ref: dN.id, nome: narr.nome + ' · narra', s: sN });
+    nN.atuacao = { ...Atuacao.PADRAO }; nN.interp = true; nN.suaveP = true; nN.de = 0; nN.ate = null; nN.chaves = { 0: { x: Math.round(W / 2), y: Math.round(rN.y + rN.h * .98 - (bN.y + bN.h) * sN), r: 0, s: sN, sx: 1, op: 1 } };
     const fundo = Modelo.novoNo('forma', { nome: 'Fundo da narração', forma: 'ret', w: rN.w, h: rN.h, cor: '#26304f', x: Math.round(rN.x + rN.w / 2), y: Math.round(rN.y + rN.h / 2) });
     pN.filhos.push(nN, fundo);
     P.raiz.unshift(pH, pN);
@@ -179,9 +179,10 @@ const Short = {
     for (const k of Object.values(pasta.chaves)) Object.assign(k, { s: round(s, 4), x: Math.round(x), y: Math.round(y) });
     for (const n of pasta.filhos) if (/^lumi$/i.test(n.camCen || '')) n.vis = false; // a Lumi desenhada no cenário sai: quem narra é a personagem de verdade
     // quem narra: CLOSE do cinto para cima (decisão do dono): dentro do cenário, atrás da mesa; o topo da mesa corta na cintura
-    const k0 = nN.chaves[0], dN = App.P.personagens[nN.ref], b = Modelo.caixaPersonagem(dN, Modelo.partesNoEstado(dN, {})), hc = b.h > 0 ? b.h : 500;
-    const mesaTop = mesa ? y + (mesa.cy - mesa.h / 2) * s : r.y + r.h, topo = r.y + r.h * .15, hw = (mesaTop - topo) / .44, wx = r.x + r.w / 2;
-    Object.assign(k0, { x: round((wx - x) / s, 1), y: round((topo + hw - y) / s, 1), s: round(hw / hc / s, 4) });
+    const k0 = nN.chaves[0], dN = App.P.personagens[nN.ref], b0 = Modelo.caixaPersonagem(dN, Modelo.partesNoEstado(dN, {})), b = b0.h > 0 ? b0 : { x: -150, y: -500, w: 300, h: 500 };
+    const mesaTop = mesa ? y + (mesa.cy - mesa.h / 2) * s : r.y + r.h, topo = r.y + r.h * .15, hw = (mesaTop - topo) / .44, wx = r.x + r.w / 2, sc = hw / b.h; // sc = escala na tela
+    // a origem do personagem pode ser o meio do corpo ou os pés: o topo da cabeça (b.y) vai para "topo" e o meio da largura para o centro
+    Object.assign(k0, { x: round((wx - (b.x + b.w / 2) * sc - x) / s, 1), y: round((topo - b.y * sc - y) / s, 1), s: round(sc / s, 4) });
     pN.filhos = pN.filhos.filter(n => n !== nN && !/^Fundo da narração$/.test(n.nome));
     const im = pasta.filhos.findIndex(n => mesa && n.camCen === mesa.id); pasta.filhos.splice(im >= 0 ? im + 1 : 0, 0, nN);
     pN.filhos.push(pasta); App.commit('Cenário de quem narra');
