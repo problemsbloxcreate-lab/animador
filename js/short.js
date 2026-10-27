@@ -69,11 +69,11 @@ const Short = {
   // ---------- LEGENDAS ----------
   /* BOCA PELAS PALAVRAS (visemas): cada letra das palavras da legenda (com o tempo ouvido de cada uma) vira a boca do
      Ateliê com o nome dela — A, A pequeno, E, I, O, U, M/B/P, F/V, L/T, Fechada, Gargalhada (rindo). Pausa curta = Fechada,
-     pausa longa = a boca de repouso (o.repouso(q) ou o Sorriso). Palavra em MAIÚSCULAS (grito) abre mais. Só mexe na sessão
+     pausa longa = a boca de repouso (o.repouso(q) ou o Sorriso). o.sem = [regex] bocas que não usar. Palavra em MAIÚSCULAS (grito) abre mais. Só mexe na sessão
      da boca entre de e ate (apaga as bocas antigas nesse trecho). Volta quantas chaves gravou (0 = o personagem não tem as bocas). */
   bocaPelasPalavras(P, n, de = 0, ate = P.duracao - 1, o = {}) {
     const def = Modelo.naVista(P.personagens[n.ref], Modelo.estadoPersonagem(n, de).vista), s = def?.sessoes?.find(x => /boca|mouth/i.test(x.nome)); if (!s) return 0;
-    const ach = re => s.presets.find(p => re.test(p.nome.trim()))?.id;
+    const sem = o.sem || [], ach = re => s.presets.find(p => re.test(p.nome.trim()) && !sem.some(x => x.test(p.nome.trim())))?.id;
     const V = { A: ach(/^A$/i), O: ach(/^O$/i), M: ach(/^M\s*\/?\s*B/i), X: ach(/^Fechada/i) };
     if (!V.A || !V.O || !V.M) return 0;
     Object.assign(V, { a: ach(/^A pequeno/i) || V.A, E: ach(/^E$/i) || V.A, I: ach(/^I$/i) || ach(/^E$/i) || V.A, U: ach(/^U$/i) || V.O, F: ach(/^F\s*\/?\s*V/i) || V.M, L: ach(/^L\s*\/?\s*T/i) || ach(/^E$/i) || V.A, G: ach(/gargalh/i) || ach(/sorris[aã]o/i) || V.A });
