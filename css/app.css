@@ -1640,3 +1640,6 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .sh-lay button{display:flex;flex-direction:column;align-items:center;gap:4px;width:118px;padding:10px 6px;border-radius:10px;border:1px solid var(--bd);background:var(--bg1);color:var(--tx2);font:inherit;font-size:12px;cursor:pointer}
 .sh-lay button:hover{color:var(--tx);border-color:var(--tx3)}.sh-lay button.on{color:var(--tx);border-color:#ffd166;background:rgba(255,209,102,.08)}
 .sh-div{gap:8px;align-items:center}.sh-div span{color:var(--tx2)}.sh-dir textarea{width:100%;resize:vertical;font:inherit;font-size:12.5px}
+/* PONTOS DO SVG no palco do Animador (js/pontosed.js) */
+.pe-barra{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:8px;max-width:calc(100% - 24px);padding:5px 6px 5px 11px;border-radius:9px;background:rgba(40,26,70,.95);border:1px solid #7b5bd6;color:#e6dcff;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.pe-barra [data-t]{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.pe-barra small{color:#b9a8e8}.pe-ic{flex:none;color:#c3aaff;display:flex}.pe-barra .btn{flex:none}

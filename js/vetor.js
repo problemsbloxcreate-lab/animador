@@ -355,6 +355,77 @@ const Vetor = {
     try { const bm = await createImageBitmap(f), m = await this.deArquivo(f._svg, bm.width, bm.height); return { blob: new Blob([this.svg(m)], { type: 'image/svg+xml' }), svg: true }; }
     catch (e) { console.warn(e); return { blob: f, svg: false }; }
   },
+  /* ---------- SVG DE FORA → PONTOS EDITÁVEIS ----------
+     A camada "Arte" (raw) de um .svg de fora não tem pontos: aqui cada forma do desenho (path, rect, circle, ellipse, line, polyline,
+     polygon) vira uma forma do modelo, com as curvas em coordenadas absolutas (M/C/Z) e as transformações já aplicadas. */
+  // d de qualquer path (relativo, H/V/S/Q/T/A…) → "M x y C … Z" absoluto, passando cada ponto pela matriz M
+  dCubico(d, M) {
+    const tk = String(d || '').match(/[a-df-z]|[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi) || []; let i = 0, cmd = '', x = 0, y = 0, sx = 0, sy = 0, cx = 0, cy = 0, qx = 0, qy = 0, ant = '';
+    const n = () => +tk[i++], out = [], P = (a, b) => { const q = M ? M.transformPoint(new DOMPoint(a, b)) : { x: a, y: b }; return `${+q.x.toFixed(2)} ${+q.y.toFixed(2)}`; };
+    const C = (x1, y1, x2, y2, x3, y3) => { out.push(`C${P(x1, y1)} ${P(x2, y2)} ${P(x3, y3)}`); cx = x2; cy = y2; x = x3; y = y3; };
+    const Lin = (x3, y3) => C(x + (x3 - x) / 3, y + (y3 - y) / 3, x + (x3 - x) * 2 / 3, y + (y3 - y) * 2 / 3, x3, y3);
+    const arco = (rx, ry, fi, fa, fs, x2, y2) => { // SVG F.6.5 → cúbicas de até 90°
+      if (!rx || !ry) return Lin(x2, y2); rx = Math.abs(rx); ry = Math.abs(ry); const ph = fi * Math.PI / 180, co = Math.cos(ph), si = Math.sin(ph);
+      const dx = (x - x2) / 2, dy = (y - y2) / 2, x1p = co * dx + si * dy, y1p = -si * dx + co * dy; let L = x1p * x1p / (rx * rx) + y1p * y1p / (ry * ry); if (L > 1) { rx *= Math.sqrt(L); ry *= Math.sqrt(L); }
+      const sg = fa === fs ? -1 : 1, num = rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p, k = sg * Math.sqrt(Math.max(0, num / (rx * rx * y1p * y1p + ry * ry * x1p * x1p)));
+      const cxp = k * rx * y1p / ry, cyp = -k * ry * x1p / rx, ccx = co * cxp - si * cyp + (x + x2) / 2, ccy = si * cxp + co * cyp + (y + y2) / 2;
+      const ang = (ux, uy, vx, vy) => Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy); let t1 = ang(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry), dt = ang((x1p - cxp) / rx, (y1p - cyp) / ry, (-x1p - cxp) / rx, (-y1p - cyp) / ry);
+      if (!fs && dt > 0) dt -= 2 * Math.PI; else if (fs && dt < 0) dt += 2 * Math.PI; const nseg = Math.max(1, Math.ceil(Math.abs(dt) / (Math.PI / 2) - 1e-9)), dd = dt / nseg, kk = 4 / 3 * Math.tan(dd / 4);
+      const pt = t => [ccx + rx * Math.cos(t) * co - ry * Math.sin(t) * si, ccy + rx * Math.cos(t) * si + ry * Math.sin(t) * co], dv = t => [-rx * Math.sin(t) * co - ry * Math.cos(t) * si, -rx * Math.sin(t) * si + ry * Math.cos(t) * co];
+      for (let j = 0; j < nseg; j++) { const a = t1 + j * dd, b = a + dd, [ax, ay] = pt(a), [bx, by] = pt(b), [dax, day] = dv(a), [dbx, dby] = dv(b); C(ax + kk * dax, ay + kk * day, bx - kk * dbx, by - kk * dby, j === nseg - 1 ? x2 : bx, j === nseg - 1 ? y2 : by); }
+    };
+    while (i < tk.length) {
+      if (/[a-z]/i.test(tk[i])) cmd = tk[i++]; else if (!cmd) { i++; continue; }
+      const r = cmd === cmd.toLowerCase(), U = cmd.toUpperCase(), ox = r ? x : 0, oy = r ? y : 0;
+      if (U === 'Z') { out.push('Z'); x = sx; y = sy; ant = 'Z'; continue; }
+      if (i >= tk.length || /[a-z]/i.test(tk[i])) { continue; }
+      if (U === 'M') { x = n() + ox; y = n() + oy; sx = x; sy = y; out.push(`M${P(x, y)}`); cmd = r ? 'l' : 'L'; ant = 'M'; continue; }
+      if (U === 'L') Lin(n() + ox, n() + oy);
+      else if (U === 'H') Lin(n() + (r ? x : 0), y);
+      else if (U === 'V') Lin(x, n() + (r ? y : 0));
+      else if (U === 'C') { const a = n() + ox, b = n() + oy, c = n() + ox, d2 = n() + oy, e = n() + ox, f = n() + oy; C(a, b, c, d2, e, f); }
+      else if (U === 'S') { const rx1 = /[CS]/.test(ant) ? 2 * x - cx : x, ry1 = /[CS]/.test(ant) ? 2 * y - cy : y, c = n() + ox, d2 = n() + oy, e = n() + ox, f = n() + oy; C(rx1, ry1, c, d2, e, f); }
+      else if (U === 'Q' || U === 'T') { let q1x, q1y; if (U === 'Q') { q1x = n() + ox; q1y = n() + oy; } else { q1x = /[QT]/.test(ant) ? 2 * x - qx : x; q1y = /[QT]/.test(ant) ? 2 * y - qy : y; }
+        const ex = n() + ox, ey = n() + oy; qx = q1x; qy = q1y; C(x + 2 / 3 * (q1x - x), y + 2 / 3 * (q1y - y), ex + 2 / 3 * (q1x - ex), ey + 2 / 3 * (q1y - ey), ex, ey); }
+      else if (U === 'A') { const rx = n(), ry = n(), fi = n(), fa = n(), fs = n(), ex = n() + ox, ey = n() + oy; arco(rx, ry, fi, !!fa, !!fs, ex, ey); }
+      else { i++; continue; }
+      ant = U;
+    }
+    return out.join('');
+  },
+  // o modelo tem desenho de fora (raw)? Quantas coisas não dá para virar pontos (texto, imagem, use…)
+  temRaw(m) { return !!(m.raw || m.cam.some(c => c.raw)); },
+  desembrulha(m) {
+    const tx = c => { const v = /^rgba?\(([^)]+)\)/.exec(c || ''); if (!v) return /^#/.test(c || '') ? c : null; const [r, g, b] = v[1].split(',').map(Number); return '#' + [r, g, b].map(x => Math.round(x).toString(16).padStart(2, '0')).join(''); };
+    const ns = 'http://www.w3.org/2000/svg', faltou = new Set(), uma = raw => {
+      const sv = document.createElementNS(ns, 'svg'); sv.setAttribute('viewBox', `0 0 ${m.W} ${m.H}`); sv.setAttribute('width', m.W); sv.setAttribute('height', m.H); Object.assign(sv.style, { position: 'fixed', left: '-99999px', top: '0', opacity: '0', pointerEvents: 'none' });
+      const g = document.createElementNS(ns, 'g'); sv.appendChild(g); g.innerHTML = raw; document.body.appendChild(sv); const f = [];
+      try { const dm = x => x ? DOMMatrix.fromMatrix(x) : new DOMMatrix(), G = dm(g.getCTM()).inverse();
+        for (const el of g.querySelectorAll('*')) {
+          if (el.closest('defs,clipPath,mask,symbol,pattern,marker,linearGradient,radialGradient,filter,style,title,desc,metadata')) continue; const tag = el.localName;
+          if (/^(text|image|use|foreignObject|tspan)$/.test(tag)) { faltou.add(tag === 'tspan' ? 'text' : tag); continue; }
+          if (!/^(path|rect|circle|ellipse|line|polyline|polygon)$/.test(tag)) continue;
+          const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+          const M = G.multiply(dm(el.getCTM())), at = k => +(el.getAttribute(k) || 0); let d = '';
+          if (tag === 'path') d = el.getAttribute('d') || '';
+          else if (tag === 'rect') { const x = at('x'), y = at('y'), w = at('width'), h = at('height'); let rx = el.hasAttribute('rx') ? at('rx') : at('ry'), ry = el.hasAttribute('ry') ? at('ry') : rx; rx = Math.min(rx, w / 2); ry = Math.min(ry, h / 2);
+            d = rx || ry ? `M${x + rx} ${y}H${x + w - rx}A${rx} ${ry} 0 0 1 ${x + w} ${y + ry}V${y + h - ry}A${rx} ${ry} 0 0 1 ${x + w - rx} ${y + h}H${x + rx}A${rx} ${ry} 0 0 1 ${x} ${y + h - ry}V${y + ry}A${rx} ${ry} 0 0 1 ${x + rx} ${y}Z` : `M${x} ${y}H${x + w}V${y + h}H${x}Z`; }
+          else if (tag === 'circle' || tag === 'ellipse') { const cx = at('cx'), cy = at('cy'), rx = tag === 'circle' ? at('r') : at('rx'), ry = tag === 'circle' ? at('r') : at('ry'); d = `M${cx - rx} ${cy}A${rx} ${ry} 0 1 0 ${cx + rx} ${cy}A${rx} ${ry} 0 1 0 ${cx - rx} ${cy}Z`; }
+          else if (tag === 'line') d = `M${at('x1')} ${at('y1')}L${at('x2')} ${at('y2')}`;
+          else { const pts = (el.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number); if (pts.length < 4) continue; d = 'M' + pts.slice(0, 2).join(' ') + 'L' + pts.slice(2).join(' ') + (tag === 'polygon' ? 'Z' : ''); }
+          const dc = this.dCubico(d, M); if (!/C/.test(dc)) continue;
+          let op = 1; for (let e = el; e && e !== g; e = e.parentElement) op *= +(getComputedStyle(e).opacity || 1);
+          const cor = v => { if (!v || v === 'none') return null; const u = /url\(["']?#([^"')]+)/.exec(v); if (u) { const st = g.ownerDocument.getElementById(u[1])?.querySelector('stop'); return st ? tx(getComputedStyle(st).stopColor) || '#888888' : '#888888'; } return tx(v); };
+          const fc = cor(cs.fill), sc = cor(cs.stroke), fo = op * +(cs.fillOpacity || 1), so = op * +(cs.strokeOpacity || 1), sw = parseFloat(cs.strokeWidth) || 0, esc = Math.sqrt(Math.abs(M.a * M.d - M.b * M.c)) || 1;
+          if (fc && tag !== 'line') { const o = { d: dc, c: fc }; if (fo < 1) o.o = +fo.toFixed(3); if (cs.fillRule === 'evenodd') o.r = 1; f.push(o); }
+          if (sc && sw > 0) { const o = { d: dc, c: sc, s: +(sw * esc).toFixed(2) }; if (so < 1) o.o = +so.toFixed(3); f.push(o); }
+        }
+      } finally { sv.remove(); }
+      return f; };
+    const cam = []; if (m.raw) { cam.push({ id: 'arte0', nome: 'Arte', papel: 'linha', f: uma(m.raw), m: [] }); }
+    for (const c of m.cam) { if (!c.raw) { cam.push(c); continue; } const { raw, ...resto } = c; cam.push({ ...resto, f: [...uma(raw), ...(c.f || [])] }); }
+    return { m: { ...m, raw: undefined, cam }, faltou: [...faltou] };
+  },
   chave(ext = 'svg') { return `personagens/${Atelie.def.id}/img/${uid('im').toLowerCase().replace(/[^a-z0-9]/g, '')}.${ext}`; },
   // grava o modelo como uma imagem NOVA (chave nova: o Ctrl+Z do Ateliê volta a de antes)
   async gravar(img, m, k = this.chave()) {

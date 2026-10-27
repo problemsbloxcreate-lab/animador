@@ -318,6 +318,7 @@ const App = {
       if (e.button !== 0) return;
       if (App.ferr === 'camera' || App.sel === 'camera') return this.arrastaCamera(e);
       if (Deformar.ativo && Deformar.desce(e, this.cv, this.dpr)) return; // deformar: arrastar um ponto
+      if (PontosEd.ativo && PontosEd.desce(e)) return; // pontos do SVG (js/pontosed.js)
       const ik = App.alcaEsqueleto(tela); if (ik) return this.arrastaRig(e, ik); // esqueleto: IK nas pontas, FK nas juntas
       const al = this.alcas(), perto = (a, b, r = 10) => a && Math.hypot(a.x - b.x, a.y - b.y) < r;
       const s = App.noSel();
@@ -367,7 +368,7 @@ const App = {
       this.fim(e, ev => { const w = this.paraMundo(ev); App.P.camera.chaves[App.q] = { ...k, ...(App.P.camera.chaves[App.q] || {}), x: round(k.x + w.x - w0.x, 1), y: round(k.y + w.y - w0.y, 1) }; App.pinta(); },
         () => App.commit('Mover a câmera'));
     },
-    duplo(e) { const w = this.paraMundo(e), alvo = Render.caixas(App.P, App.q).find(c => dentroPoligono(w, c.cantos)); if (alvo?.no.tipo === 'texto') Lado.editarTexto(alvo.no); else if (alvo?.no.tipo === 'personagem') QuadroEd.abrir(alvo.no); }, // dois cliques no personagem: o Ateliê ao lado, só neste quadro
+    duplo(e) { if (PontosEd.ativo) return PontosEd.duplo(e); const w = this.paraMundo(e), alvo = Render.caixas(App.P, App.q).find(c => dentroPoligono(w, c.cantos)); if (alvo?.no.tipo === 'texto') Lado.editarTexto(alvo.no); else if (alvo?.no.tipo === 'personagem') QuadroEd.abrir(alvo.no); }, // dois cliques no personagem: o Ateliê ao lado, só neste quadro
     menu(e) {
       const w = this.paraMundo(e), sob = Render.caixas(App.P, App.q).find(c => dentroPoligono(w, c.cantos))?.no; // botão direito numa camada: ela passa a ser a escolhida
       if (sob && sob.id !== App.sel) App.selecionar(sob.id);
@@ -383,6 +384,7 @@ const App = {
         s?.tipo === 'personagem' && { label: 'Cor interna…', icon: 'brush', action: () => App.corInterna(s) },
         s?.tipo === 'personagem' && { label: (Modelo.transf(s, App.q).sx || 1) < 0 ? 'Desespelhar (voltar para o lado de antes)' : 'Espelhar (virar para o outro lado)', icon: 'transition', action: () => Animacoes.espelhar(s) },
         Deformar.pode(s) && { label: Deformar.ativo ? 'Parar de deformar' : 'Deformar (cantos ou malha)…', icon: 'transition', key: 'T', action: () => Deformar.alterna(s) },
+        PontosEd.pode(s) && { label: PontosEd.ativo ? 'Parar de editar os pontos' : 'Editar os pontos do SVG (aqui mesmo)', icon: 'edit', key: 'A', action: () => PontosEd.alterna(s) },
         s && { label: 'Chave neste quadro', icon: 'diamond', key: 'K', action: () => App.chaveAqui() },
         s && { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
         s && { label: 'Pôr numa pasta', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },
@@ -403,7 +405,7 @@ const App = {
   },
   // ponto do esqueleto embaixo do mouse (tela em px css) → { n, al }
   alcaEsqueleto(tela) {
-    if (!this.esqueleto || this.tocando) return null; const P = this.P, v = this.vista, sel = this.noSel(); let melhor = null;
+    if (!this.esqueleto || this.tocando || PontosEd.ativo) return null; const P = this.P, v = this.vista, sel = this.noSel(); let melhor = null;
     for (const n of Modelo.noQuadro(P, this.q)) { if (n.trava) continue; const ee = Render.estadoPartes(P, n, this.q); if (!ee) continue; const M = Rig.matNo(P, n, this.q);
       for (const al of Rig.alcas(ee.dv, ee.ep)) { const w = M.transformPoint(new DOMPoint(al.x, al.y)), d = Math.hypot(w.x * v.z + v.x - tela.x, w.y * v.z + v.y - tela.y) - (n === sel ? 3 : 0);
         if (d < (al.tipo === 'ik' ? 14 : al.cabelo ? 8 : 11) && (!melhor || d < melhor.d)) melhor = { n, al, d }; } }
@@ -431,8 +433,9 @@ const App = {
     // LEGENDA na frente de tudo também no modo Cena, no lugar exato do vídeo (dentro do quadro da câmera)
     if (!this.legOculta && (P.legendas || []).length) { ctx.save(); ctx.setTransform(V.multiply(camM).translate(-cw / 2, -ch / 2).scale(1 / (c.zoom || 1))); try { Render.legenda(ctx, P, this.q, P.w, P.h); } catch (e) { console.warn('[legenda]', e); } ctx.restore(); }
     this.desenhaRegua(ctx, V, W, H, pc.dpr); AoVivo.desenha(ctx, V, pc.dpr);
-    if (this.esqueleto && !this.tocando) this.desenhaEsqueleto(ctx, V);
+    if (this.esqueleto && !this.tocando && !PontosEd.ativo) this.desenhaEsqueleto(ctx, V);
     if (Deformar.ativo && Deformar.desenhaAlcas(ctx, V, pc.dpr)) return; // deformando: os pontos no lugar das alças
+    if (PontosEd.ativo && PontosEd.desenha(ctx)) return; // pontos do SVG por cima de tudo
     // seleção com alças (girar em cima, tamanho no canto)
     const al = this.palco.alcas();
     if (al) {
@@ -472,6 +475,7 @@ const App = {
     if (!this.P || $('#editor').classList.contains('hidden')) return;
     const alvo = e.target, digitando = alvo.closest('input,textarea,select,[contenteditable]') && alvo.type !== 'range' && alvo.type !== 'checkbox';
     if (digitando || $('#modal-root').children.length) return;
+    if (PontosEd.ativo && PontosEd.tecla(e)) return;
     const k = e.key, ctrl = e.ctrlKey || e.metaKey, s = this.noSel();
     if (ctrl && (k === 'z' || k === 'Z')) { e.preventDefault(); return e.shiftKey ? this.redo() : this.undo(); }
     if (ctrl && k === 'y') { e.preventDefault(); return this.redo(); }
@@ -493,6 +497,7 @@ const App = {
     }
     const kk = k.toLowerCase();
     if (kk === 't') return Deformar.alterna(s); // deformar (o Ctrl+T o navegador não deixa)
+    if (kk === 'a' && PontosEd.pode(s)) return PontosEd.alterna(s); // pontos do SVG direto no palco
     if (Deformar.ativo && (k === 'Enter' || k === 'Escape')) { e.preventDefault(); return Deformar.sair(); }
     if (kk === 'k') return e.shiftKey ? this.tiraChave() : this.chaveAqui();
     if (kk === 'r') return this.trocaRegua();

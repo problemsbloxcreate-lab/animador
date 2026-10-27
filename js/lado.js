@@ -232,13 +232,14 @@ const Lado = {
       c.append(this.cor('Cor', n.cor, v => { n.cor = v; App.pinta(); }, st), this.cor('Cor da borda', n.borda, v => { n.borda = v; App.pinta(); }, st));
     }, true));
     if (n.tipo === 'imagem') el.appendChild(this.secao('p-img', 'Imagem', '', c => {
-      const a = h(`<div class="pr-acoes"><button class="btn sm" data-tr>${ic('image', 13)} Trocar a imagem…</button></div>`); $('[data-tr]', a).onclick = () => App.trocarImagem(n); c.appendChild(a);
+      const a = h(`<div class="pr-acoes"><button class="btn sm" data-tr>${ic('image', 13)} Trocar a imagem…</button>${PontosEd.pode(n) ? `<button class="btn sm" data-pe title="Mexe nos pontos e curvas do SVG aqui no palco (A)">${ic('edit', 13)} Editar os pontos</button>` : ''}</div>`); $('[data-tr]', a).onclick = () => App.trocarImagem(n); if ($('[data-pe]', a)) $('[data-pe]', a).onclick = () => PontosEd.alterna(n); c.appendChild(a);
     }, true));
     if (defP) el.appendChild(this.secao('p-pers', 'Personagem', '', c => {
       const est = Modelo.estadoPersonagem(n, q), vn = defP.vistas?.length > 1 ? defP.vistas.find(v => v.id === (est.vista || defP.vistas[0].id))?.nome : '';
       c.appendChild(h(`<div class="pr-info">${vn ? `Vista <b>${esc(vn)}</b> neste quadro · ` : ''}${Atuacao.ligada(n) ? 'atuação automática ligada' : 'atuação automática desligada'}</div>`));
       const a = h(`<div class="pr-acoes"><button class="btn sm" data-nq>${ic('layers', 13)} Poses e vista</button><button class="btn sm" data-at><span class="ic-ep" data-estudio-icone="at" style="width:14px;height:14px"></span> Ateliê…</button></div>`);
       $('[data-nq]', a).onclick = () => this.aba('quadro'); $('[data-at]', a).onclick = () => App.abrirAtelie(); c.appendChild(a);
+      if (PontosEd.pode(n)) { const pe = h(`<div class="pr-acoes"><button class="btn sm" data-pe title="Mexe nos pontos e curvas das peças SVG aqui no palco, sem abrir o Ateliê (A)">${ic('edit', 13)} Editar os pontos do SVG</button></div>`); $('[data-pe]', pe).onclick = () => PontosEd.alterna(n); c.appendChild(pe); }
       // RIG (js/rig.js): partes mudam aos poucos entre as chaves de pose (como no Toon Boom) e o esqueleto por cima
       const mv = h(`<div class="pr-seg" title="Como as partes (braço, cabeça…) vão de uma pose para a outra"><span>Partes</span><div><button data-sp="1" class="${n.suaveP ? 'on' : ''}" title="Giram e andam aos poucos até a pose da próxima chave (a troca de desenho acontece na chave)">Suave</button><button data-sp="0" class="${n.suaveP ? '' : 'on'}" title="A pose fica parada até a próxima chave">Quadro a quadro</button></div></div>`);
       $$('[data-sp]', mv).forEach(b => b.onclick = () => { n.suaveP = b.dataset.sp === '1'; App.commit(n.suaveP ? 'Partes suaves' : 'Partes quadro a quadro', { semArvore: true }); }); c.appendChild(mv);
