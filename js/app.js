@@ -428,6 +428,8 @@ const App = {
     ctx.fillStyle = 'rgba(21,21,21,.38)'; ctx.fill('evenodd');
     ctx.strokeStyle = this.sel === 'camera' ? '#9fc3ff' : 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5 * pc.dpr; ctx.beginPath(); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = `${11 * pc.dpr}px Segoe UI`; ctx.fillText(`Câmera · ${P.w}×${P.h}`, ct[0].x + 6 * pc.dpr, ct[0].y - 6 * pc.dpr);
+    // LEGENDA na frente de tudo também no modo Cena, no lugar exato do vídeo (dentro do quadro da câmera)
+    if (!this.legOculta && (P.legendas || []).length) { ctx.save(); ctx.setTransform(V.multiply(camM).translate(-cw / 2, -ch / 2).scale(1 / (c.zoom || 1))); try { Render.legenda(ctx, P, this.q, P.w, P.h); } catch (e) { console.warn('[legenda]', e); } ctx.restore(); }
     this.desenhaRegua(ctx, V, W, H, pc.dpr); AoVivo.desenha(ctx, V, pc.dpr);
     if (this.esqueleto && !this.tocando) this.desenhaEsqueleto(ctx, V);
     if (Deformar.ativo && Deformar.desenhaAlcas(ctx, V, pc.dpr)) return; // deformando: os pontos no lugar das alças
