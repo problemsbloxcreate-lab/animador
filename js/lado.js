@@ -211,6 +211,8 @@ const Lado = {
         sel.onchange = poe; qq.onchange = () => n[k] && poe(); return r; };
       c.append(linhaA('entra', 'Entrada', true), linhaA('sai', 'Saída', n.ate != null));
     }, true));
+    // RECORTE (pasta): só mostra o que está dentro de um retângulo da tela — tela dividida, janelas (short.js)
+    if (n.filhos) el.appendChild(this.secao('p-recorte', 'Recorte', n.recorte ? Short.nomeRecorte(P, n.recorte) : '', c => c.appendChild(Short.painelRecorte(P, n))));
     // DO TIPO
     if (n.tipo === 'forma') el.appendChild(this.secao('p-forma', n.fundoPadrao ? 'Forma · fundo padrão' : 'Forma', '', c => {
       const fs = h(`<div class="pr-icones">${[['ret', 'square', 'Retângulo'], ['elipse', 'circle', 'Círculo'], ['tri', 'shapes', 'Triângulo'], ['estrela', 'star', 'Estrela']].map(([f, i, l]) => `<button data-f="${f}" class="${n.forma === f ? 'on' : ''}" title="${l}">${ic(i, 15)}<span>${l}</span></button>`).join('')}</div>`);

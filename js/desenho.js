@@ -91,12 +91,16 @@ const Render = {
   },
   _bufs: [],
   buf(nivel, cv) { let b = this._bufs[nivel]; if (!b || b.width !== cv.width || b.height !== cv.height) b = this._bufs[nivel] = new OffscreenCanvas(cv.width, cv.height); return b; },
+  // RECORTE DA PASTA (n.recorte = {x, y, w, h} em px do vídeo, preso na tela: a câmera não move a janela, só o que está dentro).
+  // Usado na tela dividida do Short (metade de cima / de baixo, Short.LAYOUTS) e em janelas/telas de celular.
+  recorte(n) { const r = n.recorte; return r && r.w > 0 && r.h > 0 ? r : null; },
   // desenha um nó (pasta: os filhos). Devolve true se desenhou algo
   umNo(ctx, P, q, base, n, m, alfa, fr, nivel) {
     if (!this.vivo(P, n, q) || n.tipo === 'efeito') return false;
     const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
     const fx = n.chaves && Modelo.filtroFx(Modelo.fxNo(n, q)), fxPai = this._fx || ''; // cor e luz (chave.fx): a da pasta vale para tudo dentro
-    if (n.filhos) { this._fx = (fxPai + ' ' + (fx || '')).trim(); try { this.lista(ctx, P, q, base, n.filhos, mm, a, fr, nivel + 1); } finally { this._fx = fxPai; } return true; }
+    if (n.filhos) { const rc = this.recorte(n); if (rc) { ctx.save(); ctx.setTransform(fr); ctx.beginPath(); ctx.rect(rc.x, rc.y, rc.w, rc.h); ctx.clip(); } // RECORTE DA PASTA: só aparece o que está dentro do retângulo (px do vídeo, fixo na tela)
+      this._fx = (fxPai + ' ' + (fx || '')).trim(); try { this.lista(ctx, P, q, base, n.filhos, mm, a, fr, nivel + 1); } finally { this._fx = fxPai; if (rc) ctx.restore(); } return true; }
     ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a)); const filtro = ((fx || '') + ' ' + fxPai).trim(); if (filtro) ctx.filter = filtro;
     const df = n.chaves && Deformar.em(n, q); if (df && Deformar.desenha(ctx, P, q, base, n, mm, df)) { ctx.restore(); return true; } // deformada (js/deformar.js)
     if (n.tipo === 'personagem') {

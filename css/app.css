@@ -1636,3 +1636,7 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .ide-v.av{background:rgba(255,209,102,.07)}.ide-vt em{display:flex;align-items:center;gap:4px;font-style:normal;font-size:11px;color:#ffd166;margin-top:2px}
 .ide-vtodas{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}.ide-vtodas small{color:var(--tx3);font-size:11.5px}
 .ide-aviso-t{display:inline-flex;align-items:center;gap:3px;color:#ffd166}
+.sh-dir{display:grid;gap:8px}.sh-lay{display:flex;gap:6px}
+.sh-lay button{display:flex;flex-direction:column;align-items:center;gap:4px;width:118px;padding:10px 6px;border-radius:10px;border:1px solid var(--bd);background:var(--bg1);color:var(--tx2);font:inherit;font-size:12px;cursor:pointer}
+.sh-lay button:hover{color:var(--tx);border-color:var(--tx3)}.sh-lay button.on{color:var(--tx);border-color:#ffd166;background:rgba(255,209,102,.08)}
+.sh-div{gap:8px;align-items:center}.sh-div span{color:var(--tx2)}.sh-dir textarea{width:100%;resize:vertical;font:inherit;font-size:12.5px}

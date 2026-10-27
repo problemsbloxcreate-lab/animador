@@ -103,6 +103,108 @@ const Short = {
     this.etapa(P).legendas = 'aprovado'; App.commit('Aprovar as legendas'); return tudo;
   },
 
+  // ---------- RECORTE DA PASTA (Render.recorte) ----------
+  RECORTES: [['', 'Sem recorte'], ['cima', 'Metade de cima'], ['baixo', 'Metade de baixo'], ['esq', 'Metade da esquerda'], ['dir', 'Metade da direita'], ['livre', 'Personalizado']],
+  retDe(P, id) { const W = P.w, H = P.h, mh = Math.round(H / 2), mw = Math.round(W / 2);
+    return { cima: { x: 0, y: 0, w: W, h: mh }, baixo: { x: 0, y: mh, w: W, h: H - mh }, esq: { x: 0, y: 0, w: mw, h: H }, dir: { x: mw, y: 0, w: W - mw, h: H } }[id] || null; },
+  qualRecorte(P, r) { if (!r) return ''; for (const [id] of this.RECORTES) { const x = this.retDe(P, id); if (x && x.x === r.x && x.y === r.y && x.w === r.w && x.h === r.h) return id; } return 'livre'; },
+  nomeRecorte(P, r) { return (this.RECORTES.find(x => x[0] === this.qualRecorte(P, r)) || [])[1] || ''; },
+  painelRecorte(P, n) {
+    const cur = this.qualRecorte(P, n.recorte), el = h(`<div><div class="campo2"><span style="color:var(--tx2)">Mostrar só</span><select data-r>${this.RECORTES.map(([id, nm]) => `<option value="${id}" ${cur === id ? 'selected' : ''}>${nm}</option>`).join('')}</select></div><div class="pr-num-grade" data-livre></div><small style="color:var(--tx3)">Só aparece o que está dentro do retângulo (px do vídeo, preso na tela: a câmera não move o recorte).</small></div>`);
+    $('[data-r]', el).onchange = ev => { const id = ev.target.value; if (!id) delete n.recorte; else n.recorte = id === 'livre' ? { ...(n.recorte || this.retDe(P, 'cima')) } : this.retDe(P, id); App.commit('Recorte da pasta'); };
+    if (n.recorte) { const g = $('[data-livre]', el), r = n.recorte, ok = () => App.commit('Recorte da pasta');
+      [['X', 'x'], ['Y', 'y'], ['Largura', 'w'], ['Altura', 'h']].forEach(([nm, k]) => g.appendChild(Lado.num(nm, r[k], { passo: 1, dec: 0, unid: 'px', min: k === 'w' || k === 'h' ? 1 : -99999 }, v => { r[k] = Math.round(v); App.pinta(); }, ok))); }
+    return el;
+  },
+
+  // ---------- DIREÇÃO DO VÍDEO (Gerar o vídeo): tela inteira ou DIVIDIDA NO MEIO (uma metade a história, a outra quem narra) ----------
+  // R.opcoes: layout 'cheia'|'dividida', cima 'historia'|'narracao', narrador (id do personagem), direcao (texto livre que vai para a IA em cada cena)
+  painelDirecao(R, guarda) {
+    const o = R.opcoes ||= {}, lay = o.layout || 'cheia', fala = {}; for (const f of Ideias.falas(R)) { const p = Ideias.persDe(R, f.personagem); if (p) fala[p.id] = (fala[p.id] || 0) + 1; }
+    const narr = o.narrador || Object.keys(fala).sort((a, b) => fala[b] - fala[a])[0] || R.pers[0]?.id;
+    const el = h(`<div class="sh-dir"><div class="ide-sec">${ic('film', 13)} <b>Direção do vídeo</b><small>como a história aparece na tela</small></div>
+      <div class="sh-lay">${[['cheia', 'Tela inteira', '<rect x="5" y="2" width="14" height="20" rx="2"/>'], ['dividida', 'Dividida no meio', '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M5 12h14"/>']].map(([id, nm, sv]) => `<button data-lay="${id}" class="${lay === id ? 'on' : ''}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${sv}</svg><span>${nm}</span></button>`).join('')}</div>
+      ${lay === 'dividida' ? `<div class="campo2 sh-div"><span>Em cima</span><select data-cima><option value="historia">a história (quem vive)</option><option value="narracao" ${o.cima === 'narracao' ? 'selected' : ''}>quem narra</option></select>
+        <span>Quem narra</span><select data-narr>${R.pers.map(p => `<option value="${esc(p.id)}" ${p.id === narr ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></div>
+        <div class="campo2 sh-div"><span>Cenário de quem narra</span><b>${esc(o.cenNarr?.nome || 'Planetário do Problems')}</b><button class="btn sm" data-cnarr>${ic('paisagem', 13)} Trocar…</button><span>Zoom</span><select data-zoom>${[1.5, 2, 2.5, 3].map(z => `<option value="${z}" ${(o.zoomNarr || 2) === z ? 'selected' : ''}>${String(z).replace('.', ',')}×</option>`).join('')}</select></div>
+        <small class="sh-dica">Cada metade tem 1080×960, com a linha exatamente no meio. Quem narra fala para a câmera com a boca pela voz, de perto, atrás da mesa do cenário dela; na outra metade o mesmo personagem VIVE a história, no cenário de cada lugar (passo Cenários). A legenda fica na linha do meio.</small>` : ''}
+      <textarea rows="2" data-txt placeholder="Direção para a IA (opcional). Ex.: em cima a Lumi vive a história, embaixo ela conta para a câmera; mostre as flores, o tapão e o pônei quando ela falar deles.">${esc(o.direcao || '')}</textarea></div>`);
+    $$('[data-lay]', el).forEach(b => b.onclick = () => { o.layout = b.dataset.lay; if (o.layout === 'dividida') { o.cima ||= 'historia'; o.narrador ||= narr; } guarda(true); });
+    if ($('[data-cima]', el)) $('[data-cima]', el).onchange = ev => { o.cima = ev.target.value; guarda(); };
+    if ($('[data-cnarr]', el)) $('[data-cnarr]', el).onclick = async () => { const e = await CenLib.abrir({ escolher: { roteiro: R.id, lugar: 'narração', visual: 'onde quem narra conta a história para a câmera', atual: o.cenNarr || null } }); if (e) { o.cenNarr = e; guarda(true); } };
+    if ($('[data-zoom]', el)) $('[data-zoom]', el).onchange = ev => { o.zoomNarr = +ev.target.value; guarda(); };
+    if ($('[data-narr]', el)) $('[data-narr]', el).onchange = ev => { o.narrador = ev.target.value; guarda(); };
+    $('[data-txt]', el).onchange = ev => { o.direcao = ev.target.value.trim(); guarda(); };
+    return el;
+  },
+  // monta a tela dividida depois que os personagens de cada cena foram criados (nos[ci][persId] = nó). Muda o projeto P (ainda não aberto).
+  aplicaLayout(P, R, cenas, defs, nos) {
+    const o = R.opcoes || {}; if (o.layout !== 'dividida') return null;
+    const W = P.w, rH = this.retDe(P, o.cima === 'narracao' ? 'baixo' : 'cima'), rN = this.retDe(P, o.cima === 'narracao' ? 'cima' : 'baixo');
+    const narr = R.pers.find(p => p.id === o.narrador) || R.pers[0]; if (!narr) return null;
+    const altura = def => { const b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, {})); return b.h > 0 ? b.h : 500; };
+    const pH = Modelo.novoNo('pasta', { nome: 'História' }), pN = Modelo.novoNo('pasta', { nome: 'Narração' }); pH.recorte = rH; pN.recorte = rN; pH.aberto = pN.aberto = false;
+    // quem VIVE a história: os nós das cenas vão para a metade da história, no tamanho dela
+    const movidos = new Set();
+    cenas.forEach((cn, ci) => { const ids = Object.keys(nos[ci] || {}); ids.forEach((pid, i) => { const n = nos[ci][pid], def = defs[pid], s = round(clamp(rH.h * .62 / altura(def), .05, 4), 3), k = n.chaves[cn.de];
+      Object.assign(k, { x: Math.round(W * (i + 1) / (ids.length + 1)), y: Math.round(rH.y + rH.h * .93), s }); n.nome = `${R.pers.find(p => p.id === pid)?.nome || 'Personagem'} · história${cenas.length > 1 ? ' · cena ' + (ci + 1) : ''}`; movidos.add(n); }); });
+    P.raiz = P.raiz.filter(n => !movidos.has(n)); pH.filhos.push(...movidos);
+    // quem NARRA: um nó só, o vídeo inteiro, de frente para a câmera, com um fundo liso na metade dele
+    const dN = defs[narr.id], sN = round(clamp(rN.h * .86 / altura(dN), .05, 4), 3), nN = Modelo.novoNo('personagem', { ref: dN.id, nome: narr.nome + ' · narra', s: sN });
+    nN.atuacao = { ...Atuacao.PADRAO }; nN.interp = true; nN.suaveP = true; nN.de = 0; nN.ate = null; nN.chaves = { 0: { x: Math.round(W / 2), y: Math.round(rN.y + rN.h * .98), r: 0, s: sN, sx: 1, op: 1 } };
+    const fundo = Modelo.novoNo('forma', { nome: 'Fundo da narração', forma: 'ret', w: rN.w, h: rN.h, cor: '#26304f', x: Math.round(rN.x + rN.w / 2), y: Math.round(rN.y + rN.h / 2) });
+    pN.filhos.push(nN, fundo);
+    P.raiz.unshift(pH, pN);
+    // a boca pela voz vai em quem narra (quem vive a história não dubla a narração)
+    cenas.forEach((cn, ci) => { if (nos[ci]?.[narr.id]) nos[ci][narr.id] = nN; });
+    P.short = Object.assign(P.short || { v: 1, etapas: {}, avisos: [] }, { layout: { tipo: 'dividida', historia: pH.id, narracao: pN.id, narrador: narr.id } });
+    if (P.legEstilo) P.legEstilo.pos = 'meio';
+    return { pH, pN, nN };
+  },
+  // CENÁRIO DE QUEM NARRA (tela dividida): o cenário escolhido (padrão: Planetário do Problems) entra só na metade da narração, com ZOOM,
+  // e quem narra fica ATRÁS da mesa do cenário (a perna some atrás dela, como alguém falando para a câmera sentado/apoiado na mesa).
+  // Precisa da animação aberta (CenLib.porNaCena). R.opcoes.cenNarr = escolha da biblioteca; R.opcoes.zoomNarr (padrão 2).
+  async montaNarracao(R) {
+    const P = App.P, L = P?.short?.layout; if (L?.tipo !== 'dividida') return;
+    const o = R.opcoes || {}, pN = Modelo.achar(P, L.narracao)?.no, nN = pN?.filhos.find(n => n.tipo === 'personagem'); if (!pN || !nN) return;
+    const def = await CenLib.resolve(o.cenNarr || { origem: 'casa', id: 'planetario', nome: 'Planetário do Problems' }).catch(() => null); if (!def) return UI.toast('O cenário de quem narra não abriu; ficou o fundo liso.', { kind: 'warn' });
+    App.q = 0; const pasta = await CenLib.porNaCena(def); const i = P.raiz.indexOf(pasta); if (i >= 0) P.raiz.splice(i, 1);
+    pasta.de = 0; pasta.ate = null; pasta.nome = 'Cenário da narração: ' + String(def.nome || '').slice(0, 24);
+    const r = pN.recorte, CW = CenLib.W || 1920, CH = CenLib.H || 1080, cam = def.camadas || [];
+    const mesa = cam.find(c => /mesa|balc|bancada/i.test(c.id + ' ' + c.nome)), foco = cam.find(c => /lumi|narr/i.test(c.id + ' ' + c.nome)) || mesa;
+    // zoom: o cenário cobre a metade com folga; com mesa, a borda de cima dela fica a 88% da metade (close do cinto para cima) e o foco (onde o narrador fica) no meio
+    let s = Math.max(r.w / CW, r.h / CH) * (o.zoomNarr || 2);
+    const fx = foco ? foco.cx : CW / 2; let x = r.x + r.w / 2 - fx * s, y = mesa ? r.y + r.h * .88 - (mesa.cy - mesa.h / 2) * s : r.y + r.h / 2 - CH / 2 * s;
+    x = clamp(x, r.x + r.w - CW * s, r.x); y = clamp(y, r.y + r.h - CH * s, r.y); // sem mostrar a borda do cenário
+    for (const k of Object.values(pasta.chaves)) Object.assign(k, { s: round(s, 4), x: Math.round(x), y: Math.round(y) });
+    for (const n of pasta.filhos) if (/^lumi$/i.test(n.camCen || '')) n.vis = false; // a Lumi desenhada no cenário sai: quem narra é a personagem de verdade
+    // quem narra: CLOSE do cinto para cima (decisão do dono): dentro do cenário, atrás da mesa; o topo da mesa corta na cintura
+    const k0 = nN.chaves[0], dN = App.P.personagens[nN.ref], b = Modelo.caixaPersonagem(dN, Modelo.partesNoEstado(dN, {})), hc = b.h > 0 ? b.h : 500;
+    const mesaTop = mesa ? y + (mesa.cy - mesa.h / 2) * s : r.y + r.h, topo = r.y + r.h * .15, hw = (mesaTop - topo) / .44, wx = r.x + r.w / 2;
+    Object.assign(k0, { x: round((wx - x) / s, 1), y: round((topo + hw - y) / s, 1), s: round(hw / hc / s, 4) });
+    pN.filhos = pN.filhos.filter(n => n !== nN && !/^Fundo da narração$/.test(n.nome));
+    const im = pasta.filhos.findIndex(n => mesa && n.camCen === mesa.id); pasta.filhos.splice(im >= 0 ? im + 1 : 0, 0, nN);
+    pN.filhos.push(pasta); App.commit('Cenário de quem narra');
+  },
+  // cenário que entrou na cena: na tela dividida vai para a metade da história, cobrindo só ela
+  cenarioNoLayout(P, pasta) {
+    const L = P.short?.layout; if (L?.tipo !== 'dividida' || !pasta) return;
+    const pH = Modelo.achar(P, L.historia)?.no || P.raiz.find(n => n.id === L.historia); if (!pH) return;
+    const r = pH.recorte, CW = 1920, CH = 1080, s = round(Math.max(r.w / CW, r.h / CH) * 1.02, 3);
+    for (const k of Object.values(pasta.chaves || {})) Object.assign(k, { s, x: Math.round(r.x + r.w / 2 - CW / 2 * s), y: Math.round(r.y + r.h / 2 - CH / 2 * s) });
+    const i = P.raiz.indexOf(pasta); if (i >= 0) P.raiz.splice(i, 1); pH.filhos.push(pasta); // atrás de quem vive a história
+  },
+  // o que a IA precisa saber em cada cena
+  direcaoIA(R) {
+    const o = R.opcoes || {}; let t = '';
+    if (o.layout === 'dividida') { const narr = R.pers.find(p => p.id === o.narrador)?.nome || 'o narrador', cima = o.cima === 'narracao' ? 'narração' : 'história';
+      t += `DIREÇÃO DO VÍDEO: TELA DIVIDIDA EXATAMENTE NO MEIO (pastas "História" e "Narração", cada uma com recorte; NÃO mexa nas pastas, no recorte nem no fundo da narração). Em cima: ${cima}; embaixo: ${cima === 'história' ? 'narração' : 'história'}.\n`
+        + `- Na NARRAÇÃO, "${narr} · narra" conta para a câmera, de perto, atrás da mesa do cenário dela: só cabeça, expressões, olhos e gestos de braço de quem conta uma história; não sai do lugar nem sobe na mesa. A boca já está feita pela voz.\n`
+        + `- Na HISTÓRIA, as camadas "· história" VIVEM o que está sendo contado naquele momento (toda coisa concreta citada vira imagem/ação; mostre a consequência). Sem dublar: a boca delas fica fechada ou reagindo.\n`
+        + `- Câmera parada (cada metade é um quadro fixo).\n`; }
+    if (o.direcao) t += `PEDIDO DO DONO PARA O VÍDEO TODO: ${o.direcao}\n`;
+    return t ? t + '\n' : '';
+  },
   // ---------- ETAPAS (barra no modo Vídeo) ----------
   etapa(P) { P.short ||= { v: 1, etapas: {}, avisos: [] }; P.short.etapas ||= {}; return P.short.etapas; },
   vertical(P) { return P && P.h > P.w; },

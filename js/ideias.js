@@ -499,9 +499,11 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
       <label class="chk"><input type="checkbox" data-o="boca" ${o.boca ? 'checked' : ''}> Boca pela voz <small>(personagem com a sessão "Boca")</small></label>
       <label class="chk"><input type="checkbox" data-o="legendas" ${o.legendas ? 'checked' : ''}> Legendas com a palavra falada acesa</label>
       <label class="chk"><input type="checkbox" data-o="animar" ${o.animar ? 'checked' : ''}> Animar com a IA <small>(poses pelas emoções, ações, câmera e cortes, cena por cena)</small></label>
+      <div data-dir></div>
       <div class="ide-sec">${ic('film', 13)} <b>Copiar o estilo destes vídeos</b><small>a IA vê cenas deles ao animar</small></div><div class="ide-refs"></div>
       <div class="ide-rod">${R.gerado ? `<button class="btn" data-abrir>${ic('folder', 13)} Abrir a animação gerada</button>` : ''}<span class="sp"></span><button class="btn primary" data-g>${ic('sparkles', 14)} ${R.gerado ? 'Gerar de novo (animação nova)' : 'Gerar o vídeo'}</button></div></div>`);
     $$('[data-o]', box).forEach(i => i.onchange = () => { o[i.dataset.o] = i.checked; this.guarda(R); });
+    $('[data-dir]', box).replaceWith(Short.painelDirecao(R, async pinta => { await this.guarda(R); if (pinta) this.pintaRoteiro(); })); // tela inteira / dividida no meio
     const rf = $('.ide-refs', box);
     for (const v of vids.slice(0, 16)) { const on = (o.refs || []).includes(v.id), c = h(`<label class="ide-ref ${on ? 'on' : ''}"><input type="checkbox" ${on ? 'checked' : ''}><img src="${this.thumb(v.id)}" alt=""><span>${esc(v.titulo)}<small>${esc(v.canal)} · ${this.num(v.views)}</small></span></label>`);
       $('input', c).onchange = e => { o.refs = (o.refs || []).filter(x => x !== v.id); if (e.target.checked) { if (o.refs.length >= 3) { e.target.checked = false; return UI.toast('No máximo 3 vídeos (cada um vira imagens no pedido da IA).', { kind: 'warn' }); } o.refs.push(v.id); } c.classList.toggle('on', e.target.checked); this.guarda(R); }; rf.appendChild(c); }
@@ -546,6 +548,7 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
       });
       // vozes e legendas
       P.legendas = []; P.audios = [];
+      const lay = Short.aplicaLayout(P, R, cenas, defs, nos); // tela dividida: metade da história + metade de quem narra (short.js)
       // UMA faixa de voz por personagem (as falas dele no lugar certo, com silêncio entre elas): a timeline fica com poucas linhas
       Ocupado.passo('Juntando as vozes de cada personagem…');
       for (const p of R.pers) { const X = cenas.flatMap(cn => cn.falas).filter(x => x.p === p && R.vozes[x.f.id]); if (!X.length) continue;
@@ -556,13 +559,14 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
       // legendas pelo motor do Shorts: blocos de 1 linha, na cor de quem fala, com o tempo de cada palavra ouvido na decupagem
       if (o.legendas) { await Short.carregaGosto(); const qcor = Object.fromEntries(R.pers.map(p => [p.nome, p.cor])), nomes = Object.keys(qcor);
         for (const cn of cenas) for (const x of cn.falas) P.legendas.push(Short.legenda(P, { texto: x.f.texto, de: x.de, ate: x.ate, cor: x.p?.cor, quem: x.p?.nome, tempos: R.vozes[x.f.id]?.pal, nomes, qcor }));
-        P.legEstilo = { pos: 'baixo', blocos: true, karaoke: false, pop: false }; }
+        P.legEstilo = { pos: lay ? 'meio' : 'baixo', blocos: true, karaoke: false, pop: false }; }
       // etapas do Short: os avisos da conferência da voz ficam no projeto (Revisor e etapa Voz)
-      P.short = { v: 1, etapas: {}, avisos: cenas.flatMap(cn => cn.falas).flatMap(x => (R.vozes[x.f.id]?.aviso || []).map(a => ({ q: x.de, texto: x.f.texto, aviso: a }))) };
+      P.short = { v: 1, etapas: {}, ...(P.short?.layout ? { layout: P.short.layout } : {}), avisos: cenas.flatMap(cn => cn.falas).flatMap(x => (R.vozes[x.f.id]?.aviso || []).map(a => ({ q: x.de, texto: x.f.texto, aviso: a }))) };
       // referências de estilo (cenas dos vídeos analisados)
       P.refsAnim = [];
       for (const id of (o.refs || []).slice(0, 3)) { try { Ocupado.passo('Pegando as cenas do vídeo de referência…'); const r = await RefsAnim.doYoutube(id); const k = uid('a'); await Arq.guardar(r.blob, k); P.refsAnim.push({ id: uid('rf'), k, tipo: 'youtube', vid: id, url: 'https://youtu.be/' + id, nome: r.nome }); } catch { } }
       await DB.put('projetos', JSON.parse(JSON.stringify(P))); await App.abrir(P); R.gerado = P.id; await this.guarda(R);
+      if (R.opcoes?.layout === 'dividida') { Ocupado.passo('Pondo o cenário de quem narra…'); try { await Short.montaNarracao(R); } catch (e) { UI.toast('O cenário de quem narra não entrou: ' + esc(e.message), { kind: 'warn' }); } }
       // boca pela voz
       if (o.boca) { Ocupado.passo('Mexendo a boca pela voz…'); let nb = 0;
         cenas.forEach((cn, ci) => { for (const [pid, n] of Object.entries(nos[ci] || {})) { const a = App.P.audios.find(y => y._pers === pid); if (a && Som.bocaAuto(App.P, n, a)) nb++; } });
@@ -571,14 +575,14 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
       const passos = comCen + (o.animar ? cenas.length : 0); let feito = 0;
       // cenários: o escolhido no passo Cenários (biblioteca); sem escolha, a IA desenha um rabiscado na hora (se ligado)
       for (const [ci, cn] of cenas.entries()) { const ec = escDe(cn); if (!ec && !o.cenarios) continue; Ocupado.parte(feito, passos); Ocupado.passo(`${ec ? 'Pondo' : 'Desenhando'} o cenário da cena ${ci + 1}: ${cn.ce.lugar}…`);
-        if (ec) { try { const def = await CenLib.resolve(ec); if (!def) throw new Error(`"${ec.nome}" não está mais na biblioteca`); App.q = cn.de; const pasta = await CenLib.porNaCena(def); pasta.de = cn.de; pasta.ate = cn.ate; pasta.nome = `Cenário ${ci + 1}: ${cn.ce.lugar}`.slice(0, 40); App.commit('Cenário da cena ' + (ci + 1)); }
+        if (ec) { try { const def = await CenLib.resolve(ec); if (!def) throw new Error(`"${ec.nome}" não está mais na biblioteca`); App.q = cn.de; const pasta = await CenLib.porNaCena(def); Short.cenarioNoLayout(App.P, pasta); pasta.de = cn.de; pasta.ate = cn.ate; pasta.nome = `Cenário ${ci + 1}: ${cn.ce.lugar}`.slice(0, 40); App.commit('Cenário da cena ' + (ci + 1)); }
           catch (e) { UI.toast(`O cenário da cena ${ci + 1} não entrou: ${esc(e.message)}`, { kind: 'warn' }); } feito++; continue; }
         try { const r = await Cenarios.pedirIA(cn.ce.visual || cn.ce.lugar, null); Cenarios.guardaUltimo?.(r.cena); const est = await Cenarios.estadoDe({ ...r.cena, ia: true }); est.ia = true; App.q = cn.de;
-          const pasta = await Cenarios.porEmCamadas(est, { semAviso: true }); pasta.de = cn.de; pasta.ate = cn.ate; pasta.nome = `Cenário ${ci + 1}: ${cn.ce.lugar}`.slice(0, 40); App.commit('Cenário da cena ' + (ci + 1)); }
+          const pasta = await Cenarios.porEmCamadas(est, { semAviso: true }); Short.cenarioNoLayout(App.P, pasta); pasta.de = cn.de; pasta.ate = cn.ate; pasta.nome = `Cenário ${ci + 1}: ${cn.ce.lugar}`.slice(0, 40); App.commit('Cenário da cena ' + (ci + 1)); }
         catch (e) { UI.toast(`O cenário da cena ${ci + 1} não saiu: ${esc(e.message)}`, { kind: 'warn' }); } feito++; }
       // animação pela IA, cena por cena (só mexe dentro da cena)
       if (o.animar) for (const [ci, cn] of cenas.entries()) { Ocupado.parte(feito, passos); Ocupado.passo(`Animando a cena ${ci + 1} de ${cenas.length}…`);
-        const txt = `Anime esta CENA do roteiro (${R.formato === 'short' ? 'short vertical' : 'vídeo longo'}), como nos canais de referência: poses fortes pelas emoções, a ação de cada fala, câmera e cortes pelo pedido de cada fala, reação de quem escuta, piscar de vez em quando. As bocas já estão feitas pela voz: NÃO mude a sessão da boca.\nCENA ${ci + 1} — ${cn.ce.lugar}\n` + cn.falas.map(x => `quadros ${x.de + 1}-${x.ate + 1} · ${x.p?.nome || '?'} (camada "${nos[ci]?.[x.p?.id]?.nome || x.p?.nome}") · emoção: ${x.f.emocao} · ação: ${x.f.acao || '—'} · câmera: ${x.f.camera} · fala: "${x.f.texto}"`).join('\n');
+        const txt = Short.direcaoIA(R) + `Anime esta CENA do roteiro (${R.formato === 'short' ? 'short vertical' : 'vídeo longo'}), como nos canais de referência: poses fortes pelas emoções, a ação de cada fala, câmera e cortes pelo pedido de cada fala, reação de quem escuta, piscar de vez em quando. As bocas já estão feitas pela voz: NÃO mude a sessão da boca.\nCENA ${ci + 1} — ${cn.ce.lugar}\n` + cn.falas.map(x => `quadros ${x.de + 1}-${x.ate + 1} · ${x.p?.nome || '?'} (camada "${nos[ci]?.[x.p?.id]?.nome || x.p?.nome}") · emoção: ${x.f.emocao} · ação: ${x.f.acao || '—'} · câmera: ${x.f.camera} · fala: "${x.f.texto}"`).join('\n');
         try { await IA.executar(txt, null, t => Ocupado.passo(`Animando a cena ${ci + 1}… ${String(t).slice(-60)}`), { trechos: [{ de: cn.de, ate: cn.ate }] }); } catch (e) { UI.toast(`A IA não animou a cena ${ci + 1}: ${esc(e.message)}`, { kind: 'warn' }); } feito++; }
       Ocupado.parte(passos, passos);
     } catch (e) { UI.toast('Não deu para gerar: ' + esc(e.message), { kind: 'err', time: 8000 }); return; }
