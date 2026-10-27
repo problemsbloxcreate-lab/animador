@@ -1,6 +1,7 @@
 {
  "sobre": "Cenários em CAMADAS da casa (janela Cenários do Animador, js/cenlib.js). Cada um fica em cenarios/<id>/ com cenario.json, camadas/ e miniatura.jpg. Guia: cenarios/CAMADAS.md",
  "cenarios": [
-  { "id": "planetario", "nome": "Planetário do Problems", "miniatura": "miniatura.jpg", "estilo": "pintado-azul", "tags": ["quarto", "Problems", "azul", "gelo"] }
+  { "id": "planetario", "nome": "Planetário do Problems", "miniatura": "miniatura.jpg", "estilo": "pintado-azul", "tags": ["quarto", "Problems", "azul", "gelo"] },
+  { "id": "fazenda-amarela", "nome": "Fazenda amarela da Lumi", "miniatura": "miniatura.jpg", "estilo": "rabiscado", "tags": ["fazenda", "Lumi", "amarelo", "campo"] }
  ]
 }

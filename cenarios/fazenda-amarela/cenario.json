@@ -1,0 +1,133 @@
+{
+ "formato": "cenario-camadas",
+ "v": 1,
+ "id": "fazenda-amarela",
+ "nome": "Fazenda amarela da Lumi",
+ "estilo": "rabiscado",
+ "descricao": "A fazenda pobre amarela onde a Lumi cresceu: celeiro, feno, árvore seca, o cavalo e o cercado.",
+ "tags": [
+  "fazenda",
+  "Lumi",
+  "amarelo",
+  "campo"
+ ],
+ "w": 1920,
+ "h": 1080,
+ "miniatura": "miniatura.jpg",
+ "cena": {
+  "luz": 100,
+  "con": 100,
+  "sat": 100,
+  "mat": 0
+ },
+ "camadas": [
+  {
+   "id": "ceu",
+   "nome": "Céu",
+   "tipo": "png",
+   "w": 1920,
+   "h": 1080,
+   "cx": 960,
+   "cy": 540,
+   "s": 1,
+   "r": 0,
+   "arq": "camadas/ceu.png"
+  },
+  {
+   "id": "nuvens",
+   "nome": "Nuvens",
+   "tipo": "png",
+   "w": 1114,
+   "h": 289,
+   "cx": 1195,
+   "cy": 166.5,
+   "s": 1,
+   "r": 0,
+   "arq": "camadas/nuvens.png"
+  },
+  {
+   "id": "morros",
+   "nome": "Morros",
+   "tipo": "png",
+   "w": 1920,
+   "h": 520,
+   "cx": 960,
+   "cy": 715,
+   "s": 1,
+   "r": 0,
+   "arq": "camadas/morros.png"
+  },
+  {
+   "id": "chao",
+   "nome": "Chão",
+   "tipo": "png",
+   "w": 1920,
+   "h": 325,
+   "cx": 960,
+   "cy": 917.5,
+   "s": 1,
+   "r": 0,
+   "arq": "camadas/chao.png"
+  },
+  {
+   "id": "celeiro",
+   "nome": "Celeiro",
+   "tipo": "png",
+   "w": 710,
+   "h": 673,
+   "cx": 380,
+   "cy": 491.5,
+   "s": 1,
+   "r": 0,
+   "arq": "camadas/celeiro.png"
+  },
+  {
+   "id": "feno",
+   "nome": "Fardo de feno",
+   "tipo": "png",
+   "w": 190,
+   "h": 140,
+   "cx": 790,
+   "cy": 755,
+   "s": 1,
+   "r": 0,
+   "arq": "camadas/feno.png"
+  },
+  {
+   "id": "arvore",
+   "nome": "Árvore seca",
+   "tipo": "png",
+   "w": 246,
+   "h": 433,
+   "cx": 1005,
+   "cy": 608.5,
+   "s": 1,
+   "r": 0,
+   "arq": "camadas/arvore.png"
+  },
+  {
+   "id": "cavalo",
+   "nome": "Cavalo",
+   "tipo": "png",
+   "w": 440,
+   "h": 443,
+   "cx": 1525,
+   "cy": 591.5,
+   "s": 1,
+   "r": 0,
+   "arq": "camadas/cavalo.png"
+  },
+  {
+   "id": "cercado",
+   "nome": "Cercado",
+   "tipo": "png",
+   "w": 740,
+   "h": 216,
+   "cx": 1545,
+   "cy": 723,
+   "s": 1,
+   "r": 0,
+   "arq": "camadas/cercado.png"
+  }
+ ]
+}
