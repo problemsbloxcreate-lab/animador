@@ -113,6 +113,8 @@ const Rig = {
         const dr = Math.abs(this.norm((b.r || 0) - (a.r || 0))), dp = Math.hypot((b.x || 0) - (a.x || 0), (b.y || 0) - (a.y || 0)); if (dr < 8 && dp < 4) { out[pid] = a; continue; }
         if (t >= .5) x = { ...b, x: a.x, y: a.y, r: a.r, s: a.s }; }
       for (const c of ['x', 'y', 'r', 's']) { const va = a[c] ?? (c === 's' ? 1 : 0), vb = b[c] ?? (c === 's' ? 1 : 0); if (va === vb) continue; let d = vb - va; if (c === 'r') d = this.norm(d); x[c] = va + d * t; }
+      // CAMADA no meio do movimento: vale a da frente (ex.: mão que vai para o peito já passa POR FORA do colete, não por dentro)
+      if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0);
       out[pid] = x;
     }
     return out;
