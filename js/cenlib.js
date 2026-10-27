@@ -17,7 +17,8 @@
    (Arq.bitmap) e ficam guardadas; vão junto no .animador como qualquer imagem. */
 'use strict';
 const CenLib = {
-  W: 1920, H: 1080, FX0: { luz: 100, con: 100, sat: 100, mat: 0 },
+  W: 1920, H: 1080, FAIXA: 596, // FAIXA = largura do cenário que aparece num Short 9:16 (porNaCena: 1080 ÷ (1920/1080 × 1,02))
+  FX0: { luz: 100, con: 100, sat: 100, mat: 0 },
   AJ: [['luz', 'Iluminação', 20, 200, '%'], ['con', 'Contraste', 20, 200, '%'], ['sat', 'Saturação', 0, 250, '%'], ['mat', 'Cor (matiz)', -180, 180, '°']],
   _casa: null, _pac: {},
   fil(f) { return f && Object.keys(this.FX0).some(c => (f[c] ?? this.FX0[c]) !== this.FX0[c]) ? Modelo.filtroFx({ ...this.FX0, ...f }) : 'none'; },
@@ -36,18 +37,49 @@ const CenLib = {
   async meus() { try { return (await DB.get('arquivos', 'cenlib-meus')) || []; } catch { return []; } },
   async gravaMeus(l) { await DB.put('arquivos', l, 'cenlib-meus'); },
   async salvaMeu(def, mini) {
-    const l = await this.meus(), i = l.findIndex(x => x.id === def.id), it = { id: def.id, nome: def.nome, tags: def.tags || [], em: Date.now(), mini, def: this.limpa(def) };
+    const l = await this.meus(), i = l.findIndex(x => x.id === def.id), it = { id: def.id, nome: def.nome, tags: def.tags || [], em: Date.now(), mini, def: this.limpa(def), cat: this.catDe(def), ...(def.roteiro ? { roteiro: def.roteiro } : {}), ...(def.aprovar ? { aprovar: true } : {}) };
     if (i >= 0) l[i] = it; else l.unshift(it); await this.gravaMeus(l); return it;
   },
   limpa(def) { return { formato: 'cenario-camadas', v: 1, id: def.id, nome: def.nome, tags: def.tags || [], estilo: def.estilo, w: this.W, h: this.H, cena: { ...this.FX0, ...(def.cena || {}) },
+    ...(def.cat ? { cat: def.cat } : {}), ...(def.aprovar ? { aprovar: true } : {}), ...(def.roteiro ? { roteiro: def.roteiro } : {}), ...(def.lugar ? { lugar: def.lugar } : {}), ...(def.fonte ? { fonte: def.fonte } : {}),
     camadas: def.camadas.map(c => { const o = { id: c.id, nome: c.nome, k: c.k, tipo: c.tipo, w: c.w, h: c.h, cx: round(c.cx, 1), cy: round(c.cy, 1), s: round(c.s ?? 1, 4), r: round(c.r || 0, 2) };
       if (c.flip) o.flip = true; if (c.oculta) o.oculta = true; if (c.trava) o.trava = true; if (c.op != null && c.op < 1) o.op = round(c.op, 3); if (c.fx && this.fil(c.fx) !== 'none') o.fx = { ...this.FX0, ...c.fx }; return o; }) }; },
-  // os rabiscados antigos (js/cenarios.js) viram camadas PNG
-  async deRabiscado(id, nome) {
-    const est = await Cenarios.estadoDe(await Cenarios.pronto(id)), camadas = [];
+  /* CATEGORIAS (decisão do dono, 26/10/2026):
+     · OFICIAIS — estilo pintado azul com profundidade (o Planetário e os gerados por js/cenoficial.js): onde a história acontece
+     · DE REPRESENTAÇÃO — rabiscados (prontos antigos e os gerados aqui): lugares de passagem que ninguém repara
+     · DESTE SHORT — os salvos com def.roteiro = id do roteiro (aba Ideias › Roteiro › Cenários) */
+  catDe(d) { return d?.cat || (d?.estilo === 'pintado-azul' ? 'oficial' : d?.estilo === 'rabiscado' || d?.origem === 'rabiscado' ? 'rep' : ''); },
+  // peças do editor rabiscado (js/cenarios.js) → camadas PNG
+  async deEstado(est) {
+    const camadas = [];
     for (const p of est.pecas) { const b = await Cenarios.blob(p.cv), k = await Arq.guardar(b, uid('a') + '.png'); Arq.img.set(k, await createImageBitmap(b));
       camadas.push({ id: slugCen(p.nome) + '-' + camadas.length, nome: p.nome, k, tipo: 'png', w: p.cv.width, h: p.cv.height, cx: p.x + p.w / 2, cy: p.y + p.h / 2, s: round(p.w / p.cv.width, 4), r: 0, ...(p.trava ? { trava: true } : {}) }); }
-    return { id: 'rab-' + id, nome, origem: 'rabiscado', tags: ['rabiscado'], cena: { ...this.FX0 }, camadas, mini: `cenarios/miniaturas/${id}.jpg` };
+    return camadas;
+  },
+  // os rabiscados antigos (js/cenarios.js) viram camadas PNG
+  async deRabiscado(id, nome) {
+    const camadas = await this.deEstado(await Cenarios.estadoDe(await Cenarios.pronto(id)));
+    return { id: 'rab-' + id, nome, origem: 'rabiscado', estilo: 'rabiscado', cat: 'rep', tags: ['rabiscado'], cena: { ...this.FX0 }, camadas, mini: `cenarios/miniaturas/${id}.jpg` };
+  },
+  // GERADOR DE REPRESENTAÇÃO: a IA do rabiscado (Cenarios.pedirIA) desenha e cada peça vira uma camada PNG
+  async gerarRep(pedido, o = {}) {
+    const r = await Cenarios.pedirIA(pedido, null); Cenarios.guardaUltimo?.(r.cena);
+    const camadas = await this.deEstado(await Cenarios.estadoDe({ ...r.cena, ia: true }));
+    return { formato: 'cenario-camadas', v: 1, id: uid('cen'), nome: (o.nome || r.cena.nome || 'Cenário').slice(0, 40), estilo: 'rabiscado', cat: 'rep', origem: 'meu', tags: ['rabiscado'], cena: { ...this.FX0 }, camadas,
+      ...(o.roteiro ? { roteiro: o.roteiro } : {}), ...(o.lugar ? { lugar: o.lugar } : {}) };
+  },
+  // gera e já guarda em Meus (nada se perde se a janela fechar): tipo 'oficial' | 'rep'
+  async gerarESalvar(tipo, pedido, o = {}) {
+    const d = tipo === 'oficial' ? await CenOficial.gerar(pedido, { contexto: o.contexto }) : await this.gerarRep(pedido, o);
+    if (o.roteiro) d.roteiro = o.roteiro; if (o.lugar) d.lugar = o.lugar; if (o.nome) d.nome = o.nome.slice(0, 40);
+    await this.salvaMeu(d, await this.miniDe(d)); return d;
+  },
+  // um cenário escolhido para um lugar do roteiro ({ origem, id }) → pacote pronto para pôr na cena
+  async resolve(esc) {
+    if (!esc) return null;
+    if (esc.origem === 'casa') return this.pacote(esc.id);
+    if (esc.origem === 'rabiscado') return this.deRabiscado(esc.id.replace(/^rab-/, ''), esc.nome);
+    const m = (await this.meus()).find(x => x.id === esc.id); return m ? { ...clone(m.def), origem: 'meu' } : null;
   },
   // imagens/SVGs do computador → cenário novo (cada arquivo uma camada, a primeira cobrindo a tela)
   async deArquivos(fs, nome) {
@@ -169,23 +201,30 @@ function slugCen(t) { return String(t || 'cenario').normalize('NFD').replace(/[�
 /* ===================== a JANELA ===================== */
 Object.assign(CenLib, {
   // o = { no: id da pasta na cena } para abrir já nela; o.def = um cenário pronto para mostrar
+  // o.escolher = { roteiro, lugar, visual, contexto, atual } — modo ESCOLHER (aba Ideias › Roteiro › Cenários): abre sem animação,
+  //   o botão principal vira "Usar neste lugar" e a janela devolve { origem, id, nome, mini, cat } (ou null)
   async abrir(o = {}) {
-    if (!App?.P) return UI.toast('Abra uma animação primeiro.', { kind: 'err' });
-    const st = { def: null, orig: null, sel: null, modo: 'padrao', pasta: o.no || null, desf: [], ref: [], busca: '', tag: '', vez: 0, multi: false };
+    const E = o.escolher || null;
+    if (!App?.P && !E) return UI.toast('Abra uma animação primeiro.', { kind: 'err' });
+    const st = { def: null, orig: null, sel: null, modo: 'padrao', pasta: o.no || null, desf: [], ref: [], busca: '', tag: '', vez: 0, multi: false, escolhido: null,
+      guia: !!E || (App?.P ? App.P.h > App.P.w : false) };
     const body = h(`<div class="cl">
       <aside class="cl-bib">
         <input type="search" class="cl-busca" placeholder="Buscar cenário…" aria-label="Buscar cenário">
         <div class="cl-tags"></div>
         <div class="cl-lista"></div>
         <div class="cl-novo">
+          <div class="cl-ger">Gerar com a IA</div>
+          <button class="btn sm ia cl-gof" data-n="oficial" title="Estilo do Planetário: pintado azul com profundidade, uma camada SVG por objeto. Sai como rascunho para aprovar.">${ic('sparkles', 13)} Oficial (pintado)…</button>
+          <button class="btn sm ia" data-n="rep" title="Estilo rabiscado, rápido e barato: para lugares de passagem">${ic('sparkles', 13)} De representação (rabiscado)…</button>
           <button class="btn sm" data-n="imgs" title="Cada imagem ou SVG vira uma camada (a primeira cobre a tela)">${ic('image', 13)} Novo com imagens…</button>
-          <button class="btn sm ia" data-n="ia" title="A IA desenha no estilo rabiscado; depois vira camadas aqui">${ic('sparkles', 13)} Criar com a IA…</button>
-          <button class="btn sm" data-n="nuvem">${ic('cloud', 13)} Da nuvem da equipe…</button>
+          ${App?.P ? `<button class="btn sm" data-n="nuvem">${ic('cloud', 13)} Da nuvem da equipe…</button>` : ''}
           <button class="btn sm" data-n="arq" title="Abrir um arquivo .cenario">${ic('upload', 13)} Abrir arquivo…</button>
         </div>
       </aside>
       <section class="cl-meio">
-        <div class="cl-topo"><b class="cl-nome" title="Clique para renomear">Escolha um cenário</b><span class="cl-selo"></span><span class="sp"></span>
+        <div class="cl-topo"><b class="cl-nome" title="Clique para renomear">Escolha um cenário</b><span class="cl-selo"></span><span class="cl-selo cl-cat"></span><button class="btn sm cl-aprova" data-aprova hidden title="Este oficial foi gerado pela IA e ainda é rascunho: aprovar tira o selo">${ic('check', 13)} Aprovar</button><button class="btn sm ia" data-ajusta hidden title="Pedir à IA uma mudança neste oficial (ela vê como ficou)">${ic('sparkles', 13)} Ajustar com IA</button><span class="sp"></span>
+          <label class="cl-ck" title="Mostra a faixa do meio que aparece num Short vertical (9:16)"><input type="checkbox" data-guia> Faixa do Short</label>
           <div class="cl-seg" role="tablist" hidden><button data-m="padrao" title="Mudanças valem em todos os quadros">Padrão</button><button data-m="quadro" title="Mudanças valem só a partir deste quadro até o próximo keyframe">Neste keyframe</button></div>
           <button class="ibtn" data-un title="Desfazer (Ctrl+Z)">${ic('undo', 14)}</button><button class="ibtn" data-re title="Refazer (Ctrl+Shift+Z)">${ic('redo', 14)}</button></div>
         <div class="cl-palco"><canvas width="1280" height="720" tabindex="0" aria-label="Cenário: clique numa camada para escolher, arraste para mover; rodinha = zoom, espaço ou botão do meio = mover a vista"></canvas><div class="cl-zoom"><button class="ibtn" data-z="-" title="Diminuir o zoom (−)">${ic('minus', 13)}</button><button class="cl-zp" data-z="100" title="Zoom 100% (1)">100%</button><button class="ibtn" data-z="+" title="Aumentar o zoom (+)">${ic('plus', 13)}</button><button class="ibtn" data-z="f" title="Enquadrar o cenário inteiro (F ou 0)">${ic('crop', 13)}</button></div><div class="cl-vazio">${ic('paisagem', 28)}<span>Escolha um cenário na biblioteca</span></div></div>
@@ -230,6 +269,8 @@ Object.assign(CenLib, {
       // fora do quadro do cenário (o que não aparece no vídeo) fica escurecido, com a borda do quadro
       g.save(); g.beginPath(); g.rect(0, 0, cv.width, cv.height); g.rect(ox, oy, this.W * S, this.H * S); g.fillStyle = 'rgba(8,9,11,.62)'; g.fill('evenodd');
       g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; g.strokeRect(Math.round(ox) + .5, Math.round(oy) + .5, Math.round(this.W * S), Math.round(this.H * S)); g.restore();
+      if (st.guia) { const vw = this.FAIXA, x0 = (this.W - vw) / 2 * S + ox; g.save(); g.fillStyle = 'rgba(8,9,11,.35)'; g.fillRect(ox, oy, x0 - ox, this.H * S); g.fillRect(x0 + vw * S, oy, this.W * S - (x0 - ox) - vw * S, this.H * S);
+        g.strokeStyle = '#ffd34f'; g.lineWidth = 1.5; g.setLineDash([8, 6]); g.strokeRect(x0, oy + 2, vw * S, this.H * S - 4); g.setLineDash([]); g.fillStyle = '#ffd34f'; g.font = `600 ${Math.round(11 * dpr())}px sans-serif`; g.fillText('Short 9:16', x0 + 6 * dpr(), oy + 16 * dpr()); g.restore(); }
       if (guia) { g.save(); g.strokeStyle = '#ff4fd8'; g.lineWidth = 1; g.setLineDash([4, 4]); g.beginPath(); for (const gx of guia.x) { g.moveTo(gx * S + ox, 0); g.lineTo(gx * S + ox, cv.height); } for (const gy of guia.y) { g.moveTo(0, gy * S + oy); g.lineTo(cv.width, gy * S + oy); } g.stroke(); g.restore(); }
       const c = camada(st.sel); if (c) { const v = vivo?.id === c.id ? { ...c, ...vivo } : c, q = this.cantosDe(v);
         g.save(); g.strokeStyle = st.modo === 'quadro' && naCena() ? '#ffb347' : '#19d3f0'; g.lineWidth = 1.5; g.setLineDash([6, 4]); g.beginPath(); q.forEach(([a, b], i) => i ? g.lineTo(a * S + ox, b * S + oy) : g.moveTo(a * S + ox, b * S + oy)); g.closePath(); g.stroke(); g.setLineDash([]);
@@ -265,12 +306,14 @@ Object.assign(CenLib, {
     };
     // ---- biblioteca ----
     const lista = $('.cl-lista', body), tags = $('.cl-tags', body);
-    const cartao = (nome, mini, info, ativo, fn, menu) => {
-      const b = h(`<div class="cl-card ${ativo ? 'sel' : ''}" tabindex="0" title="${esc(nome)}">${mini ? `<img src="${mini}" alt="">` : '<i></i>'}<div><b>${esc(nome)}</b><small>${info || ''}</small></div></div>`);
+    const cartao = (nome, mini, info, ativo, fn, menu, cat = '', aprovar = false) => {
+      const b = h(`<div class="cl-card ${ativo ? 'sel' : ''} ${cat ? 'cl-c-' + cat : ''} ${aprovar ? 'cl-c-aprovar' : ''}" tabindex="0" title="${esc(nome)}">${mini ? `<img src="${mini}" alt="">` : '<i></i>'}<div><b>${esc(nome)}</b><small>${info || ''}</small></div></div>`);
       const im = $('img', b); if (im) im.onerror = () => im.replaceWith(h('<i></i>'));
       b.onclick = () => fn(); b.onkeydown = e => { if (e.key === 'Enter') fn(); }; if (menu) b.oncontextmenu = e => { e.preventDefault(); UI.ctx(e.clientX, e.clientY, menu()); }; return b;
     };
     const casa = await this.casa(); let meus = await this.meus();
+    const comCat = l => { for (const m of l) if (m.cat == null) m.cat = this.catDe(m.def); return l; }; comCat(meus);
+    const recarrega = async () => { meus = comCat(await this.meus()); };
     const pintaBib = async () => {
       const bus = st.busca.trim().toLowerCase(), ok = (nome, tg = []) => (!bus || String(nome).toLowerCase().includes(bus) || tg.some(t => t.toLowerCase().includes(bus))) && (!st.tag || tg.includes(st.tag));
       const todasTags = [...new Set([...casa.flatMap(c => c.tags || []), ...meus.flatMap(m => m.tags || [])])].sort();
@@ -279,14 +322,23 @@ Object.assign(CenLib, {
       const grupo = (titulo, itens) => { if (!itens.length) return; lista.appendChild(h(`<div class="cl-g">${titulo}</div>`)); itens.forEach(x => lista.appendChild(x)); };
       grupo('Nesta animação', this.pastasNaCena().filter(p => ok(p.nome)).map(p => { const c = cartao(p.nome.replace(/^Cenário: /, ''), null, `${p.filhos.length} camadas · ${this.keyframes(p).length} keyframe(s)`, st.pasta === p.id, () => escolheCena(p.id));
         this.compoe(this.defDaPasta(p, App.q), 168).then(cv => { const i = $('i', c); if (i) i.replaceWith(Object.assign(new Image(), { src: cv.toDataURL('image/jpeg', .8), alt: '' })); }).catch(() => { }); return c; }));
-      grupo('Da casa', casa.filter(c => ok(c.nome, c.tags)).map(c => cartao(c.nome, `cenarios/${c.id}/${c.miniatura || 'miniatura.jpg'}`, (c.tags || []).join(' · '), !naCena() && st.def?.origem === 'casa' && st.def.id === c.id, () => escolhe(() => this.pacote(c.id)))));
-      grupo('Meus <span>(neste computador)</span>', meus.filter(m => ok(m.nome, m.tags)).map(m => cartao(m.nome, m.mini, fmtDate(m.em), !naCena() && st.def?.id === m.id, () => escolhe(async () => ({ ...clone(m.def), origem: 'meu' })), () => [
+      const cartaoCasa = c => cartao(c.nome, `cenarios/${c.id}/${c.miniatura || 'miniatura.jpg'}`, 'da casa · ' + (c.tags || []).join(' · '), !naCena() && st.def?.origem === 'casa' && st.def.id === c.id, () => escolhe(() => this.pacote(c.id)), null, 'oficial');
+      const cartaoMeu = m => cartao(m.nome, m.mini, (m.aprovar ? 'para aprovar · ' : '') + fmtDate(m.em), !naCena() && st.def?.id === m.id, () => escolhe(async () => ({ ...clone(m.def), origem: 'meu' })), () => [
+        m.aprovar && { label: 'Aprovar este oficial', icon: 'check', action: () => aprova(m.id) },
         { label: 'Renomear…', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome do cenário', value: m.nome }); if (!n?.trim()) return; m.nome = m.def.nome = n.trim().slice(0, 40); await this.gravaMeus(meus); if (st.def?.id === m.id) st.def.nome = m.nome; pintaBib(); pintaTopo(); } },
-        { label: 'Duplicar', icon: 'dup', action: async () => { const d = { ...clone(m.def), id: uid('cen'), nome: m.nome + ' (cópia)' }; await this.salvaMeu(d, m.mini); meus = await this.meus(); pintaBib(); } },
+        { label: 'Duplicar', icon: 'dup', action: async () => { const d = { ...clone(m.def), id: uid('cen'), nome: m.nome + ' (cópia)' }; await this.salvaMeu(d, m.mini); await recarrega(); pintaBib(); } },
+        { label: m.cat === 'oficial' ? 'Mover para De representação' : 'Mover para Oficiais', icon: 'folder', action: async () => { m.cat = m.def.cat = m.cat === 'oficial' ? 'rep' : 'oficial'; await this.gravaMeus(meus); if (st.def?.id === m.id) st.def.cat = m.cat; pintaBib(); pintaTopo(); } },
+        E?.roteiro && (m.roteiro === E.roteiro ? { label: 'Tirar deste Short', icon: 'x', action: async () => { delete m.roteiro; delete m.def.roteiro; await this.gravaMeus(meus); pintaBib(); } } : { label: 'Pôr em Deste Short', icon: 'plus', action: async () => { m.roteiro = m.def.roteiro = E.roteiro; await this.gravaMeus(meus); pintaBib(); } }),
         { label: 'Exportar arquivo .cenario', icon: 'download', action: () => this.exportar(m.def).catch(e => UI.toast(esc(e.message), { kind: 'err' })) }, '-',
         { label: 'Apagar deste computador', icon: 'trash', danger: true, action: async () => { if (!(await UI.confirm({ title: 'Apagar o cenário?', msg: `"<b>${esc(m.nome)}</b>" sai da sua biblioteca. As animações que já usam continuam com ele.`, ok: 'Apagar', danger: true }))) return; meus = meus.filter(x => x.id !== m.id); await this.gravaMeus(meus); pintaBib(); } },
-      ])));
-      grupo('Rabiscados <span>(prontos antigos)</span>', Cenarios.PRONTOS.filter(p => ok(p.nome, ['rabiscado'])).map(p => cartao(p.nome, `cenarios/miniaturas/${p.id}.jpg`, 'rabiscado', st.def?.id === 'rab-' + p.id, () => escolhe(() => this.deRabiscado(p.id, p.nome)))));
+      ].filter(Boolean), m.cat === 'oficial' ? 'oficial' : m.cat === 'rep' ? 'rep' : '', m.aprovar);
+      const doShort = E?.roteiro ? meus.filter(m => m.roteiro === E.roteiro) : [], fora = m => !doShort.includes(m);
+      grupo('Deste Short', doShort.filter(m => ok(m.nome, m.tags)).map(cartaoMeu));
+      grupo('Oficiais <span>(pintado azul)</span>', [...casa.filter(c => this.catDe(c) === 'oficial' && ok(c.nome, c.tags)).map(cartaoCasa), ...meus.filter(m => fora(m) && m.cat === 'oficial' && ok(m.nome, m.tags)).map(cartaoMeu)]);
+      grupo('De representação <span>(rabiscados)</span>', [...meus.filter(m => fora(m) && m.cat === 'rep' && ok(m.nome, m.tags)).map(cartaoMeu),
+        ...Cenarios.PRONTOS.filter(p => ok(p.nome, ['rabiscado'])).map(p => cartao(p.nome, `cenarios/miniaturas/${p.id}.jpg`, 'pronto · rabiscado', st.def?.id === 'rab-' + p.id, () => escolhe(() => this.deRabiscado(p.id, p.nome)), null, 'rep'))]);
+      grupo('Da casa', casa.filter(c => this.catDe(c) !== 'oficial' && ok(c.nome, c.tags)).map(cartaoCasa));
+      grupo('Meus <span>(outros, neste computador)</span>', meus.filter(m => fora(m) && !m.cat && ok(m.nome, m.tags)).map(cartaoMeu));
       if (!lista.children.length) lista.appendChild(h('<div class="cl-nada">Nada encontrado.</div>'));
     };
     const ocupa = async (txt, fn) => { const av = $('.cl-aviso', body); av.textContent = txt; body.classList.add('cl-ocupado'); try { return await fn(); } catch (e) { UI.toast(esc(e?.message || e), { kind: 'err' }); console.warn('cenários', e); } finally { body.classList.remove('cl-ocupado'); } };
@@ -298,15 +350,17 @@ Object.assign(CenLib, {
       const nm = $('.cl-nome', body), se = $('.cl-selo', body), seg = $('.cl-seg', body);
       nm.textContent = st.def?.nome || 'Escolha um cenário'; se.textContent = !st.def ? '' : naCena() ? 'na cena' : { casa: 'da casa', meu: 'meu', rabiscado: 'rabiscado' }[st.def.origem] || '';
       se.className = 'cl-selo ' + (naCena() ? 'cena' : st.def?.origem || ''); seg.hidden = !naCena();
+      const cat = st.def && !naCena() ? this.catDe(st.def) : '', cs = $('.cl-cat', body); se.hidden = !!(cat && !naCena()); cs.textContent = st.def?.aprovar ? 'para aprovar' : cat === 'oficial' ? 'oficial' : cat === 'rep' ? 'de representação' : ''; cs.className = 'cl-selo cl-cat ' + (st.def?.aprovar ? 'aprovar' : cat);
+      $('[data-aprova]', body).hidden = !(st.def?.aprovar && st.def.origem === 'meu' && !naCena()); $('[data-ajusta]', body).hidden = !(st.def?.fonte && st.def.origem === 'meu' && !naCena());
       $$('button', seg).forEach(b => b.classList.toggle('on', b.dataset.m === st.modo));
       $('[data-un]', body).disabled = naCena() ? false : !st.desf.length; $('[data-re]', body).disabled = naCena() ? false : !st.ref.length;
-      if (btPor) { btPor.textContent = naCena() ? 'Concluir' : 'Pôr na cena'; btPor.disabled = !st.def; }
+      if (btPor) { btPor.textContent = E ? 'Usar neste lugar' : naCena() ? 'Concluir' : 'Pôr na cena'; btPor.disabled = !st.def; }
       if (btSalvar) { btSalvar.disabled = !st.def; btSalvar.innerHTML = ic('save', 14) + (st.def?.origem === 'meu' && !naCena() ? 'Salvar' : 'Salvar na biblioteca'); }
       if (btExp) btExp.disabled = !st.def;
       const av = $('.cl-aviso', body);
       av.className = 'cl-aviso ' + (naCena() ? st.modo : '');
       av.innerHTML = !st.def ? 'Os cenários em camadas guardam o <b>padrão</b> de cada camada (lugar, tamanho, giro, cor e luz). Na cena, cada keyframe pode mudar o que quiser só naquele trecho.'
-        : !naCena() ? `Editando o <b>padrão</b> do cenário (só nesta janela). <b>Pôr na cena</b> usa como está${st.def.origem === 'casa' ? '; <b>Salvar na biblioteca</b> guarda como uma variação sua' : ''}.`
+        : !naCena() ? `Editando o <b>padrão</b> do cenário (só nesta janela). <b>${E ? 'Usar neste lugar' : 'Pôr na cena'}</b> usa como está${E && st.mexido ? ' (e guarda o que você mudou)' : ''}${st.def.origem === 'casa' ? '; <b>Salvar na biblioteca</b> guarda como uma variação sua' : ''}.`
         : st.modo === 'padrao' ? `<b>Padrão:</b> o que você mudar vale em <b>todos os quadros</b> (o que já foi animado continua, por cima).`
         : `<b>Neste keyframe (quadro ${App.q}):</b> o que você mudar vale daqui até o próximo keyframe do cenário${this.keyframes(pasta()).find(k => k > App.q) == null ? ' (não há outro: vale até o fim)' : ''}. ${this.keyframes(pasta()).includes(App.q) ? '' : 'Ainda não há keyframe aqui: mudar algo cria um.'}`;
     };
@@ -478,27 +532,56 @@ Object.assign(CenLib, {
     const novoComImagens = async fs => { fs = fs || await pickFiles('image/*,.svg', true); if (!fs?.length) return;
       await ocupa('Montando as camadas…', async () => { const d = await this.deArquivos(fs, 'Cenário novo'); if (!d) return; st.pasta = null; st.def = d; st.orig = clone(d); st.sel = null; st.desf = []; st.ref = []; pintaBib(); pinta(); UI.toast('Cada imagem virou uma camada. Arrume e use <b>Salvar na biblioteca</b>.', { kind: 'ok', time: 5000 }); }); };
     $('[data-n="imgs"]', body).onclick = () => novoComImagens();
-    $('[data-n="ia"]', body).onclick = () => { api?.close(); setTimeout(() => Cenarios.abrir(), 60); };
-    $('[data-n="nuvem"]', body).onclick = () => { api?.close(); setTimeout(() => CenariosNuvem.escolher(), 60); };
+    // ---- GERADORES (oficial = pintado, js/cenoficial.js; de representação = rabiscado, js/cenarios.js) ----
+    const gerar = async tipo => {
+      const ofi = tipo === 'oficial', ped = await UI.prompt({ title: ofi ? 'Gerar um cenário OFICIAL (pintado azul)' : 'Gerar um cenário DE REPRESENTAÇÃO (rabiscado)', label: 'Descreva o lugar: o que tem nele e o clima',
+        value: E?.visual || E?.lugar || '', multiline: true, ia: true, placeholder: ofi ? 'Ex.: quarto da Clara, estante cheia de livros, escrivaninha com caderno, cristais de gelo na janela' : 'Ex.: corredor da escola com armários' });
+      if (!ped?.trim()) return;
+      await ocupa(ofi ? 'A IA está desenhando o cenário oficial…' : 'A IA está desenhando o rabiscado…', async () => {
+        const d = await this.gerarESalvar(tipo, ped.trim(), { roteiro: E?.roteiro, lugar: E?.lugar, contexto: E?.contexto, nome: E?.lugar });
+        await recarrega(); await escolhe(async () => ({ ...clone(d), origem: 'meu' }));
+        UI.toast(ofi ? `<b>${esc(d.nome)}</b> saiu como <b>rascunho para aprovar</b> (${d.camadas.length} camadas). Mexa no que quiser, peça ajustes à IA ou aprove.` : `<b>${esc(d.nome)}</b> entrou em De representação.`, { kind: 'ok', time: 7000 });
+      });
+    };
+    $('[data-n="oficial"]', body).onclick = () => gerar('oficial');
+    $('[data-n="rep"]', body).onclick = () => gerar('rep');
+    if ($('[data-n="nuvem"]', body)) $('[data-n="nuvem"]', body).onclick = () => { api?.close(); setTimeout(() => CenariosNuvem.escolher(), 60); };
+    const aprova = async id => { const m = meus.find(x => x.id === id); if (!m) return; delete m.aprovar; delete m.def.aprovar; await this.gravaMeus(meus); if (st.def?.id === id) delete st.def.aprovar; pintaBib(); pintaTopo(); UI.toast(`<b>${esc(m.nome)}</b> aprovado como oficial.`, { kind: 'ok' }); };
+    $('[data-aprova]', body).onclick = () => st.def && aprova(st.def.id);
+    $('[data-ajusta]', body).onclick = async () => { if (!st.def?.fonte) return; const ped = await UI.prompt({ title: 'Ajustar com a IA', label: 'O que mudar neste cenário? (a IA vê como ele está agora)', multiline: true, ia: true, placeholder: 'Ex.: estante menor, mais cristais de gelo, chão de madeira mais claro' }); if (!ped?.trim()) return;
+      await ocupa('A IA está ajustando o cenário…', async () => { guarda(); const d = await CenOficial.ajustar(st.def, ped.trim()); d.aprovar = true; await this.salvaMeu(d, await this.miniDe(d)); await recarrega(); st.def = { ...clone(d), origem: 'meu' }; st.orig = clone(st.def); st.sel = null; st.mexido = false; pintaBib(); pinta(); UI.toast('Ajustado. O de antes volta com Ctrl+Z (aí salve de novo).', { kind: 'ok' }); }); };
+    $('[data-guia]', body).checked = st.guia; $('[data-guia]', body).onchange = e => { st.guia = e.target.checked; desenha(); };
     $('[data-n="arq"]', body).onclick = async () => { const [f] = await pickFiles('.cenario,application/json', false); if (!f) return;
-      await ocupa('Abrindo o arquivo…', async () => { const j = JSON.parse(await f.text()); if (j?.tipo === 'cenario-animador') { api?.close(); return Cenarios.abrirArquivo(f); } const d = await this.importar(j); meus = await this.meus(); await escolhe(async () => d); UI.toast(`<b>${esc(d.nome)}</b> entrou em Meus cenários.`, { kind: 'ok' }); }); };
+      await ocupa('Abrindo o arquivo…', async () => { const j = JSON.parse(await f.text()); if (j?.tipo === 'cenario-animador') { api?.close(); return Cenarios.abrirArquivo(f); } const d = await this.importar(j); await recarrega(); await escolhe(async () => d); UI.toast(`<b>${esc(d.nome)}</b> entrou em Meus cenários.`, { kind: 'ok' }); }); };
     // ---- salvar / exportar / pôr na cena ----
     const salvar = async () => {
       if (!st.def) return; let def = clone(st.def), nome = def.nome;
-      if (naCena() || def.origem !== 'meu') { nome = await UI.prompt({ title: 'Salvar na biblioteca (neste computador)', value: def.origem === 'casa' ? def.nome + ' (variação)' : def.nome }); if (!nome?.trim()) return; def = { ...def, id: uid('cen'), nome: nome.trim().slice(0, 40) }; }
+      if (naCena() || def.origem !== 'meu') { nome = await UI.prompt({ title: 'Salvar na biblioteca (neste computador)', value: def.origem === 'casa' ? def.nome + ' (variação)' : def.nome }); if (!nome?.trim()) return; def = { ...def, id: uid('cen'), nome: nome.trim().slice(0, 40), cat: this.catDe(def) || undefined, ...(E?.roteiro ? { roteiro: E.roteiro } : {}) }; }
       def.origem = 'meu'; def.camadas.forEach(c => { delete c.no; if (naCena()) c.id = slugCen(c.nome) + '-' + uid('c').slice(-4); });
-      await ocupa('Salvando…', async () => { await this.salvaMeu(def, await this.miniDe(def)); meus = await this.meus(); if (!naCena()) { st.def = { ...def }; st.mexido = false; } pintaBib(); pintaTopo(); UI.toast(`<b>${esc(def.nome)}</b> está em Meus cenários.`, { kind: 'ok' }); });
+      await ocupa('Salvando…', async () => { await this.salvaMeu(def, await this.miniDe(def)); await recarrega(); if (!naCena()) { st.def = { ...def }; st.mexido = false; } pintaBib(); pintaTopo(); UI.toast(`<b>${esc(def.nome)}</b> está em Meus cenários.`, { kind: 'ok' }); });
     };
-    await UI.modal({ title: 'Cenários', icon: 'paisagem', iconHtml: '<span class="ic-ep ic-cn" data-estudio-icone="cn" aria-label="Cenários"></span>', width: 1240, body, sticky: true, noFocus: true,
+    // modo ESCOLHER: guarda o que foi mexido e devolve a referência do cenário
+    const usar = async () => {
+      if (!st.def) return false; let d = st.def;
+      if (d.origem === 'meu' && st.mexido) { await this.salvaMeu(d, await this.miniDe(d)); await recarrega(); st.mexido = false; }
+      if (d.origem === 'casa' && st.mexido) { d = { ...clone(d), id: uid('cen'), nome: (d.nome + ' (variação)').slice(0, 40), origem: 'meu', cat: 'oficial', ...(E.roteiro ? { roteiro: E.roteiro } : {}) }; await this.salvaMeu(d, await this.miniDe(d)); await recarrega(); }
+      if (d.origem === 'rabiscado' && st.mexido) { d = { ...clone(d), id: uid('cen'), origem: 'meu', cat: 'rep', ...(E.roteiro ? { roteiro: E.roteiro } : {}) }; await this.salvaMeu(d, await this.miniDe(d)); await recarrega(); }
+      const m = meus.find(x => x.id === d.id), casaIt = casa.find(c => c.id === d.id);
+      st.escolhido = { origem: d.origem, id: d.id, nome: d.nome, cat: this.catDe(d) || 'rep', aprovar: !!d.aprovar,
+        mini: d.origem === 'casa' ? `cenarios/${d.id}/${casaIt?.miniatura || 'miniatura.jpg'}` : d.origem === 'rabiscado' ? d.mini : m?.mini || await this.miniDe(d, 240) };
+      return true;
+    };
+    await UI.modal({ title: E ? `Cenário para: ${E.lugar || 'este lugar'}` : 'Cenários', icon: 'paisagem', iconHtml: '<span class="ic-ep ic-cn" data-estudio-icone="cn" aria-label="Cenários"></span>', width: 1240, body, sticky: true, noFocus: true,
       onOpen: a => { api = a; a.el.querySelector('.modal').classList.add('cl-modal'); [btSalvar, btExp, , btPor] = a.foot.querySelectorAll('.btn');
-        if (st.pasta) escolheCena(st.pasta); else if (o.def) escolhe(async () => o.def); else pintaBib(); pinta(); },
+        if (st.pasta) escolheCena(st.pasta); else if (o.def) escolhe(async () => o.def); else if (E?.atual) escolhe(() => this.resolve(E.atual)); else pintaBib(); pinta(); },
       buttons: [
         { label: 'Salvar na biblioteca', icon: 'save', left: true, onClick: () => { salvar(); return false; } },
         { label: 'Exportar…', icon: 'download', onClick: () => { if (st.def) ocupa('Preparando o arquivo…', () => this.exportar(st.def)); return false; } },
         { label: 'Fechar', value: null, onClick: async () => !st.mexido || naCena() || await UI.confirm({ title: 'Fechar sem salvar?', msg: 'As mudanças no padrão deste cenário não foram salvas nem postas na cena.', ok: 'Fechar' }) || false },
-        { label: 'Pôr na cena', kind: 'primary', onClick: async () => { if (!st.def) return false; if (naCena()) return true; let ok = false; await ocupa('Pondo na cena…', async () => { const p = await this.porNaCena(st.def); ok = true; UI.toast(`<b>${esc(st.def.nome)}</b> entrou na cena com ${p.filhos.length} camadas. Botão direito no cenário › <b>Cenário: padrão e keyframes…</b> para mexer.`, { kind: 'ok', time: 6000 }); }); return ok; } },
+        { label: E ? 'Usar neste lugar' : 'Pôr na cena', kind: 'primary', onClick: async () => { if (E) { let ok = false; await ocupa('Guardando…', async () => { ok = await usar(); }); return ok; } if (!st.def) return false; if (naCena()) return true; let ok = false; await ocupa('Pondo na cena…', async () => { const p = await this.porNaCena(st.def); ok = true; UI.toast(`<b>${esc(st.def.nome)}</b> entrou na cena com ${p.filhos.length} camadas. Botão direito no cenário › <b>Cenário: padrão e keyframes…</b> para mexer.`, { kind: 'ok', time: 6000 }); }); return ok; } },
       ] });
     document.removeEventListener('keydown', tecla, true); document.removeEventListener('keyup', solto, true);
+    return st.escolhido;
   },
   cantosDe(c) { const s = c.s ?? 1, w = c.w * s / 2, h = c.h * s / 2, a = (c.r || 0) * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
     return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => [c.cx + x * co - y * si, c.cy + x * si + y * co]); },

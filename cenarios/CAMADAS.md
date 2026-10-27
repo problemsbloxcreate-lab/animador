@@ -63,3 +63,10 @@ cenarios/biblioteca.json        a lista dos cenários da casa (acrescente o novo
   (o próximo segura o valor de antes). Os keyframes do cenário aparecem em fila; "Ir mudando entre os keyframes" liga o interp.
 - A cor e a luz ficam na chave (`chave.fx`, `Modelo.fxNo`, desenhadas em `Render.umNo` com `ctx.filter`; a da pasta vale para
   tudo dentro dela).
+
+## Gerador oficial no Animador (rascunho)
+- A janela Cenários (e o passo Cenários do Roteiro) tem **Gerar › Oficial (pintado)**: a IA descreve o lugar em formas simples e
+  `js/cenoficial.js` desenha cada objeto como camada SVG com as mesmas regras deste guia (parede/chão com ponto de fuga, sombra,
+  borda de luz, contorno #0f1433, desfoque do primeiro plano, luz ambiente). Sai como **rascunho para aprovar** (`aprovar: true`).
+- É um rascunho rápido: um cenário que vai para a casa (`cenarios/<id>/`) continua sendo feito/acabado à mão por este guia.
+- **De representação** = rabiscado (`ESTILO.md`), para lugares de passagem; gerado pela IA antiga e salvo como camadas PNG.

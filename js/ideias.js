@@ -173,7 +173,7 @@ ${g}`,
     box.innerHTML = `<div class="ide-sec">${ic('edit', 13)} <b>Seus roteiros</b><small>só neste computador</small><span class="sp"></span><button class="btn sm" data-pronto title="Cole ou envie um roteiro que você já tem: a IA separa em cenas e falas">${ic('paste', 13)} Usar um roteiro pronto</button></div><div class="ide-rl"></div>`;
     $('[data-pronto]', box).onclick = () => this.roteiroPronto();
     if (!L.length) $('.ide-rl', box).appendChild(h('<small class="ide-dica">Nenhum roteiro ainda: marque ideias e siga, ou use um roteiro pronto.</small>'));
-    for (const R of L.slice(0, 12)) { const c = h(`<div class="ide-rc"><span class="ide-fmt">${ic(R.formato === 'short' ? 'play' : 'film', 11)} ${R.formato === 'short' ? 'Short' : 'Longo'}</span><b>${esc(R.nome)}</b><small>${esc(this.PASSOS[R.passo - 1]?.[1] || '')} · ${new Date(R.em).toLocaleDateString('pt-BR')}</small><button class="ibtn" title="Apagar este roteiro">${ic('trash', 12)}</button></div>`);
+    for (const R of L.slice(0, 12)) { const c = h(`<div class="ide-rc"><span class="ide-fmt">${ic(R.formato === 'short' ? 'play' : 'film', 11)} ${R.formato === 'short' ? 'Short' : 'Longo'}</span><b>${esc(R.nome)}</b><small>${esc(this.PASSOS[this.migra(R).passo - 1]?.[1] || '')} · ${new Date(R.em).toLocaleDateString('pt-BR')}</small><button class="ibtn" title="Apagar este roteiro">${ic('trash', 12)}</button></div>`);
       c.onclick = e => { if (e.target.closest('button')) return; this.abreRoteiro(R); };
       $('button', c).onclick = async () => { if (!await UI.confirm({ title: `Apagar o roteiro "${R.nome}"?`, msg: 'As vozes gravadas dele também saem deste computador. A animação gerada continua.', ok: 'Apagar', danger: true })) return; await DB.del('arquivos', 'roteiro:' + R.id); this.pintaRoteiros(); };
       $('.ide-rl', box).appendChild(c); }
@@ -182,22 +182,24 @@ ${g}`,
     let formato = E[0].formato; if (E.some(x => x.formato !== formato)) { formato = await UI.modal({ title: 'Short ou vídeo longo?', icon: 'film', body: 'As ideias marcadas misturam shorts e vídeos longos. O roteiro vai ser de qual?', buttons: [{ label: 'Cancelar', value: null }, { label: 'Vídeo longo', value: 'longo' }, { label: 'Short', kind: 'primary', value: 'short' }] }); if (!formato) return; }
     // o que a equipe escolhe vira exemplo do gosto dela nas próximas ideias
     const I = this.S?.ideias; if (I) { I.escolhidas = [...(I.escolhidas || []), ...E.map(x => ({ titulo: x.titulo, formato: x.formato, em: Date.now() }))].slice(-30); this.pede('/ideias', { method: 'PUT', body: JSON.stringify({ ideias: I }) }).catch(() => { }); }
-    const R = { id: uid('rt'), nome: E.length === 1 ? E[0].titulo : E.map(x => x.titulo).join(' + ').slice(0, 80), criado: Date.now(), formato, ideias: clone(E), padroes: (this.S?.ideias?.padroes || []).slice(0, 8), pers: [], defs: {}, situacoes: [], roteiro: null, vozes: {}, passo: 2, opcoes: { cenarios: true, boca: true, legendas: true, animar: true, refs: [...new Set(E.flatMap(x => x.inspirado || []))].slice(0, 2) } };
+    const R = { id: uid('rt'), nome: E.length === 1 ? E[0].titulo : E.map(x => x.titulo).join(' + ').slice(0, 80), criado: Date.now(), formato, ideias: clone(E), padroes: (this.S?.ideias?.padroes || []).slice(0, 8), pers: [], defs: {}, situacoes: [], roteiro: null, vozes: {}, cenarios: {}, passo: 2, pv: 2, opcoes: { cenarios: true, boca: true, legendas: true, animar: true, refs: [...new Set(E.flatMap(x => x.inspirado || []))].slice(0, 2) } };
     await this.guarda(R); this.abreRoteiro(R);
   },
   abreRoteiro(R) { this.roteiro = R; this.pinta(this.el); },
-  PASSOS: [['ideias', 'Ideias'], ['pers', 'Personagens'], ['sit', 'Situações'], ['rot', 'Roteiro'], ['voz', 'Vozes'], ['gerar', 'Gerar o vídeo']],
+  PASSOS: [['ideias', 'Ideias'], ['pers', 'Personagens'], ['sit', 'Situações'], ['rot', 'Roteiro'], ['cen', 'Cenários'], ['voz', 'Vozes'], ['gerar', 'Gerar o vídeo']],
+  // roteiros de antes do passo Cenários (pv 2, 26/10/2026): Vozes e Gerar andaram uma casa
+  migra(R) { if (R && R.pv !== 2) { if (R.passo >= 5) R.passo++; R.pv = 2; } return R; },
   pintaRoteiro() {
-    const R = this.roteiro, c = this.el; R.passo ||= 2;
+    const R = this.migra(this.roteiro), c = this.el; R.passo ||= 2;
     c.innerHTML = `<div class="ide ide-r"><div class="ide-rtopo"><button class="btn sm" data-volta>${ic('left', 13)} Ideias</button><input class="ide-rnome" value="${esc(R.nome)}" title="Nome do roteiro"><span class="ide-fmt">${ic(R.formato === 'short' ? 'play' : 'film', 11)} ${R.formato === 'short' ? 'Short (9:16)' : 'Vídeo longo (16:9)'}</span></div>
       <div class="ide-passos">${this.PASSOS.map(([id, nm], i) => `<button data-p="${i + 1}" class="${R.passo === i + 1 ? 'on' : ''} ${this.feito(R, i + 1) ? 'ok' : ''} ${i && (this.feito(R, i) || R.passo === i) && (this.feito(R, i + 1) || R.passo === i + 1) ? 'liga' : ''}"><i>${this.feito(R, i + 1) && R.passo !== i + 1 ? ic('check', 13) : i + 1}</i><span>${nm}</span></button>`).join('')}</div><div class="ide-pc"></div></div>`;
     $('[data-volta]', c).onclick = () => { this.roteiro = null; this.pinta(c); };
     const nm = $('.ide-rnome', c); nm.onchange = () => { R.nome = nm.value.trim() || R.nome; this.guarda(R); };
     $$('[data-p]', c).forEach(b => b.onclick = () => { R.passo = +b.dataset.p; this.guarda(R); this.pintaRoteiro(); });
     const pc = $('.ide-pc', c);
-    [null, this.passoIdeias, this.passoPers, this.passoSit, this.passoRot, this.passoVoz, this.passoGerar][R.passo].call(this, pc, R);
+    [null, this.passoIdeias, this.passoPers, this.passoSit, this.passoRot, this.passoCen, this.passoVoz, this.passoGerar][R.passo].call(this, pc, R);
   },
-  feito(R, p) { return p === 1 ? R.ideias.length > 0 : p === 2 ? R.pers.length > 0 : p === 3 ? R.situacoes.some(s => s.usar) : p === 4 ? !!R.roteiro?.cenas?.length : p === 5 ? this.falas(R).length > 0 && this.falas(R).every(f => R.vozes[f.id]) : p === 6 ? !!R.gerado : false; },
+  feito(R, p) { return p === 1 ? R.ideias.length > 0 : p === 2 ? R.pers.length > 0 : p === 3 ? R.situacoes.some(s => s.usar) : p === 4 ? !!R.roteiro?.cenas?.length : p === 5 ? this.lugares(R).length > 0 && this.lugares(R).every(L => R.cenarios?.[L.key]) : p === 6 ? this.falas(R).length > 0 && this.falas(R).every(f => R.vozes[f.id]) : p === 7 ? !!R.gerado : false; },
   vai(R, p) { R.passo = p; this.guarda(R); this.pintaRoteiro(); window.scrollTo?.({ top: 0 }); },
   rodape(pc, R, prox, rotulo, ok = true) { const f = h(`<div class="ide-rod"><span class="sp"></span><button class="btn primary" ${ok ? '' : 'disabled'}>${esc(rotulo)} ${ic('right', 13)}</button></div>`); $('button', f).onclick = () => this.vai(R, prox); pc.appendChild(f); },
   passoIdeias(pc, R) {
@@ -229,7 +231,7 @@ ${g}`,
     const add = h(`<div class="ide-padd"><button class="btn" data-n>${ic('users', 14)} Escolher personagens</button><button class="btn" data-i>${ic('image', 14)} Personagem de uma imagem (PNG/SVG)</button></div>`);
     $('[data-n]', add).onclick = () => this.escolhePers(R); $('[data-i]', add).onclick = () => this.persDeImagem(R);
     pc.appendChild(add);
-    if (R.pronto && R.roteiro) this.rodape(pc, R, 5, 'Pôr as vozes', R.pers.length > 0); else this.rodape(pc, R, 3, 'Gerar situações', R.pers.length > 0);
+    if (R.pronto && R.roteiro) this.rodape(pc, R, 5, 'Escolher os cenários', R.pers.length > 0); else this.rodape(pc, R, 3, 'Gerar situações', R.pers.length > 0);
   },
   async escolhePers(R) {
     const body = h('<div class="ide-esc"><div class="vazio"><span class="spin-dot"></span> Carregando os personagens…</div></div>'), marc = new Map(R.pers.filter(p => p.origem !== 'img').map(p => [p.id, p]));
@@ -361,7 +363,7 @@ ${g}`,
       pc.appendChild(box);
     });
     const nc = h(`<button class="btn sm">${ic('plus', 12)} Cena</button>`); nc.onclick = () => { T.cenas.push({ id: uid('c'), lugar: 'Lugar novo', visual: '', personagens: [], falas: [] }); this.guarda(R); this.pintaRoteiro(); }; pc.appendChild(nc);
-    this.rodape(pc, R, 5, 'Pôr as vozes', this.falas(R).length > 0);
+    this.rodape(pc, R, 5, 'Escolher os cenários', this.falas(R).length > 0);
   },
   normRot(j, R) { return { titulo: String(j.titulo || R.nome).slice(0, 140), descricao: String(j.descricao || '').slice(0, 1200), thumb: String(j.thumb || '').slice(0, 300), cenas: (j.cenas || []).map(c => ({ id: uid('c'), lugar: String(c.lugar || '').slice(0, 80), visual: String(c.visual || '').slice(0, 400), personagens: (c.personagens || []).map(String), falas: (c.falas || []).filter(f => f?.texto).map(f => this.normFala(f, R)) })).filter(c => c.falas.length) }; },
   normFala(f, R) { return { id: uid('f'), personagem: this.persDe(R, f.personagem)?.nome || String(f.personagem || '').trim().slice(0, 40) || R.pers[0]?.nome || '', texto: String(f.texto).slice(0, 400), emocao: this.EMOCOES.includes(f.emocao) ? f.emocao : 'neutro', acao: String(f.acao || '').slice(0, 120), camera: this.CAMERAS.includes(f.camera) ? f.camera : 'médio' }; },
@@ -382,7 +384,7 @@ ${g}`,
   // ROTEIRO PRONTO: começa um roteiro sem ideias, já pedindo o texto
   async roteiroPronto() {
     const formato = await UI.modal({ title: 'Usar um roteiro pronto', icon: 'paste', body: 'Ele vai virar um short ou um vídeo longo?', buttons: [{ label: 'Cancelar', value: null }, { label: 'Vídeo longo', value: 'longo' }, { label: 'Short', kind: 'primary', value: 'short' }] }); if (!formato) return;
-    const R = { id: uid('rt'), nome: 'Roteiro pronto', criado: Date.now(), formato, ideias: [], padroes: (this.S?.ideias?.padroes || []).slice(0, 8), pers: [], defs: {}, situacoes: [], roteiro: null, vozes: {}, passo: 4, opcoes: { cenarios: true, boca: true, legendas: true, animar: true, refs: [] } };
+    const R = { id: uid('rt'), nome: 'Roteiro pronto', criado: Date.now(), formato, ideias: [], padroes: (this.S?.ideias?.padroes || []).slice(0, 8), pers: [], defs: {}, situacoes: [], roteiro: null, vozes: {}, cenarios: {}, passo: 4, pv: 2, opcoes: { cenarios: true, boca: true, legendas: true, animar: true, refs: [] } };
     if (!await this.colarRoteiro(R, true)) return; R.passo = 2; await this.guarda(R); this.abreRoteiro(R);
     UI.toast('Roteiro organizado! Agora escolha quem faz cada papel (os nomes do texto viraram os nomes do roteiro).', { kind: 'ok', time: 7000 });
   },
@@ -409,6 +411,37 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
   // tempo de uma fala: o da voz, ou o estimado pelas palavras (2,6 palavras/s + respiro)
   durFala(R, f) { const v = R.vozes[f.id]; return v?.dur ? v.dur : Math.max(1.2, String(f.texto || '').split(/\s+/).filter(Boolean).length / 2.6 + .4); },
 
+  // ---------- CENÁRIOS (um por LUGAR do roteiro; cenas no mesmo lugar usam o mesmo) ----------
+  // R.cenarios = { chaveDoLugar: { origem: 'casa'|'meu'|'rabiscado', id, nome, mini, cat: 'oficial'|'rep', aprovar } }
+  chaveLugar(t) { return slugCen(String(t || 'lugar').trim()) || 'lugar'; },
+  lugares(R) {
+    const M = new Map();
+    (R.roteiro?.cenas || []).forEach((ce, i) => { const k = this.chaveLugar(ce.lugar); if (!M.has(k)) M.set(k, { key: k, lugar: ce.lugar || 'Lugar', visual: ce.visual || '', cenas: [] }); const L = M.get(k); L.cenas.push(i + 1); if (!L.visual && ce.visual) L.visual = ce.visual; });
+    return [...M.values()];
+  },
+  ctxShort(R) { const T = R.roteiro || {}; return [T.titulo, T.descricao].filter(Boolean).join(' — ') || R.nome; },
+  passoCen(pc, R) {
+    if (!R.roteiro) { pc.appendChild(h('<div class="vazio">Escreva o roteiro primeiro.</div>')); return; }
+    R.cenarios ||= {}; const LS = this.lugares(R), com = LS.filter(L => R.cenarios[L.key]).length;
+    pc.appendChild(h(`<div class="ide-dica"><b>${com} de ${LS.length}</b> lugares com cenário. Para cada lugar: escolha um salvo na biblioteca, ou gere um. <b>Oficial</b> = estilo do Planetário (pintado azul com profundidade), para onde a história acontece de verdade — sai como rascunho para você aprovar. <b>De representação</b> = rabiscado, rápido e barato, para lugar de passagem. Tudo fica salvo na biblioteca de Cenários, na prateleira <b>Deste Short</b>.</div>`));
+    for (const L of LS) {
+      const e = R.cenarios[L.key], box = h(`<div class="ide-cn ${e ? 'ok' : ''} ${e?.cat || ''}"><div class="ide-cn-mini">${e?.mini ? `<img src="${esc(e.mini)}" alt="">` : ic('paisagem', 22)}</div>
+        <div class="ide-cn-info"><b>${esc(L.lugar)}</b><small>cena${L.cenas.length > 1 ? 's' : ''} ${L.cenas.join(', ')}</small>${L.visual ? `<p>${esc(L.visual)}</p>` : ''}
+          ${e ? `<span class="ide-cn-esc"><i class="ide-cn-cat ${e.aprovar ? 'aprovar' : e.cat}">${e.aprovar ? 'oficial · para aprovar' : e.cat === 'oficial' ? 'oficial' : 'de representação'}</i> ${esc(e.nome)}</span>` : '<span class="ide-cn-sem">Sem cenário (ao gerar o vídeo, a IA desenha um rabiscado na hora, se a opção estiver ligada)</span>'}</div>
+        <div class="ide-cn-bts"><button class="btn sm" data-bib>${ic('paisagem', 13)} ${e ? 'Ver / trocar…' : 'Escolher na biblioteca…'}</button><button class="btn sm ia" data-of title="Gera no estilo do Planetário (pintado azul), com a descrição do lugar">${ic('sparkles', 13)} Gerar oficial</button><button class="btn sm ia" data-rp title="Gera rabiscado, rápido">${ic('sparkles', 13)} Gerar rabiscado</button>${e ? `<button class="ibtn" data-x title="Tirar o cenário deste lugar">${ic('x', 13)}</button>` : ''}</div></div>`);
+      const poe = async esc0 => { if (!esc0) return; R.cenarios[L.key] = esc0; await this.guarda(R); this.pintaRoteiro(); };
+      $('[data-bib]', box).onclick = async () => poe(await CenLib.abrir({ escolher: { roteiro: R.id, lugar: L.lugar, visual: L.visual, contexto: this.ctxShort(R), atual: e || null } }));
+      const gera = async tipo => { try { const d = await CenLib.gerarESalvar(tipo, L.visual || L.lugar, { roteiro: R.id, lugar: L.lugar, nome: L.lugar, contexto: this.ctxShort(R) });
+          const it = (await CenLib.meus()).find(x => x.id === d.id); await poe({ origem: 'meu', id: d.id, nome: d.nome, mini: it?.mini, cat: tipo, aprovar: !!d.aprovar });
+          UI.toast(tipo === 'oficial' ? `Cenário oficial de <b>${esc(L.lugar)}</b> pronto (rascunho para aprovar). <b>Ver / trocar</b> abre para mexer, ajustar com a IA ou aprovar.` : `Rabiscado de <b>${esc(L.lugar)}</b> pronto.`, { kind: 'ok', time: 7000 }); }
+        catch (er) { UI.toast('O cenário não saiu: ' + esc(er.message), { kind: 'err', time: 7000 }); } };
+      $('[data-of]', box).onclick = () => gera('oficial'); $('[data-rp]', box).onclick = () => gera('rep');
+      if ($('[data-x]', box)) $('[data-x]', box).onclick = async () => { delete R.cenarios[L.key]; await this.guarda(R); this.pintaRoteiro(); };
+      pc.appendChild(box);
+    }
+    this.rodape(pc, R, 6, 'Pôr as vozes', true);
+  },
+
   // ---------- VOZES ----------
   passoVoz(pc, R) {
     if (!R.roteiro) { pc.appendChild(h('<div class="vazio">Escreva o roteiro primeiro.</div>')); return; }
@@ -428,7 +461,7 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
       }
       pc.appendChild(box);
     }
-    this.rodape(pc, R, 6, 'Gerar o vídeo', true);
+    this.rodape(pc, R, 7, 'Gerar o vídeo', true);
   },
   async poeVoz(R, f, blob) {
     const k = await Arq.guardar(blob), b = await Som.decod(k).catch(() => null); if (!b) return UI.toast('Esse áudio não abriu.', { kind: 'err' });
@@ -467,7 +500,8 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
     const o = R.opcoes ||= {}, F = this.falas(R), semVoz = F.filter(f => !R.vozes[f.id]).length, tot = F.reduce((s, f) => s + this.durFala(R, f) + .25, 0) + R.roteiro.cenas.length * .6 + 1;
     const vids = [...new Map((this.S?.analise?.canais || []).flatMap(c => [...(c.longos?.bem || []), ...(c.shorts?.bem || [])].map(v => [v.id, { ...v, canal: c.nome }]))).values()];
     const box = h(`<div class="ide-gerar"><div class="ide-resumo"><div><b>${esc(R.roteiro.titulo || R.nome)}</b><small>${R.formato === 'short' ? 'Short 1080×1920' : 'Vídeo 1920×1080'} · 24 fps · ${R.roteiro.cenas.length} cena(s) · ${F.length} falas · cerca de ${Exportar.tc(tot)}</small></div>${semVoz ? `<span class="ide-aviso">${ic('alert', 12)} ${semVoz} fala(s) sem voz (entram só com a legenda)</span>` : ''}</div>
-      <label class="chk"><input type="checkbox" data-o="cenarios" ${o.cenarios ? 'checked' : ''}> Desenhar um cenário por cena com a IA <small>(no estilo da casa, em peças)</small></label>
+      <div class="ide-dica">${ic('paisagem', 12)} Cenários escolhidos: <b>${this.lugares(R).filter(L => R.cenarios?.[L.key]).length} de ${this.lugares(R).length}</b> lugares <small>(passo Cenários)</small></div>
+      <label class="chk"><input type="checkbox" data-o="cenarios" ${o.cenarios ? 'checked' : ''}> Lugar sem cenário escolhido: a IA desenha um rabiscado na hora <small>(em peças)</small></label>
       <label class="chk"><input type="checkbox" data-o="boca" ${o.boca ? 'checked' : ''}> Boca pela voz <small>(personagem com a sessão "Boca")</small></label>
       <label class="chk"><input type="checkbox" data-o="legendas" ${o.legendas ? 'checked' : ''}> Legendas com a palavra falada acesa</label>
       <label class="chk"><input type="checkbox" data-o="animar" ${o.animar ? 'checked' : ''}> Animar com a IA <small>(poses pelas emoções, ações, câmera e cortes, cena por cena)</small></label>
@@ -532,9 +566,12 @@ Regras: cada fala é uma linha de diálogo; rubricas/descrições viram "acao", 
       if (o.boca) { Ocupado.passo('Mexendo a boca pela voz…'); let nb = 0;
         cenas.forEach((cn, ci) => { for (const [pid, n] of Object.entries(nos[ci] || {})) { const a = App.P.audios.find(y => y._pers === pid); if (a && Som.bocaAuto(App.P, n, a)) nb++; } });
         if (nb) App.commit('Boca pela voz (' + nb + ')'); }
-      const passos = (o.cenarios ? cenas.length : 0) + (o.animar ? cenas.length : 0); let feito = 0;
-      // cenários (um por cena, no estilo da casa)
-      if (o.cenarios) for (const [ci, cn] of cenas.entries()) { Ocupado.parte(feito, passos); Ocupado.passo(`Desenhando o cenário da cena ${ci + 1}: ${cn.ce.lugar}…`);
+      const escDe = cn => R.cenarios?.[this.chaveLugar(cn.ce.lugar)], comCen = cenas.filter(cn => escDe(cn) || o.cenarios).length;
+      const passos = comCen + (o.animar ? cenas.length : 0); let feito = 0;
+      // cenários: o escolhido no passo Cenários (biblioteca); sem escolha, a IA desenha um rabiscado na hora (se ligado)
+      for (const [ci, cn] of cenas.entries()) { const ec = escDe(cn); if (!ec && !o.cenarios) continue; Ocupado.parte(feito, passos); Ocupado.passo(`${ec ? 'Pondo' : 'Desenhando'} o cenário da cena ${ci + 1}: ${cn.ce.lugar}…`);
+        if (ec) { try { const def = await CenLib.resolve(ec); if (!def) throw new Error(`"${ec.nome}" não está mais na biblioteca`); App.q = cn.de; const pasta = await CenLib.porNaCena(def); pasta.de = cn.de; pasta.ate = cn.ate; pasta.nome = `Cenário ${ci + 1}: ${cn.ce.lugar}`.slice(0, 40); App.commit('Cenário da cena ' + (ci + 1)); }
+          catch (e) { UI.toast(`O cenário da cena ${ci + 1} não entrou: ${esc(e.message)}`, { kind: 'warn' }); } feito++; continue; }
         try { const r = await Cenarios.pedirIA(cn.ce.visual || cn.ce.lugar, null); Cenarios.guardaUltimo?.(r.cena); const est = await Cenarios.estadoDe({ ...r.cena, ia: true }); est.ia = true; App.q = cn.de;
           const pasta = await Cenarios.porEmCamadas(est, { semAviso: true }); pasta.de = cn.de; pasta.ate = cn.ate; pasta.nome = `Cenário ${ci + 1}: ${cn.ce.lugar}`.slice(0, 40); App.commit('Cenário da cena ' + (ci + 1)); }
         catch (e) { UI.toast(`O cenário da cena ${ci + 1} não saiu: ${esc(e.message)}`, { kind: 'warn' }); } feito++; }
