@@ -131,6 +131,33 @@ const Atuacao = {
     const out = { sy, r }; if (L.corpo.size > 5000) L.corpo.clear(); L.corpo.set(ch, out); return out;
   },
 
+  /* ---------- IDLE (def.idle): personagem que NUNCA fica parado (ex.: o Nimbo, uma nuvem) ----------
+     { flutua: px pra cima/baixo, periodo: s, balanca: graus, respira: escala, respiro: s, ferve: trocas por segundo
+       (alterna a imagem base com as versões "base~2", "base~3" da mesma parte: contorno "fervendo"), cabelo: graus a mais
+       no balanço das partes tipo cabelo/rabo, bolinha: px que elas sobem e descem (cada uma no seu tempo) }
+     Tudo calculado no desenho (as chaves não mudam); desliga com n.atuacao.idle = false. */
+  idle(I, n, q, fps, f, dv, raiz, out) {
+    const t = q / fps, sm = this.semente(n.id), T = Math.PI * 2, F = Math.min(1.5, f), per = I.periodo || 2.6;
+    if (raiz && out[raiz.id]) {
+      const e = out[raiz.id];
+      e.y = (e.y || 0) + Math.sin(t * T / per + sm) * (I.flutua || 0) * F;
+      e.r = (e.r || 0) + Math.sin(t * T / (per * 1.37) + sm * .7) * (I.balanca || 0) * f;
+      const k = 1 + Math.sin(t * T / (I.respiro || 1.7) + sm * 1.3) * (I.respira || 0) * F;
+      e.s = (e.s ?? 1) * k; e.sx = (e.sx || 1) / (k * k);
+    }
+    for (const p of dv.partes) {
+      const e = out[p.id]; if (!e || e.vis === false) continue; const sem = this.semente(p.id);
+      if (I.ferve && e.img && p.imgs.length > 1) {
+        const base = String(e.img).replace(/~\d+$/, ''), vs = p.imgs.filter(i => i.id === base || i.id.startsWith(base + '~'));
+        if (vs.length > 1) e.img = vs[(Math.floor(t * I.ferve + sem) % vs.length + vs.length) % vs.length].id;
+      }
+      if (p !== raiz && this.tipo(p) === 'cabelo') {
+        e.r = (e.r || 0) + Math.max(-(+p.balanco || 99), Math.min(+p.balanco || 99, this.ruido(t * 1.1, sem) * (I.cabelo || 0) * f));
+        e.y = (e.y || 0) + Math.sin(t * T / 1.9 + sem) * (I.bolinha || 0) * F;
+      }
+    }
+  },
+
   /* ---------- aplica no estado das partes do quadro q (devolve um estado novo; o de entrada não muda) ---------- */
   aplica(P, n, q, dv, ep) {
     const def = P.personagens[n.ref]; if (!def) return ep; const o = { ...this.opcoes(n), suave: !!n.suaveP }, fps = P.fps || 24, f = o.forca;
@@ -153,13 +180,15 @@ const Atuacao = {
         if (!o.cabelo) continue;
         const lag = (cpAntes.r - cp.r) * 1.4 - vx * .045 - vr * .8 + Math.max(-4, Math.min(4, vy * .02));
         const vivo = this.ruido(q / fps * .9, sem) * 1.1 + Math.sin(q / fps * Math.PI * 2 / 2.3 + sem) * .5;
-        e.r = (e.r || 0) + Math.max(-9, Math.min(9, lag * f)) + vivo * Math.min(1.5, f); continue;
+        const lim = +p.balanco || 9; // p.balanco: giro máximo da mecha (peça recortada de um cabelo inteiro não aguenta muito)
+        e.r = (e.r || 0) + Math.max(-lim, Math.min(lim, lag * f + vivo * Math.min(1.5, f) * Math.min(1, lim / 4))); continue;
       }
       // membros: antecipação + mola entre poses, e "pose viva"
       const g = this.giroParte(p, L.trocas[p.id], q, fps, o);
       e.r = (e.r || 0) + g.r;
       if (o.resp && p.pai) e.r += this.ruido(q / fps * .55, sem) * 1.3 * Math.min(1.5, f);
     }
+    if (def.idle && o.idle !== false) this.idle(def.idle, n, q, fps, f, dv, raiz, out);
     return out;
   },
 };
