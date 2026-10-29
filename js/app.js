@@ -89,7 +89,7 @@ const App = {
     const agora = JSON.stringify(this.P); if (agora === this.ultimo) return this.atualiza(o);
     if (this.P.anterior) delete this.P.anterior; // mudou de verdade: deixa de ser "o anterior" (virou um arquivo comum)
     this.desfazer.push(this.ultimo); if (this.desfazer.length > 120) this.desfazer.shift(); this.refazer = []; this.ultimo = agora;
-    this.P.modificado = Date.now(); this.salvarLogo(); this.atualiza(o);
+    this.P.modificado = Date.now(); this.salvarLogo(); NuvemAnim.agenda(); this.atualiza(o);
   },
   undo() { if (!this.desfazer.length) return UI.toast('Nada para desfazer'); this.refazer.push(this.ultimo); this.ultimo = this.desfazer.pop(); this.troca(JSON.parse(this.ultimo)); },
   redo() { if (!this.refazer.length) return; this.desfazer.push(this.ultimo); this.ultimo = this.refazer.pop(); this.troca(JSON.parse(this.ultimo)); },
@@ -102,7 +102,9 @@ const App = {
     try { this.P.thumb = Render.miniatura(this.P, this.q); await DB.put('projetos', JSON.parse(JSON.stringify(this.P))); this.salvoTxt('Salvo neste computador'); EstudioConta?.espaco?.atualizar?.(); return true; }
     catch (e) { this.salvoTxt('Não salvou: ' + e.message); return false; }
   },
-  salvoTxt(t) { const e = $('#salvo'); if (e) e.textContent = t; },
+  salvoTxt(t) { const e = $('#salvo'); if (e) e.textContent = t + this.txtNuvem(); },
+  txtNuvem() { const N = typeof NuvemAnim !== 'undefined' ? NuvemAnim : null; if (!N || !this.P) return ''; return N.estado === 'enviando' ? ' · enviando para a nuvem…' : N.estado === 'erro' ? ' · nuvem: ' + (N.erro || 'erro') : N._t ? ' · vai para a nuvem em instantes' : N.estado === 'ok' ? ' · e na nuvem' : ''; },
+  pintaNuvemAnim() { const e = $('#salvo'); if (e && this.P) e.textContent = e.textContent.replace(/ · (enviando para a nuvem…|nuvem: .*|vai para a nuvem em instantes|e na nuvem)$/, '') + this.txtNuvem(); },
 
   /* ---------- quadro atual e reprodução ---------- */
   setQ(q, o = {}) {

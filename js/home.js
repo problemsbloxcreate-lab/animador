@@ -34,13 +34,15 @@ const Home = {
     c.innerHTML = `<div class="novos">${FORMATOS.map(f => { const k = 34 / Math.max(f.w, f.h); return `<button class="novo" data-f="${f.id}"><span class="fm"><i style="width:${f.w * k}px;height:${f.h * k}px"></i></span><span><b>${f.nome}</b><small>${f.w}×${f.h} · ${f.fps} fps</small></span></button>`; }).join('')}
       <button class="novo" data-pers><span class="fm">${ic('gear', 24)}</span><span><b>Personalizado</b><small>do seu jeito ou com a IA</small></span></button>
       <button class="novo" data-abrir><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .animador</b><small>arquivo de animação</small></span></button></div>
-      <div class="sec">Animações <span class="sp"></span><button class="btn sm" data-pnova-a title="Pasta nova para organizar as animações (só neste computador)">${ic('folder', 13)} Pasta nova</button><input type="search" placeholder="Buscar" value="${esc(this.q)}"></div><div data-g></div>`;
+      <div class="sec">${ic('cloud', 14)} Na nuvem da equipe <small class="sec-sub">ficam salvas para todos, em qualquer computador</small><span class="sp"></span><button class="btn sm" data-todas title="Manda para a nuvem da equipe as animações que estão só neste navegador">${ic('upload', 13)} Mandar as deste computador</button></div><div data-gn><div class="vazio">Carregando a nuvem…</div></div>
+      <div class="sec">Neste computador <span class="sp"></span><button class="btn sm" data-pnova-a title="Pasta nova para organizar as animações (só neste computador)">${ic('folder', 13)} Pasta nova</button><input type="search" placeholder="Buscar" value="${esc(this.q)}"></div><div data-g></div>`;
     $$('[data-f]', c).forEach(b => b.onclick = () => this.nova(FORMATOS.find(f => f.id === b.dataset.f)));
     $('[data-pers]', c).onclick = () => this.personalizada();
     $('[data-abrir]', c).onclick = async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) this.importar(f); };
     const busca = $('input[type=search]', c); busca.oninput = () => { this.q = busca.value; this.grade(c); };
     $('[data-pnova-a]', c).onclick = async () => { try { if (await PastasBib.nova('anim')) this.grade(c); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
-    this.grade(c);
+    this.grade(c); this.gradeNuvem(c);
+    $('[data-todas]', c).onclick = async () => { await NuvemAnim.mandarTodas(); this.gradeNuvem(c, true); };
     // AO VIVO AGORA: animações abertas para trabalhar junto
     this._offLista?.(); const av = h('<section class="aovivo-agora" hidden><div class="sec">' + ic('users', 14) + ' Ao vivo agora <small class="sec-sub">animações abertas para trabalhar junto · entre e veja quem está mexendo</small></div><div class="av-salas"></div></section>'); $('[data-g]', c).before(av);
     this._offLista = AoVivo.ouvirLista(L => { if (!av.isConnected) return this._offLista?.(); av.hidden = !L.length; const g = $('.av-salas', av); g.innerHTML = '';
@@ -52,6 +54,19 @@ const Home = {
     if (!r) { fim(); return UI.toast('Essa sala já terminou.', { kind: 'warn' }); }
     try { const P = r.P; P.modificado = Date.now(); await DB.put('projetos', JSON.parse(JSON.stringify(P))); await App.abrir(P); await AoVivo.entrar(AoVivo.adAnimador(false), { avisa: true }); App.pintaJunto(); } finally { fim(); }
     UI.toast('Você entrou! Ao sair, a cópia com as últimas mudanças fica salva neste computador.', { kind: 'ok', time: 6000 });
+  },
+  // ANIMAÇÕES NA NUVEM DA EQUIPE (js/nuvemanim.js): abrir baixa o que falta e guarda neste navegador
+  async gradeNuvem(c, novo) {
+    const g = $('[data-gn]', c); if (!g) return; let L;
+    try { L = await NuvemAnim.lista(novo); } catch (e) { g.innerHTML = `<div class="vazio">Não deu para ler a nuvem agora: ${esc(e.message)}</div>`; return; }
+    const q = this.q.trim().toLowerCase(), F = L.filter(it => !q || String(it.nome || '').toLowerCase().includes(q));
+    if (!F.length) { g.innerHTML = `<div class="vazio">${L.length ? 'Nada com esse nome na nuvem.' : 'Nenhuma animação na nuvem ainda. As que você abrir e mexer vão sozinhas; as antigas, use “Mandar as deste computador”.'}</div>`; return; }
+    g.innerHTML = ''; const grade = h('<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div>'); g.appendChild(grade);
+    for (const it of F) {
+      const card = h(`<div class="pc"><div class="th">${ic('film', 26)}</div><div class="in"><b>${esc(it.nome || 'Animação')}</b><small>${it.mod ? fmtDate(it.mod) : ''}${it.dur ? ' · ' + it.dur + ' quadros' : ''}${it.w ? ' · ' + it.w + '×' + it.h : ''}</small></div></div>`);
+      card.onclick = () => NuvemAnim.abrir(it); grade.appendChild(card);
+      Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(`animacoes/${it.id}/miniatura.jpg`)).then(r => r.blob()).then(b => { const th = $('.th', card); th.style.backgroundImage = `url('${URL.createObjectURL(b)}')`; th.innerHTML = ''; }).catch(() => { });
+    }
   },
   async grade(c) {
     const g = $('[data-g]', c), todos = (await DB.all('projetos')).sort((a, b) => b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));
