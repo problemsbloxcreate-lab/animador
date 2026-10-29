@@ -1643,3 +1643,21 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 /* PONTOS DO SVG no palco do Animador (js/pontosed.js) */
 .pe-barra{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:8px;max-width:calc(100% - 24px);padding:5px 6px 5px 11px;border-radius:9px;background:rgba(40,26,70,.95);border:1px solid #7b5bd6;color:#e6dcff;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .pe-barra [data-t]{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.pe-barra small{color:#b9a8e8}.pe-ic{flex:none;color:#c3aaff;display:flex}.pe-barra .btn{flex:none}
+/* janela "Substituir: escolha o que trazer do arquivo" (js/subst.js) */
+.sb{display:flex;flex-direction:column;gap:10px;max-height:min(68vh,640px);overflow:auto;padding-right:2px}
+.sb-top{font-size:12.5px;color:var(--tx2);line-height:1.45}.sb-top b{color:var(--tx)}
+.sb-sec{border:1px solid var(--bd);border-radius:10px;background:var(--bg1);overflow:hidden}
+.sb-sec.dif{border-color:rgba(232,194,90,.45)}.sb-sec.dif .sb-h>svg{color:var(--warn)}.sb-sec.igual .sb-h>svg{color:#7fd6a0}
+.sb-h{display:flex;align-items:center;gap:6px;padding:7px 9px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tx2);background:var(--bg2);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:1}
+.sb-h small{font-weight:600;color:var(--tx3);background:var(--bg3);border-radius:8px;padding:0 6px;text-transform:none;letter-spacing:0}
+.sb-h .btn{height:24px;text-transform:none;letter-spacing:0;font-weight:500}
+.sb-l{padding:4px 6px 6px}
+.sb-v{margin-top:4px}.sb-vt{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx3);padding:4px 4px 2px;text-transform:uppercase;letter-spacing:.05em}.sb-vt small{color:var(--tx3);opacity:.7}
+.sb-it{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;cursor:pointer}.sb-it:hover{background:var(--bg3)}
+.sb-it input{flex:none;width:15px;height:15px}
+.sb-mini{width:30px;height:30px;flex:none;border-radius:6px;background:var(--bg0);display:grid;place-items:center;overflow:hidden;color:var(--tx3)}.sb-mini img{max-width:100%;max-height:100%;object-fit:contain}
+.sb-nm{min-width:0;display:flex;flex-direction:column}.sb-nm b{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sb-nm small{font-size:11px;color:var(--tx3)}
+.sb-it.sai .sb-nm small{color:#ff9a9a}
+.sb-vazio{padding:10px;color:var(--tx3);font-size:12px}
+.sb-nota{font-size:11.5px;color:var(--tx3);display:flex;gap:6px;align-items:flex-start}.sb-nota b{color:var(--tx2)}
+.sb-sec{flex:none}.sb-nota{display:block}.sb-nota>svg{vertical-align:-2px;margin-right:5px}
