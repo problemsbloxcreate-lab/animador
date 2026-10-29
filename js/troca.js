@@ -24,7 +24,9 @@ const Troca = {
       const SA = this.sessoes(A, idA), SB = this.sessoes(B, idB), out = {};
       for (const [sid, pid] of Object.entries(k.sessoes)) {
         const sa = SA.find(s => s.id === sid), pa = sa?.presets.find(p => p.id === pid); if (!sa || !pa) continue;
-        const sb = SB.find(s => this.chave(s.nome) === this.chave(sa.nome)), pb = sb?.presets.find(p => this.chave(p.nome) === this.chave(pa.nome));
+        // personagem sem vistas (Nimbo): "da frente / de trás" cai no direito / esquerdo
+        const alt = { 'braco da frente': 'braco direito', 'braco de tras': 'braco esquerdo', 'perna da frente': 'perna direita', 'perna de tras': 'perna esquerda' }[this.chave(sa.nome)];
+        const sb = SB.find(s => this.chave(s.nome) === this.chave(sa.nome)) || (alt && SB.find(s => this.chave(s.nome) === alt)), pb = sb?.presets.find(p => this.chave(p.nome) === this.chave(pa.nome));
         if (pb) out[sb.id] = pb.id; else falta.push(`${sa.nome} › ${pa.nome}`);
       }
       k.sessoes = out;
