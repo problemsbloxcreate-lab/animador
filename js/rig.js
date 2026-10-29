@@ -123,7 +123,7 @@ const Rig = {
   profundidades(def) { let r = this._prof.get(def); if (r && r.n === def.partes.length) return r.m; const porId = Object.fromEntries(def.partes.map(p => [p.id, p])), m = {};
     for (const p of def.partes) { let d = 0, x = p; while (x?.pai && d < 30) { x = porId[x.pai]; d++; } m[p.id] = Math.max(0, d - 1); } this._prof.set(def, { n: def.partes.length, m }); return m; },
   // matriz da camada do personagem no projeto (pastas de cima + a própria camada), quadro q
-  matNo(P, n, q) { let m = new DOMMatrix(); for (const a of Modelo.ancestrais(P, n.id)) m = Render.matNo(m, Modelo.transf(a, q)); return Render.matNo(m, Modelo.transf(n, q)); },
+  matNo(P, n, q) { let m = new DOMMatrix(); for (const a of Modelo.ancestrais(P, n.id)) m = Render.matNo(m, Modelo.transf(a, q)); m = Render.matNo(m, Modelo.transf(n, q)); const d = n.gruda && typeof Controles !== 'undefined' && Controles.deltaGruda(P, n, q); return d ? d.multiply(m) : m; }, // grudada numa parte (controles)
   // pontos que dá para arrastar no esqueleto (coordenadas do personagem), sempre na PONTA do osso:
   //  • laranja (ik) = meio da mão/pé: leva o membro inteiro até lá;  • azul (fk) = ponta de uma parte: gira ESSA parte no encaixe dela
   //  (ponta = a junta da próxima parte do membro, o pescoço/cabeça para o corpo, ou o meio do desenho para cabeça e mechas). Rosto e peças de acabamento ficam de fora.

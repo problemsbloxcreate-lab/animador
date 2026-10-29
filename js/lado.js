@@ -47,6 +47,7 @@ const Lado = {
         b.onclick = () => { const k = Modelo.chave(f, q); k.vista = v.id; App.commit(`Vista ${v.nome} no quadro ${q + 1}`, { semArvore: true }); }; vb.appendChild(b); }
       cab.appendChild(vb); }
     el.appendChild(cab);
+    { const cp = Controles.painelNo(P, f); if (cp) { const nC = Controles.todos(Controles.de(P.personagens[f.ref])).length; el.appendChild(this.secao('ctrl-q', 'Código do personagem', `${nC} controle${nC === 1 ? '' : 's'}`, c => c.appendChild(cp), true)); } } // CONTROLES do personagem (js/controles.js)
     // POSES (sessões: olhos, boca, braços…)
     el.appendChild(this.secao('poses', 'Poses', def.sessoes.length ? `${def.sessoes.length} sessões${nomeV ? ' · ' + esc(nomeV) : ''}` : '', c => {
       if (!def.sessoes.length) return c.appendChild(h(`<div class="nq-vazio">${esc(def.nome)} ainda não tem sessões nesta vista. Crie no <b>Ateliê</b>.</div>`));
@@ -246,6 +247,7 @@ const Lado = {
       const cads = Rig.cadeias(Modelo.naVista(defP, est.vista)), esq = h(`<label class="chk" style="margin-top:6px" title="Mostra os ossos e as juntas deste personagem no palco. Arraste a bolinha de uma mão ou pé para dobrar o braço/perna inteiro (IK)."><input type="checkbox" ${App.esqueleto ? 'checked' : ''}> Mostrar o esqueleto${cads.length ? ` <small style="color:var(--tx3)">· ${cads.length} membro${cads.length > 1 ? 's' : ''} com IK</small>` : ''}</label>`);
       $('input', esq).onchange = ev => { App.esqueleto = ev.target.checked; try { localStorage.setItem('animador-esqueleto', App.esqueleto ? '1' : ''); } catch { } App.pinta(); }; c.appendChild(esq);
     }, true));
+    { const cp = defP && Controles.painelNo(P, n); if (defP && cp) { const nC = Controles.todos(Controles.de(P.personagens[n.ref])).length; el.appendChild(this.secao('ctrl-p', 'Código do personagem', `${nC} controle${nC === 1 ? '' : 's'}`, c => c.appendChild(cp), true)); } } // CONTROLES do personagem (js/controles.js)
     { const ef = h(`<button class="pr-ir-ef">${ic('sparkles', 13)}<span>Trêmulo e efeitos desta camada</span><small>${n.tremulo ? (n.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : ''}</small>${ic('right', 12)}</button>`); ef.onclick = () => this.aba('efeitos'); el.appendChild(ef); }
   },
   propsCamera(el, P, q) {

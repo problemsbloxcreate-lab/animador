@@ -300,7 +300,8 @@ const Arq = {
   // (uma por imagem+máscara) e refaz sozinha se a imagem mudar (ex.: prévia do pincel). Sem máscara (ou carregando) = a imagem normal.
   apCache: new Map(),
   comAp(bm, it, aoChegar) {
-    bm = this.comCor(bm, it, aoChegar); // COR INTERNA do personagem (def.corInterna / cor do personagem no editor), antes do apagado
+    const tr = it?.troca?.length && typeof Controles !== 'undefined', sv = tr && typeof Vetor !== 'undefined' && Vetor.eh(it.img?.k);
+    bm = sv ? Controles.comTroca(bm, it, aoChegar) /* SVG: troca de cor dos controles (já com a cor interna) */ : this.comCor(bm, it, aoChegar); if (tr && !sv) bm = Controles.comTroca(bm, it, aoChegar); // COR INTERNA do personagem (def.corInterna / cor do personagem no editor), antes do apagado
     const ap = it?.ap; if (!bm || !ap?.k) return bm; if (typeof Vetor !== 'undefined' && Vetor.eh(ap.k) && Vetor.eh(it.img.k)) return Vetor.comAp(bm, it, aoChegar); /* keyframe de imagem SVG: o apagado também é vetor */ const m = this.bitmap(ap.k, aoChegar); if (!m) return bm;
     const ch = it.img.k + '|' + ap.k + '|' + ap.x + '|' + ap.y, c = this.apCache.get(ch); if (c && c.src === bm) return c.cv;
     const cv = document.createElement('canvas'); cv.width = bm.width; cv.height = bm.height; const x = cv.getContext('2d'); x.drawImage(bm, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(m, ap.x || 0, ap.y || 0);

@@ -10,7 +10,7 @@ const Render = {
     const vai = (lista, m, alfa) => {
       for (let i = lista.length - 1; i >= 0; i--) {
         const n = lista[i]; if (n.vis === false || !Modelo.aparece(P, n, q)) continue;
-        const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
+        const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
         if (n.filhos) vai(n.filhos, mm, a); else fn(n, mm, a, t);
       }
     };
@@ -55,12 +55,15 @@ const Render = {
     let ep = Modelo.partesNoEstado(dv, est);
     if (n.suaveP && typeof Rig !== 'undefined') { try { ep = Rig.tween(P, n, q, dv, ep); } catch (e) { console.warn('[Rig]', e); } } // partes mudam aos poucos até a próxima chave (js/rig.js)
     if (typeof Atuacao !== 'undefined' && Atuacao.ligada(n)) { try { ep = Atuacao.aplica(P, n, q, dv, ep); } catch (e) { console.warn('[Atuação]', e); } } // atuação automática (js/atuacao.js)
-    return { def, dv, ep, est };
+    let ctl = null; if (def.controles && typeof Controles !== 'undefined') { const r = Controles.aplica(P, n, q, def, dv, est, ep); ep = r.ep; ctl = r.pecas; } // CONTROLES do personagem (js/controles.js): bolsa, cor do cabelo… só na animação
+    return { def, dv, ep, est, ctl };
   },
   pecasPersonagem(P, n, q, m) {
-    const ee = this.estadoPartes(P, n, q); if (!ee) return []; const { def, dv, ep } = ee;
+    const ee = this.estadoPartes(P, n, q); if (!ee) return []; const { def, dv, ep, ctl } = ee;
     const cor = n.cor === 'original' ? null : n.cor || dv.corInterna; // cor interna: a deste personagem na animação, ou a do Ateliê
-    return Modelo.montar(cor === dv.corInterna ? dv : { ...dv, corInterna: cor }, ep, m);
+    const L = Modelo.montar(cor === dv.corInterna ? dv : { ...dv, corInterna: cor }, ep, m);
+    if (ctl) for (const it of L) { const c = ctl[it.parte.id]; if (c) { if (c.op != null) it.op = c.op; if (c.troca) it.troca = c.troca; } } // opacidade e troca de cor por peça (controles)
+    return L;
   },
   // desenha as camadas no ctx (que já está com a transformação do "mundo" aplicada em base)
   // o.fundo: desenha o fundo do canvas (quadriculado/liso) como a camada mais de baixo da raiz (assim as camadas de efeito valem nele)
@@ -97,7 +100,7 @@ const Render = {
   // desenha um nó (pasta: os filhos). Devolve true se desenhou algo
   umNo(ctx, P, q, base, n, m, alfa, fr, nivel) {
     if (!this.vivo(P, n, q) || n.tipo === 'efeito') return false;
-    const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q));
+    const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
     const fx = n.chaves && Modelo.filtroFx(Modelo.fxNo(n, q)), fxPai = this._fx || ''; // cor e luz (chave.fx): a da pasta vale para tudo dentro
     if (n.filhos) { const rc = this.recorte(n); if (rc) { ctx.save(); ctx.setTransform(fr); ctx.beginPath(); ctx.rect(rc.x, rc.y, rc.w, rc.h); ctx.clip(); } // RECORTE DA PASTA: só aparece o que está dentro do retângulo (px do vídeo, fixo na tela)
       this._fx = (fxPai + ' ' + (fx || '')).trim(); try { this.lista(ctx, P, q, base, n.filhos, mm, a, fr, nivel + 1); } finally { this._fx = fxPai; if (rc) ctx.restore(); } return true; }
@@ -105,7 +108,7 @@ const Render = {
     const df = n.chaves && Deformar.em(n, q); if (df && Deformar.desenha(ctx, P, q, base, n, mm, df)) { ctx.restore(); return true; } // deformada (js/deformar.js)
     if (n.tipo === 'personagem') {
       for (const it of this.pecasPersonagem(P, n, q, mm)) {
-        if (!it.img) continue; const bm = Arq.comAp(this.bm(it.img.k), it, () => Render.aoChegarImagem?.()); if (!bm) continue;
+        if (!it.img) continue; const bm = Arq.comAp(this.bm(it.img.k), it, () => Render.aoChegarImagem?.()); if (!bm) continue; ctx.globalAlpha = Math.max(0, Math.min(1, a * (it.op ?? 1)));
         const px = it.img.pivo?.x ?? it.img.w / 2, py = it.img.pivo?.y ?? it.img.h / 2;
         ctx.setTransform(base.multiply(it.m)); const x = -px + (it.img.ajuste?.x || 0), y = -py + (it.img.ajuste?.y || 0);
         if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, this.nitido(bm, it.img.w, it.img.h, base.multiply(it.m)), x, y, it.img.w, it.img.h); else ctx.drawImage(bm, x, y, it.img.w, it.img.h);
