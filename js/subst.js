@@ -52,9 +52,12 @@ const Subst = {
   ICO: { parte: 'image', poses: 'layers', anim: 'film', vistaconf: 'eye', vista: 'eye', conf: 'gear' },
   TIPO: { parte: 'Parte', poses: 'Poses', anim: 'Animação', vistaconf: 'Vista', vista: 'Vista', conf: 'Personagem' },
   async janela(atual, novo, itens, f, fpsHtml) {
-    const urls = [], mini = async it => { const p = it.tipo === 'parte' ? (it.de || it.ag) : null; const im = p && ((p.imgs || []).find(i => i.id === p.base?.img) || p.imgs?.[0]); if (!im?.k) return '';
-      const b = await Arq.pegaBlob(im.k).catch(() => null); if (!b) return ''; const u = URL.createObjectURL(b); urls.push(u); return `<img src="${u}" alt="">`; };
-    const linha = async (it, i) => `<label class="sb-it${it.sai ? ' sai' : ''}" data-i="${i}"><input type="checkbox" ${it.dif ? 'checked' : ''}><span class="sb-mini">${await mini(it) || ic(this.ICO[it.tipo] || 'layers', 14)}</span><span class="sb-nm"><b>${esc(it.nome || '(sem nome)')}</b><small>${esc(this.TIPO[it.tipo] || '')}${it.motivo ? ' · ' + esc(it.motivo) : ''}</small></span></label>`;
+    const urls = [], prev = {}, url = async p => { const im = p && ((p.imgs || []).find(i => i.id === p.base?.img) || p.imgs?.[0]); if (!im?.k) return '';
+      const b = await Arq.pegaBlob(im.k).catch(() => null); if (!b) return ''; const u = URL.createObjectURL(b); urls.push(u); return u; };
+    // miniatura (a do arquivo, ou a de agora se ela sai) + o que a lupa mostra ao passar o mouse: agora → arquivo
+    const mini = async (it, i) => { if (it.tipo !== 'parte') return ''; const a = await url(it.ag), d = await url(it.de), u = d || a; if (!u) return '';
+      prev[i] = it.dif && a && d ? [['Agora', a], ['Do arquivo', d]] : [[it.sai ? 'Agora (sai)' : d && !a ? 'Do arquivo (nova)' : 'Igual nos dois', u]]; return `<img src="${u}" alt="">`; };
+    const linha = async (it, i) => `<label class="sb-it${it.sai ? ' sai' : ''}" data-i="${i}"><input type="checkbox" ${it.dif ? 'checked' : ''}><span class="sb-mini" data-zi="${i}">${await mini(it, i) || ic(this.ICO[it.tipo] || 'layers', 14)}</span><span class="sb-nm"><b>${esc(it.nome || '(sem nome)')}</b><small>${esc(this.TIPO[it.tipo] || '')}${it.motivo ? ' · ' + esc(it.motivo) : ''}</small></span></label>`;
     const bloco = async (L, cls) => { const porV = new Map(); for (const [i, it] of L) { if (!porV.has(it.vista)) porV.set(it.vista, []); porV.get(it.vista).push([i, it]); }
       let s = ''; for (const [v, l] of porV) { s += `<div class="sb-v"><div class="sb-vt">${ic(v === 'Personagem' ? 'gear' : 'eye', 12)} ${esc(v)} <small>${l.length}</small></div>`; for (const [i, it] of l) s += await linha(it, i); s += '</div>'; }
       return s || `<div class="sb-vazio">${cls === 'dif' ? 'Nenhuma diferença encontrada: o arquivo é igual ao personagem de agora.' : 'Tudo mudou.'}</div>`; };
@@ -71,12 +74,23 @@ const Subst = {
     $('[data-mi]', corpo).onclick = () => { caixas('.sb-sec.igual').forEach(c => c.checked = true); pintaTodos(); };
     $('[data-di]', corpo).onclick = () => { caixas('.sb-sec.igual').forEach(c => c.checked = false); pintaTodos(); };
     corpo.addEventListener('change', pintaTodos);
+    // lupa: versão grande da miniatura (lado que cabe na tela)
+    let zoom = null; const tiraZoom = () => { zoom?.remove(); zoom = null; };
+    corpo.addEventListener('mouseover', e => { const m = e.target.closest('.sb-mini[data-zi]'), P = m && prev[m.dataset.zi]; if (!P) return; tiraZoom();
+      const nome = itens[+m.dataset.zi]?.nome || '';
+      zoom = h(`<div class="sb-zoom"><div class="sb-zt">${esc(nome)}</div><div class="sb-zg">${P.map(([t, u], j) => `${j ? `<span class="sb-zs">${ic('right', 14)}</span>` : ''}<figure><span><img src="${u}" alt=""></span><figcaption>${esc(t)}</figcaption></figure>`).join('')}</div></div>`);
+      document.body.appendChild(zoom); const r = m.getBoundingClientRect(), z = zoom.getBoundingClientRect(), W = innerWidth, H = innerHeight;
+      let x = r.right + 12; if (x + z.width > W - 8) x = r.left - z.width - 12; if (x < 8) x = Math.max(8, Math.min(W - z.width - 8, r.left));
+      let y = r.top + r.height / 2 - z.height / 2; y = Math.max(8, Math.min(H - z.height - 8, y));
+      zoom.style.left = x + 'px'; zoom.style.top = y + 'px'; });
+    corpo.addEventListener('mouseout', e => { const m = e.target.closest('.sb-mini[data-zi]'); if (m && !m.contains(e.relatedTarget)) tiraZoom(); });
+    corpo.addEventListener('scroll', tiraZoom, true);
     let marcados = null;
     const op = await UI.modal({ title: 'Substituir: escolha o que trazer do arquivo', icon: 'layers', width: 640, body: corpo,
       onOpen: api => { ok = $$('button', api.foot).find(x => /Trazer/.test(x.textContent)) || null; pintaTodos(); },
       buttons: [{ label: 'Cancelar', value: null }, { label: 'Abrir como outro personagem', value: 'abrir' },
         { label: 'Trazer os marcados', kind: 'primary', onClick: () => { marcados = $$('.sb-it', corpo).filter(l => $('input', l).checked).map(l => itens[+l.dataset.i]); return 'sub'; } }] });
-    urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 2000));
+    tiraZoom(); urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 2000));
     return { op: marcados ? 'sub' : op, marcados: marcados || [], fps: +$('[data-fps]', corpo)?.value || 0 };
   },
   // ---------- aplicar o que foi marcado ----------
