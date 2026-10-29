@@ -29,7 +29,8 @@ const AtelieArq = {
     const m = Zip.read(await f.arrayBuffer()), pj = m.get('personagem.json'); if (!pj) throw new Error('Não é um arquivo .atelieanimador.');
     let def = JSON.parse(new TextDecoder().decode(pj)); if (!def?.partes) throw new Error('O arquivo do personagem está estragado.');
     let info = null; try { info = JSON.parse(new TextDecoder().decode(m.get('info.json'))); } catch { }
-    const troca = {}; for (const [nome, d] of m) if (nome.startsWith('arq/')) { const k = decodeURIComponent(nome.slice(4)), b = new Blob([d]), k2 = await this.chaveLivre(k, b); if (k2 !== k) troca[k] = k2; await Arq.guardar(b, k2); Arq.img.delete(k2); }
+    const troca = {}, ents = [...m].filter(([nome]) => nome.startsWith('arq/')); let i = 0; // 6 de cada vez (antes uma por uma + nuvem: minutos para abrir)
+    await Promise.all(Array.from({ length: Math.min(6, ents.length) }, async () => { while (i < ents.length) { const [nome, d] = ents[i++]; const k = decodeURIComponent(nome.slice(4)), b = new Blob([d]), k2 = await this.chaveLivre(k, b); if (k2 !== k) troca[k] = k2; await Arq.guardar(b, k2); Arq.img.delete(k2); } }));
     if (Object.keys(troca).length) def = this.trocaChaves(def, troca);
     return { def, info };
   },
@@ -37,9 +38,10 @@ const AtelieArq = {
      ainda não tem. Um arquivo feito fora do Ateliê, ou exportado e mudado depois, pode trazer uma imagem DIFERENTE com a MESMA chave de
      uma que já existe aqui ou na nuvem: ela não subia (a nuvem ficava com o desenho de antes — mãos/posições "voltando" só em algumas
      partes) e as vistas "(antigo)" perdiam o desenho delas. Agora a imagem do arquivo ganha uma chave nova; igual = continua a mesma. */
-  async chaveLivre(k, b, comNuvem = true) {
-    let ja = await Arq.pegaBlob(k).catch(() => null);
-    if (!ja && comNuvem && /^personagens\//.test(k) && typeof Nuvem !== 'undefined' && Nuvem.srv) ja = await Nuvem.baixar(k).catch(() => null);
+  // compara só com o que JÁ está neste computador (o Ateliê guarda aqui toda imagem que baixa da nuvem, então o personagem aberto está todo aqui);
+  // baixar da nuvem para comparar fazia o arquivo demorar minutos para abrir
+  async chaveLivre(k, b) {
+    const ja = await Arq.pegaBlob(k).catch(() => null);
     if (!ja || await this.mesmoArq(ja, b)) return k;
     const ext = (String(k).match(/\.([a-z0-9]{2,4})$/i)?.[1] || 'png').toLowerCase(), pasta = String(k).replace(/[^/]*$/, '');
     return pasta + uid('im').toLowerCase().replace(/[^a-z0-9]/g, '') + '.' + ext;
