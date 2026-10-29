@@ -27,11 +27,28 @@ const AtelieArq = {
   },
   async ler(f) {
     const m = Zip.read(await f.arrayBuffer()), pj = m.get('personagem.json'); if (!pj) throw new Error('Não é um arquivo .atelieanimador.');
-    const def = JSON.parse(new TextDecoder().decode(pj)); if (!def?.partes) throw new Error('O arquivo do personagem está estragado.');
+    let def = JSON.parse(new TextDecoder().decode(pj)); if (!def?.partes) throw new Error('O arquivo do personagem está estragado.');
     let info = null; try { info = JSON.parse(new TextDecoder().decode(m.get('info.json'))); } catch { }
-    for (const [nome, d] of m) if (nome.startsWith('arq/')) { const k = decodeURIComponent(nome.slice(4)); await Arq.guardar(new Blob([d]), k); Arq.img.delete(k); }
+    const troca = {}; for (const [nome, d] of m) if (nome.startsWith('arq/')) { const k = decodeURIComponent(nome.slice(4)), b = new Blob([d]), k2 = await this.chaveLivre(k, b); if (k2 !== k) troca[k] = k2; await Arq.guardar(b, k2); Arq.img.delete(k2); }
+    if (Object.keys(troca).length) def = this.trocaChaves(def, troca);
     return { def, info };
   },
+  /* MESMO NOME, OUTRO DESENHO: cada mudança numa imagem vira chave nova, então a nuvem (Nuvem.salvar) só manda as chaves que ela
+     ainda não tem. Um arquivo feito fora do Ateliê, ou exportado e mudado depois, pode trazer uma imagem DIFERENTE com a MESMA chave de
+     uma que já existe aqui ou na nuvem: ela não subia (a nuvem ficava com o desenho de antes — mãos/posições "voltando" só em algumas
+     partes) e as vistas "(antigo)" perdiam o desenho delas. Agora a imagem do arquivo ganha uma chave nova; igual = continua a mesma. */
+  async chaveLivre(k, b, comNuvem = true) {
+    let ja = await Arq.pegaBlob(k).catch(() => null);
+    if (!ja && comNuvem && /^personagens\//.test(k) && typeof Nuvem !== 'undefined' && Nuvem.srv) ja = await Nuvem.baixar(k).catch(() => null);
+    if (!ja || await this.mesmoArq(ja, b)) return k;
+    const ext = (String(k).match(/\.([a-z0-9]{2,4})$/i)?.[1] || 'png').toLowerCase(), pasta = String(k).replace(/[^/]*$/, '');
+    return pasta + uid('im').toLowerCase().replace(/[^a-z0-9]/g, '') + '.' + ext;
+  },
+  async mesmoArq(a, b) {
+    if (a.size !== b.size) return false; const [x, y] = await Promise.all([a.arrayBuffer(), b.arrayBuffer()]); const A = new Uint8Array(x), B = new Uint8Array(y);
+    for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) return false; return true;
+  },
+  trocaChaves(def, troca) { let s = JSON.stringify(def); for (const [a, b] of Object.entries(troca)) s = s.split(JSON.stringify(a)).join(JSON.stringify(b)); return JSON.parse(s); },
   // SUBSTITUIR o personagem aberto pelo arquivo: tudo (partes, imagens, poses/presets, animações, vistas) vem do arquivo; o personagem continua o
   // mesmo (id, nome, pasta, autor), então se está na nuvem a nuvem é atualizada sozinha. Antes, a versão de agora vira uma cópia só neste computador.
   async substituir(f) {
@@ -58,8 +75,9 @@ const AtelieArq = {
       if (guarda === 'rascunho') await Arquivos.duplicarPersonagem(JSON.parse(JSON.stringify(atual)), atual.thumb, `${atual.nome} (anterior)`);
       // as imagens do arquivo passam a morar no personagem aberto (mesmo id = mesma pasta na nuvem)
       Ocupado.passo('Trocando pelo arquivo…'); const velho = novo.id, id = atual.id, troca = k => k.split(`personagens/${velho}/`).join(`personagens/${id}/`);
-      const ks = velho !== id ? Modelo.chavesImgs(novo) : []; let n = 0; for (const k of ks) { Ocupado.parte(++n, ks.length); const b = await Arq.pegaBlob(k).catch(() => null); if (!b) continue; const k2 = troca(k); await Arq.guardar(b, k2); Arq.img.delete(k2); }
-      const d = velho === id ? novo : JSON.parse(troca(JSON.stringify(novo)));
+      const ks = velho !== id ? [...new Set([...Modelo.chavesImgs(novo), ...(novo.audios || []).map(a => a.k).filter(Boolean)])] : [], outra = {}; let n = 0;
+      for (const k of ks) { Ocupado.parte(++n, ks.length); const b = await Arq.pegaBlob(k).catch(() => null); if (!b) continue; const k1 = troca(k), k2 = await this.chaveLivre(k1, b); if (k2 !== k1) outra[k1] = k2; await Arq.guardar(b, k2); Arq.img.delete(k2); } // na pasta do aberto já tem uma imagem com esse nome e outro desenho: chave nova
+      let d = velho === id ? novo : JSON.parse(troca(JSON.stringify(novo))); if (Object.keys(outra).length) d = this.trocaChaves(d, outra);
       Object.assign(d, { id, nome: atual.nome, pasta: atual.pasta, autor: atual.autor, edicoes: atual.edicoes, modificado: Date.now() }); for (const c of ['autor', 'edicoes']) if (d[c] === undefined) delete d[c];
       // as vistas de antes ficam no personagem como "(antigo)": dá para mandar presets de uma para a outra e apagar quando quiser
       const velhas = (atual.vistas?.length ? atual.vistas : [{ id: null, nome: 'Vista', tipo: 'frente' }]).map(v => { const dv = v.id ? Modelo.naVista(atual, v.id) : atual; return { id: uid('vi'), nome: `${v.nome} (antigo)`.slice(0, 40), tipo: v.tipo || 'outra', partes: clone(dv.partes || []), sessoes: clone(dv.sessoes || []), animacoes: clone(dv.animacoes || []), raiz: dv.raiz, ...(dv.vis ? { vis: clone(dv.vis) } : {}) }; });

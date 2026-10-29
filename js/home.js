@@ -225,8 +225,10 @@ const Toon = {
   async baixar(P) { downloadBlob(await this.montar(P), safeName(P.nome) + '.animador'); },
   async ler(f) {
     const m = Zip.read(await f.arrayBuffer()), pj = m.get('projeto.json'); if (!pj) throw new Error(m.get('personagem.json') ? 'Isto é um personagem do Ateliê (.atelieanimador), não uma animação.' : 'Não é um arquivo .animador.');
-    const P = JSON.parse(new TextDecoder().decode(pj)); if (P.v !== 2) throw new Error('Este arquivo é do Animador antigo.');
-    for (const [nome, d] of m) if (nome.startsWith('arq/')) await Arq.guardar(new Blob([d]), decodeURIComponent(nome.slice(4)));
+    let P = JSON.parse(new TextDecoder().decode(pj)); if (P.v !== 2) throw new Error('Este arquivo é do Animador antigo.');
+    // imagem com o mesmo nome de uma que já está neste computador e OUTRO desenho ganha chave nova (não estraga a do personagem da equipe)
+    const troca = {}; for (const [nome, d] of m) if (nome.startsWith('arq/')) { const k = decodeURIComponent(nome.slice(4)), b = new Blob([d]), k2 = await AtelieArq.chaveLivre(k, b, false); if (k2 !== k) troca[k] = k2; await Arq.guardar(b, k2); Arq.img.delete?.(k2); }
+    if (Object.keys(troca).length) P = AtelieArq.trocaChaves(P, troca);
     try { const cv = m.get('conversa-ia.json'); if (cv && P.id) { const j = JSON.parse(new TextDecoder().decode(cv)), ja = await DB.get('arquivos', 'ia-conversa:' + P.id).catch(() => null); if (!(ja?.msgs?.length > (j.msgs?.length || 0))) await DB.put('arquivos', j, 'ia-conversa:' + P.id); } } catch { }
     let info = null; try { info = JSON.parse(new TextDecoder().decode(m.get('info.json'))); } catch { }
     P.id = uid('p'); P.modificado = Date.now(); await Autores.limpa(P); return { P, info };
