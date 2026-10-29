@@ -380,6 +380,7 @@ const App = {
         s?.tipo === 'personagem' && { label: `Arrumar o quadro ${App.q + 1} aqui (Ateliê ao lado)`, icon: 'brush', action: () => QuadroEd.abrir(s) },
         s?.tipo === 'personagem' && { label: `Editar no Ateliê (pose do quadro ${App.q + 1})`, icon: 'edit', action: () => Animacoes.editarNoAtelie(s) },
         s?.tipo === 'personagem' && { label: 'Abrir a cópia desta animação no Ateliê (todos os quadros, só aqui)', icon: 'film', action: () => AtelieAnim.abrir(App.P.id, s.ref) },
+        s?.tipo === 'personagem' && { label: 'Trocar o personagem (mesma animação, pelos nomes das poses)…', icon: 'users', action: () => Troca.trocar(s) },
         s?.tipo === 'personagem' && { label: 'Abrir no Ateliê como pose nova…', icon: 'plus', action: () => Animacoes.poseNova(s) },
         s?.tipo === 'personagem' && { label: 'Cor interna…', icon: 'brush', action: () => App.corInterna(s) },
         s?.tipo === 'personagem' && { label: (Modelo.transf(s, App.q).sx || 1) < 0 ? 'Desespelhar (voltar para o lado de antes)' : 'Espelhar (virar para o outro lado)', icon: 'transition', action: () => Animacoes.espelhar(s) },
