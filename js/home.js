@@ -63,7 +63,7 @@ const Home = {
     let naNuvem = []; try { naNuvem = await NuvemAnim.lista(); } catch { } const temAqui = new Set(locais.map(p => p.id)), idsNuvem = new Set(naNuvem.map(x => x.id));
     const soNuvem = naNuvem.filter(x => !temAqui.has(x.id)).map(x => ({ id: x.id, nome: x.nome || 'Animação', modificado: x.mod || Date.parse(x.em || 0) || 0, _nuvem: x }));
     // DUAS ABAS: na nuvem (as da equipe: as que este computador tem e as que só estão lá) × só neste computador
-    const naN = p => p._nuvem || idsNuvem.has(p.id), todosT = [...locais, ...soNuvem];
+    const naN = p => !!(p._nuvem || idsNuvem.has(p.id)), todosT = [...locais, ...soNuvem];
     const cN = $('[data-cn]', c), cL = $('[data-cl]', c); if (cN) cN.textContent = todosT.filter(naN).length; if (cL) cL.textContent = todosT.filter(p => !naN(p)).length;
     const naNuvemAba = this.subAnim !== 'local', escP = naNuvemAba ? 'animn' : 'anim';
     const todos = todosT.filter(p => naN(p) === naNuvemAba).sort((a, b) => b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));
