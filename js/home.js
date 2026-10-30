@@ -57,7 +57,7 @@ const Home = {
   async pintaAoVivo(c, av) {
     const L = this._salas || [], g = $('.av-salas', av); let t = null; try { t = await AoVivo.transporte(); } catch { }
     const soltas = [], vivos = new Set(); for (const s of L) { const id = s.sala.slice(3), card = $(`.pc[data-anid="${CSS.escape(id)}"]`, c);
-      let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(Boolean); } catch { }
+      let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(g => g && g.nome); } catch { }
       if (gente.length) vivos.add(id);
       if (card) this.seloVivo(card, gente);
       else if (!s.auto && gente.length) soltas.push([s, gente]); }
@@ -259,7 +259,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       let pintaNuvem = async () => { try { lista.sort((a, b) => (this._vivosAt?.has(b.id) ? 1 : 0) - (this._vivosAt?.has(a.id) ? 1 : 0)); ({ todas: todasN } = await PastasBib.monta(l, { esc: 'nuvem', itens: lista, cartao: cartaoN, aoMudar: pintaNuvem })); if (Nuvem.parcial && Nuvem.copiasPc?.length) this.copiasLocais(l, Nuvem.copiasPc, true); filtra(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
       // AO VIVO no Ateliê: personagem com gente mexendo agora (sala at-<id>) ganha o selo e vai para o topo da pasta
       const marcaVivos = async () => { const t = await AoVivo.transporte().catch(() => null), vivos = new Set();
-        for (const s of this._salasAt || []) { const id = s.sala.slice(3); let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(Boolean); } catch { }
+        for (const s of this._salasAt || []) { const id = s.sala.slice(3); let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(g => g && g.nome); } catch { }
           if (gente.length) vivos.add(id); const card = $(`.pc[data-prev-id="${CSS.escape(id)}"]`, l); if (card) this.seloVivo(card, gente); }
         const ant = [...(this._vivosAt || [])].sort().join(); this._vivosAt = vivos; if (ant !== [...vivos].sort().join() && l.isConnected) { await pn0(); marcaVivos(); } };
       const pn0 = pintaNuvem; pintaNuvem = async () => { await pn0(); if (this._salasAt) marcaVivos(); };

@@ -62,22 +62,34 @@ const AoVivoFirebase = {
   com(prom, ms = 9000) { return Promise.race([prom, new Promise((_, no) => setTimeout(() => no(new Error('o tempo real não respondeu (veja se o Realtime Database está ligado)')), ms))]); },
   async estado(sala) {
     const s = (await this.com(this.r(`salas/${sala}/snap`).once('value'))).val(), q = this.r(`salas/${sala}/ops`).orderByKey(), o = (await this.com((s?.ate ? q.startAt(s.ate) : q).once('value'))).val() || {};
-    return { snap: s, gente: (await this.r(`salas/${sala}/gente`).once('value')).val() || {}, meta: (await this.r(`salas/${sala}/meta`).once('value')).val(), ops: Object.keys(o).sort().filter(k => k !== s?.ate).map(k => ({ k, ...o[k] })) };
+    return { snap: s, gente: this.real(sala, (await this.r(`salas/${sala}/gente`).once('value')).val()), meta: (await this.r(`salas/${sala}/meta`).once('value')).val(), ops: Object.keys(o).sort().filter(k => k !== s?.ate).map(k => ({ k, ...o[k] })) };
   },
   setSnap(sala, s) { return this.r(`salas/${sala}/snap`).set(s); },
   setMeta(sala, m) { return Promise.all([this.r(`salas/${sala}/meta`).update(m), this.r(`lista/${sala}`).update({ ...m, em: this.agora() })]); },
   ouvirMeta(sala, cb) { const r = this.r(`salas/${sala}/meta`); r.on('value', s => cb(s.val() || {})); this.offs.push(() => r.off()); },
   ouvirOps(sala, depois, cb) { let q = this.r(`salas/${sala}/ops`).orderByKey(); if (depois) q = q.startAt(depois); q.on('child_added', s => { if (s.key !== depois) cb({ k: s.key, ...s.val() }); }); this.offs.push(() => q.off()); },
   enviar(sala, op) { const ref = this.r(`salas/${sala}/ops`).push(); ref.set({ ...op, t: this.agora() }); return ref.key; },
-  presenca(sala, id, d, primeira) { const g = this.r(`salas/${sala}/gente/${id}`); if (primeira) { g.onDisconnect().remove(); return g.set({ ...d, t: this.agora() }); } return g.update(d); },
-  ouvirGente(sala, cb) { const r = this.r(`salas/${sala}/gente`); r.on('value', s => cb(s.val() || {})); this.offs.push(() => r.off()); },
+  // PRESENÇA: a pessoa inteira (nome, foto, conta…) fica guardada aqui; mudanças pequenas (ausente, foco, vista) só valem se ela ainda está na
+  // sala (transação) — antes um "ausente" que chegava depois do onDisconnect recriava um FANTASMA só com { afk } (sem nome nem foto), que
+  // deixava a sala "ao vivo" para sempre, a bolinha cinza sem foto na lista e travava a foto da sala. Voltou a conexão = entra de novo inteira.
+  presenca(sala, id, d, primeira) {
+    const g = this.r(`salas/${sala}/gente/${id}`);
+    if (primeira) { this._pres = { sala, id, d: { ...d } }; this.ligaVolta(); g.onDisconnect().remove(); return g.set({ ...d, t: this.agora() }); }
+    if (this._pres?.sala === sala && this._pres.id === id) Object.assign(this._pres.d, d);
+    return g.transaction(c => c && c.nome ? { ...c, ...d } : undefined, null, false).catch(() => { });
+  },
+  ligaVolta() { if (this._volta) return; this._volta = true; let antes = true;
+    this.db.ref('.info/connected').on('value', s => { const on = !!s.val(); if (on && !antes && this._pres) { const { sala, id, d } = this._pres, g = this.r(`salas/${sala}/gente/${id}`); g.onDisconnect().remove(); g.set({ ...d, t: this.agora() }).catch(() => { }); } antes = on; }); },
+  // só quem está de verdade (tem nome); fantasmas antigos são apagados
+  real(sala, o) { const r = {}; for (const [id, g] of Object.entries(o || {})) { if (g && g.nome) r[id] = g; else this.r(`salas/${sala}/gente/${id}`).remove().catch(() => { }); } return r; },
+  ouvirGente(sala, cb) { const r = this.r(`salas/${sala}/gente`); r.on('value', s => cb(this.real(sala, s.val()))); this.offs.push(() => r.off()); },
   chaveArq: k => k.replace(/[.#$\[\]\/%]/g, c => '%' + c.charCodeAt(0).toString(16)),
   async putArq(sala, k, b64) { const n = Math.ceil(b64.length / 4e6), o = { n }; for (let i = 0; i < n; i++) o['c' + i] = b64.slice(i * 4e6, (i + 1) * 4e6); await this.com(this.r(`salas/${sala}/arq/${this.chaveArq(k)}`).set(o), 90000); }, // com prazo: um envio travado não pode parar a fila (as mudanças deixavam de ir)
   async getArq(sala, k) { const o = (await this.com(this.r(`salas/${sala}/arq/${this.chaveArq(k)}`).once('value'), 30000)).val(); if (!o) return null; let s = ''; for (let i = 0; i < o.n; i++) s += o['c' + i] || ''; return s; },
-  async sair(sala, id) { for (const f of this.offs.splice(0)) try { f(); } catch { } try { await this.r(`salas/${sala}/gente/${id}`).remove(); const g = (await this.r(`salas/${sala}/gente`).once('value')).val(); if (!g) await this.apagar(sala); } catch { } },
+  async sair(sala, id) { if (this._pres?.sala === sala) this._pres = null; for (const f of this.offs.splice(0)) try { f(); } catch { } try { await this.r(`salas/${sala}/gente/${id}`).remove(); const g = (await this.r(`salas/${sala}/gente`).once('value')).val(); if (!g) await this.apagar(sala); } catch { } },
   // apaga mudanças que já entraram numa foto da sala (economia de espaço; quem entra depois lê só as de depois da foto)
   async podaOps(sala, ks) { const up = {}; for (const k of ks) up[k] = null; if (ks.length) await this.r(`salas/${sala}/ops`).update(up); },
-  async genteDe(sala) { return (await this.com(this.r(`salas/${sala}/gente`).once('value'))).val(); },
+  async genteDe(sala) { const g = this.real(sala, (await this.com(this.r(`salas/${sala}/gente`).once('value'))).val()); return Object.keys(g).length ? g : null; },
   async apagar(sala) { await this.r(`salas/${sala}`).remove(); await this.r(`lista/${sala}`).remove(); },
   ouvirLista(cb) { const r = this.r('lista'); r.on('value', s => cb(s.val() || {}), () => cb({})); return () => r.off(); },
 };
@@ -466,7 +478,7 @@ const AoVivo = {
   // quantas OUTRAS pessoas estão agora na sala (sem contar a minha conta: a aba de antes do F5 pode ainda aparecer por uns segundos)
   async outrosNaSala(sala) {
     if (!this.ligado()) return 0; try { const t = await this.transporte(), eu = await this.quem(), st = await t.estado(sala);
-      return Object.values(st.gente || {}).filter(g => g && g.conta !== eu.conta).length; } catch { return 0; }
+      return Object.values(st.gente || {}).filter(g => g && g.nome && g.conta !== eu.conta).length; } catch { return 0; }
   },
   async entrarAtelie(n = 0) {
     if (!this.ligado() || !Atelie.def || !Atelie.naNuvem || (this.ativo && this.ad?.ctx === 'animador')) return; if (this.ativo && this.sala === 'at-' + Atelie.def.id) return;
