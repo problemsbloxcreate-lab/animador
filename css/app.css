@@ -1734,7 +1734,7 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 @container (max-width:1100px){.ed-autores .aut-nm{display:none}}
 /* selo AO VIVO no cartão da animação (quem está mexendo agora) */
 .pc .th:has(.an-vivo){position:relative}
-.an-vivo{position:absolute;left:6px;bottom:6px;z-index:1;display:flex;align-items:center;gap:5px;padding:3px 4px 3px 8px;max-width:calc(100% - 12px);border-radius:20px;background:rgba(10,30,16,.82);border:1px solid #2e6b3e;color:#7bd88f;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.an-vivo{position:absolute;left:6px;bottom:6px;z-index:1;display:flex;white-space:nowrap;align-items:center;gap:5px;padding:3px 4px 3px 8px;max-width:calc(100% - 12px);border-radius:20px;background:rgba(10,30,16,.82);border:1px solid #2e6b3e;color:#7bd88f;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .an-vivo>i{width:7px;height:7px;border-radius:50%;background:#ff4d4d;box-shadow:0 0 0 0 rgba(255,77,77,.6);animation:an-pulsa 1.6s infinite}
 .an-vivo-fotos{display:flex;align-items:center;margin-left:4px;padding-left:6px;border-left:1px solid rgba(123,216,143,.3)}
 .an-vivo .av-mini{width:18px;height:18px;font-size:9px;box-shadow:0 0 0 1.5px rgba(10,30,16,.95)}

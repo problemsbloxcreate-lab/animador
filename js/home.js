@@ -52,7 +52,7 @@ const Home = {
     this._offLista?.(); const av = h('<section class="aovivo-agora" hidden><div class="sec">' + ic('users', 14) + ' Salas ao vivo <small class="sec-sub">cópias abertas pelo "Trabalhar junto"</small></div><div class="av-salas"></div></section>'); $('[data-g]', c).after(av);
     this._offLista = AoVivo.ouvirLista(L => { if (!av.isConnected) return this._offLista?.(); this._salas = L; this.pintaAoVivo(c, av); });
   },
-  seloVivo(card, gente) { $('.an-vivo', card)?.remove(); card.classList.toggle('an-ao-vivo', !!gente.length); if (gente.length) ($('.th', card) || card).appendChild(h(`<span class="an-vivo" title="Ao vivo agora: ${esc(gente.map(x => x.nome || 'Alguém').join(', '))}"><i></i><span class="an-vivo-tx">ao vivo</span><span class="an-vivo-fotos">${AoVivo.fotinhas([...gente].sort((a, b) => (a.afk ? 1 : 0) - (b.afk ? 1 : 0)), 3)}</span></span>`)); },
+  seloVivo(card, gente) { $('.an-vivo', card)?.remove(); card.classList.toggle('an-ao-vivo', !!gente.length); if (gente.length) ($('.th', card) || card).appendChild(h(`<span class="an-vivo" title="Ao vivo agora: ${esc(gente.map(x => x.nome || 'Alguém').join(', '))}"><i></i><span class="an-vivo-tx">ao vivo</span><span class="an-vivo-fotos">${AoVivo.fotinhas([...gente].sort((a, b) => (a.afk ? 1 : 0) - (b.afk ? 1 : 0)), gente.length <= 3 ? 3 : 2)}</span></span>`)); },
   // fotos de quem está em cada sala (nos cartões) e a faixa das salas sem cartão
   async pintaAoVivo(c, av) {
     const L = this._salas || [], g = $('.av-salas', av); let t = null; try { t = await AoVivo.transporte(); } catch { }
