@@ -212,7 +212,7 @@ const Atelie = {
     this._envioEm = Date.now();
     this.erroNuvem = null; this.pintaEstado();
     this.enviando = Ocupado.mantem(async () => { // com a aba escondida o navegador não congela no meio do envio
-      try { try { def.thumb = this.miniatura(); } catch { }
+      try { try { def.thumb = await this.miniaturaPronta(); } catch { }
         if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
         await Icone.prepara(def); await Nuvem.salvar(def, agora && Ocupado.n ? txt => Ocupado.anda(txt) : null, { limpar: !!agora }); this.aplicaTroca(Nuvem.ultimaTroca); const snapR = Nuvem.remapear(snap, Nuvem.ultimaTroca);
         if ((this.ultimo || JSON.stringify(this.def)) === snapR) { this.sujo = false; await DB.del('arquivos', this.chaveRascunho(def.id)).catch(() => { }); this.rascunhoEm = null; }
@@ -1518,7 +1518,7 @@ const Atelie = {
     const def = this.def; if (!def.partes.length) return UI.toast('Ponha pelo menos uma parte antes de salvar.', { kind: 'warn' });
     if (this.naNuvem) return this.salvarJa();
     { const n = await Arquivos.nomePersonagem(def.nome, def.id); if (n !== def.nome) { def.nome = n; $('#at-nome') && ($('#at-nome').value = n); } } // já tem um com esse nome na nuvem: o mais novo ganha (1), (2)…
-    def.thumb = this.miniatura();
+    def.thumb = await this.miniaturaPronta();
     // aprendizado: o que a equipe corrigiu depois da IA organizar vai junto (a IA lê isso nos próximos personagens)
     if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
     const fimOc = Ocupado.inicio({ tipo: 'nuvem', icone: 'cloud', titulo: 'Salvando na nuvem', subtitulo: 'Preparando o personagem…', aba: 'Salvando na nuvem', fimTxt: 'Salvo na nuvem', aviso: 'Aguarde: enquanto salva não dá para mexer (para nada ficar pela metade). Pode ir para outra aba ou minimizar: continua salvando. Só não feche esta aba.' }), t = { remove: () => { if (t.ok) return; t.ok = 1; fimOc(); } };
@@ -1532,10 +1532,15 @@ const Atelie = {
   // botão "Salvar na nuvem" (personagem que já está nela): trava a tela até terminar e avisa se não foi
   async salvarJa() { if (Ocupado.n) return; this.erroNuvem = null; await Ocupado.nuvem('Salvando na nuvem', () => this.sincronizar(true), { fimTxt: 'Salvo na nuvem' });
     if (this.erroNuvem) UI.toast('Não foi para a nuvem: ' + esc(this.erroNuvem), { kind: 'err', time: 7000 }); else if (!this.sujo) UI.toast('Salvo na nuvem da equipe.', { kind: 'ok', time: 2500 }); },
+  // MINIATURA = pose padrão (sem frame nem preset) da VISTA PRINCIPAL (a 1ª), não o que está na tela (decisão do dono, 30/10/2026).
+  // As imagens da principal ainda não chegaram (aberto noutra vista)? usa a vista de agora; miniaturaPronta() espera elas antes.
+  async miniaturaPronta() { const d = Modelo.naVista(this.def); try { await Promise.race([Arq.garantir(Modelo.chavesImgs({ ...d, vistas: [] })), new Promise(r => setTimeout(r, 8000))]); } catch { } return this.miniatura(); },
   miniatura() {
-    const est = Modelo.partesNoEstado(this.def, {}), b = Modelo.caixaPersonagem(this.def, est), S = 160, k = Math.min(S / b.w, S / b.h) * .92, c = document.createElement('canvas'); c.width = c.height = S;
+    let d = Modelo.naVista(this.def);
+    if (d !== this.def) { const est0 = Modelo.partesNoEstado(d, {}); if (Modelo.montar(d, est0).some(it => it.img && !Arq.img.get(it.img.k))) d = this.def; }
+    const est = Modelo.partesNoEstado(d, {}), b = Modelo.caixaPersonagem(d, est), S = 160, k = Math.min(S / b.w, S / b.h) * .92, c = document.createElement('canvas'); c.width = c.height = S;
     const x = c.getContext('2d'), base = new DOMMatrix().translate(S / 2, S / 2).scale(k).translate(-(b.x + b.w / 2), -(b.y + b.h / 2));
-    for (const it of Modelo.montar(this.def, est)) { if (!it.img) continue; const bm = Arq.img.get(it.img.k); if (!bm) continue; x.setTransform(base.multiply(it.m)); x.drawImage(bm, -(it.img.pivo?.x ?? it.img.w / 2) + (it.img.ajuste?.x || 0), -(it.img.pivo?.y ?? it.img.h / 2) + (it.img.ajuste?.y || 0), it.img.w, it.img.h); }
+    for (const it of Modelo.montar(d, est)) { if (!it.img) continue; const bm = Arq.img.get(it.img.k); if (!bm) continue; x.setTransform(base.multiply(it.m)); x.drawImage(bm, -(it.img.pivo?.x ?? it.img.w / 2) + (it.img.ajuste?.x || 0), -(it.img.pivo?.y ?? it.img.h / 2) + (it.img.ajuste?.y || 0), it.img.w, it.img.h); }
     const w = c.toDataURL('image/webp', .85); return w.startsWith('data:image/webp') ? w : c.toDataURL('image/png'); // miniatura menor
   },
 };
