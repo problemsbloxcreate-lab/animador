@@ -79,7 +79,7 @@ const NuvemAnim = {
   temNaNuvem(id, k) { return !!(this._kP?.has(k) || this._ks.get(id)?.has(this.chaveArq(id, k))); },
   async baixarArq(id, k) { const b = await (await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.chaveArq(id, k)))).blob(); return b?.size ? b : null; },
   // "quem" da lista da nuvem (códigos e nomes) no formato do Autores.selo; a foto e o nome de agora vêm do Autores.vivo
-  quemDe(it) { const q = it?.quem, P = x => x?.i ? { id: x.i, nome: x.n || '…', em: x.t || 0 } : null; if (!q?.a) return null; return { autor: P(q.a), edicoes: (q.e || []).map(P).filter(Boolean), modificado: it.mod }; },
+  quemDe(it) { const q = it?.quem, P = x => x?.i ? { id: x.i, nome: x.n || '…', em: x.t || 0 } : null; if (!q?.a) return /^u[0-9a-f]{16}$/.test(it?.por || '') ? { autor: { id: it.por, nome: '…', em: Date.parse(it.em || 0) || it.mod || 0 }, edicoes: [], modificado: it.mod } : null; return { autor: P(q.a), edicoes: (q.e || []).map(P).filter(Boolean), modificado: it.mod }; },
   // ---------- baixar ----------
   async baixarProjeto(id) {
     const r = await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.pasta(id) + 'projeto.json')); const P = await r.json();
@@ -110,6 +110,16 @@ const NuvemAnim = {
     }
     if (!P && outros) { const s = { sala: 'an-' + id, nome: it?.nome }; return Home.entrarJunto(s); }
     if (P) return App.abrir(P);
+  },
+  // botão ATUALIZAR do Animador: confere a nuvem e traz a versão mais nova (com gente junto o ao vivo já mantém tudo igual)
+  async atualizar() {
+    const P = App.P; if (!P) return;
+    if (!this.vai(P)) return UI.toast('Esta animação está só neste computador: não tem versão na nuvem para trazer.', { kind: 'warn' });
+    if (this.aoVivoJunto()) return UI.toast('Você está trabalhando junto ao vivo: as mudanças de todos já chegam na hora.', { kind: 'ok' });
+    let it; try { it = (await this.lista(true)).find(x => x.id === P.id); } catch (e) { return UI.toast('A nuvem não respondeu: ' + esc(e.message || ''), { kind: 'warn' }); }
+    if (!it) { if (await this.foiRemovida(P)) { App.pintaNuvem(); return UI.toast('Esta animação foi tirada da nuvem: ficou só neste computador.', { kind: 'warn', time: 7000 }); } return UI.toast('Ainda não está na nuvem. Use "Enviar agora".', { kind: 'warn' }); }
+    if ((it.mod || 0) <= (P.nuvemMod || 0) + 1000) { if (this.sujo(P)) await this.sincronizar(true); App.pintaNuvem(); return UI.toast('Já está na versão mais nova da nuvem.', { kind: 'ok' }); }
+    await App.salvarJa(); return this.abrir(P.id, App.P); // mais nova lá: pergunta se este computador também mudou e reabre
   },
   // ---------- remover / enviar (botões da tela inicial) ----------
   // tira da nuvem da equipe (a pasta inteira) e marca para não voltar sozinha; a cópia deste computador continua
@@ -161,7 +171,7 @@ const NuvemAnim = {
         this.erro = null;
       } catch (e) { this.erro = e.message || 'sem conexão'; if (App.P?.id === id) App.salvoTxt('Salvo neste computador (a nuvem não respondeu)'); }
     });
-    await this.enviando; this.enviando = null;
+    App.pintaNuvem?.(); await this.enviando; this.enviando = null; App.pintaNuvem?.();
     if (this._denovo) { this._denovo = false; if (this.sujo(App.P)) this.agenda(); }
   },
   // outra pessoa da sala mandou: se não tenho mudança minha indo, o que está na tela é o que foi para a nuvem

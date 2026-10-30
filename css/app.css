@@ -1717,3 +1717,24 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .nc-g{width:100%;min-height:150px;resize:vertical;font:12px/1.5 ui-monospace,Consolas,monospace;background:var(--bg1);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px}
 .nc-r{max-height:240px;overflow:auto;border:1px solid var(--bd);border-radius:8px;padding:4px 8px;background:var(--bg1)}
 .nc-i{padding:6px 0;border-bottom:1px solid var(--bd);font-size:12px}.nc-i:last-child{border:0}.nc-i b{display:block}.nc-i small{color:var(--tx2)}.nc-i div{margin-top:3px;white-space:pre-wrap;color:var(--tx2)}
+/* ONDE A ANIMAÇÃO ESTÁ SALVA (topo do Animador, igual ao "Salvo na nuvem" do Ateliê) */
+.an-nuvem-bt{display:inline-flex;align-items:center;gap:2px;margin-left:8px;flex:none}
+.an-nuvem-bt .btn{height:28px}
+.an-nv-bt{gap:6px;white-space:nowrap;border-top-right-radius:0;border-bottom-right-radius:0}
+#b-nuvem-mais{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;padding:0 6px}
+.an-nv-bt.an-nv-ok{color:#7bd88f;border-color:rgba(123,216,143,.4)}
+.an-nv-bt.an-nv-sujo{color:#fff;background:var(--ac,#7c5cff);border-color:transparent}
+.an-nv-bt.an-nv-indo{color:#b9a6ff;border-color:rgba(155,123,255,.45)}
+.an-nv-bt.an-nv-erro{color:#ffb35c;border-color:rgba(255,179,92,.45)}
+.an-nv-bt.an-nv-local{color:#ffd166;border-color:rgba(255,209,102,.45);border-style:dashed}
+#b-nuvem-atual{margin-left:4px}
+#salvo.erro{color:#ff7b7b}
+.ed-autores{display:inline-flex;margin-left:8px;min-width:0;flex:0 1 auto}
+.ed-autores .autores{background:var(--bg2);border:1px solid var(--bd);max-width:240px}
+@container (max-width:1100px){.ed-autores .aut-nm{display:none}}
+/* selo AO VIVO no cartão da animação (quem está mexendo agora) */
+.an-vivo{position:absolute;left:6px;bottom:52px;z-index:1;display:flex;align-items:center;gap:4px;padding:2px 6px 2px 6px;border-radius:20px;background:rgba(10,30,16,.82);border:1px solid #2e6b3e;color:#7bd88f;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.an-vivo>i{width:7px;height:7px;border-radius:50%;background:#ff4d4d;box-shadow:0 0 0 0 rgba(255,77,77,.6);animation:an-pulsa 1.6s infinite}
+.an-vivo .av-mini{width:18px;height:18px;margin-left:-4px;font-size:9px}
+@keyframes an-pulsa{0%{box-shadow:0 0 0 0 rgba(255,77,77,.55)}70%{box-shadow:0 0 0 6px rgba(255,77,77,0)}100%{box-shadow:0 0 0 0 rgba(255,77,77,0)}}
+.aovivo-agora{margin-top:18px}.av-fotos{display:flex;margin-top:4px}

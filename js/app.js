@@ -16,6 +16,7 @@ const App = {
     PaineisEd.liga(); // painéis que mudam de lugar e de tamanho (js/paineis.js)
     this.palco.liga(); this.enquadrar(); Arvore.pinta(); Folha.liga(); Lado.pinta(); Som.prepara(P);
     this.salvoTxt('Salvo neste computador'); this.pintaJunto();
+    if (!P.autor && !P.anterior) Autores.eu().then(eu => { if (this.P === P && !P.autor && eu?.id) { P.autor = { ...eu, em: P.criado || P.modificado || Date.now() }; this.salvarJa(); this.pintaNuvem(); } }).catch(() => { });
     AtualizaProj.lista = []; AtualizaProj.pinta(); AtualizaProj.confere(true); // botão "Atualizar projeto" só se este projeto estiver atrás da versão atual (js/atualizar.js)
     NuvemAnim.aoAbrir(P); // vai sozinha para a nuvem da equipe e entra no ao vivo (js/nuvemanim.js)
   },
@@ -103,7 +104,42 @@ const App = {
     try { this.P.thumb = Render.miniatura(this.P, this.q); await DB.put('projetos', JSON.parse(JSON.stringify(this.P))); this.salvoTxt('Salvo neste computador'); EstudioConta?.espaco?.atualizar?.(); NuvemAnim.agenda(); return true; }
     catch (e) { this.salvoTxt('Não salvou: ' + e.message); return false; }
   },
-  salvoTxt(t) { const e = $('#salvo'); if (e) e.textContent = t; },
+  salvoTxt(t) { this._salvoT = t; this.pintaNuvem(); },
+  // ONDE ESTÁ SALVA (igual ao "Salvo na nuvem" do Ateliê): botão com o estado da nuvem + menu (salvar no computador, enviar, tirar)
+  pintaNuvem() {
+    const b = $('#b-nuvem'), m = $('#b-nuvem-mais'), e = $('#salvo'), P = this.P; if (!b || !P) return;
+    const t = this._salvoT || '', N = NuvemAnim, vai = N.vai(P), res = !!window.EstudioLimite?.naReserva?.();
+    const copia = P.anterior || P.soLocal; // cópias de segurança nunca vão para a nuvem
+    let txt, icone = 'cloud', cls = '', dica;
+    if (!vai) { icone = 'monitor'; txt = 'Só neste computador'; cls = 'an-nv-local'; dica = copia ? 'Esta é uma cópia de segurança: fica só neste computador.' : 'Esta animação está só neste computador. Clique para enviar para a nuvem da equipe (aí ela vai sozinha e dá para trabalhar junto).'; }
+    else if (N.enviando || /^Enviando/.test(t)) { txt = 'Enviando…'; cls = 'an-nv-indo'; dica = 'Mandando para a nuvem da equipe…'; }
+    else if (N.erro && N.sujo(P)) { icone = 'cloudOff'; txt = 'Nuvem sem resposta'; cls = 'an-nv-erro'; dica = 'Ficou salva neste computador, mas a nuvem não respondeu (' + N.erro + '). Clique para tentar de novo.'; }
+    else if (N.sujo(P) || !P.nuvemEm) { txt = 'Enviar agora'; cls = 'an-nv-sujo'; dica = 'Salva neste computador. As mudanças vão sozinhas para a nuvem em até 1 minuto (com gente junto, 10 min). Clique para mandar já.'; }
+    else { txt = res ? 'Salvo na reserva' : 'Salvo na nuvem'; cls = 'an-nv-ok'; dica = 'Esta animação está na nuvem da equipe e neste computador.' + (P.nuvemEm ? ' Última vez: ' + new Date(P.nuvemEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + '.' : '') + (res ? ' A nuvem principal chegou ao limite de hoje: por enquanto está na reserva (a equipe vê igual) e passa para a principal às 21h.' : ''); }
+    b.innerHTML = `${ic(icone, 14)} <span>${txt}</span>`; b.className = 'btn sm an-nv-bt ' + cls; b.title = dica; b.disabled = !!copia && !vai;
+    b.onclick = () => this.cliqueNuvem(); m.innerHTML = ic('down', 13); m.onclick = ev => this.menuNuvem(ev);
+    const at = $('#b-nuvem-atual'); if (at) { at.hidden = !vai; at.innerHTML = ic('loop', 14); at.onclick = async () => { at.disabled = true; try { await NuvemAnim.atualizar(); } finally { at.disabled = false; } }; }
+    // quem criou / editou (foto e nome, igual ao Ateliê); trabalhando junto, as fotos de quem está na sala já aparecem ao lado
+    const au = $('#ed-autores'); if (au) { const de = (P.autor?.id || '') + '/' + (P.edicoes || []).map(x => x.id + x.em).join(',') + '/' + vai; if (au._de !== de) { au._de = de; au.innerHTML = ''; const sl = P.autor ? Autores.selo(P, { local: !vai }) : null; if (sl) au.appendChild(sl); } }
+    // o texto pequeno só aparece enquanto salva ou quando dá erro (o resto o botão já diz)
+    if (e) { e.textContent = /^Salvando|^Não salvou/.test(t) ? t : ''; e.classList.toggle('erro', /^Não salvou/.test(t)); }
+  },
+  async cliqueNuvem() {
+    const P = this.P; if (!P) return;
+    if (!NuvemAnim.vai(P)) { if (P.anterior || P.soLocal) return; try { await NuvemAnim.enviar(P); UI.toast('Enviada para a nuvem da equipe. Agora as mudanças vão sozinhas.', { kind: 'ok' }); } catch (e) { UI.toast('Não consegui enviar: ' + esc(e.message || ''), { kind: 'err' }); } this.pintaNuvem(); return; }
+    await NuvemAnim.sincronizar(true); this.pintaNuvem(); if (NuvemAnim.erro) UI.toast('A nuvem não respondeu: ficou salva neste computador e tento de novo sozinho.', { kind: 'warn' });
+  },
+  menuNuvem(ev) {
+    const P = this.P; if (!P) return; const r = ev.currentTarget.getBoundingClientRect(), vai = NuvemAnim.vai(P);
+    UI.ctx(r.left, r.bottom + 4, [
+      vai ? { label: 'Enviar para a nuvem agora', icon: 'upload', action: () => this.cliqueNuvem() } : !(P.anterior || P.soLocal) && { label: 'Enviar para a nuvem', icon: 'cloud', action: () => this.cliqueNuvem() },
+      { label: 'Salvar no computador (.animador)', icon: 'download', action: async () => { await this.salvarJa(); Toon.baixar(this.P); } },
+      vai && '-', vai && { label: 'Remover da nuvem…', icon: 'cloudOff', danger: true, action: async () => {
+        if (!(await UI.confirm({ title: 'Remover da nuvem?', msg: 'Ela sai da nuvem da equipe e fica só neste computador. Não volta sozinha: para mandar de novo, use "Enviar para a nuvem".', ok: 'Remover' }))) return;
+        try { await NuvemAnim.remover(P.id); await this.salvarJa(); UI.toast('Removida da nuvem. Ficou só neste computador.', { kind: 'ok' }); } catch (e) { UI.toast('Não consegui remover: ' + esc(e.message || ''), { kind: 'err' }); } this.pintaNuvem();
+      } },
+    ].filter(Boolean));
+  },
 
   /* ---------- quadro atual e reprodução ---------- */
   setQ(q, o = {}) {
