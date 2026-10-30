@@ -71,8 +71,9 @@ const Nuvem = {
       if (!t) { el.innerHTML = L?.voltando?.() ? `<div class="res-aviso">${ic('cloud', 14)}<span><b>A nuvem principal já voltou.</b> O que foi salvo na nuvem reserva durante o limite está voltando para ela sozinho, em poucos minutos.</span></div>` : pc; return; }
       const m = Math.max(0, Math.ceil((t - Date.now()) / 6e4)), falta = m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}min` : `${m} min`;
       const usos = [...(this._usoRes || [])], diz = usos.length ? ` (${usos.join(', ')})` : '';
-      el.innerHTML = L.naReserva?.() || usos.length || this.parcial ? `<div class="res-aviso">${ic('cloud', 14)}<span>Limite de hoje atingido: usando a <b>nuvem reserva</b>${diz}. Nada muda para a equipe; volta ao normal às 21h (em ${falta}).</span></div>`
-        : `<div class="res-aviso lim">${ic('cloud', 14)}<span>Limite de hoje atingido. Se precisar, a <b>nuvem reserva</b> entra no lugar; volta ao normal às 21h (em ${falta}).</span></div>`; el.innerHTML += pc; };
+      // só avisa quando a reserva está EM USO (decisão do dono, 29/10/2026): o "limite atingido, se precisar a reserva entra" não aparece mais
+      el.innerHTML = L.naReserva?.() || usos.length || this.parcial ? `<div class="res-aviso">${ic('cloud', 14)}<span>Limite de hoje atingido: usando a <b>nuvem reserva</b>${diz}. Nada muda para a equipe; volta ao normal às 21h (em ${falta}).</span></div>` : '';
+      el.innerHTML += pc; };
     const iv = setInterval(pinta, 30e3); addEventListener('storage', e => { if (e.key === 'estudio-limite-cf') pinta(); }); pinta(); this._resPinta = this._listaPc = pinta;
   },
   avisaEspaco() { if (Date.now() - (this._espEm || 0) < 120e3) return; this._espEm = Date.now(); try { window.EstudioConta?.nuvem?.atualizar?.(); } catch { } },
