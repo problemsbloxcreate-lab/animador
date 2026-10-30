@@ -55,12 +55,15 @@ const Home = {
   // fotos de quem está em cada sala (nos cartões) e a faixa das salas sem cartão
   async pintaAoVivo(c, av) {
     const L = this._salas || [], g = $('.av-salas', av); let t = null; try { t = await AoVivo.transporte(); } catch { }
-    const soltas = []; for (const s of L) { const id = s.sala.slice(3), card = $(`.pc[data-anid="${CSS.escape(id)}"]`, c);
+    const soltas = [], vivos = new Set(); for (const s of L) { const id = s.sala.slice(3), card = $(`.pc[data-anid="${CSS.escape(id)}"]`, c);
       let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(Boolean); } catch { }
-      if (card) { $('.an-vivo', card)?.remove(); if (gente.length) card.appendChild(h(`<span class="an-vivo" title="Ao vivo agora: ${esc(gente.map(x => x.nome || 'Alguém').join(', '))}"><i></i>ao vivo ${AoVivo.fotinhas(gente, 3)}</span>`)); }
+      if (gente.length) vivos.add(id);
+      if (card) { $('.an-vivo', card)?.remove(); card.classList.toggle('an-ao-vivo', !!gente.length); if (gente.length) card.appendChild(h(`<span class="an-vivo" title="Ao vivo agora: ${esc(gente.map(x => x.nome || 'Alguém').join(', '))}"><i></i>ao vivo ${AoVivo.fotinhas(gente, 3)}</span>`)); }
       else if (!s.auto && gente.length) soltas.push([s, gente]); }
     g.innerHTML = ''; for (const [s, gente] of soltas) { const b = h(`<button class="av-sala"><b>${esc(s.nome || 'Animação')}</b><small>aberta por ${esc(s.por || 'alguém')}</small><span class="av-fotos">${AoVivo.fotinhas(gente, 4)}</span><span class="btn sm">Entrar</span></button>`); b.onclick = () => this.entrarJunto(s); g.appendChild(b); }
     av.hidden = !soltas.length || this.subAnim === 'local';
+    // quem está ao vivo vai para o TOPO da lista (e da pasta dele): mudou quem está = monta a grade de novo
+    const ant = [...(this._vivos || [])].sort().join(), ag = [...vivos].sort().join(); this._vivos = vivos; if (ant !== ag && c.isConnected) this.grade(c);
   },
   async entrarJunto(s) {
     const fim = Ocupado.inicio({ tipo: 'junto', titulo: `Entrando em "${s.nome || 'Animação'}"`, subtitulo: 'Baixando a animação e os arquivos…' }); let r;
@@ -78,7 +81,7 @@ const Home = {
     const naN = p => !!(p._nuvem || idsNuvem.has(p.id)), todosT = [...locais, ...soNuvem];
     const cN = $('[data-cn]', c), cL = $('[data-cl]', c); if (cN) cN.textContent = todosT.filter(naN).length; if (cL) cL.textContent = todosT.filter(p => !naN(p)).length;
     const naNuvemAba = this.subAnim !== 'local', escP = naNuvemAba ? 'animn' : 'anim';
-    const todos = todosT.filter(p => naN(p) === naNuvemAba).sort((a, b) => b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));
+    const todos = todosT.filter(p => naN(p) === naNuvemAba).sort((a, b) => (this._vivos?.has(b.id) ? 1 : 0) - (this._vivos?.has(a.id) ? 1 : 0) || b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));
     // em PASTAS (só neste computador, arquivos["pastas-anim"]; js/pastasbib.js): abrir/fechar, arrastar entre pastas, criar/renomear/apagar.
     // Buscando: tudo junto numa grade só (sem pastas)
     if (!L.length) { g.innerHTML = `<div class="vazio">${todos.length ? 'Nada com esse nome.' : naNuvemAba ? 'Nenhuma animação na nuvem da equipe ainda. As animações novas vão para cá sozinhas.' : 'Nenhuma animação só neste computador.'}</div>`; return; }

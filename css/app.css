@@ -1738,3 +1738,4 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .an-vivo .av-mini{width:18px;height:18px;margin-left:-4px;font-size:9px}
 @keyframes an-pulsa{0%{box-shadow:0 0 0 0 rgba(255,77,77,.55)}70%{box-shadow:0 0 0 6px rgba(255,77,77,0)}100%{box-shadow:0 0 0 0 rgba(255,77,77,0)}}
 .aovivo-agora{margin-top:18px}.av-fotos{display:flex;margin-top:4px}
+.pc.an-ao-vivo{border-color:#3fa35a;box-shadow:0 0 0 1px rgba(123,216,143,.35)}
