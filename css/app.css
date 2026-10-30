@@ -1710,3 +1710,10 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .pc .th{position:relative}
 .an-nv{position:absolute;top:6px;right:6px;display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(20,22,28,.72);color:#b9a6ff;border:1px solid rgba(155,123,255,.5)}
 .pc.an-so-nuvem .th{background-size:cover;background-position:center;opacity:.88}
+
+/* NOTAS PARA O CLAUDE (js/notasclaude.js): janela discreta do menu do Ateliê */
+.nc-j{display:flex;flex-direction:column;gap:6px}.nc-t{color:var(--tx2);font-size:12px;margin-bottom:4px}
+.nc-l{font-size:11px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-top:6px}
+.nc-g{width:100%;min-height:150px;resize:vertical;font:12px/1.5 ui-monospace,Consolas,monospace;background:var(--bg1);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px}
+.nc-r{max-height:240px;overflow:auto;border:1px solid var(--bd);border-radius:8px;padding:4px 8px;background:var(--bg1)}
+.nc-i{padding:6px 0;border-bottom:1px solid var(--bd);font-size:12px}.nc-i:last-child{border:0}.nc-i b{display:block}.nc-i small{color:var(--tx2)}.nc-i div{margin-top:3px;white-space:pre-wrap;color:var(--tx2)}

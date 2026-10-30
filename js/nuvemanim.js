@@ -42,9 +42,13 @@ const NuvemAnim = {
       await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.chaveArq(id, k)), { method: 'POST', body: b }); ja.add(this.chaveArq(id, k)); }
     const env = this._enviado.get(id) || {};
     if (P.thumb) { const at = this.assina(P.thumb); if (at !== env.t) { try { const b = await (await fetch(P.thumb)).blob(); await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.pasta(id) + 'thumb.jpg'), { method: 'POST', body: b }); env.t = at; } catch { } } }
-    const { thumb, nuvemEm, nuvemMod, modificado, ...corpo } = P, txt = JSON.stringify({ ...corpo, modificado }), aj = this.assina(JSON.stringify(corpo));
+    const semMarca = o => { const { thumb, nuvemEm, nuvemMod, modificado, autor, edicoes, ...c } = o; return c; }, aj = this.assina(JSON.stringify(semMarca(P)));
     let r = { ok: true };
-    if (aj !== env.j) { r = await (await Nuvem.pede(`/animacoes/arquivo?nome=${encodeURIComponent(P.nome || '')}&k=` + encodeURIComponent(this.pasta(id) + 'projeto.json'), { method: 'POST', body: txt, headers: { 'content-type': 'application/json' } })).json().catch(() => ({})); if (r.ok !== false) env.j = aj; } // nada mudou de verdade (só a hora de salvar): não regrava
+    if (aj !== env.j) { // nada mudou de verdade (só a hora de salvar ou quem editou): não regrava
+      await Autores.marca(P); delete P.semNuvem; if (App.P?.id === id) { App.P.autor = P.autor; App.P.edicoes = P.edicoes; } // quem criou / editou (foto e nome, nunca o e-mail), igual ao Ateliê
+      const { thumb, nuvemEm, nuvemMod, ...corpo } = P, q = x => x && { i: x.id, n: x.nome, t: x.em };
+      const quem = encodeURIComponent(JSON.stringify({ a: q(P.autor), e: (P.edicoes || []).slice(-6).map(q) }));
+      r = await (await Nuvem.pede(`/animacoes/arquivo?nome=${encodeURIComponent(P.nome || '')}&quem=${quem}&k=` + encodeURIComponent(this.pasta(id) + 'projeto.json'), { method: 'POST', body: JSON.stringify(corpo), headers: { 'content-type': 'application/json' } })).json().catch(() => ({})); if (r.ok !== false) env.j = aj; }
     this._enviado.set(id, env);
     // arquivos que a animação já não usa saem da nuvem (só os dela; os dos personagens da equipe não)
     const usa = new Set(ks.map(k => this.chaveArq(id, k))); for (const k of [...ja]) if (/\/arq\//.test(k) && !usa.has(k)) { try { await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }); ja.delete(k); } catch { } }
@@ -74,6 +78,8 @@ const NuvemAnim = {
   // a chave já está na nuvem da equipe (personagens ou arquivos desta animação)? (para o ao vivo não mandar de novo pelo tempo real)
   temNaNuvem(id, k) { return !!(this._kP?.has(k) || this._ks.get(id)?.has(this.chaveArq(id, k))); },
   async baixarArq(id, k) { const b = await (await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.chaveArq(id, k)))).blob(); return b?.size ? b : null; },
+  // "quem" da lista da nuvem (códigos e nomes) no formato do Autores.selo; a foto e o nome de agora vêm do Autores.vivo
+  quemDe(it) { const q = it?.quem, P = x => x?.i ? { id: x.i, nome: x.n || '…', em: x.t || 0 } : null; if (!q?.a) return null; return { autor: P(q.a), edicoes: (q.e || []).map(P).filter(Boolean), modificado: it.mod }; },
   // ---------- baixar ----------
   async baixarProjeto(id) {
     const r = await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.pasta(id) + 'projeto.json')); const P = await r.json();

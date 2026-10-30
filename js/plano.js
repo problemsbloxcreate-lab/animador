@@ -7,10 +7,13 @@
      await Plano.folha('Lumi')        → mostra a FOLHA DO PERSONAGEM (cada preset desenhado) por cima da tela para tirar print
      await Plano.quadros(1, 48, 12)   → mostra os quadros desenhados (folha de contato) por cima da tela; Plano.fecha() tira
      Plano.membros('Lumi', [{ nome, raiz, meio, fim }]) → marca membros à mão (nomes das partes) quando a busca automática erra
+     Plano.notas('Lumi')              → NOTAS DO CLAUDE do personagem (guia + registro do que já foi feito; js/notasclaude.js)
    Nada aqui mexe no personagem da equipe: só na animação aberta (a cópia dela). */
 'use strict';
 const Plano = {
-  contexto() { return IA.contexto(App.P); },
+  // o contexto leva as NOTAS DO CLAUDE de cada personagem (js/notasclaude.js): leia antes de mexer no personagem
+  contexto() { const c = IA.contexto(App.P), n = {}; for (const d of Object.values(App.P?.personagens || {})) { const x = NotasClaude.de(d); if (x.guia || x.registro.length) n[d.nome || d.id] = x; } return Object.keys(n).length ? { ...c, notas_claude: n } : c; },
+  notas(nome) { return NotasClaude.texto(this.def(nome)); },
   aplicar(acoes) { if (!App.P) throw new Error('Abra uma animação primeiro.'); return IA.aplicar(Array.isArray(acoes) ? acoes : acoes?.acoes || []); },
   def(nome) { const L = Object.values(App.P?.personagens || {}); return IA.acha(L, nome) || L[0] || null; },
   async folha(nome, vista) { const def = this.def(nome); if (!def) throw new Error('Personagem não achado'); const f = await Rig.folha(def, vista && IA.acha(def.vistas || [], vista)?.id); this.mostra(f.url); return { w: f.w, h: f.h, vista: f.vista }; },

@@ -76,6 +76,7 @@ const Home = {
       const card = h(`<div class="pc"><div class="th" style="${p.thumb ? `background-image:url('${p.thumb}')` : ''}">${p.thumb ? '' : ic('film', 26)}</div><div class="in"><b>${esc(p.nome)}</b><small>${fmtDate(p.modificado)} · ${p.duracao} quadros · ${p.w}×${p.h}</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span>${p.anterior ? '<span class="anterior" title="A versão de ANTES do trabalho em conjunto. Vira um arquivo comum quando você mudar algo nela.">anterior</span>' : ''}</div>`);
       Arquivos.poe($('.tam', card), Arquivos.tamProjeto(p));
       if (idsNuvem.has(p.id)) { const s1 = h(`<span class="an-nv" title="Na nuvem da equipe: toda a equipe vê e abre">${ic('cloud', 12)}</span>`); $('.th', card).appendChild(s1); }
+      { const it = naNuvem.find(x => x.id === p.id), d = it ? NuvemAnim.quemDe(it) || p : p; const selo = d?.autor ? Autores.selo(d, { local: !idsNuvem.has(p.id) }) : null; if (selo) card.appendChild(selo); } // quem criou / editou, igual ao Ateliê
       card.onclick = e => { if (!e.target.closest('.mn')) NuvemAnim.abrir(p.id, p); };
       $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
         { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da animação', value: p.nome }); if (n) { p.nome = await Arquivos.nomeAnimacao(n, p.id); await DB.put('projetos', p); this.pinta(); } } },
@@ -99,6 +100,7 @@ const Home = {
     const x = p._nuvem, card = h(`<div class="pc an-so-nuvem"><div class="th">${ic('film', 26)}<span class="an-nv" title="Na nuvem da equipe">${ic('cloud', 12)}</span></div><div class="in"><b>${esc(p.nome)}</b><small>${p.modificado ? fmtDate(p.modificado) + ' · ' : ''}na nuvem da equipe</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span></div>`);
     if (x.tam) { const t = $('.tam', card); t.hidden = false; t.textContent = Arquivos.fmt ? Arquivos.fmt(x.tam) : Math.round(x.tam / 1048576 * 10) / 10 + ' MB'; }
     (async () => { try { const r = await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(NuvemAnim.pasta(x.id) + 'thumb.jpg')); const u = URL.createObjectURL(await r.blob()); const th = $('.th', card); th.style.backgroundImage = `url('${u}')`; th.firstChild?.remove?.(); } catch { } })();
+    { const d = NuvemAnim.quemDe(x); const selo = d ? Autores.selo(d) : null; if (selo) card.appendChild(selo); } // quem criou / editou
     card.onclick = e => { if (!e.target.closest('.mn')) NuvemAnim.abrir(x.id, null); };
     $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 220, r.bottom + 4, [
       { label: 'Abrir', icon: 'film', action: () => NuvemAnim.abrir(x.id, null) },
