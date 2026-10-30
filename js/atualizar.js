@@ -50,7 +50,7 @@ const AtualizaProj = {
       ${L.map(x => `<label class="atz-it"><input type="checkbox" data-id="${esc(x.id)}" checked><span><b>${esc(x.titulo)}</b><small>${esc(x.desc)}</small></span></label>`).join('')}</div>`);
     const ids = await UI.modal({ title: 'Atualizar o projeto', icon: 'download', width: 480, body, buttons: [{ label: 'Agora não', value: null }, { label: 'Atualizar', kind: 'primary', collect: x => $$('[data-id]', x.body).filter(c => c.checked).map(c => c.dataset.id) }] });
     if (!ids?.length) return;
-    const P = App.P, copia = clone(P); copia.id = uid('p'); copia.nome = P.nome + ' (antes da atualização)'; copia.modificado = Date.now(); try { await DB.put('projetos', copia); } catch { }
+    const P = App.P, copia = clone(P); copia.id = uid('p'); copia.nome = P.nome + ' (antes da atualização)'; copia.soLocal = true; delete copia.nuvemEm; delete copia.nuvemMod; copia.modificado = Date.now(); try { await DB.put('projetos', copia); } catch { }
     const feitos = [], erros = [];
     const roda = async () => { for (const it of L.filter(x => ids.includes(x.id))) { try { await it.aplica(); feitos.push(it.titulo); } catch { erros.push(it.titulo); } } };
     if (typeof Ocupado !== 'undefined' && Ocupado.nuvem) await Ocupado.nuvem('Atualizando o projeto', roda); else await roda();

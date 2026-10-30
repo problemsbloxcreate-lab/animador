@@ -17,6 +17,7 @@ const App = {
     this.palco.liga(); this.enquadrar(); Arvore.pinta(); Folha.liga(); Lado.pinta(); Som.prepara(P);
     this.salvoTxt('Salvo neste computador'); this.pintaJunto();
     AtualizaProj.lista = []; AtualizaProj.pinta(); AtualizaProj.confere(true); // botão "Atualizar projeto" só se este projeto estiver atrás da versão atual (js/atualizar.js)
+    NuvemAnim.aoAbrir(P); // vai sozinha para a nuvem da equipe e entra no ao vivo (js/nuvemanim.js)
   },
   /* ---------- botão ATELIÊ do topo: pergunta onde abrir ----------
      Simples = o Ateliê DENTRO do Animador (ao lado/janela, js/quadroed.js), arrumando só o personagem neste quadro.
@@ -49,7 +50,7 @@ const App = {
     if (modo === 'simples' && !Modelo.aparece(P, n, this.q)) this.setQ(n.de || 0); // fora do quadro: vai para onde ele aparece
     this.selecionar(n.id); return n;
   },
-  async fechar() { QuadroEd.fechar?.(); this.pausa(); await this.salvarJa(); if (AoVivo.ad?.ctx === 'animador') await this.sairJunto(false, true); this.P = null; try { const u = new URL(location.href); if (u.searchParams.has('projeto')) { u.searchParams.delete('projeto'); history.replaceState(null, '', u.pathname + u.search + u.hash); } } catch { } Telas.mostra('home'); Home.pinta(); this.titulo(); },
+  async fechar() { QuadroEd.fechar?.(); this.pausa(); await this.salvarJa(); await NuvemAnim.aoFechar(); if (AoVivo.ad?.ctx === 'animador') await this.sairJunto(false, true); this.P = null; try { const u = new URL(location.href); if (u.searchParams.has('projeto')) { u.searchParams.delete('projeto'); history.replaceState(null, '', u.pathname + u.search + u.hash); } } catch { } Telas.mostra('home'); Home.pinta(); this.titulo(); },
   // TRABALHAR JUNTO: o arquivo vai TEMPORARIAMENTE para a nuvem enquanto as pessoas trabalham (js/aovivo.js)
   async trabalharJunto() {
     if (AoVivo.ativo && AoVivo.ad?.ctx === 'animador') return UI.toast('Já está ao vivo: quem é da equipe entra pela tela inicial, em "Ao vivo agora".');
@@ -99,7 +100,7 @@ const App = {
   salvarLogo() { clearTimeout(this._tSalvar); this.salvoTxt('Salvando…'); this._tSalvar = setTimeout(() => this.salvarJa(), 700); },
   async salvarJa() {
     clearTimeout(this._tSalvar); if (!this.P) return;
-    try { this.P.thumb = Render.miniatura(this.P, this.q); await DB.put('projetos', JSON.parse(JSON.stringify(this.P))); this.salvoTxt('Salvo neste computador'); EstudioConta?.espaco?.atualizar?.(); return true; }
+    try { this.P.thumb = Render.miniatura(this.P, this.q); await DB.put('projetos', JSON.parse(JSON.stringify(this.P))); this.salvoTxt('Salvo neste computador'); EstudioConta?.espaco?.atualizar?.(); NuvemAnim.agenda(); return true; }
     catch (e) { this.salvoTxt('Não salvou: ' + e.message); return false; }
   },
   salvoTxt(t) { const e = $('#salvo'); if (e) e.textContent = t; },

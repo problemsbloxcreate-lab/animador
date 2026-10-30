@@ -118,7 +118,7 @@ const AoVivo = {
   async _entra(t, ad, eu, o) {
     const st = await t.estado(this.sala);
     // Ateliê sem ninguém na sala: sobra de quem fechou de repente; a verdade é o personagem da nuvem, então começa do zero
-    if (ad.ctx === 'atelie' && st.snap && !Object.keys(st.gente || {}).length) { try { await t.apagar(this.sala); } catch { } st.snap = null; }
+    if ((ad.ctx === 'atelie' || ad.auto) && st.snap && !Object.keys(st.gente || {}).length) { try { await t.apagar(this.sala); } catch { } st.snap = null; }
     if (st.snap && !o.novo) { this.base = st.snap.j; this.ate = st.snap.ate || ''; }
     else { this.base = JSON.stringify(ad.get()); this.ate = ''; await t.setSnap(this.sala, { j: this.base, ate: '', t: Date.now() }); await this.subirArqs(ad.chaves(ad.get()), true); st.ops = []; }
     this.log = (st.ops || []).map(op => ({ k: op.k, ops: JSON.parse(op.j || '[]') }));
@@ -139,7 +139,7 @@ const AoVivo = {
     try { await this._fila; } catch { } try { if (o.encerrar) await t.setMeta(sala, { fim: true }); await t.sair(sala, eu.id); if (o.encerrar) await t.apagar(sala); } catch { }
     this.gente = {}; this.ad?.redesenha(); this.ad = null; this.sala = null; this.pintaBarra(); this.pintaMarcas(); this._focoJ = null;
   },
-  meta(m) { if (m?.troca) this.recebeTroca(m.troca); if (m?.nuvemEm && this.ad?.ctx === 'atelie' && m.nuvemEm.t !== this._nuvemEm) { if (this._nuvemEm) Atelie.salvoPorOutro?.(m.nuvemEm); this._nuvemEm = m.nuvemEm.t; } if (m?.fim && this.ativo && this.ad?.ctx === 'animador' && !this._saindo) { this._saindo = true; this.ad.salvar?.(); this.sair().then(() => { this._saindo = false; UI.toast('O trabalho em conjunto terminou. A cópia com as últimas mudanças ficou salva neste computador.', { kind: 'ok', time: 9000 }); }); } },
+  meta(m) { if (m?.troca) this.recebeTroca(m.troca); if (m?.nuvemEm && (this.ad?.ctx === 'atelie' || this.ad?.ctx === 'animador') && m.nuvemEm.t !== this._nuvemEm) { if (this._nuvemEm) (this.ad.ctx === 'atelie' ? Atelie : NuvemAnim).salvoPorOutro?.(m.nuvemEm); this._nuvemEm = m.nuvemEm.t; } if (m?.fim && this.ativo && this.ad?.ctx === 'animador' && !this.ad.auto && !this._saindo) { this._saindo = true; this.ad.salvar?.(); this.sair().then(() => { this._saindo = false; UI.toast('O trabalho em conjunto terminou. A cópia com as últimas mudanças ficou salva neste computador.', { kind: 'ok', time: 9000 }); }); } },
   // ---------- TROCAR O PERSONAGEM PELO ARQUIVO (.atelieanimador) com gente junto ----------
   // quem soltou o arquivo decide; os outros veem o aviso, a tela de espera, e cada um guarda a cópia de antes no próprio computador
   avisaTroca(o) { if (!this.ativo || this.ad?.ctx !== 'atelie') return; try { return this.t.setMeta(this.sala, { troca: { ...o, por: this.eu.id, nome: this.eu.nome, t: Date.now() } }); } catch { } },
@@ -246,6 +246,7 @@ const AoVivo = {
   },
   // imagem do personagem que JÁ está salva na nuvem da equipe (Ateliê): a lista vem da última versão mandada para a nuvem (`Atelie.baseNuvem`)
   naNuvem(k) {
+    if (this.ad?.ctx === 'animador' && this.ad.auto) return NuvemAnim.temNaNuvem(this.ad.sala.slice(3), k); // animação da nuvem: o que já está lá não sobe para o tempo real
     if (this.ad?.ctx !== 'atelie' || !/^personagens\//.test(k) || typeof Atelie === 'undefined') return false; const b = Atelie.baseNuvem; if (!b) return false;
     if (this._nnB !== b) { this._nnB = b; try { this._nnS = new Set(Modelo.chavesImgs(JSON.parse(b))); } catch { this._nnS = new Set(); } } return this._nnS.has(k);
   },
@@ -260,7 +261,8 @@ const AoVivo = {
     const prazo = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
     conta(); const tudo = this.emLote(faltam, async k => {
       let b = null; const daNuvem = () => prazo(Nuvem.baixar(k).catch(() => null), 30000);
-      if (/^personagens\//.test(k) && this.ad?.ctx === 'atelie') b = await daNuvem(); // Ateliê: a imagem salva vem da nuvem da equipe (não gasta o tempo real)
+      if (/^personagens\//.test(k) && (this.ad?.ctx === 'atelie' || this.ad?.auto)) b = await daNuvem(); // Ateliê e animação da nuvem: a imagem salva vem da nuvem da equipe (não gasta o tempo real)
+      if (!b && this.ad?.auto && !/^personagens\//.test(k)) b = await prazo(NuvemAnim.baixarArq(this.ad.sala.slice(3), k).catch(() => null), 30000);
       if (!b) { try { const s = await prazo(this.t.getArq(this.sala, k), 30000); if (s) b = this.doB64(s); } catch { } }
       if (!b && /^personagens\//.test(k) && this.ad?.ctx !== 'atelie') b = await daNuvem();
       if (b) { await Arq.guardar(b, k); if (/^image\//.test(b.type) || /\.(png|webp|jpe?g|gif|svg)$/i.test(k)) Arq.img.set(k, await Arq.deBlob(b, k)); tem.add(k); falhou.delete(k); this.ad?.redesenha?.(); } else falhou.set(k, Date.now()); feitas++; conta(); });
@@ -453,10 +455,11 @@ const AoVivo = {
   minhaVista(id) { if (!this.ativo || this.ad?.ctx !== 'atelie') return; try { this.t.presenca(this.sala, this.eu.id, { vista: id || '', u: Date.now() }); } catch { } Atelie.desenha?.(); },
   // quem (dos outros) está em cada vista
   naVista(id) { return this.ativo && this.ad?.ctx === 'atelie' ? this.outros().filter(g => g.vista === id) : []; },
-  adAnimador(dono) {
-    const P = App.P; return { ctx: 'animador', sala: 'an-' + P.id, nome: P.nome, dono,
-      get: () => { const { thumb, modificado, ...r } = App.P; return r; }, // miniatura e hora de salvar mudam a cada salvamento: não vão para os outros
-      set: d => { if (App.P?.thumb && !d.thumb) d.thumb = App.P.thumb; d.modificado = Date.now(); App.troca(d); App.ultimo = JSON.stringify(App.P); }, chaves: d => Toon.ids(d), redesenha: () => App.pinta(), salvar: () => App.salvarJa?.() };
+  // auto = sala da animação da nuvem (entra sozinho ao abrir, sem o botão Trabalhar junto; js/nuvemanim.js)
+  adAnimador(dono, auto) {
+    const P = App.P; return { ctx: 'animador', sala: 'an-' + P.id, nome: P.nome, dono, auto: !!auto,
+      get: () => { const { thumb, modificado, nuvemEm, nuvemMod, ...r } = App.P; return r; }, // miniatura, hora de salvar e marca da nuvem são de cada computador: não vão para os outros
+      set: d => { if (App.P?.thumb && !d.thumb) d.thumb = App.P.thumb; if (App.P) { d.nuvemEm = App.P.nuvemEm; d.nuvemMod = App.P.nuvemMod; } d.modificado = Date.now(); App.troca(d); App.ultimo = JSON.stringify(App.P); }, chaves: d => Toon.ids(d), redesenha: () => App.pinta(), salvar: () => App.salvarJa?.() };
   },
   // Ateliê: personagem da nuvem → entra sozinho
   // logo depois do login o servidor ainda pode estar liberando a conta no tempo real: tenta de novo algumas vezes e, se não der, avisa o motivo
