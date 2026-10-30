@@ -58,8 +58,9 @@ const Home = {
     const L = this._salas || [], g = $('.av-salas', av); let t = null; try { t = await AoVivo.transporte(); } catch { }
     const soltas = [], vivos = new Set(); for (const s of L) { const id = s.sala.slice(3), card = $(`.pc[data-anid="${CSS.escape(id)}"]`, c);
       let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(g => g && g.nome); } catch { }
-      if (gente.length) vivos.add(id);
-      if (card) this.seloVivo(card, gente);
+      // o "ao vivo" só aparece nas animações que estão NA NUVEM (as só deste computador não têm sala)
+      const nv = card?.dataset.nv; if (gente.length && (nv || !card)) vivos.add(id);
+      if (card) this.seloVivo(card, nv ? gente : []);
       else if (!s.auto && gente.length) soltas.push([s, gente]); }
     g.innerHTML = ''; for (const [s, gente] of soltas) { const b = h(`<button class="av-sala"><b>${esc(s.nome || 'Animação')}</b><small>aberta por ${esc(s.por || 'alguém')}</small><span class="av-fotos">${AoVivo.fotinhas(gente, 4)}</span><span class="btn sm">Entrar</span></button>`); b.onclick = () => this.entrarJunto(s); g.appendChild(b); }
     av.hidden = !soltas.length || this.subAnim === 'local';
@@ -90,7 +91,7 @@ const Home = {
     const cartao = p => {
       if (p._nuvem) return this.cartaoNuvem(p, c, () => q ? null : todasP);
       const card = h(`<div class="pc"><div class="th" style="${p.thumb ? `background-image:url('${p.thumb}')` : ''}">${p.thumb ? '' : ic('film', 26)}</div><div class="in"><b>${esc(p.nome)}</b><small>${fmtDate(p.modificado)} · ${p.duracao} quadros · ${p.w}×${p.h}</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span>${p.anterior ? '<span class="anterior" title="A versão de ANTES do trabalho em conjunto. Vira um arquivo comum quando você mudar algo nela.">anterior</span>' : ''}</div>`);
-      card.dataset.anid = p.id; Arquivos.poe($('.tam', card), Arquivos.tamProjeto(p));
+      card.dataset.anid = p.id; if (idsNuvem.has(p.id)) card.dataset.nv = 1; Arquivos.poe($('.tam', card), Arquivos.tamProjeto(p));
       if (idsNuvem.has(p.id)) { const s1 = h(`<span class="an-nv" title="Na nuvem da equipe: toda a equipe vê e abre">${ic('cloud', 12)}</span>`); $('.th', card).appendChild(s1); }
       { const it = naNuvem.find(x => x.id === p.id), d = it ? NuvemAnim.quemDe(it) || p : p; const selo = d?.autor ? Autores.selo(d, { local: !idsNuvem.has(p.id) }) : null; if (selo) card.appendChild(selo); } // quem criou / editou, igual ao Ateliê
       card.onclick = e => { if (!e.target.closest('.mn')) NuvemAnim.abrir(p.id, p); };
@@ -115,7 +116,7 @@ const Home = {
   // cartão de uma animação que só está na NUVEM DA EQUIPE (este computador ainda não tem): abrir baixa e entra no ao vivo
   cartaoNuvem(p, c, todas) {
     const x = p._nuvem, card = h(`<div class="pc an-so-nuvem"><div class="th">${ic('film', 26)}<span class="an-nv" title="Na nuvem da equipe">${ic('cloud', 12)}</span></div><div class="in"><b>${esc(p.nome)}</b><small>${p.modificado ? fmtDate(p.modificado) + ' · ' : ''}na nuvem da equipe</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span></div>`);
-    card.dataset.anid = x.id; if (x.tam) { const t = $('.tam', card); t.hidden = false; t.textContent = Arquivos.fmt ? Arquivos.fmt(x.tam) : Math.round(x.tam / 1048576 * 10) / 10 + ' MB'; }
+    card.dataset.anid = x.id; card.dataset.nv = 1; if (x.tam) { const t = $('.tam', card); t.hidden = false; t.textContent = Arquivos.fmt ? Arquivos.fmt(x.tam) : Math.round(x.tam / 1048576 * 10) / 10 + ' MB'; }
     (async () => { try { const r = await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(NuvemAnim.pasta(x.id) + 'thumb.jpg')); const u = URL.createObjectURL(await r.blob()); const th = $('.th', card); th.style.backgroundImage = `url('${u}')`; th.firstChild?.remove?.(); } catch { } })();
     { const d = NuvemAnim.quemDe(x); const selo = d ? Autores.selo(d) : null; if (selo) card.appendChild(selo); } // quem criou / editou
     card.onclick = e => { if (!e.target.closest('.mn')) NuvemAnim.abrir(x.id, null); };
