@@ -12,7 +12,12 @@ const NuvemAnim = {
   PASTA_AUTO: 'PERSONAGENS ANIMADOR AUTOMATICO',
   _ks: new Map(), // id → Set das chaves que já estão na nuvem
   // cópias de segurança feitas aqui ("(anterior)", "(antes da atualização)") ficam só neste computador
-  vai(P) { return !!(P && P.id && /^[A-Za-z0-9_-]{2,40}$/.test(P.id) && !P.anterior && !P.soLocal); },
+  // SÓ AS NOVAS (decisão do dono, 30/10/2026): animação criada/aberta de arquivo daqui em diante (P.nuvemAuto) ou que já veio da nuvem;
+  // as que já existiam neste computador ficam só nele
+  vai(P) { return !!(P && P.id && /^[A-Za-z0-9_-]{2,40}$/.test(P.id) && !P.anterior && !P.soLocal && (P.nuvemAuto || P.nuvemEm)); },
+  // assinatura rápida de um texto (para não regravar o que não mudou)
+  assina(t) { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return t.length + ':' + (h >>> 0).toString(36); },
+  _enviado: new Map(), // id → { j: assinatura do projeto.json, t: assinatura da miniatura } que já estão na nuvem
   pasta(id) { return `animacoes/${id}/`; },
   chaveArq(id, k) { return this.pasta(id) + 'arq/' + encodeURIComponent(k).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()); },
   // ---------- lista ----------
@@ -23,7 +28,7 @@ const NuvemAnim = {
   async noServidor(id) { const s = new Set(); for (const it of (await (await Nuvem.pede('/animacoes?id=' + encodeURIComponent(id))).json()).itens || []) s.add(it.k); this._ks.set(id, s); return s; },
   // chaves do projeto que precisam ir para a nuvem da animação: tudo que NÃO está na nuvem dos personagens nem no site (cenários da casa)
   async chavesProprias(P) {
-    let naNuvemP = this._kP; if (!naNuvemP || Date.now() - this._kPEm > 120000) { naNuvemP = new Set(); try { for (const it of (await (await Nuvem.pede('/personagens')).json()).itens || []) naNuvemP.add(it.k); this._kP = naNuvemP; this._kPEm = Date.now(); } catch { } }
+    let naNuvemP = this._kP; if (!naNuvemP || Date.now() - this._kPEm > 300000) { naNuvemP = new Set(); try { for (const it of (await (await Nuvem.pede('/personagens')).json()).itens || []) naNuvemP.add(it.k); this._kP = naNuvemP; this._kPEm = Date.now(); } catch { } }
     return Toon.ids(P).filter(k => !naNuvemP.has(k) && !/^cenarios\//.test(k));
   },
   // ---------- mandar ----------
@@ -34,9 +39,12 @@ const NuvemAnim = {
     const falta = ks.filter(k => !ja.has(this.chaveArq(id, k))); let n = 0;
     for (const k of falta) { const b = await Arq.pegaBlob(k); if (!b) continue; aoAndar?.(`Enviando arquivos da animação… ${++n}/${falta.length}`);
       await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.chaveArq(id, k)), { method: 'POST', body: b }); ja.add(this.chaveArq(id, k)); }
-    if (P.thumb) { try { const b = await (await fetch(P.thumb)).blob(); await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.pasta(id) + 'thumb.jpg'), { method: 'POST', body: b }); } catch { } }
-    const { thumb, nuvemEm, nuvemMod, ...corpo } = P;
-    const r = await (await Nuvem.pede(`/animacoes/arquivo?nome=${encodeURIComponent(P.nome || '')}&k=` + encodeURIComponent(this.pasta(id) + 'projeto.json'), { method: 'POST', body: JSON.stringify(corpo), headers: { 'content-type': 'application/json' } })).json().catch(() => ({}));
+    const env = this._enviado.get(id) || {};
+    if (P.thumb) { const at = this.assina(P.thumb); if (at !== env.t) { try { const b = await (await fetch(P.thumb)).blob(); await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.pasta(id) + 'thumb.jpg'), { method: 'POST', body: b }); env.t = at; } catch { } } }
+    const { thumb, nuvemEm, nuvemMod, modificado, ...corpo } = P, txt = JSON.stringify({ ...corpo, modificado }), aj = this.assina(JSON.stringify(corpo));
+    let r = { ok: true };
+    if (aj !== env.j) { r = await (await Nuvem.pede(`/animacoes/arquivo?nome=${encodeURIComponent(P.nome || '')}&k=` + encodeURIComponent(this.pasta(id) + 'projeto.json'), { method: 'POST', body: txt, headers: { 'content-type': 'application/json' } })).json().catch(() => ({})); if (r.ok !== false) env.j = aj; } // nada mudou de verdade (só a hora de salvar): não regrava
+    this._enviado.set(id, env);
     // arquivos que a animação já não usa saem da nuvem (só os dela; os dos personagens da equipe não)
     const usa = new Set(ks.map(k => this.chaveArq(id, k))); for (const k of [...ja]) if (/\/arq\//.test(k) && !usa.has(k)) { try { await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(k), { method: 'DELETE' }); ja.delete(k); } catch { } }
     this._lista = null; return r.ok !== false;
@@ -44,15 +52,21 @@ const NuvemAnim = {
   // personagem da animação que não está na nuvem do Ateliê: sobe na pasta automática (só se ainda não tem pasta escolhida na nuvem)
   async personagensQueFaltam(P, aoAndar) {
     const defs = Object.values(P.personagens || {}).filter(d => d?.id && /^[a-z0-9][a-z0-9-]{1,40}$/.test(d.id)); if (!defs.length) return;
-    const faltam = []; for (const d of defs) { const est = await Nuvem.estaNaNuvem(d.id); if (est === false) faltam.push(d); } // null = não deu para saber: não sobe nada
+    const feitos = new Set(P.persAuto || []), tentou = this._tentou ||= new Set();
+    const faltam = []; for (const d of defs) {
+      if (feitos.has(d.id) || tentou.has(d.id)) continue; // já mandado por esta animação (ou já tentado agora): não manda de novo
+      const est = await Nuvem.estaNaNuvem(d.id); if (est !== false) continue; // null = não deu para saber: não sobe nada
+      if (await DB.get('personagens', d.id).catch(() => null)) continue; // este computador já o viu NA NUVEM: alguém tirou de lá de propósito, não volta sozinho
+      faltam.push(d); }
     if (!faltam.length) return;
     for (const d0 of faltam) {
       const def = clone(d0); delete def._local; delete def._vista;
       for (const p of Modelo.todasPartes(def)) p.imgs = (p.imgs || []).filter(i => !i.doQuadro); // imagens feitas só para um quadro desta animação não vão para o personagem da equipe
-      aoAndar?.(`Mandando o personagem “${def.nome || 'sem nome'}” para a nuvem…`);
+      aoAndar?.(`Mandando o personagem “${def.nome || 'sem nome'}” para a nuvem…`); tentou.add(d0.id);
       try { await Icone.prepara(def); } catch { }
-      await Nuvem.salvar(def, null, { limpar: false });
+      await Nuvem.salvar(def, null, { limpar: false }); feitos.add(d0.id);
     }
+    if (App.P?.id === P.id) App.P.persAuto = [...feitos]; P.persAuto = [...feitos];
     await PastasBib.grava('nuvem', o => { if (!o.pastas.includes(this.PASTA_AUTO)) o.pastas.push(this.PASTA_AUTO); for (const d of faltam) if (!o.de[d.id]) o.de[d.id] = this.PASTA_AUTO; });
     Nuvem._lista = null;
   },

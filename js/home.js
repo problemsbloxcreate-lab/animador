@@ -71,7 +71,7 @@ const Home = {
       card.onclick = e => { if (!e.target.closest('.mn')) NuvemAnim.abrir(p.id, p); };
       $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 200, r.bottom + 4, [
         { label: 'Renomear', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome da animação', value: p.nome }); if (n) { p.nome = await Arquivos.nomeAnimacao(n, p.id); await DB.put('projetos', p); this.pinta(); } } },
-        { label: 'Duplicar', icon: 'dup', action: async () => { const c2 = clone(p); c2.id = uid('p'); delete c2.nuvemEm; delete c2.nuvemMod; c2.nome = await Arquivos.nomeAnimacao(p.nome, c2.id); c2.modificado = Date.now(); await DB.put('projetos', c2); this.pinta(); } },
+        { label: 'Duplicar', icon: 'dup', action: async () => { const c2 = clone(p); c2.id = uid('p'); delete c2.nuvemEm; delete c2.nuvemMod; if (p.nuvemAuto || p.nuvemEm) c2.nuvemAuto = true; c2.nome = await Arquivos.nomeAnimacao(p.nome, c2.id); c2.modificado = Date.now(); await DB.put('projetos', c2); this.pinta(); } },
         { label: 'Baixar .animador', icon: 'download', action: () => Toon.baixar(p) },
         p.anterior && { label: 'Apagar este anterior', icon: 'trash', danger: true, action: () => this.apagar(p) },
         { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.animacao(p, 0) },
@@ -250,7 +250,7 @@ const Toon = {
     if (Object.keys(troca).length) P = AtelieArq.trocaChaves(P, troca);
     try { const cv = m.get('conversa-ia.json'); if (cv && P.id) { const j = JSON.parse(new TextDecoder().decode(cv)), ja = await DB.get('arquivos', 'ia-conversa:' + P.id).catch(() => null); if (!(ja?.msgs?.length > (j.msgs?.length || 0))) await DB.put('arquivos', j, 'ia-conversa:' + P.id); } } catch { }
     let info = null; try { info = JSON.parse(new TextDecoder().decode(m.get('info.json'))); } catch { }
-    P.id = uid('p'); P.modificado = Date.now(); delete P.nuvemEm; delete P.nuvemMod; delete P.soLocal; await Autores.limpa(P); return { P, info };
+    P.id = uid('p'); P.modificado = Date.now(); delete P.nuvemEm; delete P.nuvemMod; delete P.soLocal; P.nuvemAuto = true; delete P.persAuto; await Autores.limpa(P); return { P, info };
   },
 };
 

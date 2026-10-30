@@ -24,7 +24,7 @@ const Modelo = {
     const w = o.w || 1920, h = o.h || 1080;
     return { v: 2, id: uid('p'), nome: o.nome || 'Animação nova', w, h, fps: o.fps || 24, duracao: o.duracao || 72, fundo: o.fundo || '#ffffff',
       raiz: [], camera: { chaves: { 0: { x: w / 2, y: h / 2, zoom: 1, r: 0 } } }, efeitos: { visual: 'normal', tela: [] },
-      audios: [], legendas: [], personagens: {}, modificado: Date.now(), ...(o.semFundo ? {} : { raiz: [Modelo.fundoPadrao(w, h, o.fundo)] }) };
+      audios: [], legendas: [], personagens: {}, modificado: Date.now(), nuvemAuto: true, /* animação nova vai sozinha para a nuvem da equipe (js/nuvemanim.js) */ ...(o.semFundo ? {} : { raiz: [Modelo.fundoPadrao(w, h, o.fundo)] }) };
   },
   // a folha branca do tamanho da câmera vira uma camada de verdade (dá para mudar cor, tamanho, mover ou apagar)
   fundoPadrao(w, h, cor) { const n = Modelo.novoNo('forma', { nome: 'Fundo padrão', forma: 'ret', w, h, cor: cor || '#ffffff', x: w / 2, y: h / 2 }); n.fundoPadrao = true; return n; },
