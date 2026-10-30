@@ -482,5 +482,5 @@ const AoVivo = {
     return { P: d, meta: st.meta };
   },
   // lista das salas do Animador abertas agora (para "Entrar")
-  ouvirLista(cb) { if (!this.ligado()) return () => { }; let off = () => { }; this.transporte().then(t => { off = t.ouvirLista(l => (this.limpaSobras(t, l), cb)(Object.entries(l).map(([sala, m]) => ({ sala, ...m })).filter(x => x.tipo === 'animador' && !x.fim))); }).catch(() => cb([])); return () => off(); },
+  ouvirLista(cb, tipo = 'animador') { if (!this.ligado()) return () => { }; let off = () => { }; this.transporte().then(t => { off = t.ouvirLista(l => (this.limpaSobras(t, l), cb)(Object.entries(l).map(([sala, m]) => ({ sala, ...m })).filter(x => (tipo === 'atelie' ? /^at-/.test(x.sala) : x.tipo === tipo) && !x.fim))); }).catch(() => cb([])); return () => off(); },
 };

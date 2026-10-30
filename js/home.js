@@ -52,13 +52,14 @@ const Home = {
     this._offLista?.(); const av = h('<section class="aovivo-agora" hidden><div class="sec">' + ic('users', 14) + ' Salas ao vivo <small class="sec-sub">cópias abertas pelo "Trabalhar junto"</small></div><div class="av-salas"></div></section>'); $('[data-g]', c).after(av);
     this._offLista = AoVivo.ouvirLista(L => { if (!av.isConnected) return this._offLista?.(); this._salas = L; this.pintaAoVivo(c, av); });
   },
+  seloVivo(card, gente) { $('.an-vivo', card)?.remove(); card.classList.toggle('an-ao-vivo', !!gente.length); if (gente.length) card.appendChild(h(`<span class="an-vivo" title="Ao vivo agora: ${esc(gente.map(x => x.nome || 'Alguém').join(', '))}"><i></i>ao vivo ${AoVivo.fotinhas(gente, 3)}</span>`)); },
   // fotos de quem está em cada sala (nos cartões) e a faixa das salas sem cartão
   async pintaAoVivo(c, av) {
     const L = this._salas || [], g = $('.av-salas', av); let t = null; try { t = await AoVivo.transporte(); } catch { }
     const soltas = [], vivos = new Set(); for (const s of L) { const id = s.sala.slice(3), card = $(`.pc[data-anid="${CSS.escape(id)}"]`, c);
       let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(Boolean); } catch { }
       if (gente.length) vivos.add(id);
-      if (card) { $('.an-vivo', card)?.remove(); card.classList.toggle('an-ao-vivo', !!gente.length); if (gente.length) card.appendChild(h(`<span class="an-vivo" title="Ao vivo agora: ${esc(gente.map(x => x.nome || 'Alguém').join(', '))}"><i></i>ao vivo ${AoVivo.fotinhas(gente, 3)}</span>`)); }
+      if (card) this.seloVivo(card, gente);
       else if (!s.auto && gente.length) soltas.push([s, gente]); }
     g.innerHTML = ''; for (const [s, gente] of soltas) { const b = h(`<button class="av-sala"><b>${esc(s.nome || 'Animação')}</b><small>aberta por ${esc(s.por || 'alguém')}</small><span class="av-fotos">${AoVivo.fotinhas(gente, 4)}</span><span class="btn sm">Entrar</span></button>`); b.onclick = () => this.entrarJunto(s); g.appendChild(b); }
     av.hidden = !soltas.length || this.subAnim === 'local';
@@ -255,7 +256,14 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
             '-', !Nuvem.adm ? { label: 'Apagar da nuvem (só ADM)', icon: 'lock', action: () => Nuvem.pedeAdm(it.nome) } : { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome); if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
           ]); };
           return card; };
-      const pintaNuvem = async () => { try { ({ todas: todasN } = await PastasBib.monta(l, { esc: 'nuvem', itens: lista, cartao: cartaoN, aoMudar: pintaNuvem })); if (Nuvem.parcial && Nuvem.copiasPc?.length) this.copiasLocais(l, Nuvem.copiasPc, true); filtra(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
+      let pintaNuvem = async () => { try { lista.sort((a, b) => (this._vivosAt?.has(b.id) ? 1 : 0) - (this._vivosAt?.has(a.id) ? 1 : 0)); ({ todas: todasN } = await PastasBib.monta(l, { esc: 'nuvem', itens: lista, cartao: cartaoN, aoMudar: pintaNuvem })); if (Nuvem.parcial && Nuvem.copiasPc?.length) this.copiasLocais(l, Nuvem.copiasPc, true); filtra(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
+      // AO VIVO no Ateliê: personagem com gente mexendo agora (sala at-<id>) ganha o selo e vai para o topo da pasta
+      const marcaVivos = async () => { const t = await AoVivo.transporte().catch(() => null), vivos = new Set();
+        for (const s of this._salasAt || []) { const id = s.sala.slice(3); let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(Boolean); } catch { }
+          if (gente.length) vivos.add(id); const card = $(`.pc[data-prev-id="${CSS.escape(id)}"]`, l); if (card) this.seloVivo(card, gente); }
+        const ant = [...(this._vivosAt || [])].sort().join(); this._vivosAt = vivos; if (ant !== [...vivos].sort().join() && l.isConnected) { await pn0(); marcaVivos(); } };
+      const pn0 = pintaNuvem; pintaNuvem = async () => { await pn0(); if (this._salasAt) marcaVivos(); };
+      this._offAt?.(); this._offAt = AoVivo.ouvirLista(L => { if (!l.isConnected) return this._offAt?.(); this._salasAt = L; marcaVivos(); }, 'atelie');
       await pintaNuvem(); $('[data-pnova-n]', c).onclick = async () => { try { if (await PastasBib.nova('nuvem')) pintaNuvem(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
       filtra();
     } catch (e) { l.innerHTML = `<div class="vazio">Não consegui abrir a biblioteca: ${esc(e.message)}</div>`; }
