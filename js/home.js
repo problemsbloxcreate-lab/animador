@@ -34,12 +34,16 @@ const Home = {
     c.innerHTML = `<div class="novos">${FORMATOS.map(f => { const k = 34 / Math.max(f.w, f.h); return `<button class="novo" data-f="${f.id}"><span class="fm"><i style="width:${f.w * k}px;height:${f.h * k}px"></i></span><span><b>${f.nome}</b><small>${f.w}×${f.h} · ${f.fps} fps</small></span></button>`; }).join('')}
       <button class="novo" data-pers><span class="fm">${ic('gear', 24)}</span><span><b>Personalizado</b><small>do seu jeito ou com a IA</small></span></button>
       <button class="novo" data-abrir><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .animador</b><small>arquivo de animação</small></span></button></div>
-      <div class="sec">Animações <span class="sp"></span><button class="btn sm" data-pnova-a title="Pasta nova para organizar as animações (só neste computador)">${ic('folder', 13)} Pasta nova</button><input type="search" placeholder="Buscar" value="${esc(this.q)}"></div><div data-g></div>`;
+      <div class="pers-abas an-abas"><div class="seg-pers"><button data-sa="nuvem" data-s="nuvem">${ic('cloud', 14)} Na nuvem da equipe <small data-cn>…</small></button><button data-sa="local" data-s="local">${ic('save', 14)} Só neste computador <small data-cl>…</small></button></div>
+        <span class="sp"></span><button class="btn sm" data-pnova-a title="Pasta nova nesta aba">${ic('folder', 13)} Pasta nova</button><input type="search" placeholder="Buscar" value="${esc(this.q)}"></div><div data-g></div>`;
     $$('[data-f]', c).forEach(b => b.onclick = () => this.nova(FORMATOS.find(f => f.id === b.dataset.f)));
     $('[data-pers]', c).onclick = () => this.personalizada();
     $('[data-abrir]', c).onclick = async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) this.importar(f); };
     const busca = $('input[type=search]', c); busca.oninput = () => { this.q = busca.value; this.grade(c); };
-    $('[data-pnova-a]', c).onclick = async () => { try { if (await PastasBib.nova('anim')) this.grade(c); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
+    if (!this.subAnim) { try { this.subAnim = localStorage.getItem('animador-anim-aba') || 'nuvem'; } catch { this.subAnim = 'nuvem'; } }
+    const pintaAba = () => $$('[data-sa]', c).forEach(b => b.classList.toggle('on', b.dataset.sa === this.subAnim));
+    $$('[data-sa]', c).forEach(b => b.onclick = () => { this.subAnim = b.dataset.sa; try { localStorage.setItem('animador-anim-aba', this.subAnim); } catch { } pintaAba(); this.grade(c); }); pintaAba();
+    $('[data-pnova-a]', c).onclick = async () => { try { if (await PastasBib.nova(this.subAnim === 'nuvem' ? 'animn' : 'anim')) this.grade(c); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
     this.grade(c);
     // AO VIVO AGORA: animações abertas para trabalhar junto
     this._offLista?.(); const av = h('<section class="aovivo-agora" hidden><div class="sec">' + ic('users', 14) + ' Ao vivo agora <small class="sec-sub">animações abertas para trabalhar junto · entre e veja quem está mexendo</small></div><div class="av-salas"></div></section>'); $('[data-g]', c).before(av);
@@ -58,13 +62,17 @@ const Home = {
     // ANIMAÇÕES DA NUVEM DA EQUIPE (js/nuvemanim.js): as que este computador ainda não tem aparecem junto, com o selo da nuvem
     let naNuvem = []; try { naNuvem = await NuvemAnim.lista(); } catch { } const temAqui = new Set(locais.map(p => p.id)), idsNuvem = new Set(naNuvem.map(x => x.id));
     const soNuvem = naNuvem.filter(x => !temAqui.has(x.id)).map(x => ({ id: x.id, nome: x.nome || 'Animação', modificado: x.mod || Date.parse(x.em || 0) || 0, _nuvem: x }));
-    const todos = [...locais, ...soNuvem].sort((a, b) => b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));
+    // DUAS ABAS: na nuvem (as da equipe: as que este computador tem e as que só estão lá) × só neste computador
+    const naN = p => p._nuvem || idsNuvem.has(p.id), todosT = [...locais, ...soNuvem];
+    const cN = $('[data-cn]', c), cL = $('[data-cl]', c); if (cN) cN.textContent = todosT.filter(naN).length; if (cL) cL.textContent = todosT.filter(p => !naN(p)).length;
+    const naNuvemAba = this.subAnim !== 'local', escP = naNuvemAba ? 'animn' : 'anim';
+    const todos = todosT.filter(p => naN(p) === naNuvemAba).sort((a, b) => b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));
     // em PASTAS (só neste computador, arquivos["pastas-anim"]; js/pastasbib.js): abrir/fechar, arrastar entre pastas, criar/renomear/apagar.
     // Buscando: tudo junto numa grade só (sem pastas)
-    if (!L.length) { g.innerHTML = `<div class="vazio">${todos.length ? 'Nada com esse nome.' : 'Nenhuma animação ainda: escolha um formato aí em cima.'}</div>`; return; }
+    if (!L.length) { g.innerHTML = `<div class="vazio">${todos.length ? 'Nada com esse nome.' : naNuvemAba ? 'Nenhuma animação na nuvem da equipe ainda. As animações novas vão para cá sozinhas.' : 'Nenhuma animação só neste computador.'}</div>`; return; }
     let todasP = [];
     const cartao = p => {
-      if (p._nuvem) return this.cartaoNuvem(p, c);
+      if (p._nuvem) return this.cartaoNuvem(p, c, () => q ? null : todasP);
       const card = h(`<div class="pc"><div class="th" style="${p.thumb ? `background-image:url('${p.thumb}')` : ''}">${p.thumb ? '' : ic('film', 26)}</div><div class="in"><b>${esc(p.nome)}</b><small>${fmtDate(p.modificado)} · ${p.duracao} quadros · ${p.w}×${p.h}</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span>${p.anterior ? '<span class="anterior" title="A versão de ANTES do trabalho em conjunto. Vira um arquivo comum quando você mudar algo nela.">anterior</span>' : ''}</div>`);
       Arquivos.poe($('.tam', card), Arquivos.tamProjeto(p));
       if (idsNuvem.has(p.id)) { const s1 = h(`<span class="an-nv" title="Na nuvem da equipe: toda a equipe vê e abre">${ic('cloud', 12)}</span>`); $('.th', card).appendChild(s1); }
@@ -74,28 +82,36 @@ const Home = {
         { label: 'Duplicar', icon: 'dup', action: async () => { const c2 = clone(p); c2.id = uid('p'); delete c2.nuvemEm; delete c2.nuvemMod; if (p.nuvemAuto || p.nuvemEm) c2.nuvemAuto = true; c2.nome = await Arquivos.nomeAnimacao(p.nome, c2.id); c2.modificado = Date.now(); await DB.put('projetos', c2); this.pinta(); } },
         { label: 'Baixar .animador', icon: 'download', action: () => Toon.baixar(p) },
         p.anterior && { label: 'Apagar este anterior', icon: 'trash', danger: true, action: () => this.apagar(p) },
+        idsNuvem.has(p.id) ? { label: 'Remover da nuvem', icon: 'cloud', action: () => this.removerDaNuvem(p, c) }
+          : !p.anterior && { label: 'Enviar para a nuvem', icon: 'cloud', action: async () => { try { await NuvemAnim.enviar(p); UI.toast('Enviada para a nuvem da equipe.', { kind: 'ok' }); this.grade(c); } catch (e) { UI.toast('Não enviou: ' + esc(e.message), { kind: 'err' }); } } },
         { label: 'Citar em mensagens…', icon: 'chat', action: () => Citacao.animacao(p, 0) },
-        !q && PastasBib.menuMover('anim', p, todasP, () => this.grade(c)),
+        !q && PastasBib.menuMover(escP, p, todasP, () => this.grade(c)),
         '-', { label: 'Apagar', icon: 'trash', danger: true, action: () => this.apagar(p) },
       ].filter(Boolean)); };
       return card;
     };
     if (q) { g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); return; }
-    try { ({ todas: todasP } = await PastasBib.monta(g, { esc: 'anim', min: 220, itens: L, cartao, aoMudar: () => this.grade(c) })); }
+    try { ({ todas: todasP } = await PastasBib.monta(g, { esc: escP, min: 220, itens: L, cartao, aoMudar: () => this.grade(c) })); }
     catch { g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); }
   },
   // cartão de uma animação que só está na NUVEM DA EQUIPE (este computador ainda não tem): abrir baixa e entra no ao vivo
-  cartaoNuvem(p, c) {
+  cartaoNuvem(p, c, todas) {
     const x = p._nuvem, card = h(`<div class="pc an-so-nuvem"><div class="th">${ic('film', 26)}<span class="an-nv" title="Na nuvem da equipe">${ic('cloud', 12)}</span></div><div class="in"><b>${esc(p.nome)}</b><small>${p.modificado ? fmtDate(p.modificado) + ' · ' : ''}na nuvem da equipe</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span></div>`);
     if (x.tam) { const t = $('.tam', card); t.hidden = false; t.textContent = Arquivos.fmt ? Arquivos.fmt(x.tam) : Math.round(x.tam / 1048576 * 10) / 10 + ' MB'; }
     (async () => { try { const r = await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(NuvemAnim.pasta(x.id) + 'thumb.jpg')); const u = URL.createObjectURL(await r.blob()); const th = $('.th', card); th.style.backgroundImage = `url('${u}')`; th.firstChild?.remove?.(); } catch { } })();
     card.onclick = e => { if (!e.target.closest('.mn')) NuvemAnim.abrir(x.id, null); };
     $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 220, r.bottom + 4, [
       { label: 'Abrir', icon: 'film', action: () => NuvemAnim.abrir(x.id, null) },
-      '-', { label: 'Apagar da nuvem (só ADM)', icon: 'trash', danger: true, action: async () => { if (!(await UI.confirm({ title: 'Apagar da nuvem da equipe?', msg: `<b>${esc(p.nome)}</b> sai da nuvem para toda a equipe. Quem já abriu continua com a cópia no próprio computador.`, ok: 'Apagar' }))) return;
-        try { await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(NuvemAnim.pasta(x.id)), { method: 'DELETE' }); NuvemAnim._lista = null; this.grade(c); UI.toast('Apagada da nuvem.', { kind: 'ok' }); } catch (e2) { UI.toast(esc(e2.message), { kind: 'err' }); } } },
-    ]); };
+      todas?.() && PastasBib.menuMover('animn', p, todas(), () => this.grade(c)),
+      '-', { label: 'Remover da nuvem', icon: 'cloud', danger: true, action: () => this.removerDaNuvem(p, c) },
+    ].filter(Boolean)); };
     return card;
+  },
+  // REMOVER DA NUVEM: sai da nuvem para toda a equipe e não volta sozinha (só pelo "Enviar para a nuvem"); quem tem cópia continua com ela
+  async removerDaNuvem(p, c) {
+    if (!(await UI.confirm({ title: `Remover "${esc(p.nome)}" da nuvem?`, msg: 'Ela sai da nuvem da equipe e <b>não volta sozinha</b>. A cópia deste computador continua em <b>Só neste computador</b> (se você tiver). Para pôr de volta: botão de opções › <b>Enviar para a nuvem</b>.', ok: 'Remover da nuvem', danger: true }))) return;
+    try { await NuvemAnim.remover(p.id); UI.toast('Removida da nuvem. Ela não volta sozinha.', { kind: 'ok', time: 6000 }); this.grade(c); }
+    catch (e) { UI.toast('Não removeu: ' + esc(e.message), { kind: 'err', time: 8000 }); }
   },
   /* ---------- tela personalizada: tamanho, quadros por segundo, duração e fundo (à mão ou pedindo à IA) ---------- */
   TAMANHOS: [['1920×1080 (YouTube)', 1920, 1080], ['1080×1920 (Shorts/TikTok)', 1080, 1920], ['1080×1080 (quadrado)', 1080, 1080], ['1080×1350 (Instagram 4:5)', 1080, 1350], ['2560×1440 (2K)', 2560, 1440], ['3840×2160 (4K)', 3840, 2160], ['1280×720 (HD)', 1280, 720], ['2048×858 (cinema 2.39)', 2048, 858]],

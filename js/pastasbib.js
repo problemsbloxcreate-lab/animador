@@ -9,24 +9,27 @@
    Arrastar um cartão para outra pasta (no título ou na grade dela) move; o menu do cartão também tem "Mover para a pasta…". */
 'use strict';
 const PastasBib = {
-  PADRAO: { nuvem: 'Personagens', local: 'Sem pasta', anim: 'Sem pasta' },
+  PADRAO: { nuvem: 'Personagens', local: 'Sem pasta', anim: 'Sem pasta', animn: 'Animações' },
   // anim = ANIMAÇÕES da tela inicial (neste computador, arquivos["pastas-anim"]); cor da pasta e palavras de cada biblioteca
-  CHAVE_LOCAL: { local: 'pastas-local', anim: 'pastas-anim' }, COR: { nuvem: 'bib:', local: 'loc:', anim: 'anim:' }, QUE: { nuvem: ['personagem', 'personagens'], local: ['personagem', 'personagens'], anim: ['animação', 'animações'] },
+  CHAVE_LOCAL: { local: 'pastas-local', anim: 'pastas-anim' }, COR: { nuvem: 'bib:', local: 'loc:', anim: 'anim:', animn: 'animn:' }, QUE: { nuvem: ['personagem', 'personagens'], local: ['personagem', 'personagens'], anim: ['animação', 'animações'], animn: ['animação', 'animações'] },
   CHAVE_NUVEM: 'personagens/pastas.json',
+  // bibliotecas guardadas na NUVEM DA EQUIPE (todos veem): personagens e animações da nuvem (animn = js/nuvemanim.js)
+  NA_NUVEM: { nuvem: { rota: '/personagens/arquivo', k: 'personagens/pastas.json' }, animn: { rota: '/animacoes/arquivo', k: 'animacoes/pastas.json' } },
   vazio() { return { pastas: [], de: {} }; },
   limpo(o) { o = o && typeof o === 'object' ? o : {}; return { pastas: Array.isArray(o.pastas) ? [...new Set(o.pastas.map(x => String(x || '').trim()).filter(Boolean))] : [], de: o.de && typeof o.de === 'object' ? { ...o.de } : {} }; },
   // ---------- ler / gravar ----------
   async le(esc) {
-    if (esc !== 'nuvem') { try { return this.limpo(await DB.get('arquivos', this.CHAVE_LOCAL[esc])); } catch { return this.vazio(); } }
-    try { const r = await fetch(Nuvem.srv + '/personagens/arquivo?k=' + encodeURIComponent(this.CHAVE_NUVEM), { headers: await Nuvem.hd(), cache: 'no-store' }); if (r.status === 404) return (this._nuvem = this.vazio()); if (!r.ok) throw new Error('A nuvem respondeu ' + r.status); return (this._nuvem = this.limpo(await r.json())); }
-    catch (e) { if (this._nuvem) return this._nuvem; throw e; }
+    const N = this.NA_NUVEM[esc]; if (!N) { try { return this.limpo(await DB.get('arquivos', this.CHAVE_LOCAL[esc])); } catch { return this.vazio(); } }
+    const g = (this._nuvemDe ||= {});
+    try { const r = await fetch(Nuvem.srv + N.rota + '?k=' + encodeURIComponent(N.k), { headers: await Nuvem.hd(), cache: 'no-store' }); if (r.status === 404) return (g[esc] = this.vazio()); if (!r.ok) throw new Error('A nuvem respondeu ' + r.status); const o = this.limpo(await r.json()); g[esc] = o; if (esc === 'nuvem') this._nuvem = o; return o; }
+    catch (e) { if (g[esc]) return g[esc]; throw e; }
   },
   // muda(o) mexe no objeto (já relido agora); devolve o objeto gravado
   async grava(esc, muda) {
     const o = await this.le(esc); muda(o); const L = this.limpo(o);
-    if (esc !== 'nuvem') { await DB.put('arquivos', L, this.CHAVE_LOCAL[esc]); return L; }
-    await Nuvem.pede('/personagens/arquivo?k=' + encodeURIComponent(this.CHAVE_NUVEM), { method: 'POST', body: JSON.stringify(L), headers: { 'content-type': 'application/json' } });
-    this._nuvem = L; return L;
+    const N = this.NA_NUVEM[esc]; if (!N) { await DB.put('arquivos', L, this.CHAVE_LOCAL[esc]); return L; }
+    await Nuvem.pede(N.rota + '?k=' + encodeURIComponent(N.k), { method: 'POST', body: JSON.stringify(L), headers: { 'content-type': 'application/json' } });
+    (this._nuvemDe ||= {})[esc] = L; if (esc === 'nuvem') this._nuvem = L; return L;
   },
   pastaDe(o, it, esc) { return o.de[it.id] || (esc === 'nuvem' ? it.pasta : '') || this.PADRAO[esc]; },
   // todas as pastas na ordem: as guardadas (inclusive vazias) e depois as que só aparecem nos itens; a padrão primeiro se não estiver na lista

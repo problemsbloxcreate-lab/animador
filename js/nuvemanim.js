@@ -14,7 +14,8 @@ const NuvemAnim = {
   // cópias de segurança feitas aqui ("(anterior)", "(antes da atualização)") ficam só neste computador
   // SÓ AS NOVAS (decisão do dono, 30/10/2026): animação criada/aberta de arquivo daqui em diante (P.nuvemAuto) ou que já veio da nuvem;
   // as que já existiam neste computador ficam só nele
-  vai(P) { return !!(P && P.id && /^[A-Za-z0-9_-]{2,40}$/.test(P.id) && !P.anterior && !P.soLocal && (P.nuvemAuto || P.nuvemEm)); },
+  // P.semNuvem = tirada da nuvem (botão "Remover da nuvem" aqui ou em outro computador): não volta sozinha, só pelo "Enviar para a nuvem"
+  vai(P) { return !!(P && P.id && /^[A-Za-z0-9_-]{2,40}$/.test(P.id) && !P.anterior && !P.soLocal && !P.semNuvem && (P.nuvemAuto || P.nuvemEm)); },
   // assinatura rápida de um texto (para não regravar o que não mudou)
   assina(t) { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return t.length + ':' + (h >>> 0).toString(36); },
   _enviado: new Map(), // id → { j: assinatura do projeto.json, t: assinatura da miniatura } que já estão na nuvem
@@ -104,6 +105,31 @@ const NuvemAnim = {
     if (!P && outros) { const s = { sala: 'an-' + id, nome: it?.nome }; return Home.entrarJunto(s); }
     if (P) return App.abrir(P);
   },
+  // ---------- remover / enviar (botões da tela inicial) ----------
+  // tira da nuvem da equipe (a pasta inteira) e marca para não voltar sozinha; a cópia deste computador continua
+  async remover(id) {
+    await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.pasta(id)), { method: 'DELETE' });
+    this._lista = null; this._ks.delete(id); this._enviado.delete(id);
+    const P = await DB.get('projetos', id).catch(() => null); if (P) { this.marcaFora(P); await DB.put('projetos', P); }
+    if (App.P?.id === id) { this.marcaFora(App.P); if (AoVivo.ad?.ctx === 'animador' && AoVivo.ad.auto) await AoVivo.sair().catch(() => { }); App.pintaJunto?.(); }
+    try { await PastasBib.grava('animn', o => { delete o.de[id]; }); } catch { }
+  },
+  marcaFora(P) { P.semNuvem = true; delete P.nuvemAuto; delete P.nuvemEm; delete P.nuvemMod; delete P.persAuto; },
+  // manda AGORA para a nuvem (tela de espera com o andamento) e volta a ir sozinha dali em diante
+  async enviar(P) {
+    delete P.semNuvem; P.nuvemAuto = true; P.modificado = Math.max(P.modificado || 0, Date.now()); await DB.put('projetos', JSON.parse(JSON.stringify(P)));
+    await Ocupado.nuvem(`Enviando "${P.nome || 'Animação'}" para a nuvem`, async () => {
+      await this.salvar(P, t => Ocupado.anda?.(t));
+      let mod = Date.now(); try { mod = (await this.lista(true)).find(x => x.id === P.id)?.mod || mod; } catch { }
+      P.nuvemEm = Date.now(); P.nuvemMod = mod; await DB.put('projetos', JSON.parse(JSON.stringify(P)));
+      if (App.P?.id === P.id) { App.P.nuvemEm = P.nuvemEm; App.P.nuvemMod = mod; delete App.P.semNuvem; App.P.nuvemAuto = true; this.entrarAoVivo(P.id).catch(() => { }); }
+    });
+  },
+  // já esteve na nuvem (tem nuvemMod) e sumiu da lista = alguém tirou de lá: não manda de novo, vira só deste computador
+  async foiRemovida(P) {
+    if (!P?.nuvemMod) return false; let l; try { l = await this.lista(true); } catch { return false; }
+    if (l.some(x => x.id === P.id)) return false; this.marcaFora(P); await DB.put('projetos', JSON.parse(JSON.stringify(P))).catch(() => { }); return true;
+  },
   // ---------- automático ----------
   aoVivoJunto() { if (!AoVivo.ativo || AoVivo.ad?.ctx !== 'animador') return false; const me = AoVivo.eu?.id; return Object.keys(AoVivo.gente || {}).some(i => i !== me); },
   guardiao() { if (!this.aoVivoJunto()) return true; const me = AoVivo.eu.id, ids = [...new Set([...Object.keys(AoVivo.gente || {}), me])].sort(); return ids[0] === me; },
@@ -118,6 +144,7 @@ const NuvemAnim = {
     if (!agora && !this.guardiao()) return; // ao vivo: quem manda é outra pessoa da sala
     if (this.enviando) { this._denovo = true; if (agora) await this.enviando; return; }
     if (!this.sujo(P) && !agora) return;
+    if (await this.foiRemovida(P)) { if (App.P?.id === P.id) { this.marcaFora(App.P); App.salvoTxt('Salvo neste computador (tirada da nuvem)'); } return; }
     this._envioEm = Date.now(); const id = P.id, em = Date.now();
     this.enviando = Ocupado.mantem(async () => {
       try { await App.salvarJa(); const snap = JSON.parse(JSON.stringify(App.P)); if (snap.id !== id) return;
@@ -136,6 +163,7 @@ const NuvemAnim = {
   // abriu uma animação: entra sozinho no ao vivo (sala an-<id>) e, se ela ainda não está na nuvem, manda
   async aoAbrir(P) {
     if (!this.vai(P)) return; const id = P.id;
+    if (await this.foiRemovida(P)) { this.marcaFora(P); return; } // tirada da nuvem em outro computador: fica só aqui
     this.noServidor(id).catch(() => { }); this.chavesProprias(P).catch(() => { }); // o que já está na nuvem (para o ao vivo não mandar de novo)
     if (!P.nuvemEm) { P.modificado = Math.max(P.modificado || 0, Date.now()); await this.sincronizar(true).catch(() => { }); } // primeira vez: vai para a nuvem ANTES de abrir a sala (os arquivos não passam pelo tempo real)
     else if (this.sujo(P)) this.agenda();
