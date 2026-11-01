@@ -427,8 +427,8 @@ const Lado = {
   som(el) {
     const P = App.P, fps = P.fps, tot = P.audios.reduce((m, a) => Math.max(m, Som.buf.get(a.arq) ? (Som.fimQ(P, a) + 1) / fps : 0), 0);
     const top = h(`<div class="pr-topo"><div class="pr-cab"><span class="pr-ic">${ic('music', 16)}</span><div class="pr-nm">Voz e sons<small>${P.audios.length ? `${P.audios.length} áudio${P.audios.length > 1 ? 's' : ''} · até ${Exportar.tc(tot)}` : 'nenhum áudio ainda'}</small></div></div>
-      <div class="pr-acoes" style="margin:9px 0 0"><button class="btn sm" data-gravar>${ic('mic', 13)} Gravar</button><button class="btn sm" data-add>${ic('upload', 13)} Pôr áudio</button>${P.audios.length ? `<button class="btn sm ia" data-tr>${ic('text', 13)} Transcrever</button>` : ''}</div></div>`);
-    $('[data-add]', top).onclick = () => Som.importar(); $('[data-gravar]', top).onclick = () => Som.gravar(); if ($('[data-tr]', top)) $('[data-tr]', top).onclick = () => Som.transcrever();
+      <div class="pr-acoes" style="margin:9px 0 0"><button class="btn sm" data-gravar>${ic('mic', 13)} Gravar</button><button class="btn sm" data-add>${ic('upload', 13)} Pôr áudio</button><button class="btn sm" data-bib title="Sons e músicas da equipe: ouvir e pôr no quadro atual">${ic('music', 13)} Sons da equipe</button>${P.audios.length ? `<button class="btn sm ia" data-tr>${ic('text', 13)} Transcrever</button>` : ''}</div></div>`);
+    $('[data-add]', top).onclick = () => Som.importar(); $('[data-bib]', top).onclick = () => SonsBib.abrir(); $('[data-gravar]', top).onclick = () => Som.gravar(); if ($('[data-tr]', top)) $('[data-tr]', top).onclick = () => Som.transcrever();
     el.appendChild(top);
     if (!P.audios.length) el.appendChild(h(`<div class="pr-vazio">${ic('music', 22)}Grave a voz, ponha uma música ou solte um arquivo de áudio na timeline.</div>`));
     // MIXAGEM do projeto: a música abaixa sozinha enquanto alguém fala (P.mix)
