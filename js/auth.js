@@ -23,7 +23,14 @@ document.documentElement.classList.add('turma-locked');
 #turma-login .ep-lg.ep-prog{background:none;box-shadow:0 14px 40px rgba(0,0,0,.45)}#turma-login .ep-lg .ep-img{width:68px;height:68px;display:block}#turma-login.ep-erro .ep-lg .ep-img{opacity:.35}
 @keyframes epBarra{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}@keyframes epPulso{50%{transform:scale(1.05)}}@keyframes epEntra{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){#turma-login .ep-lg,#turma-login .ep-br::after,#turma-login .ep-c{animation:none}#turma-login{transition:none}}
-#turma-login .tl-out{margin-top:10px;background:none;border:0;color:#7fb0ff;font-size:12px;cursor:pointer;text-decoration:underline}`;
+#turma-login .tl-out{margin-top:10px;background:none;border:0;color:#7fb0ff;font-size:12px;cursor:pointer;text-decoration:underline}
+/* estilo da inicialização do macOS (decisão do dono, 02/11/2026): fundo preto, só o ícone, barra fina e embaixo a % com o que está carregando (igual ao estudio-login.js) */
+#turma-login{background:#000}#turma-login .ep-c{gap:0}
+#turma-login .ep-lg,#turma-login .ep-lg.ep-prog,#turma-login.ep-erro .ep-lg{width:84px;height:84px;border-radius:0;background:none;box-shadow:none;animation:none;margin:0}#turma-login .ep-lg .ep-img{width:84px;height:84px}
+#turma-login .ep-nm,#turma-login .ep-sb{display:none}
+#turma-login .ep-br{width:200px;height:5px;border-radius:3px;background:rgba(255,255,255,.16);margin:46px 0 12px}#turma-login .ep-br::after{display:none}#turma-login .ep-br>i{background:#e8e9ec;border-radius:3px;transition:width .35s ease}
+#turma-login .ep-pc{font-size:11.5px;color:#7d8089;margin:0}#turma-login .ep-pc b{color:#c3c6cc}
+#turma-login:not(.ep-erro) .ep-m{display:none}#turma-login .ep-m{margin-top:18px}`;
   document.head.appendChild(st);
 })();
 
