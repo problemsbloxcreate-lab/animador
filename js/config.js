@@ -9,13 +9,13 @@ const TURMA_CONFIG = {
   // login com Google (Firebase)
   equipeLimiteGB: 1,
   // trabalhar junto ao vivo (Firebase Realtime Database do mesmo projeto do login). Vazio = desligado
-  aoVivoUrl: 'https://problems-estudios-default-rtdb.firebaseio.com',
+  aoVivoUrl: 'https://estudio-problems-fbe08-default-rtdb.firebaseio.com',
   firebase: {
     apiKey: '__FIREBASE_API_KEY__',
-    authDomain: 'problems-estudios.firebaseapp.com',
-    projectId: 'problems-estudios',
-    storageBucket: 'problems-estudios.firebasestorage.app',
-    messagingSenderId: '987944796866',
-    appId: '1:987944796866:web:15f571c0ad18b12c91f15b',
+    authDomain: 'estudio-problems-fbe08.firebaseapp.com',
+    projectId: 'estudio-problems-fbe08',
+    storageBucket: 'estudio-problems-fbe08.firebasestorage.app',
+    messagingSenderId: '833185766272',
+    appId: '1:833185766272:web:4127fcf45287c5a559ff65',
   },
 };
