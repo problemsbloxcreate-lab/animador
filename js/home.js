@@ -326,7 +326,13 @@ addEventListener('DOMContentLoaded', async () => {
   else { // F5 / "Atualizar todos os sites" com uma animação aberta (?projeto=<id>): volta direto para ela
     const pid = new URLSearchParams(location.search).get('projeto'), P = pid ? await DB.get('projetos', pid).catch(() => null) : null;
     if (P) { await App.abrir(P); await Citacao.receber(); }
-    else { if (pid) history.replaceState(null, '', location.pathname); Home.pinta(); await Citacao.receber(); } } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
+    else { if (pid) history.replaceState(null, '', location.pathname);
+      // atalhos do cartão ANIMAR no menu: ?aba=personagens (Ateliê) / ?aba=ideias, ?abrir=cenarios (biblioteca de Cenários)
+      const qs = new URLSearchParams(location.search), aba = qs.get('aba'), abrir = qs.get('abrir');
+      if (['animacoes', 'ideias', 'personagens'].includes(aba)) Home.atual = aba;
+      if (aba || abrir) history.replaceState(null, '', location.pathname);
+      Home.pinta(); if (abrir === 'cenarios') try { CenLib.abrir({ escolher: { contexto: 'menu' } }); } catch { } // sem animação aberta: a biblioteca abre no modo de olhar/escolher
+      await Citacao.receber(); } } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
   // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
   try { new BroadcastChannel('animador').onmessage = async ev => {
     const d = ev.data;
