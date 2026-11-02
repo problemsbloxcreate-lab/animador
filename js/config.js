@@ -11,7 +11,7 @@ const TURMA_CONFIG = {
   // trabalhar junto ao vivo (Firebase Realtime Database do mesmo projeto do login). Vazio = desligado
   aoVivoUrl: 'https://problems-estudios-default-rtdb.firebaseio.com',
   firebase: {
-    apiKey: 'AIzaSyAi04-Bbe-1yUG6xi9S2Ef26nImJUi6q60',
+    apiKey: '__FIREBASE_API_KEY__',
     authDomain: 'problems-estudios.firebaseapp.com',
     projectId: 'problems-estudios',
     storageBucket: 'problems-estudios.firebasestorage.app',
