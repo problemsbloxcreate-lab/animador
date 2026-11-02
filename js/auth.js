@@ -30,7 +30,7 @@ document.documentElement.classList.add('turma-locked');
 #turma-login .ep-nm,#turma-login .ep-sb{display:none}
 #turma-login .ep-br{width:200px;height:5px;border-radius:3px;background:rgba(255,255,255,.16);margin:46px 0 12px}#turma-login .ep-br::after{display:none}#turma-login .ep-br>i{background:#e8e9ec;border-radius:3px;transition:width .35s ease}
 #turma-login .ep-pc{font-size:11.5px;color:#7d8089;margin:0}#turma-login .ep-pc b{color:#c3c6cc}
-#turma-login:not(.ep-erro) .ep-m{display:none}#turma-login .ep-m{margin-top:18px}`;
+#turma-login:not(.ep-erro) .ep-m{display:none}#turma-login a.ep-bt{padding:10px 20px;border-radius:999px;background:rgba(255,255,255,.1);color:#f1f2f4;border:1px solid rgba(255,255,255,.16);font-weight:500;font-size:13.5px;margin-top:18px}#turma-login a.ep-bt:hover{filter:none;background:rgba(255,255,255,.16)}#turma-login .tl-out{color:#9aa0ab;text-decoration:none}#turma-login .ep-m{margin-top:18px}`;
   document.head.appendChild(st);
 })();
 
