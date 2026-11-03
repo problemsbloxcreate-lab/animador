@@ -48,6 +48,7 @@ const TurmaAuth = {
     await this.loadSdk();
     const cfg = (typeof TURMA_CONFIG !== 'undefined' && TURMA_CONFIG.firebase) || null;
     if (!cfg || !cfg.apiKey) throw new Error('Falta a configuração do Firebase em js/config.js.');
+    try { await window.EstudioPasse?.pronto; } catch { } // veio do outro endereço com o login junto (estudio-conta.js)
     if (!firebase.apps.length) firebase.initializeApp(cfg);
     this.fb = firebase.auth();
     await this.fb.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
