@@ -51,6 +51,8 @@ const Folha = {
     // nomes à esquerda
     this.nomes.innerHTML = '<div class="regua"></div>' + L.map((l, i) => {
       if (l.tipo === 'sec' || l.tipo === 'vazio') return `<div class="reg tl-${l.tipo}" data-i="${i}" style="height:${l.h}px">${l.ic ? ic(l.ic, 12) : ''}<span class="nm">${esc(l.nome)}</span></div>`;
+      if (l.tipo === 'trilha') { const temSel = l.itens.some(it => App.sel === (it.no?.id ?? it.a?.id)), mudo = l.som && l.itens.length && l.itens.every(it => it.a.mudo); // trilha fixa do modo Vídeo
+        return `<div class="reg tl-trilha ${temSel ? 'sel' : ''} ${l.extra ? 'extra' : ''}" data-i="${i}" style="height:${l.h}px;--tc:${l.cor}" title="${esc(l.nome)}: ${l.itens.length} clipe${l.itens.length === 1 ? '' : 's'}${l.extra ? ' · trilha a mais (as outras estavam ocupadas neste tempo)' : ''}">${ic(l.ic, 12)}<span class="nm">${esc(l.nome)}</span>${l.som ? `<button class="ms ${mudo ? 'on' : ''}" data-mudo title="Mudo na trilha toda" ${l.itens.length ? '' : 'disabled'}>M</button>` : ''}</div>`; }
       const sel = (l.tipo === 'no' && App.sel === l.no.id) || (l.tipo === 'camera' && App.sel === 'camera') || (l.tipo === 'efeito' && App.sel === l.ef.id) || (l.tipo === 'audio' && App.sel === l.a.id);
       const icn = l.tipo === 'no' ? TIPO_IC[l.no.tipo] : { camera: 'camera', efeito: 'sparkles', legenda: 'text', audio: 'mic' }[l.tipo];
       const defP = l.tipo === 'no' && l.no.tipo === 'personagem' ? P.personagens[l.no.ref] : null, corP = defP && Icone.cor(defP);
@@ -58,10 +60,11 @@ const Folha = {
       return `<div class="reg ${sel ? 'sel' : ''} ${l.no?.tipo === 'efeito' || l.pai ? 'efeito' : ''} ${l.no?.filhos && l.no.corPasta ? 'com-cor' : ''} ${corP ? 'pers-cor' : ''}" data-i="${i}" ${l.tipo === 'no' ? 'draggable="true"' : ''} style="padding-left:${6 + (l.nivel || 0) * 12}px;${l.h !== this.RH ? `height:${l.h}px;` : ''}${l.no?.filhos && l.no.corPasta ? `--pc:${l.no.corPasta};` : ''}${corP ? `--cp:${corP};` : ''}">${ab}${defP ? Icone.html(defP, 15) : ic(icn, 13)}<span class="nm">${esc(l.nome)}</span>${l.tipo === 'audio' ? `<button class="ms ${l.a.mudo ? 'on' : ''}" data-mudo title="Mudo">M</button><button class="ms solo ${l.a.solo ? 'on' : ''}" data-solo title="Solo: só ele toca">S</button>` : ''}</div>`;
     }).join('') + '<div class="tl-fim" aria-hidden="true"></div>'; // espaço no fim do mesmo tamanho da sobra da grade (30 px + barra de rolagem): sem ele, rolando até o fim os nomes paravam antes e ficavam linhas fora do lugar
     // cabeçalho: pasta nova (com a camada escolhida dentro, se tiver uma)
-    const cab = $('.regua', this.nomes); cab.innerHTML = `<span>Camadas</span><span class="sp"></span><button class="ibtn" data-pasta title="Pasta nova (com a camada escolhida dentro) · Ctrl+G">${ic('folder', 13)}</button>`;
+    const cab = $('.regua', this.nomes); cab.innerHTML = `<span>${this.modo === 'video' ? 'Trilhas' : 'Camadas'}</span><span class="sp"></span><button class="ibtn" data-pasta title="Pasta nova (com a camada escolhida dentro) · Ctrl+G">${ic('folder', 13)}</button>`;
     $('[data-pasta]', cab).onclick = () => App.addPasta();
     $$('.reg', this.nomes).forEach(r => {
-      const l = L[+r.dataset.i]; if (l.tipo === 'sec' || l.tipo === 'vazio') return; r.onclick = e => { if (e.target.closest('[data-ab],[data-mudo],[data-solo]')) return; this.selLinha(l); };
+      const l = L[+r.dataset.i]; if (l.tipo === 'sec' || l.tipo === 'vazio') return;
+      if (l.tipo === 'trilha') { const b = $('[data-mudo]', r); if (b) b.onclick = () => { const m = !l.itens.every(it => it.a.mudo); for (const it of l.itens) it.a.mudo = m; if (App.tocando) Som.toca(App.q); App.commit(m ? 'Mudo na trilha' : 'Som da trilha de volta'); }; return; } r.onclick = e => { if (e.target.closest('[data-ab],[data-mudo],[data-solo]')) return; this.selLinha(l); };
       if (l.tipo === 'audio') { $('[data-mudo]', r).onclick = () => { l.a.mudo = !l.a.mudo; if (App.tocando) Som.toca(App.q); App.commit(l.a.mudo ? 'Mudo' : 'Som de volta'); };
         $('[data-solo]', r).onclick = () => { l.a.solo = !l.a.solo; if (App.tocando) Som.toca(App.q); App.commit('Solo'); }; }
       if (l.tipo !== 'no') return; const n = l.no;
@@ -103,7 +106,7 @@ const Folha = {
     L.forEach((l, i) => {
       const y = REG + l.y - sy, lh = l.h; if (y > H || y + lh < REG) return;
       const sel = (l.tipo === 'no' && App.sel === l.no.id) || (l.tipo === 'camera' && App.sel === 'camera') || (l.tipo === 'efeito' && App.sel === l.ef.id) || (l.tipo === 'audio' && App.sel === l.a.id);
-      if (l.tipo === 'sec') return this.linhaSec(c, l, y, W); if (l.tipo === 'vazio') return this.linhaVazio(c, l, y, sx, W);
+      if (l.tipo === 'sec') return this.linhaSec(c, l, y, W); if (l.tipo === 'trilha') return this.linhaTrilha(c, P, l, y, sx, W); if (l.tipo === 'vazio') return this.linhaVazio(c, l, y, sx, W);
       if (sel) { c.fillStyle = 'rgba(140,170,210,.12)'; c.fillRect(0, y, W, lh); }
       c.fillStyle = '#2a2a2a'; c.fillRect(0, y + lh - 1, W, 1);
       if (l.tipo === 'no' && l.video) this.clipe(c, P, l, y, sx, sel);
@@ -208,7 +211,7 @@ const Folha = {
     if (sel) { c.strokeStyle = pal[2]; c.lineWidth = 1; c.beginPath(); c.roundRect(x0 + .5, top + .5, w - 1, hh - 1, 5); c.stroke(); }
   },
   /* ---------- mouse ---------- */
-  ponto(e) { const r = this.cv.getBoundingClientRect(), x = e.clientX - r.left + this.grade.scrollLeft, y = e.clientY - r.top; return { q: Math.floor(x / this.CW), x, y, i: y < this.REG ? -1 : this.linhaEm(y - this.REG + this.grade.scrollTop) }; },
+  ponto(e) { const r = this.cv.getBoundingClientRect(), x = e.clientX - r.left + this.grade.scrollLeft, y = e.clientY - r.top; const p = { q: Math.floor(x / this.CW), x, y, i: y < this.REG ? -1 : this.linhaEm(y - this.REG + this.grade.scrollTop) }; p.l = this.itemEm ? this.itemEm(p) : this._L?.[p.i]; return p; }, // p.l: a linha (no modo Vídeo, o clipe da trilha embaixo do mouse)
   linhaEm(yy) { const L = this._L || []; for (let i = 0; i < L.length; i++) if (yy >= L[i].y && yy < L[i].y + L[i].h) return i; return L.length + Math.floor((yy - (this._altura || 0)) / this.RH); },
   desce(e) {
     const p = this.ponto(e), P = App.P, L = this._L; this.cv.setPointerCapture(e.pointerId);
@@ -218,9 +221,9 @@ const Folha = {
       return mov(pp => { const q1 = clamp(pp.q, 0, ult); this.trecho = { de: Math.min(q0, q1), ate: Math.max(q0, q1) }; this.desenha(); });
     }
     if (p.i < 0) { App.pausa(); App.setQ(p.q, { som: true }); return mov(pp => App.setQ(pp.q, { som: true })); }
-    const l = L[p.i]; if (!l) return; this.selLinha(l);
+    const l = p.l; if (!l) return; this.selLinha(l);
     const perto = (q, borda) => Math.abs(p.x - (borda === 'fim' ? (q + 1) * this.CW : q * this.CW)) < 6;
-    if (l.tipo === 'sec' || l.tipo === 'vazio') { App.pausa(); App.setQ(p.q, { som: true }); return mov(pp => App.setQ(pp.q, { som: true })); }
+    if (l.tipo === 'sec' || l.tipo === 'vazio' || l.tipo === 'trilha') { App.pausa(); App.setQ(p.q, { som: true }); return mov(pp => App.setQ(pp.q, { som: true })); }
     if (this.desceVideo?.(e, p, l, mov, perto)) return; // alças de entrada/saída e de fade do som; modo Vídeo: mover o clipe inteiro
     if (l.tipo === 'no' || l.tipo === 'camera') {
       const ch = l.tipo === 'no' ? l.no.chaves : P.camera.chaves, k = Object.keys(ch).map(Number).find(k => k === p.q);
@@ -231,7 +234,7 @@ const Folha = {
       }
       if (l.tipo === 'no' && !l.no.trava && (perto(l.no.de || 0, 'ini') || perto(Modelo.fimNo(P, l.no), 'fim'))) { // pontas da barra
         const n = l.no, ponta = perto(n.de || 0, 'ini') ? 'de' : 'ate';
-        mov(pp => { const nq = clamp(pp.q, 0, P.duracao - 1); if (ponta === 'de') n.de = Math.min(nq, Modelo.fimNo(P, n)); else n.ate = nq >= P.duracao - 1 ? null : Math.max(nq, n.de || 0); this.pinta(); App.pinta(); Arvore.pinta(); });
+        mov(pp => { const nq = clamp(pp.q, 0, P.duracao - 1); const fim = Modelo.fimNo(P, n), de = n.de || 0; for (const x of l.pilha || [n]) { if (ponta === 'de') x.de = Math.min(nq, fim); else x.ate = nq >= P.duracao - 1 ? null : Math.max(nq, de); } this.pinta(); App.pinta(); Arvore.pinta(); });
         this.fimArr = () => App.commit(ponta === 'de' ? 'Começo da camada' : 'Fim da camada'); return;
       }
       if (l.tipo === 'no' && l.no.tipo === 'efeito' && !l.no.trava && p.q >= (l.no.de || 0) && p.q <= Modelo.fimNo(P, l.no)) { // arrastar a camada de efeito inteira no tempo
@@ -263,7 +266,7 @@ const Folha = {
     App.pausa(); App.setQ(p.q, { som: true }); mov(pp => App.setQ(pp.q, { som: true }));
   },
   duplo(e) {
-    const p = this.ponto(e), l = this._L[p.i]; if (!l) return; App.setQ(p.q);
+    const p = this.ponto(e), l = p.l; if (!l) return; App.setQ(p.q);
     if (l.tipo === 'no') { App.selecionar(l.no.id); App.chaveAqui(); }
     if (l.tipo === 'camera') { App.P.camera.chaves[p.q] = { ...Modelo.camera(App.P, p.q) }; App.commit('Chave da câmera'); }
     if (l.tipo === 'audio') CorteVoz.abrir(l.a); // dois cliques no áudio = editor de corte
@@ -300,7 +303,7 @@ const Folha = {
     cancelAnimationFrame(raf); return ok ? v : null;
   },
   menu(e) {
-    const p = this.ponto(e), l = this._L[p.i];
+    const p = this.ponto(e), l = p.l;
     if (l?.tipo === 'audio') { const a = l.a, q = clamp(p.q, 0, Modelo.ultimoQuadro(App.P)); App.setQ(q); App.selecionar(a.id);
       return UI.ctx(e.clientX, e.clientY, [{ head: `${a.nome} · quadro ${q + 1}` },
         { label: 'Editar o corte…', icon: 'cut', key: 'dois cliques', action: () => CorteVoz.abrir(a) },

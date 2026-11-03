@@ -1,9 +1,12 @@
 /* ===================== folhavideo.js — TIMELINE em modo VÍDEO + transições/fades + arrastar efeitos para a timeline =====================
    Dois modos (botões "Animação | Vídeo" na barra da timeline, localStorage `animador-tl-modo`):
    - Animação: a timeline de sempre (uma linha por camada, pastas abertas, chaves).
-   - Vídeo: como um editor de vídeo — trilha de EFEITOS (camadas de efeito como clipes roxos), trilha de VÍDEO (as camadas do topo
-     como clipes; pasta = um clipe só), Câmera, Legendas e SOM. Arrastar o meio de um clipe muda ele de lugar no tempo (com as chaves
-     e o que está dentro); as pontas mudam começo/fim.
+   - Vídeo: como o Premiere — TRILHAS FIXAS sempre à vista (Efeitos 1, Bonecos 3, Imagens 4, Câmera/Legendas, Falas 3, SFX 3,
+     Música 2: `TRILHAS`); cada camada do topo (pasta = um clipe só) e cada áudio é um CLIPE empacotado na primeira trilha livre do
+     grupo (`empacota`); trilha a mais só quando todas se sobrepõem. PILHA: bonecos/imagens que entram e saem no mesmo
+     quadro (uma cena) são UM clipe "×N nomes"; arrastar/cortar a pilha muda todas juntas (cada uma separada: modo Animação). A trilha NÃO muda a ordem de desenho do palco (P.raiz).
+     O clipe embaixo do mouse vira uma linha de um item (`itemEm`, em `Folha.ponto` → `p.l`), então clicar, arrastar e cortar
+     funcionam como antes: o meio do clipe muda ele de lugar no tempo (com as chaves e o que está dentro); as pontas mudam começo/fim.
    TRANSIÇÕES E FADES: `n.entra`/`n.sai` (Modelo.ANIMS) desenhados como cunhas nas pontas do clipe; a ALÇA no canto de cima (quadradinho)
    arrasta a duração — puxar de uma camada sem entrada cria um "Aparecer" (fade). No som, as alças mudam `a.fi`/`a.fo` (segundos).
    ARRASTAR DA BIBLIOTECA (aba Efeitos): efeito, cor, entrada/saída ou fade de som soltos na timeline. Enquanto arrasta, o alvo fica
@@ -29,7 +32,7 @@ Object.assign(Folha, {
     g.addEventListener('dragover', e => { const d = this.arrasto; if (!d) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; this.drop = this.alvoDrop(this.ponto(e), d); this.desenha(); this.rotuloDrop(e); });
     g.addEventListener('dragleave', e => { if (g.contains(e.relatedTarget)) return; this.drop = null; this.desenha(); this.rotuloDrop(); });
     g.addEventListener('drop', e => { const d = this.arrasto; if (!d) return; e.preventDefault(); const a = this.alvoDrop(this.ponto(e), d); this.drop = null; this.rotuloDrop(); this.aplicaDrop(a, d); });
-    this.cv.addEventListener('pointermove', e => { if (e.buttons) return; const p = this.ponto(e), l = this._L?.[p.i], id = l?.tipo === 'no' ? l.no.id : l?.tipo === 'audio' ? l.a.id : null;
+    this.cv.addEventListener('pointermove', e => { if (e.buttons) return; const p = this.ponto(e), l = p.l, id =l?.tipo === 'no' ? l.no.id : l?.tipo === 'audio' ? l.a.id : null;
       if (id !== this._sobre) { this._sobre = id; this.desenha(); }
       let cur = ''; if (l && p.i >= 0) { const P = App.P, CW = this.CW, yr = p.y - (this.REG + l.y - this.grade.scrollTop);
         if (l.tipo === 'no' && l.no.tipo !== 'efeito') { const n = l.no, de = n.de || 0, fim = Modelo.fimNo(P, n), tam = fim - de + 1, xa = (de + (n.entra ? Math.min(n.entra.q, tam) : 0)) * CW, xb = (fim + 1 - (n.sai ? Math.min(n.sai.q, tam) : 0)) * CW;
@@ -39,22 +42,61 @@ Object.assign(Folha, {
     this.cv.addEventListener('pointerleave', () => { if (this._sobre) { this._sobre = null; this.desenha(); } });
     addEventListener('dragend', () => { this.arrasto = null; if (this.drop) { this.drop = null; this.desenha(); } this.rotuloDrop(); });
   },
-  // ---------- linhas do modo Vídeo ----------
+  // ---------- linhas do modo Vídeo: TRILHAS FIXAS (como no Premiere) ----------
+  // Cada grupo tem um nº fixo de trilhas, sempre à vista; os clipes do grupo são empacotados nelas (vários na mesma trilha quando
+  // não se encostam no tempo; sobrepôs = vai para a próxima trilha livre). Só cria trilha a mais se TODAS as do grupo estiverem
+  // ocupadas naquele tempo. A trilha é só para ver: a ordem de desenho no palco continua a de P.raiz (hierarquia).
+  TRILHAS: [
+    { g: 'efeitos', nome: 'Efeitos', n: 1, ic: 'sparkles', cor: '#8f6bff', h: 28 },
+    { g: 'bonecos', nome: 'Bonecos', n: 3, ic: 'layers', cor: '#6f86a8', h: 30 },
+    { g: 'imagens', nome: 'Imagens', n: 4, ic: 'image', cor: '#5e9c8f', h: 30 },
+    { g: 'voz', nome: 'Falas', n: 3, ic: 'mic', cor: '#8fe0b4', h: 34, som: true },
+    { g: 'efeito', nome: 'SFX', n: 3, ic: 'bolt', cor: '#ffd27a', h: 34, som: true },
+    { g: 'musica', nome: 'Música', n: 2, ic: 'music', cor: '#9fb7ff', h: 34, som: true },
+  ],
+  grupoNo(n) { if (n.tipo === 'efeito') return 'efeitos'; if (n.tipo === 'personagem') return 'bonecos';
+    if (n.filhos && Modelo.todos({ raiz: n.filhos }).some(f => f.tipo === 'personagem')) return 'bonecos'; return 'imagens'; },
+  fimAudio(P, a) { const de = a.de || 0; return Som.buf?.get(a.arq) ? Som.fimQ(P, a) : de + Math.max(1, Math.round(((a.dur != null ? +a.dur : Som.dur(a.arq)) || 1) * P.fps)) - 1; },
+  // primeira trilha livre: itens em ordem de começo; cada um vai na primeira trilha cujo último clipe já acabou
+  empacota(itens, n) {
+    const fins = Array(n).fill(-1), tr = Array.from({ length: n }, () => []);
+    for (const it of itens.slice().sort((x, y) => x.de - y.de || x.ord - y.ord)) {
+      let k = fins.findIndex(f => f < it.de); if (k < 0) { k = fins.length; fins.push(-1); tr.push([]); }
+      fins[k] = it.fim; tr[k].push(it); }
+    return tr;
+  },
   linhasVideo() {
     Short.pinta(); // barra de etapas do Short (só em projeto vertical)
-    const P = App.P, out = [], efs = []; Modelo.cada(P.raiz, n => { if (n.tipo === 'efeito') efs.push(n); });
-    out.push({ tipo: 'sec', nome: 'Efeitos e transições', h: 20, ic: 'sparkles' });
-    for (const n of efs) out.push({ tipo: 'no', no: n, nome: n.nome, video: true, h: 28 });
-    (P.efeitos.tela || []).forEach(ef => out.push({ tipo: 'efeito', ef, nome: (Efeitos.TELA.find(t => t.id === ef.tipo)?.nome || ef.tipo) }));
-    if (!efs.length && !(P.efeitos.tela || []).length) out.push({ tipo: 'vazio', nome: 'Arraste um efeito da aba Efeitos para cá', h: 26 });
-    out.push({ tipo: 'sec', nome: 'Vídeo', h: 20, ic: 'film' });
-    for (const n of P.raiz) if (n.tipo !== 'efeito') out.push({ tipo: 'no', no: n, nome: n.nome, video: true, h: 32 });
-    out.push({ tipo: 'camera', nome: 'Câmera' });
-    if ((P.legendas || []).length) out.push({ tipo: 'legenda', nome: 'Legendas' });
-    out.push({ tipo: 'sec', nome: 'Som', h: 20, ic: 'vol' });
-    (P.audios || []).forEach(a => out.push({ tipo: 'audio', a, nome: a.nome, h: 40 }));
-    if (!(P.audios || []).length) out.push({ tipo: 'vazio', nome: 'Grave ou ponha um áudio na aba Voz', h: 26 });
+    const P = App.P, out = [], por = {}; let ord = 0;
+    for (const t of this.TRILHAS) por[t.g] = [];
+    Modelo.cada(P.raiz, n => { if (n.tipo === 'efeito') por.efeitos.push({ tipo: 'no', no: n, de: n.de || 0, fim: Modelo.fimNo(P, n), ord: ord++ }); });
+    // PILHA: camadas do mesmo grupo que entram e saem no MESMO quadro (os bonecos de uma cena) viram um clipe só (×N); mexer nele mexe em todas
+    const pilhas = new Map();
+    for (const n of P.raiz) if (n.tipo !== 'efeito') { const g = this.grupoNo(n), de = n.de || 0, fim = Modelo.fimNo(P, n), k = `${g}:${de}:${fim}`, p = pilhas.get(k);
+      if (p) { p.pilha.push(n); continue; } const it = { tipo: 'no', no: n, pilha: [n], de, fim, ord: ord++ }; pilhas.set(k, it); por[g].push(it); }
+    for (const it of pilhas.values()) if (it.pilha.length < 2) delete it.pilha;
+    for (const a of P.audios || []) por[Som.tipo(a)]?.push({ tipo: 'audio', a, de: a.de || 0, fim: this.fimAudio(P, a), ord: ord++ });
+    const poe = t => this.empacota(por[t.g], t.n).forEach((itens, k) => out.push({ tipo: 'trilha', g: t.g, nome: `${t.nome} ${k + 1}`, ic: t.ic, cor: t.cor, h: t.h, som: !!t.som, extra: k >= t.n, itens }));
+    for (const t of this.TRILHAS) {
+      if (t.som && t.g === 'voz') { out.push({ tipo: 'camera', nome: 'Câmera' }); (P.efeitos.tela || []).forEach(ef => out.push({ tipo: 'efeito', ef, nome: (Efeitos.TELA.find(x => x.id === ef.tipo)?.nome || ef.tipo) }));
+        if ((P.legendas || []).length) out.push({ tipo: 'legenda', nome: 'Legendas' }); out.push({ tipo: 'sec', nome: '', h: 8 }); }
+      poe(t);
+    }
     return out;
+  },
+  // o clipe da trilha embaixo do mouse vira uma "linha" de um item só (como as linhas antigas), para clicar/arrastar/cortar igual
+  itemEm(p) {
+    const l = this._L?.[p.i]; if (l?.tipo !== 'trilha') return l; const CW = this.CW;
+    const dentro = l.itens.filter(it => p.x >= it.de * CW - 6 && p.x <= (it.fim + 1) * CW + 6);
+    const it = dentro.find(x => p.q >= x.de && p.q <= x.fim) || dentro[0]; if (!it) return l;
+    return it.tipo === 'no' ? { tipo: 'no', no: it.pilha?.find(x => x.id === App.sel) || it.no, pilha: it.pilha, nome: it.no.nome, video: true, y: l.y, h: l.h, trilha: l } : { tipo: 'audio', a: it.a, nome: it.a.nome, y: l.y, h: l.h, trilha: l };
+  },
+  linhaTrilha(c, P, l, y, sx, W) {
+    c.fillStyle = l.extra ? '#241f1f' : '#1c1c1c'; c.fillRect(0, y, W, l.h); c.fillStyle = '#2a2a2a'; c.fillRect(0, y + l.h - 1, W, 1);
+    for (const it of l.itens) {
+      if (it.tipo === 'no') this.clipe(c, P, { no: it.no, pilha: it.pilha, h: l.h, video: true }, y, sx, (it.pilha || [it.no]).some(x => App.sel === x.id));
+      else { const sel = App.sel === it.a.id; this.onda(c, P, it.a, y, sx, sel, l.h); if (sel || this._sobre === it.a.id) this.alcasAudio(c, P, it.a, y, sx); }
+    }
   },
   // ---------- o que uma camada de efeito pega (os de baixo dela na mesma lista, até a próxima camada de efeito, com o que tem dentro) ----------
   alcance(ef) {
@@ -86,7 +128,7 @@ Object.assign(Folha, {
       if (ww > 42) { c.fillStyle = 'rgba(255,255,255,.9)'; c.font = '600 9.5px Segoe UI'; c.textBaseline = 'alphabetic'; c.fillText(Modelo.ANIMS[t.tipo] || t.tipo, k === 'entra' ? xx + 4 : xx + ww - 4 - c.measureText(Modelo.ANIMS[t.tipo] || t.tipo).width, top + hh - 4); } }
     // nome
     c.fillStyle = '#fff'; c.font = '600 11px Segoe UI'; c.textBaseline = 'middle'; c.shadowColor = '#000'; c.shadowBlur = 3;
-    const nfil = n.filhos ? Modelo.todos({ raiz: n.filhos }).length : 0; c.fillText(n.nome + (nfil ? `  ·  ${nfil} camada${nfil === 1 ? '' : 's'}` : ''), Math.max(x + 8 + (n.entra ? Math.min(n.entra.q, fim - de + 1) * CW : 0), 8), top + hh / 2 - 1); // o nome começa depois da cunha da entrada c.shadowBlur = 0;
+    const nfil = n.filhos ? Modelo.todos({ raiz: n.filhos }).length : 0; c.fillText((l.pilha ? `×${l.pilha.length}  ${l.pilha.map(x => x.nome).join(' · ')}` : n.nome) + (nfil ? `  ·  ${nfil} camada${nfil === 1 ? '' : 's'}` : ''), Math.max(x + 8 + (n.entra ? Math.min(n.entra.q, fim - de + 1) * CW : 0), 8), top + hh / 2 - 1); // o nome começa depois da cunha da entrada c.shadowBlur = 0;
     // chaves (pequenas, embaixo)
     c.fillStyle = 'rgba(255,255,255,.75)'; for (const k of Object.keys(n.chaves || {}).map(Number)) { if (k < de || k > fim) continue; const kx = k * CW - sx + CW / 2; c.beginPath(); c.moveTo(kx, top + hh - 7); c.lineTo(kx + 3, top + hh - 4); c.lineTo(kx, top + hh - 1); c.lineTo(kx - 3, top + hh - 4); c.fill(); }
     c.restore();
@@ -112,7 +154,8 @@ Object.assign(Folha, {
   sobreposicoes(c, P, L, sx, sy, W) {
     const REG = this.REG, CW = this.CW, s = App.noSel();
     if (s?.tipo === 'efeito') { const al = this.alcance(s), a0 = s.de || 0, a1 = Modelo.fimNo(P, s);
-      for (const l of L) { if (l.tipo !== 'no' || !al.has(l.no.id)) continue; const y = REG + l.y - sy, de = Math.max(a0, l.no.de || 0), fim = Math.min(a1, Modelo.fimNo(P, l.no)); if (fim < de) continue;
+      const nos = L.flatMap(l => l.tipo === 'trilha' ? l.itens.filter(it => it.tipo === 'no').map(it => ({ tipo: 'no', no: it.no, y: l.y, h: l.h })) : [l]); // clipes das trilhas também
+      for (const l of nos) { if (l.tipo !== 'no' || !al.has(l.no.id)) continue; const y = REG + l.y - sy, de = Math.max(a0, l.no.de || 0), fim = Math.min(a1, Modelo.fimNo(P, l.no)); if (fim < de) continue;
         c.fillStyle = 'rgba(169,139,255,.16)'; c.fillRect(de * CW - sx, y + 1, (fim - de + 1) * CW, l.h - 2); c.fillStyle = 'rgba(169,139,255,.7)'; c.fillRect(de * CW - sx, y + 1, (fim - de + 1) * CW, 1.5); } }
     const d = this.drop; if (d?.i != null) { const l = L[d.i]; if (l) { const y = REG + l.y - sy; c.fillStyle = d.ok ? 'rgba(90,169,232,.22)' : 'rgba(255,107,107,.15)'; c.strokeStyle = d.ok ? '#5aa9e8' : '#ff8a8a'; c.lineWidth = 2;
       const x0 = d.de * CW - sx, w = (d.ate - d.de + 1) * CW; c.beginPath(); c.roundRect(x0 + 1, y + 2, Math.max(4, w - 2), l.h - 4, 5); c.fill(); c.stroke(); } }
@@ -125,7 +168,7 @@ Object.assign(Folha, {
   // ---------- arrastar da biblioteca ----------
   // d: { k: 'ef', e: {tipo,...}, nome } | { k: 'anim', tipo, nome } | { k: 'fade', nome }
   alvoDrop(p, d) {
-    const P = App.P, L = this._L, l = p.i >= 0 ? L[p.i] : null, q = clamp(p.q, 0, P.duracao - 1), nm = `<b>${esc(d.nome)}</b>`;
+    const P = App.P, l = p.i >= 0 ? p.l : null, q =clamp(p.q, 0, P.duracao - 1), nm = `<b>${esc(d.nome)}</b>`;
     const curto = d.k === 'ef' && { flash: 1, tremor: 1, chicote: 1, zoomcorte: 1 }[d.e.tipo];
     const anim = d.k === 'anim' || d.k === 'fade', ehClipe = l?.tipo === 'no' && l.no.tipo !== 'efeito';
     if (anim && ehClipe) { const n = l.no, de = n.de || 0, fim = Modelo.fimNo(P, n), lado = q <= (de + fim) / 2 ? 'entra' : 'sai', tq = n[lado]?.q || Math.max(2, Math.round(P.fps * .25)), qq = Math.min(tq, fim - de + 1);
@@ -164,7 +207,7 @@ Object.assign(Folha, {
     if (l.tipo !== 'no' || l.no.tipo === 'efeito' || l.no.trava) return false;
     const n = l.no, de = n.de || 0, fim = Modelo.fimNo(P, n), tam = fim - de + 1;
     // alças de entrada/saída (canto de cima)
-    if (yr <= 11) { const xa = (de + (n.entra ? Math.min(n.entra.q, tam) : 0)) * CW + 1, xb = (fim + 1 - (n.sai ? Math.min(n.sai.q, tam) : 0)) * CW - 1, lado = Math.abs(p.x - xa) < 7 ? 'entra' : Math.abs(p.x - xb) < 7 ? 'sai' : null;
+    if (yr <= 11 && !l.pilha) { const xa = (de + (n.entra ? Math.min(n.entra.q, tam) : 0)) * CW + 1, xb = (fim + 1 - (n.sai ? Math.min(n.sai.q, tam) : 0)) * CW - 1, lado = Math.abs(p.x - xa) < 7 ? 'entra' : Math.abs(p.x - xb) < 7 ? 'sai' : null;
       if (lado) { const t0 = n[lado] ? { ...n[lado] } : null, ate0 = n.ate;
         mov(pp => { const qq = lado === 'entra' ? Math.round(pp.x / CW - de) : Math.round(fim + 1 - pp.x / CW), v = clamp(qq, 0, Math.min(120, tam));
           if (v < 1) delete n[lado]; else { if (lado === 'sai' && n.ate == null) n.ate = fim; n[lado] = { tipo: n[lado]?.tipo || t0?.tipo || 'aparecer', q: v }; } this.desenha(); App.pinta(); });
@@ -173,7 +216,7 @@ Object.assign(Folha, {
     if (perto(de, 'ini') || perto(fim, 'fim')) return false; // pontas: o de sempre (começo/fim)
     // MEIO DO CLIPE: mover no tempo (a camada, as chaves e tudo o que está dentro)
     if (p.q < de || p.q > fim) return false;
-    const todos = [n, ...Modelo.todos({ raiz: n.filhos || [] })], foto = todos.map(x => ({ x, de: x.de || 0, ate: x.ate, ch: clone(x.chaves || {}), en: x.entra, sa: x.sai })), q0 = p.q;
+    const todos = (l.pilha || [n]).flatMap(x => [x, ...Modelo.todos({ raiz: x.filhos || [] })]), foto = todos.map(x => ({ x, de: x.de || 0, ate: x.ate, ch: clone(x.chaves || {}), en: x.entra, sa: x.sai })), q0 = p.q;
     const ateMax = Math.max(...foto.map(f => f.ate ?? f.de)); let dq = 0, mexeu = false;
     mov(pp => { const nd = clamp(pp.q - q0, -Math.min(...foto.map(f => f.de)), P.duracao - 1 - ateMax); if (nd === dq) return; dq = nd; mexeu = true;
       for (const f of foto) { f.x.de = f.de + dq; if (f.ate != null) f.x.ate = f.ate + dq; f.x.chaves = Object.fromEntries(Object.entries(f.ch).map(([k, v]) => [+k + dq, v])); }
