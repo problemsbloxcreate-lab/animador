@@ -53,7 +53,8 @@ const NuvemTela = {
     el.querySelector('.nt-nm').textContent = nome || '';
     document.body.appendChild(el);
     // a transição do ícone para a nuvem acontece quando a tela de inicialização (por cima) já saiu: assim dá para ver (no máximo 13 s esperando)
-    const t0 = Date.now(), vira = () => { if (!this.el) return; if (document.getElementById('turma-login') && Date.now() - t0 < 13000) return setTimeout(vira, 120); setTimeout(() => this.el?.classList.add('nt-on'), 150); };
+    // a inicialização (já com o acesso conferido) não espera o download: sai logo e esta tela (igual por baixo) assume
+    const t0 = Date.now(), vira = () => { if (!this.el) return; const b = document.getElementById('turma-login'); if (b && Date.now() - t0 < 13000) { if (Date.now() - t0 > 500 && !b.classList.contains('ep-saindo')) { b.classList.add('ep-saindo'); setTimeout(() => b.remove(), 380); } return setTimeout(vira, 120); } setTimeout(() => this.el?.classList.add('nt-on'), 150); };
     vira(); this.anda();
   },
   nome(n) { const e = this.el?.querySelector('.nt-nm'); if (e && n) e.textContent = n; },
