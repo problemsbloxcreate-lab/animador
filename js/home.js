@@ -329,10 +329,15 @@ addEventListener('DOMContentLoaded', async () => {
     else { if (pid) history.replaceState(null, '', location.pathname);
       // atalhos do cartão ANIMAR no menu: ?aba=personagens (Ateliê) / ?aba=ideias, ?abrir=cenarios (biblioteca de Cenários)
       const qs = new URLSearchParams(location.search), aba = qs.get('aba'), abrir = qs.get('abrir');
+      // RECENTES NA NUVEM do menu (04/11/2026): ?nuvem=<id> abre direto aquela animação da nuvem (o mesmo que clicar no cartão dela aqui)
+      const nv = qs.get('nuvem');
+      if (nv && /^[A-Za-z0-9_-]{2,40}$/.test(nv)) { history.replaceState(null, '', location.pathname); Home.atual = 'animacoes'; Home.pinta();
+        const local = await DB.get('projetos', nv).catch(() => null); try { await NuvemAnim.abrir(nv, local || null); } catch (e) { console.warn('abrir da nuvem', e); } }
+      else {
       if (['animacoes', 'ideias', 'personagens'].includes(aba)) Home.atual = aba;
       if (aba || abrir) history.replaceState(null, '', location.pathname);
       Home.pinta(); if (abrir === 'cenarios') try { CenLib.abrir({ escolher: { contexto: 'menu' } }); } catch { } // sem animação aberta: a biblioteca abre no modo de olhar/escolher
-      await Citacao.receber(); } } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
+      await Citacao.receber(); } } } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado
   // personagem salvo em outra aba (o Ateliê): a animação aberta aqui pega a versão nova
   try { new BroadcastChannel('animador').onmessage = async ev => {
     const d = ev.data;

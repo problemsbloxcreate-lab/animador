@@ -145,3 +145,6 @@
 - AO VIVO NAS LISTAS (30/10/2026): animação (sala `an-<id>`) ou personagem do Ateliê (sala `at-<id>`, `AoVivo.ouvirLista(cb, 'atelie')`) com gente dentro agora ganha o selo "ao vivo" com as fotos (`Home.seloVivo`, em cima da miniatura) e borda verde, e vai para o TOPO da lista/pasta (`Home._vivos`/`_vivosAt`).
 - MINIATURA DO PERSONAGEM (decisão do dono, 30/10/2026): `Atelie.miniatura` desenha a POSE PADRÃO da VISTA PRINCIPAL (`Modelo.naVista(def)`), nunca o frame/pose/vista da tela; `miniaturaPronta()` espera as imagens da principal (até 8 s) antes de salvar na nuvem.
 - PRESENÇA SEM FANTASMA (bug de 30/10/2026): `presenca` (não a primeira) muda por TRANSAÇÃO só se a pessoa ainda está na sala (antes um `afk`/`foco` que chegava depois do onDisconnect recriava `{ afk: true }` sem nome — a sala ficava "ao vivo" para sempre com a bolinha cinza e a foto da sala travava); `.info/connected` voltando = entra de novo inteira (`_pres`, `ligaVolta`); `real()` tira e apaga entradas sem nome em `ouvirGente`/`genteDe`/`estado`.
+
+## Abrir pelo endereço (04/11/2026)
+- `?nuvem=<id>` abre direto a animação da nuvem da equipe (o mesmo que clicar no cartão dela: `NuvemAnim.abrir(id, cópia local se houver)`). Usado pelos "Recentes na nuvem" e pela aba "Ao vivo" do menu do Estúdio.
