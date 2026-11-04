@@ -131,8 +131,13 @@ const AoVivo = {
     const st = await t.estado(this.sala);
     // Ateliê sem ninguém na sala: sobra de quem fechou de repente; a verdade é o personagem da nuvem, então começa do zero
     if ((ad.ctx === 'atelie' || ad.auto) && st.snap && !Object.keys(st.gente || {}).length) { try { await t.apagar(this.sala); } catch { } st.snap = null; }
+    // SALA VELHA (04/11/2026): a sala nasceu de uma versão do personagem mais velha que a da nuvem (alguém salvou fora dela, ou é uma aba
+    // esquecida segurando a sala): não adota a sala — recomeça da versão da nuvem (quem estava nela com a versão velha não grava por cima: a nuvem recusa)
+    if (ad.ctx === 'atelie' && st.snap && ad.mod?.()) { const meu = +ad.mod(), daSala = +(st.meta?.nuvemEm?.mod || st.snap.mod || 0), ult = Math.max(+(st.meta?.nuvemEm?.t || 0), +(st.snap.t || 0));
+      if (daSala ? daSala < meu : ult && ult < meu - 60000) { try { await t.apagar(this.sala); } catch { } st.snap = null; st.meta = null; }
+      else if (daSala > meu) ad.base?.(daSala); }
     if (st.snap && !o.novo) { this.base = st.snap.j; this.ate = st.snap.ate || ''; }
-    else { this.base = JSON.stringify(ad.get()); this.ate = ''; await t.setSnap(this.sala, { j: this.base, ate: '', t: Date.now() }); await this.subirArqs(ad.chaves(ad.get()), true); st.ops = []; }
+    else { this.base = JSON.stringify(ad.get()); this.ate = ''; await t.setSnap(this.sala, { j: this.base, ate: '', t: Date.now(), mod: +(ad.mod?.() || 0) }); await this.subirArqs(ad.chaves(ad.get()), true); st.ops = []; }
     this.log = (st.ops || []).map(op => ({ k: op.k, ops: JSON.parse(op.j || '[]') }));
     this.confirmado = JSON.stringify(Difs.aplica(JSON.parse(this.base), this.log.flatMap(x => x.ops)));
     if (ad.canon) { const c = JSON.stringify(ad.canon(JSON.parse(this.confirmado))); if (c !== this.confirmado) { this.confirmado = this.base = c; this.log = []; } } // sala de antes com outra vista ativa: passa para a forma de sempre
@@ -456,7 +461,7 @@ const AoVivo = {
   // a sua por cima ao receber. Assim trocar de vista não vira mudança para os outros (antes trocava as partes de todo mundo e misturava as vistas).
   canonVista(d) { if (!d?.vistas?.length) return d; const id = d.vistas.map(v => v.id).sort()[0]; if (d.vistaAtual !== id) Modelo.ativaVista(d, id); return d; },
   adAtelie() {
-    const def = Atelie.def; return { ctx: 'atelie', sala: 'at-' + def.id, nome: def.nome,
+    const def = Atelie.def; return { ctx: 'atelie', sala: 'at-' + def.id, nome: def.nome, mod: () => Atelie.modNuvem || 0, base: m => { Atelie.modNuvem = m; }, // versão da nuvem desta aba (a sala guarda de qual versão nasceu)
       get: () => { const d = this.canonVista(JSON.parse(JSON.stringify(Atelie.def))); delete d.thumb; return d; }, canon: d => this.canonVista(d), // a miniatura não vai nas mudanças (cada um tem a sua; quem salva na nuvem faz a nova)
       set: d => { const v = Atelie.def?.vistaAtual; if (Atelie.def?.thumb && !d.thumb) d.thumb = Atelie.def.thumb; Modelo.garanteVistas(d); if (v && d.vistaAtual !== v && d.vistas.some(x => x.id === v)) Modelo.ativaVista(d, v);
         if (Atelie.sel && !d.partes.some(p => p.id === Atelie.sel)) Atelie.sel = null; Atelie.def = d; Atelie.ultimo = JSON.stringify(d); Atelie.sujo = true; Atelie.rascunho(); Atelie.pinta(); },

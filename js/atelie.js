@@ -35,12 +35,12 @@ const Atelie = {
     let ok = false; try { const r = await this._abrir(id, o); ok = true; return r; } finally { if (tela) NuvemTela.fim(ok); }
   },
   async _abrir(id, o = {}) {
-    this.volta = !!o.volta; let def; this.daAnim = o.daAnim || null; // daAnim = a cópia de uma animação (js/atelieanim.js)
+    this.volta = !!o.volta; let def; this.daAnim = o.daAnim || null; this.modNuvem = null; this.travado = false; // daAnim = a cópia de uma animação (js/atelieanim.js)
     let doRascunho = false, novo = null, soLocal = false;
     if (o.def) def = o.def; // veio de um arquivo .atelieanimador
     else if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }), r = await DB.get('arquivos', this.chaveRascunho(id)).catch(() => null); this._rascNuvem = !!r?.nuvem;
       // a versão da NUVEM de verdade (nunca a cópia do computador no lugar dela): se a nuvem não responder, abre o que é deste computador COMO LOCAL
-      try { def = await Nuvem.abrir(id, false, undefined, true); this._temNuvem = true; if (typeof NuvemTela !== 'undefined') { NuvemTela.nome(def?.nome); NuvemTela.passo(.15, 'Baixando as imagens…'); } } catch (e) { this._temNuvem = false;
+      try { def = await Nuvem.abrir(id, false, undefined, true); this._temNuvem = true; this.modNuvem = Nuvem.ultMod.get(id) || null; if (typeof NuvemTela !== 'undefined') { NuvemTela.nome(def?.nome); NuvemTela.passo(.15, 'Baixando as imagens…'); } } catch (e) { this._temNuvem = false;
         const pc = r?.def || await DB.get('personagens', id).catch(() => null);
         if (!pc && !o.reserva) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
         if (pc) { t.remove(); def = pc; doRascunho = true; soLocal = true;
@@ -50,7 +50,7 @@ const Atelie = {
       else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def) && r.nuvem && await AoVivo.outrosNaSala('at-' + id)) {
         await this.apagarRascunho(id); // tem gente trabalhando nele agora (ex.: deu F5): segue na sala ao vivo, que tem a versão de todos
       }
-      else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def) && r.nuvem && (!def.modificado || r.em >= def.modificado)) {
+      else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def) && r.nuvem && (r.base ? r.base === this.modNuvem : (!def.modificado || r.em >= def.modificado))) { // rascunho feito em cima DESTA versão da nuvem (r.base): segue sem perguntar
         def = r.def; doRascunho = true; // o rascunho deste personagem da nuvem é o mais novo (ninguém salvou depois): continua dele, sem perguntar, e ele vai sozinho para a nuvem
       }
       else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def)) {
@@ -70,6 +70,7 @@ const Atelie = {
     if (!this.soQuadro && !this.daAnim && !this.naNuvem && (def.edicoes?.length || !def.semNuvem)) Nuvem.estaNaNuvem(def.id).then(tem => { if (tem === false && this.def === def && !this.naNuvem) { Autores.semNuvem(def); const au = $('#at-autores'); if (au) au._de = null; this.pinta(); } }); // não está na nuvem: sem o histórico de lá
     if (!this.soQuadro) try { const u = new URL(location.href); if (u.searchParams.get('atelie') !== def.id) { u.searchParams.set('atelie', def.id); u.searchParams.delete('pose'); history.replaceState(null, '', u.pathname + u.search); } } catch { } // F5 / Ctrl+F5 / atualizar o site: volta para ESTE personagem no Ateliê (não para o menu)
     if (this.naNuvem && this.sujo) this.agendaNuvem(); // mudanças guardadas aqui que ainda não foram: vão agora
+    if (!this._ligouVolta) { this._ligouVolta = true; document.addEventListener('visibilitychange', () => { if (!document.hidden && this.def) this.conferirVersao().catch(() => { }); }); }
     if (novo?.fs.length) await this.montarNovo(novo); Telas.marca('atelie');
     Nuvem.souAdm?.(); // ADM: só eles apagam vistas (o menu já sai certo)
     AoVivo.entrarAtelie().catch(() => { }); // personagem da nuvem: quem mais estiver nele aparece (cursor, nome, mudanças)
@@ -186,14 +187,14 @@ const Atelie = {
   rascunho() {
     if (!this.def || this._apagado === this.def.id || this.soQuadro || this.daAnim) return; // cópia de animação: vai para a animação (AtelieAnim). painel do quadro: a cópia da animação nunca vira rascunho this.salvandoLocal = true; this.pintaEstado(); clearTimeout(this._tr);
     this._tr = setTimeout(async () => { if (this._apagado === this.def?.id) return; try { const def = JSON.parse(this.ultimo || JSON.stringify(this.def)); let thumb = null; try { thumb = this.miniatura(); } catch { }
-      await DB.put('arquivos', { tipo: 'rascunho-atelie', def, em: Date.now(), thumb, nuvem: !!this.naNuvem }, this.chaveRascunho(def.id)); this.rascunhoEm = Date.now(); } catch (e) { UI.toast('Não consegui guardar no navegador: ' + esc(e.message), { kind: 'err' }); }
+      await DB.put('arquivos', { tipo: 'rascunho-atelie', def, em: Date.now(), thumb, nuvem: !!this.naNuvem, base: this.modNuvem || null }, this.chaveRascunho(def.id)); this.rascunhoEm = Date.now(); } catch (e) { UI.toast('Não consegui guardar no navegador: ' + esc(e.message), { kind: 'err' }); }
       this.salvandoLocal = false; this.pintaEstado(); window.EstudioConta?.espaco?.atualizar?.(); if (this.naNuvem) this.agendaNuvem(); }, 500);
   },
   // guarda já (sem esperar) neste computador
   async guardarLocalJa() {
     if (!this.def || this._apagado === this.def.id || this.daAnim || (!this.sujo && !this.salvandoLocal)) return; clearTimeout(this._tr);
     try { const def = JSON.parse(this.ultimo || JSON.stringify(this.def)); let thumb = null; try { thumb = this.miniatura(); } catch { }
-      await DB.put('arquivos', { tipo: 'rascunho-atelie', def, em: Date.now(), thumb, nuvem: !!this.naNuvem }, this.chaveRascunho(def.id)); this.rascunhoEm = Date.now(); return true; }
+      await DB.put('arquivos', { tipo: 'rascunho-atelie', def, em: Date.now(), thumb, nuvem: !!this.naNuvem, base: this.modNuvem || null }, this.chaveRascunho(def.id)); this.rascunhoEm = Date.now(); return true; }
     catch (e) { UI.toast('Não consegui guardar no navegador: ' + esc(e.message), { kind: 'err' }); return false; }
     finally { this.salvandoLocal = false; this.pintaEstado(); window.EstudioConta?.espaco?.atualizar?.(); }
   },
@@ -203,8 +204,11 @@ const Atelie = {
   // AO VIVO com mais gente: as mudanças já chegam para todos pelo ao vivo (Firebase), então a nuvem da Cloudflare NÃO precisa de cada uma:
   // só UMA pessoa da sala (a de menor id, `guardiao`) manda, de 10 em 10 min, ao esconder a aba e quando é a última a sair; depois avisa os outros (meta.nuvemEm)
   aoVivoJunto() { if (!AoVivo.ativo || AoVivo.ad?.ctx !== 'atelie') return false; const me = AoVivo.eu?.id; return Object.keys(AoVivo.gente || {}).some(id => id !== me); },
-  guardiao() { if (!this.aoVivoJunto()) return true; const me = AoVivo.eu.id, ids = [...new Set([...Object.keys(AoVivo.gente || {}), me])].sort(); return ids[0] === me; },
+  // quem grava a sala ao vivo: só gente ATIVA (aba esquecida/ausente não grava se tem alguém mexendo); entre os ativos, o menor id
+  guardiao() { if (!this.aoVivoJunto()) return true; const me = AoVivo.eu.id, g = AoVivo.gente || {}, ativos = Object.keys(g).filter(id => id !== me && g[id] && !g[id].afk);
+    if (document.hidden || AoVivo._afk) return !ativos.length; return [...ativos, me].sort()[0] === me; },
   salvoPorOutro(m) { // quem salvou avisou: se não tenho mudança minha ainda indo, o que está na tela é o que foi para a nuvem
+    if (m?.mod && this.def) { this.modNuvem = m.mod; this.travado = false; } // a sala está na versão que foi salva: é a minha base também
     if (!this.naNuvem || !this.def || m.por === AoVivo.eu?.id || AoVivo.pend?.length) return; this.sujo = false; clearTimeout(this._tn); this.baseNuvem = this.ultimo; this.base0 = this.ultimo;
     DB.del('arquivos', this.chaveRascunho(this.def.id)).catch(() => { }); this.rascunhoEm = null; this.pintaEstado(); $('#at-salvar') && this.pintaBotaoNuvem(); },
   naReserva() { try { return window.EstudioLimite?.marcado?.() > Date.now(); } catch { return false; } },
@@ -212,6 +216,7 @@ const Atelie = {
     if (!this._ligouEsconder) { this._ligouEsconder = true; document.addEventListener('visibilitychange', () => { if (document.hidden && this.naNuvem && this.sujo && !this.enviando && Date.now() - (this._envioEm || 0) > 120000) this.sincronizar(); }); } },
   async sincronizar(agora) {
     clearTimeout(this._tn); if (!this.naNuvem || !this.def) return;
+    if (this.travado && !agora) return; // tem versão mais nova na nuvem: o envio automático parou até a pessoa decidir
     if (!agora && !this.guardiao()) return; // ao vivo: quem manda é outra pessoa da sala (agora = botão / sair: manda mesmo)
     if (this.enviando) { this.denovo = true; if (agora) await this.enviando; return; }
     const snap = this.ultimo || JSON.stringify(this.def), def = JSON.parse(snap); if (!def.partes.length) return;
@@ -221,15 +226,37 @@ const Atelie = {
     this.enviando = Ocupado.mantem(async () => { // com a aba escondida o navegador não congela no meio do envio
       try { try { def.thumb = await this.miniaturaPronta(); } catch { }
         if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
-        await Icone.prepara(def); await Nuvem.salvar(def, agora && Ocupado.n ? txt => Ocupado.anda(txt) : null, { limpar: !!agora }); this.aplicaTroca(Nuvem.ultimaTroca); const snapR = Nuvem.remapear(snap, Nuvem.ultimaTroca);
+        await Icone.prepara(def); await Nuvem.salvar(def, agora && Ocupado.n ? txt => Ocupado.anda(txt) : null, { limpar: !!agora, base: this.modNuvem || undefined, forcar: this._forcar }); this._forcar = false; this.travado = false; if (this.def?.id === def.id) this.modNuvem = Nuvem.ultMod.get(def.id) || this.modNuvem; this.aplicaTroca(Nuvem.ultimaTroca); const snapR = Nuvem.remapear(snap, Nuvem.ultimaTroca);
         if ((this.ultimo || JSON.stringify(this.def)) === snapR) { this.sujo = false; await DB.del('arquivos', this.chaveRascunho(def.id)).catch(() => { }); this.rascunhoEm = null; }
         if (this.def?.id === def.id) { this.def.modificado = def.modificado; this.def.autor = def.autor; this.def.edicoes = def.edicoes; this.def.thumb = def.thumb; }
         this.baseNuvem = snapR; if (this.base0 === snapR || !this.sujo) this.base0 = snapR; this.avisaAnimador(def, false); this.pinta();
-        if (this.aoVivoJunto()) try { AoVivo.t.setMeta(AoVivo.sala, { nuvemEm: { t: Date.now(), por: AoVivo.eu.id } }); } catch { }
-      } catch (e) { this.erroNuvem = e.message || 'sem conexão'; }
+        if (AoVivo.ativo && AoVivo.ad?.ctx === 'atelie') try { AoVivo.t.setMeta(AoVivo.sala, { nuvemEm: { t: Date.now(), por: AoVivo.eu.id, mod: this.modNuvem || 0 } }); } catch { }
+      } catch (e) { this._forcar = false; this.erroNuvem = e.message || 'sem conexão'; if (e.conflito) { this.travado = true; setTimeout(() => this.conflito(e.conflito), 0); } }
     });
     await this.enviando; this.enviando = null; this.pintaEstado(); $('#at-salvar') && this.pintaBotaoNuvem();
     if (this.denovo) { this.denovo = false; if (this.sujo) return this.sincronizar(agora); }
+  },
+  // VERSÃO MAIS NOVA NA NUVEM (04/11/2026): esta aba ia gravar em cima de uma versão que já não é a da nuvem (outra pessoa ou aba salvou
+  // depois). O envio automático PARA (nada de versão velha por cima) e a pessoa escolhe. Aba escondida: pergunta quando ela voltar.
+  async conflito(c = {}) {
+    if (!this.def || this._perguntando) return; if (document.hidden) { this._conflitoDepois = c; return; } this._perguntando = true;
+    try { const id = this.def.id, quando = c.quando ? fmtDate(c.quando) : 'há pouco';
+      const v = await UI.modal({ title: 'Tem uma versão mais nova na nuvem', icon: 'cloud', width: 470, body: `<div><b>${esc(this.def.nome)}</b> foi salvo na nuvem ${esc(quando)} por outra pessoa ou outra aba, <b>depois</b> da versão que esta aba abriu.<br><br>Para não apagar o trabalho de ninguém, as suas mudanças desta aba <b>não foram</b> para a nuvem (continuam guardadas neste computador).<br><br><b>Abrir a versão nova</b>: descarta as mudanças desta aba e abre o que está na nuvem.<br><b>Salvar a minha por cima</b>: só se você tem certeza de que a sua é a certa.</div>`,
+        buttons: [{ label: 'Salvar a minha por cima', icon: 'upload', value: 'minha' }, { label: 'Abrir a versão nova', icon: 'cloud', kind: 'nuvem-dest', value: 'nova' }] });
+      if (this.def?.id !== id) return;
+      if (v === 'nova') { await this.apagarRascunho(id); this.sujo = false; this.travado = false; try { if (AoVivo.ativo && AoVivo.ad?.ctx === 'atelie') await AoVivo.sair(); } catch { } await this.abrir(id); }
+      else if (v === 'minha') { this._forcar = true; this.travado = false; this._perguntando = false; await this.salvarJa(); }
+    } finally { this._perguntando = false; }
+  },
+  // voltou para a aba: alguém salvou uma versão mais nova enquanto ela estava parada? (pergunta, nunca grava por cima)
+  async conferirVersao() {
+    if (!this.def || !this.naNuvem || !this.modNuvem || this._perguntando) return; if (this._conflitoDepois) { const c = this._conflitoDepois; this._conflitoDepois = null; return this.conflito(c); }
+    if (AoVivo.ativo && AoVivo.ad?.ctx === 'atelie' && this.aoVivoJunto()) return; // com gente junto, a sala ao vivo já traz o que mudou
+    const id = this.def.id, m = await Nuvem.modAtual(id); if (!m || m === this.modNuvem || this.def?.id !== id) return;
+    if (this.sujo) { this.travado = true; return this.conflito({ quando: m }); }
+    this._perguntando = true; try { const v = await UI.modal({ title: 'Tem uma versão mais nova na nuvem', icon: 'cloud', width: 440, body: `<div><b>${esc(this.def.nome)}</b> foi salvo na nuvem ${esc(fmtDate(m))} enquanto esta aba estava parada. Esta aba ainda mostra a versão antiga.</div>`,
+      buttons: [{ label: 'Agora não', value: 'nao' }, { label: 'Abrir a versão nova', icon: 'cloud', kind: 'nuvem-dest', value: 'nova' }] });
+      if (v === 'nova' && this.def?.id === id) { this._perguntando = false; try { if (AoVivo.ativo && AoVivo.ad?.ctx === 'atelie') await AoVivo.sair(); } catch { } await this.abrir(id); } else this.travado = true; } finally { this._perguntando = false; }
   },
   // depois de ir para a nuvem em webp: as chaves das imagens mudam também aqui (sem virar uma mudança nova)
   aplicaTroca(troca) {
@@ -1529,7 +1556,7 @@ const Atelie = {
     // aprendizado: o que a equipe corrigiu depois da IA organizar vai junto (a IA lê isso nos próximos personagens)
     if (def.iaPlano?.resumo) { try { const c = IA.correcoes(def.iaPlano.resumo, IA.resumo(def)); def.iaCorrecoes = [...new Set([...(def.iaCorrecoes || []), ...c])].slice(-40); } catch { } }
     const fimOc = Ocupado.inicio({ tipo: 'nuvem', icone: 'cloud', titulo: 'Salvando na nuvem', subtitulo: 'Preparando o personagem…', aba: 'Salvando na nuvem', fimTxt: 'Salvo na nuvem', aviso: 'Aguarde: enquanto salva não dá para mexer (para nada ficar pela metade). Pode ir para outra aba ou minimizar: continua salvando. Só não feche esta aba.' }), t = { remove: () => { if (t.ok) return; t.ok = 1; fimOc(); } };
-    try { await Icone.prepara(def); await Nuvem.salvar(def, txt => Ocupado.anda(txt)); t.remove(); this.aplicaTroca(Nuvem.ultimaTroca); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.base0 = this.baseNuvem = this.ultimo; this.pinta();
+    try { await Icone.prepara(def); await Nuvem.salvar(def, txt => Ocupado.anda(txt), { base: this.modNuvem || undefined, forcar: !this.modNuvem }); t.remove(); this.modNuvem = Nuvem.ultMod.get(def.id) || null; this.travado = false; this.aplicaTroca(Nuvem.ultimaTroca); await this.apagarRascunho(def.id); this.sujo = false; this.ultimo = JSON.stringify(def); this.base0 = this.baseNuvem = this.ultimo; this.pinta();
       this.avisaAnimador(def, false); // a animação aberta (aqui ou na outra aba) atualiza o personagem e tira o "não está na nuvem"
       this.naNuvem = true; this.pintaBotaoNuvem(); this.pintaEstado(); AoVivo.entrarAtelie().catch(() => { });
       UI.toast(`<b>${esc(def.nome)}</b> salvo na nuvem da equipe (pasta "${esc(def.pasta)}"). Agora as mudanças vão sozinhas para a nuvem.`, { kind: 'ok', time: 5000 });

@@ -10,7 +10,7 @@ const Nuvem = {
     if (r.headers.get('x-nuvem') === 'reserva') { const m = (o.method || 'GET').toUpperCase(), oque = /^\/personagens(\?|$)/.test(caminho) ? 'a lista dos personagens' : m === 'POST' ? 'salvar os personagens' : m === 'DELETE' ? 'apagar imagens antigas' : 'abrir o que foi salvo hoje';
       (this._usoRes ||= new Set()).add(oque); }
     setTimeout(() => this._resPinta?.(), 0);
-    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error?.message || 'A nuvem respondeu ' + r.status); }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.error?.message || 'A nuvem respondeu ' + r.status); e.status = r.status; e.dados = j.error || null; throw e; }
     return r;
   },
   // lista os personagens da equipe: [{ id, nome, pasta, thumb, por, em }]
@@ -46,11 +46,17 @@ const Nuvem = {
   // definição do personagem (da nuvem; se estiver sem internet, a cópia do navegador)
   // mod = marca da última gravação na nuvem: se a cópia deste computador é a mesma, não baixa de novo
   // soNuvem: só a versão da nuvem (sem cair na cópia do computador quando a nuvem não responde) — o Ateliê usa para não confundir as duas
+  // VERSÃO (04/11/2026): ultMod guarda a versão da nuvem (mod) que cada personagem tinha quando foi aberto/salvo aqui; o Ateliê manda
+  // essa "versão-base" ao salvar e a nuvem recusa (409) se outra pessoa/aba já salvou uma mais nova — nada de versão velha por cima
+  ultMod: new Map(),
   async abrir(id, rapido, mod, soNuvem) {
-    if (mod) { const local = await DB.get('personagens', id).catch(() => null); if (local && local._mod === mod) return local; }
-    try { const d = await (await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/personagem.json`))).json(); if (mod) d._mod = mod; await DB.put('personagens', d); return d; }
+    if (mod) { const local = await DB.get('personagens', id).catch(() => null); if (local && local._mod === mod) { this.ultMod.set(id, mod); return local; } }
+    try { const r = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${id}/personagem.json`)), xm = +(r.headers.get('x-mod') || 0), d = await r.json();
+      if (xm) { d._mod = xm; this.ultMod.set(id, xm); } else if (mod) d._mod = mod; await DB.put('personagens', d); return d; }
     catch (e) { if (soNuvem) throw e; const local = await DB.get('personagens', id); if (local) return local; throw e; }
   },
+  // versão atual, sem baixar o personagem (o Ateliê confere ao voltar para a aba)
+  async modAtual(id) { try { const j = await (await this.pede('/personagens/arquivo?so=mod&k=' + encodeURIComponent(`personagens/${id}/personagem.json`))).json(); return +j.mod || 0; } catch { return 0; } },
   async baixar(k) {
     let r; try { r = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k)); }
     catch (e) { // imagem que já foi convertida para WEBP na nuvem (animação antiga ainda com o nome .png): pega a versão webp
@@ -81,6 +87,7 @@ const Nuvem = {
   _ks: new Map(),
   // o.limpar === false (envio automático): as imagens que saíram ficam para apagar no próximo envio "de verdade" (botão, sair):
   // cada apagada gasta do limite do dia e, com o Ctrl+Z, a mesma imagem voltaria e teria de subir de novo
+  // o.base = a versão da nuvem em que esta aba se baseou (manda ?base=; a nuvem recusa se já tiver outra) · o.forcar = salvar por cima mesmo assim
   async salvar(def, aoAndar, o = {}) {
     this._lista = null;
     let existentes = this._ks.get(def.id);
@@ -105,7 +112,10 @@ const Nuvem = {
     this.semAudio = semAudio; if (semAudio.length) setTimeout(() => UI.toast(`${semAudio.length} áudio(s) de teste não foram aceitos pela nuvem: continuam neste computador e vão no .atelieanimador.`, { kind: 'warn', time: 7000 }), 50);
     def.modificado = Date.now(); await Autores.marca(def); // quem subiu (fica para sempre) e quem editou
     aoAndar?.('Salvando o personagem…');
-    await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${def.id}/personagem.json`) + '&nome=' + encodeURIComponent(def.nome || ''), { method: 'POST', body: JSON.stringify(def), headers: { 'content-type': 'application/json' } });
+    const vb = '&base=' + (o.base || 0) + (o.forcar ? '&forcar=1' : ''); let rs;
+    try { rs = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(`personagens/${def.id}/personagem.json`) + '&nome=' + encodeURIComponent(def.nome || '') + vb, { method: 'POST', body: JSON.stringify(def), headers: { 'content-type': 'application/json' } }); }
+    catch (e) { if (e.status === 409) { const x = new Error('Há uma versão mais nova deste personagem na nuvem: não gravei por cima.'); x.conflito = e.dados || {}; throw x; } throw e; }
+    const jr = await rs.json().catch(() => ({})); if (jr?.mod) { def._mod = jr.mod; this.ultMod.set(def.id, jr.mod); }
     await DB.put('personagens', JSON.parse(JSON.stringify(def)));
     // imagens que saíram do personagem não ficam ocupando espaço na nuvem
     const usadas = new Set(imgs);
