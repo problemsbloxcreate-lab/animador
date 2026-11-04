@@ -8,6 +8,69 @@
    não existir); se alguém mudar a pasta dele depois, ela não é mexida de novo.
    No projeto: P.nuvemEm = quando ESTE computador mandou/recebeu da nuvem; P.nuvemMod = marca da versão da nuvem que ele tem. */
 'use strict';
+/* TELA "CARREGANDO DA NUVEM" (04/11/2026, pedido do dono): ao abrir uma animação da nuvem pelos Recentes do menu (?nuvem=<id>),
+   a tela preta da inicialização (só o ícone) vira um carregamento estilo Windows: nuvem com as bolinhas girando dentro,
+   "Carregando da nuvem", o nome, a barrinha fina e a %. Fica por baixo da tela de inicialização (que some com fade por cima).
+   NUNCA tenta de novo sozinha; erro ou fim = some. */
+const NuvemTela = {
+  el: null, alvo: 0, mostrado: 0, raf: 0,
+  css() {
+    if (document.getElementById('nt-css')) return;
+    const s = document.createElement('style'); s.id = 'nt-css';
+    s.textContent = `#nuvem-tela{position:fixed;inset:0;z-index:2147483646;background:#000;display:flex;align-items:center;justify-content:center;font:14px/1.5 system-ui,'Segoe UI',sans-serif;color:#e8e9ec;user-select:none;-webkit-user-select:none;transition:opacity .4s ease}
+#nuvem-tela.nt-sai{opacity:0;pointer-events:none}
+#nuvem-tela .nt-c{position:relative;width:260px;height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#nuvem-tela .nt-ic{width:84px;height:84px;transition:transform .7s cubic-bezier(.4,0,.2,1),opacity .5s ease;animation:ntRespira 2.6s ease-in-out infinite}
+#nuvem-tela .nt-ic img{width:84px;height:84px;display:block}
+#nuvem-tela .nt-nv{position:absolute;top:50%;left:50%;width:132px;height:92px;margin:-78px 0 0 -66px;opacity:0;transform:scale(.6);transition:opacity .5s ease .25s,transform .6s cubic-bezier(.2,.9,.3,1.2) .25s}
+#nuvem-tela .nt-nv svg{width:132px;height:92px;overflow:visible}
+#nuvem-tela .nt-nv path{fill:none;stroke:#e8e9ec;stroke-width:3;stroke-linejoin:round;stroke-dasharray:420;stroke-dashoffset:420;transition:stroke-dashoffset 1s ease .3s}
+#nuvem-tela .nt-dots{position:absolute;left:50%;top:58%;width:34px;height:34px;margin:-17px 0 0 -17px}
+#nuvem-tela .nt-dots i{position:absolute;inset:0;animation:ntGira 2.2s infinite}
+#nuvem-tela .nt-dots i::after{content:'';position:absolute;left:50%;top:0;width:4.5px;height:4.5px;margin-left:-2.25px;border-radius:50%;background:#e8e9ec}
+#nuvem-tela .nt-dots i:nth-child(2){animation-delay:.12s}#nuvem-tela .nt-dots i:nth-child(3){animation-delay:.24s}#nuvem-tela .nt-dots i:nth-child(4){animation-delay:.36s}#nuvem-tela .nt-dots i:nth-child(5){animation-delay:.48s}
+#nuvem-tela .nt-tx{position:absolute;top:calc(50% + 34px);left:50%;width:300px;margin-left:-150px;text-align:center;opacity:0;transform:translateY(6px);transition:opacity .45s ease .45s,transform .45s ease .45s}
+#nuvem-tela .nt-t{font-size:13.5px;color:#e8e9ec;font-weight:500}
+#nuvem-tela .nt-nm{font-size:12px;color:#7d8089;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+#nuvem-tela .nt-br{width:200px;height:5px;border-radius:3px;background:rgba(255,255,255,.16);margin:16px auto 10px;overflow:hidden}
+#nuvem-tela .nt-br>i{display:block;height:100%;width:0;background:#e8e9ec;border-radius:3px}
+#nuvem-tela .nt-pc{font-size:11.5px;color:#7d8089}#nuvem-tela .nt-pc b{color:#c3c6cc;font-weight:600}
+#nuvem-tela.nt-on .nt-ic{transform:translateY(-118px) scale(.42);opacity:.9;animation:none}
+#nuvem-tela.nt-on .nt-nv{opacity:1;transform:none}#nuvem-tela.nt-on .nt-nv path{stroke-dashoffset:0}
+#nuvem-tela.nt-on .nt-tx{opacity:1;transform:none}
+@keyframes ntRespira{50%{transform:scale(1.045)}}
+@keyframes ntGira{0%{transform:rotate(225deg);opacity:1;animation-timing-function:ease-out}7%{transform:rotate(345deg);animation-timing-function:linear}30%{transform:rotate(455deg);animation-timing-function:ease-in-out}39%{transform:rotate(690deg);animation-timing-function:linear}70%{transform:rotate(815deg);opacity:1;animation-timing-function:ease-out}75%{transform:rotate(945deg);animation-timing-function:ease-out}76%,100%{transform:rotate(945deg);opacity:0}}
+@media (prefers-reduced-motion:reduce){#nuvem-tela *{animation:none!important;transition:none!important}}`;
+    document.head.appendChild(s);
+  },
+  inicio(nome) {
+    if (this.el) return; this.css(); this.alvo = 0; this.mostrado = 0;
+    const EI = window.EstudioIcones, ic = EI ? EI.url('an') : 'icones/icone-192.png';
+    const el = this.el = document.createElement('div'); el.id = 'nuvem-tela'; el.setAttribute('role', 'progressbar'); el.setAttribute('aria-label', 'Carregando da nuvem');
+    el.innerHTML = `<div class="nt-c"><div class="nt-ic"><img alt="" src="${esc(ic)}"></div>
+      <div class="nt-nv"><svg viewBox="0 0 132 92"><path d="M34 82 H100 A26 26 0 0 0 104 30.4 A34 34 0 0 0 40.6 22 A30 30 0 0 0 34 82 Z"/></svg><span class="nt-dots"><i></i><i></i><i></i><i></i><i></i></span></div>
+      <div class="nt-tx"><div class="nt-t">Carregando da nuvem</div><div class="nt-nm"></div><div class="nt-br"><i></i></div><div class="nt-pc"><b>0%</b> · <span>Conectando…</span></div></div></div>`;
+    el.querySelector('.nt-nm').textContent = nome || '';
+    document.body.appendChild(el);
+    // a transição do ícone para a nuvem acontece quando a tela de inicialização (por cima) já saiu: assim dá para ver (no máximo 13 s esperando)
+    const t0 = Date.now(), vira = () => { if (!this.el) return; if (document.getElementById('turma-login') && Date.now() - t0 < 13000) return setTimeout(vira, 120); setTimeout(() => this.el?.classList.add('nt-on'), 150); };
+    vira(); this.anda();
+  },
+  nome(n) { const e = this.el?.querySelector('.nt-nm'); if (e && n) e.textContent = n; },
+  // f = 0..1 (do download de verdade); txt = o que está baixando
+  passo(f, txt) { if (!this.el) return; this.alvo = Math.max(this.alvo, Math.min(1, f)); if (txt) this.el.querySelector('.nt-pc span').textContent = txt; },
+  anda() { // a barra corre suave até o valor de verdade (sem pular)
+    cancelAnimationFrame(this.raf); if (!this.el) return;
+    this.mostrado += (this.alvo - this.mostrado) * .12; if (this.alvo - this.mostrado < .002) this.mostrado = this.alvo;
+    const p = Math.round(this.mostrado * 100); this.el.querySelector('.nt-br>i').style.width = (this.mostrado * 100).toFixed(1) + '%'; this.el.querySelector('.nt-pc b').textContent = p + '%';
+    this.raf = requestAnimationFrame(() => this.anda());
+  },
+  async fim(ok) {
+    const el = this.el; if (!el) return;
+    if (ok) { this.passo(1, 'Pronto'); await new Promise(r => setTimeout(r, 380)); }
+    cancelAnimationFrame(this.raf); this.el = null; el.classList.add('nt-sai'); setTimeout(() => el.remove(), 450);
+  },
+};
 const NuvemAnim = {
   PASTA_AUTO: 'PERSONAGENS ANIMADOR AUTOMATICO',
   _ks: new Map(), // id → Set das chaves que já estão na nuvem
@@ -81,34 +144,40 @@ const NuvemAnim = {
   // "quem" da lista da nuvem (códigos e nomes) no formato do Autores.selo; a foto e o nome de agora vêm do Autores.vivo
   quemDe(it) { const q = it?.quem, P = x => x?.i ? { id: x.i, nome: x.n || '…', em: x.t || 0 } : null; if (!q?.a) return /^u[0-9a-f]{16}$/.test(it?.por || '') ? { autor: { id: it.por, nome: '…', em: Date.parse(it.em || 0) || it.mod || 0 }, edicoes: [], modificado: it.mod } : null; return { autor: P(q.a), edicoes: (q.e || []).map(P).filter(Boolean), modificado: it.mod }; },
   // ---------- baixar ----------
-  async baixarProjeto(id) {
+  async baixarProjeto(id, andou = () => { }) { // andou(0..1, texto): o progresso de verdade (para a tela "Carregando da nuvem")
+    andou(.04, 'Baixando a animação…');
     const r = await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.pasta(id) + 'projeto.json')); const P = await r.json();
+    andou(.1, 'Conferindo os arquivos…');
     const ks = await this.noServidor(id).catch(() => new Set());
-    for (const k of Toon.ids(P)) { if (await Arq.pegaBlob(k)) continue;
+    const ids = [...Toon.ids(P)]; let i = 0; andou(.14, ids.length ? 'Arquivos 0 de ' + ids.length : 'Quase pronto…');
+    for (const k of ids) { i++; andou(.14 + .8 * (i - 1) / ids.length, 'Arquivos ' + i + ' de ' + ids.length); if (await Arq.pegaBlob(k)) continue;
       const ka = this.chaveArq(id, k);
       if (ks.has(ka)) { try { const b = await (await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(ka))).blob(); await Arq.guardar(b, k); continue; } catch { } }
       if (/^personagens\//.test(k)) await Nuvem.baixar(k).catch(() => null); }
+    andou(.95, 'Quase pronto…');
     if (ks.has(this.pasta(id) + 'thumb.jpg')) { try { const b = await (await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.pasta(id) + 'thumb.jpg'))).blob(); P.thumb = await new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(b); }); } catch { } }
     return P;
   },
   // abrir uma animação pela tela inicial: a versão da nuvem quando ela é mais nova; com gente na sala ao vivo, a da sala
-  async abrir(id, local) {
+  async abrir(id, local, o = {}) { // o.tela: mostra a tela "Carregando da nuvem" (aberto pelos Recentes do menu) em vez da janelinha Ocupado
     let it = null; try { it = (await this.lista(true)).find(x => x.id === id); } catch { }
     let P = local;
     const outros = AoVivo.ligado() ? await AoVivo.outrosNaSala('an-' + id) : 0;
     if (it && !outros && (!local || (it.mod || 0) > (local.nuvemMod || 0))) {
       const mudouAqui = local && (local.modificado || 0) > (local.nuvemEm || 0) + 3000 && local.nuvemMod; // mudanças daqui que ainda não foram e a nuvem também mudou
       let usar = 'nuvem';
+      if (mudouAqui) { if (o.tela) NuvemTela.fim(); } // a pergunta não pode ficar escondida atrás da tela de carregamento
       if (mudouAqui) usar = await UI.modal({ title: 'Esta animação mudou nos dois lugares', icon: 'cloud', width: 460, body: `<div>A versão da <b>nuvem da equipe</b> é mais nova, mas este computador tem mudanças que ainda não foram para a nuvem.<br><br>A versão que você não escolher fica guardada aqui como <b>(anterior)</b>.</div>`, buttons: [{ label: 'Usar a deste computador', value: 'local' }, { label: 'Usar a da nuvem', kind: 'primary', value: 'nuvem' }] }) || 'nuvem';
       if (usar === 'nuvem') {
-        const fim = Ocupado.inicio({ tipo: 'arquivo', icone: 'cloud', titulo: `Abrindo "${it.nome || 'Animação'}"`, subtitulo: 'Baixando a animação da nuvem da equipe…' });
-        try { const N = await this.baixarProjeto(id); if (mudouAqui) { const ant = clone(local); ant.id = uid('p'); ant.nome = local.nome + ' (anterior)'; ant.anterior = { em: Date.now() }; await DB.put('projetos', ant); }
+        const tela = o.tela && NuvemTela.el; if (tela) NuvemTela.nome(it.nome);
+        const fim = tela ? () => { } : Ocupado.inicio({ tipo: 'arquivo', icone: 'cloud', titulo: `Abrindo "${it.nome || 'Animação'}"`, subtitulo: 'Baixando a animação da nuvem da equipe…' });
+        try { const N = await this.baixarProjeto(id, tela ? (f, txt) => NuvemTela.passo(f, txt) : undefined); if (mudouAqui) { const ant = clone(local); ant.id = uid('p'); ant.nome = local.nome + ' (anterior)'; ant.anterior = { em: Date.now() }; await DB.put('projetos', ant); }
           N.id = id; N.nuvemEm = Date.now(); N.nuvemMod = it.mod || Date.now(); N.modificado = N.modificado || Date.now(); await DB.put('projetos', JSON.parse(JSON.stringify(N))); P = N; }
         catch (e) { UI.toast('Não deu para baixar da nuvem: ' + esc(e.message) + (local ? ' Abrindo a cópia deste computador.' : ''), { kind: 'warn', time: 8000 }); if (!local) return; }
         finally { fim(); }
       }
     }
-    if (!P && outros) { const s = { sala: 'an-' + id, nome: it?.nome }; return Home.entrarJunto(s); }
+    if (!P && outros) { if (o.tela) NuvemTela.fim(); const s = { sala: 'an-' + id, nome: it?.nome }; return Home.entrarJunto(s); }
     if (P) return App.abrir(P);
   },
   // botão ATUALIZAR do Animador: confere a nuvem e traz a versão mais nova (com gente junto o ao vivo já mantém tudo igual)

@@ -148,3 +148,4 @@
 
 ## Abrir pelo endereço (04/11/2026)
 - `?nuvem=<id>` abre direto a animação da nuvem da equipe (o mesmo que clicar no cartão dela: `NuvemAnim.abrir(id, cópia local se houver)`). Usado pelos "Recentes na nuvem" e pela aba "Ao vivo" do menu do Estúdio.
+- Nesse caminho aparece a tela **"Carregando da nuvem"** (`NuvemTela` em js/nuvemanim.js): fundo preto com o ícone An (igual à inicialização), que depois que a tela de inicialização some vira uma nuvem com as bolinhas girando (estilo Windows), o nome, a barrinha e a % de verdade (`baixarProjeto(id, andou)`). Some no fim, no erro, antes da pergunta "mudou nos dois lugares" e ao entrar junto ao vivo. Nunca tenta de novo sozinha.

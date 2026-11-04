@@ -332,7 +332,8 @@ addEventListener('DOMContentLoaded', async () => {
       // RECENTES NA NUVEM do menu (04/11/2026): ?nuvem=<id> abre direto aquela animação da nuvem (o mesmo que clicar no cartão dela aqui)
       const nv = qs.get('nuvem');
       if (nv && /^[A-Za-z0-9_-]{2,40}$/.test(nv)) { history.replaceState(null, '', location.pathname); Home.atual = 'animacoes'; Home.pinta();
-        const local = await DB.get('projetos', nv).catch(() => null); try { await NuvemAnim.abrir(nv, local || null); } catch (e) { console.warn('abrir da nuvem', e); } }
+        const local = await DB.get('projetos', nv).catch(() => null); NuvemTela.inicio(local?.nome || ''); let ok = false; // logo -> "Carregando da nuvem" com a % (some no fim ou no erro)
+        try { await NuvemAnim.abrir(nv, local || null, { tela: true }); ok = true; } catch (e) { console.warn('abrir da nuvem', e); } finally { NuvemTela.fim(ok); } }
       else {
       if (['animacoes', 'ideias', 'personagens'].includes(aba)) Home.atual = aba;
       if (aba || abrir) history.replaceState(null, '', location.pathname);
