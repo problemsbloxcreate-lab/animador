@@ -329,5 +329,7 @@ const Arq = {
   async blobMelhor(k) { return (await this.original(k)) || (await this.pegaBlob(k)); },
   // na memória, a imagem da webp passa a ser desenhada/editada a partir da original (editar não acumula perda)
   async usarOriginais(ids) { await Promise.all([...new Set(ids.filter(k => /\.webp$/i.test(k || '')))].map(async k => { const b = await this.original(k); if (b) { const bm = await createImageBitmap(b).catch(() => null); if (bm) this.img.set(k, bm); } })); },
-  async garantir(ids) { await Promise.all([...new Set(ids.filter(Boolean))].map(id => new Promise(ok => { if (this.bitmap(id, ok)) ok(); }))); },
+  async garantir(ids, andou) { // andou(feitas, total): andamento de verdade (tela "Carregando da nuvem" do Ateliê)
+    const L = [...new Set(ids.filter(Boolean))]; let n = 0;
+    await Promise.all(L.map(id => new Promise(ok => { let foi = false; const pronto = () => { if (foi) return; foi = true; n++; try { andou?.(n, L.length); } catch { } ok(); }; if (this.bitmap(id, pronto)) pronto(); }))); },
 };

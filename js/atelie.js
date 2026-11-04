@@ -28,13 +28,19 @@ const Atelie = {
     const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', id || 'novo');
     const w = window.open(u.href, '_blank'); if (!w) return this.abrir(id, { volta: !!App.P });
   },
+  // personagem da NUVEM: tela "Carregando da nuvem" com o ícone do Ateliê, a barra e a % (decisão do dono, 04/11/2026); some no fim, no erro e antes de qualquer pergunta
   async abrir(id, o = {}) {
+    const tela = !!id && !o.def && !o.daAnim && !this.soQuadro && typeof NuvemTela !== 'undefined' && !NuvemTela.el;
+    if (tela) { NuvemTela.inicio('', 'at'); NuvemTela.passo(.04, 'Baixando o personagem…'); }
+    let ok = false; try { const r = await this._abrir(id, o); ok = true; return r; } finally { if (tela) NuvemTela.fim(ok); }
+  },
+  async _abrir(id, o = {}) {
     this.volta = !!o.volta; let def; this.daAnim = o.daAnim || null; // daAnim = a cópia de uma animação (js/atelieanim.js)
     let doRascunho = false, novo = null, soLocal = false;
     if (o.def) def = o.def; // veio de um arquivo .atelieanimador
     else if (id) { const t = UI.toast('<span class="spin-dot"></span> Abrindo o personagem…', { time: 60000 }), r = await DB.get('arquivos', this.chaveRascunho(id)).catch(() => null); this._rascNuvem = !!r?.nuvem;
       // a versão da NUVEM de verdade (nunca a cópia do computador no lugar dela): se a nuvem não responder, abre o que é deste computador COMO LOCAL
-      try { def = await Nuvem.abrir(id, false, undefined, true); this._temNuvem = true; } catch (e) { this._temNuvem = false;
+      try { def = await Nuvem.abrir(id, false, undefined, true); this._temNuvem = true; if (typeof NuvemTela !== 'undefined') { NuvemTela.nome(def?.nome); NuvemTela.passo(.15, 'Baixando as imagens…'); } } catch (e) { this._temNuvem = false;
         const pc = r?.def || await DB.get('personagens', id).catch(() => null);
         if (!pc && !o.reserva) { t.remove(); return UI.toast('Não abriu: ' + esc(e.message), { kind: 'err' }); }
         if (pc) { t.remove(); def = pc; doRascunho = true; soLocal = true;
@@ -49,6 +55,7 @@ const Atelie = {
       }
       else if (r?.def && JSON.stringify(r.def) !== JSON.stringify(def)) {
         this._difPar = { nuvem: def, rasc: r.def }; // "Ver as diferenças" (js/difrasc.js)
+        if (typeof NuvemTela !== 'undefined') NuvemTela.fim(); // a pergunta não fica escondida atrás da tela de carregamento
         const usa = await UI.modal({ title: 'Tem um rascunho neste computador', icon: 'save', width: 460, body: `<div>As mudanças de <b>${esc(r.def.nome)}</b> feitas neste computador (guardadas ${fmtDate(r.em)}) <b>ainda não foram para a nuvem</b>.<br><br>A versão da nuvem é de ${def.modificado ? fmtDate(def.modificado) : 'antes'}.<div class="rasc-esc"><div class="rasc-op nuvem">${ic('cloud', 15)}<span><b>Seguir na nuvem</b>: abre a versão da equipe (e o ao vivo, com quem estiver junto). O rascunho é descartado.</span></div><div class="rasc-op">${ic('monitor', 15)}<span><b>Continuar o rascunho</b>: abre a versão deste computador, sem o ao vivo. Vai para a nuvem quando você clicar em Salvar na nuvem.</span></div></div><button type="button" class="btn sm" data-difs style="margin-top:10px">${ic('layers', 13)} Ver as diferenças</button></div>`,
           buttons: [{ label: 'Continuar o rascunho', icon: 'monitor', kind: 'rasc-local', value: 'rascunho' }, { label: 'Seguir na nuvem', icon: 'cloud', kind: 'nuvem-dest', value: 'nuvem' }] }); // em destaque: seguir na nuvem (com quem estiver junto)
         if (usa === 'rascunho') { this.base0Nuvem = JSON.stringify(def); def = r.def; doRascunho = true; soLocal = true; } /* continuar o rascunho = a versão LOCAL (não entra no ao vivo; "Salvar na nuvem" manda depois) */ else if (usa === 'nuvem') await this.apagarRascunho(id); else return;
@@ -58,7 +65,7 @@ const Atelie = {
     this.naNuvem = !soLocal && !o.def && !!id && !!def && !(doRascunho && !this._temNuvem && !this._rascNuvem); this._temNuvem = this._rascNuvem = false; this.erroNuvem = null; clearTimeout(this._tn);
     Modelo.sincAnims(def); // tempo dos frames em quadros no fps do personagem (animações antigas em ms viram o nº de quadros mais perto)
     this.def = def; this.sel = (def.raiz && def.partes.some(p => p.id === def.raiz) ? def.raiz : def.partes[0]?.id) || null; this.multi = new Set(); this.focoImg = null; this.edit = null; this.pilha = []; this.refazer = []; this.ultimo = JSON.stringify(def); this.baseNuvem = this._temNuvem && !o.def ? (doRascunho ? this.base0Nuvem || null : this.ultimo) : null; this.base0 = o.def || !id ? this.ultimo : this.base0Nuvem || this.ultimo; this.base0Nuvem = null; this.modoMover = 'preset'; this.sujo = !id || !!o.def || doRascunho; this.rascunhoEm = doRascunho ? Date.now() : null; this.salvandoLocal = false; window.Falas?.parar(); Falas.aberto = null; this.teste = null; this.edImg = null; Animacoes.passoSel = null; Pintura.selecao = null; clearInterval(this._roda); Animacoes.parar(true); Animacoes.sel = null; Animacoes.passo = null;
-    Modelo.garanteVistas(def); await Arq.garantir(Modelo.chavesImgs(def)); await Arq.usarOriginais(Modelo.chavesImgs(def)); // edita sempre a partir da original
+    Modelo.garanteVistas(def); await Arq.garantir(Modelo.chavesImgs(def), (n, tot) => { if (typeof NuvemTela !== 'undefined') NuvemTela.passo(.15 + .8 * n / tot, 'Imagens ' + n + ' de ' + tot); }); await Arq.usarOriginais(Modelo.chavesImgs(def)); // edita sempre a partir da original
     Telas.mostra('atelie'); this.liga(); this.pinta(); this.enquadrar(); if (o.def) this.rascunho();
     if (!this.soQuadro && !this.daAnim && !this.naNuvem && (def.edicoes?.length || !def.semNuvem)) Nuvem.estaNaNuvem(def.id).then(tem => { if (tem === false && this.def === def && !this.naNuvem) { Autores.semNuvem(def); const au = $('#at-autores'); if (au) au._de = null; this.pinta(); } }); // não está na nuvem: sem o histórico de lá
     if (!this.soQuadro) try { const u = new URL(location.href); if (u.searchParams.get('atelie') !== def.id) { u.searchParams.set('atelie', def.id); u.searchParams.delete('pose'); history.replaceState(null, '', u.pathname + u.search); } } catch { } // F5 / Ctrl+F5 / atualizar o site: volta para ESTE personagem no Ateliê (não para o menu)

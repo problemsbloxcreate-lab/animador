@@ -43,9 +43,9 @@ const NuvemTela = {
 @media (prefers-reduced-motion:reduce){#nuvem-tela *{animation:none!important;transition:none!important}}`;
     document.head.appendChild(s);
   },
-  inicio(nome) {
+  inicio(nome, prog = 'an') { // prog: 'an' (Animador) ou 'at' (Ateliê) = o ícone do começo
     if (this.el) return; this.css(); this.alvo = 0; this.mostrado = 0;
-    const EI = window.EstudioIcones, ic = EI ? EI.url('an') : 'icones/icone-192.png';
+    const EI = window.EstudioIcones, ic = EI ? EI.url(prog) : prog === 'at' ? 'icones/atelie.svg' : 'icones/icone-192.png';
     const el = this.el = document.createElement('div'); el.id = 'nuvem-tela'; el.setAttribute('role', 'progressbar'); el.setAttribute('aria-label', 'Carregando da nuvem');
     el.innerHTML = `<div class="nt-c"><div class="nt-ic"><img alt="" src="${esc(ic)}"></div>
       <div class="nt-nv"><svg viewBox="0 0 132 92"><path d="M34 82 H100 A26 26 0 0 0 104 30.4 A34 34 0 0 0 40.6 22 A30 30 0 0 0 34 82 Z"/></svg><span class="nt-dots"><i></i><i></i><i></i><i></i><i></i></span></div>
@@ -172,18 +172,18 @@ const NuvemAnim = {
     if (it && !outros && (!local || (it.mod || 0) > (local.nuvemMod || 0))) {
       const mudouAqui = local && (local.modificado || 0) > (local.nuvemEm || 0) + 3000 && local.nuvemMod; // mudanças daqui que ainda não foram e a nuvem também mudou
       let usar = 'nuvem';
-      if (mudouAqui) { if (o.tela) NuvemTela.fim(); } // a pergunta não pode ficar escondida atrás da tela de carregamento
+      if (mudouAqui) NuvemTela.fim(); // a pergunta não pode ficar escondida atrás da tela de carregamento
       if (mudouAqui) usar = await UI.modal({ title: 'Esta animação mudou nos dois lugares', icon: 'cloud', width: 460, body: `<div>A versão da <b>nuvem da equipe</b> é mais nova, mas este computador tem mudanças que ainda não foram para a nuvem.<br><br>A versão que você não escolher fica guardada aqui como <b>(anterior)</b>.</div>`, buttons: [{ label: 'Usar a deste computador', value: 'local' }, { label: 'Usar a da nuvem', kind: 'primary', value: 'nuvem' }] }) || 'nuvem';
       if (usar === 'nuvem') {
-        const tela = o.tela && NuvemTela.el; if (tela) NuvemTela.nome(it.nome);
-        const fim = tela ? () => { } : Ocupado.inicio({ tipo: 'arquivo', icone: 'cloud', titulo: `Abrindo "${it.nome || 'Animação'}"`, subtitulo: 'Baixando a animação da nuvem da equipe…' });
-        try { const N = await this.baixarProjeto(id, tela ? (f, txt) => NuvemTela.passo(f, txt) : undefined); if (mudouAqui) { const ant = clone(local); ant.id = uid('p'); ant.nome = local.nome + ' (anterior)'; ant.anterior = { em: Date.now() }; await DB.put('projetos', ant); }
+        // SEMPRE a tela "Carregando da nuvem" (decisão do dono, 04/11/2026: nada da janelinha antiga ao abrir da nuvem); aberta aqui = fecha aqui
+        const minha = !NuvemTela.el; if (minha) NuvemTela.inicio(it.nome); else NuvemTela.nome(it.nome);
+        try { const N = await this.baixarProjeto(id, (f, txt) => NuvemTela.passo(f, txt)); if (mudouAqui) { const ant = clone(local); ant.id = uid('p'); ant.nome = local.nome + ' (anterior)'; ant.anterior = { em: Date.now() }; await DB.put('projetos', ant); }
           N.id = id; N.nuvemEm = Date.now(); N.nuvemMod = it.mod || Date.now(); N.modificado = N.modificado || Date.now(); await DB.put('projetos', JSON.parse(JSON.stringify(N))); P = N; }
-        catch (e) { UI.toast('Não deu para baixar da nuvem: ' + esc(e.message) + (local ? ' Abrindo a cópia deste computador.' : ''), { kind: 'warn', time: 8000 }); if (!local) return; }
-        finally { fim(); }
+        catch (e) { if (minha) NuvemTela.fim(); UI.toast('Não deu para baixar da nuvem: ' + esc(e.message) + (local ? ' Abrindo a cópia deste computador.' : ''), { kind: 'warn', time: 8000 }); if (!local) return; }
+        if (minha && NuvemTela.el) { try { return await App.abrir(P); } finally { NuvemTela.fim(true); } } // a tela só sai com o editor já pronto por baixo
       }
     }
-    if (!P && outros) { if (o.tela) NuvemTela.fim(); const s = { sala: 'an-' + id, nome: it?.nome }; return Home.entrarJunto(s); }
+    if (!P && outros) { NuvemTela.fim(); const s = { sala: 'an-' + id, nome: it?.nome }; return Home.entrarJunto(s); }
     if (P) return App.abrir(P);
   },
   // botão ATUALIZAR do Animador: confere a nuvem e traz a versão mais nova (com gente junto o ao vivo já mantém tudo igual)

@@ -68,8 +68,10 @@ const Home = {
     const ant = [...(this._vivos || [])].sort().join(), ag = [...vivos].sort().join(); this._vivos = vivos; if (ant !== ag && c.isConnected) this.grade(c);
   },
   async entrarJunto(s) {
-    const fim = Ocupado.inicio({ tipo: 'junto', titulo: `Entrando em "${s.nome || 'Animação'}"`, subtitulo: 'Baixando a animação e os arquivos…' }); let r;
-    try { r = await AoVivo.baixarSala(s.sala); } catch (e) { fim(); return UI.toast('Não deu para entrar: ' + esc(e.message), { kind: 'err' }); }
+    // tela "Carregando da nuvem" (decisão do dono, 04/11/2026) no lugar da janelinha antiga; aberta aqui = fecha aqui
+    const minha = !NuvemTela.el; if (minha) NuvemTela.inicio(s.nome || 'Animação'); else NuvemTela.nome(s.nome);
+    const fim = () => { if (minha) NuvemTela.fim(); }; let r; NuvemTela.passo(.15, 'Entrando na sala ao vivo…');
+    try { r = await AoVivo.baixarSala(s.sala); NuvemTela.passo(.7, 'Abrindo a animação…'); } catch (e) { fim(); return UI.toast('Não deu para entrar: ' + esc(e.message), { kind: 'err' }); }
     if (!r) { fim(); return UI.toast('Essa sala já terminou.', { kind: 'warn' }); }
     try { const P = r.P; P.modificado = Date.now(); await DB.put('projetos', JSON.parse(JSON.stringify(P))); await App.abrir(P); await AoVivo.entrar(AoVivo.adAnimador(false), { avisa: true }); App.pintaJunto(); } finally { fim(); }
     UI.toast('Você entrou! Ao sair, a cópia com as últimas mudanças fica salva neste computador.', { kind: 'ok', time: 6000 });
