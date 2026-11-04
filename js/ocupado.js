@@ -10,6 +10,12 @@ const Ocupado = {
   n: 0, el: null, t0: 0, letras: 0, tipo: '', feito: null, _iv: 0,
   inicio(o = {}) {
     this.n++; if (this.n > 1) { if (o.titulo) this.passo(o.subtitulo || o.titulo); return () => this.fim(); }
+    // NUVEM (decisão do dono, 04/11/2026): salvar/enviar/apagar/atualizar e trabalhar junto mostram a tela da nuvem (js/nuvemanim.js,
+    // NuvemTela: ícone do programa → nuvem com as bolinhas, barra e %) por cima do programa desfocado, no lugar do cartão. O resto
+    // (trava das teclas, aba acordada, aviso no fim) continua igual; o cartão fica escondido só para o passo/andamento.
+    this._nt = (o.tipo === 'nuvem' || o.tipo === 'junto') && typeof NuvemTela !== 'undefined'; this._ntMeu = false;
+    if (this._nt) { this._ntMeu = !NuvemTela.el; const at = document.getElementById('atelie'), prog = at && !at.classList.contains('hidden') ? 'at' : 'an';
+      if (this._ntMeu) NuvemTela.inicio('', prog, { titulo: o.titulo || 'Na nuvem', vidro: true, indef: true }); NuvemTela.passo(null, o.subtitulo || 'Conectando à nuvem…'); }
     Object.assign(this, { t0: performance.now(), letras: 0, tipo: o.tipo || 'ia', feito: null, titulo: o.titulo || 'A IA está trabalhando', tituloAba: document.title, abaTxt: o.aba || (o.tipo && o.tipo !== 'ia' ? o.titulo : 'IA trabalhando'), fimTxt: o.fimTxt || null });
     // aba escondida: a IA continua. A trava pede ao Chrome para não congelar a aba enquanto isso; no fim, avisa (notificação) se a aba não estiver à vista
     try { navigator.locks?.request('animador-ia-' + Math.random(), () => new Promise(r => { this._solta = r; })).catch(() => { }); } catch { }
@@ -19,16 +25,17 @@ const Ocupado = {
       <div class="oc-barra rodando" data-barra><i data-b></i></div>
       <div class="oc-num"><span data-conta></span><span class="sp"></span><span>passou <b data-pas>0:00</b></span></div>
       <div class="oc-av">${esc(o.aviso || 'Aguarde: enquanto a IA trabalha não dá para mexer (para nada sair do lugar). Não feche esta aba.')}</div></div></div>`);
+    if (this._nt) this.el.style.display = 'none';
     document.body.appendChild(this.el); requestAnimationFrame(() => this.el?.classList.add('on'));
     this._bloq = e => { if (this.n > 0) { e.preventDefault(); e.stopPropagation(); } };
     for (const ev of ['keydown', 'keyup', 'wheel', 'contextmenu']) addEventListener(ev, this._bloq, { capture: true, passive: false });
     clearInterval(this._iv); this._iv = setInterval(() => this.pinta(), 250); this.pinta();
     return () => this.fim();
   },
-  passo(txt) { const e = this.el && $('[data-sub]', this.el); if (e) e.textContent = txt; },
+  passo(txt) { const e = this.el && $('[data-sub]', this.el); if (e) e.textContent = txt; if (this._nt && this.el) NuvemTela.passo(null, txt); },
   texto(n) { this.letras = n; },
   // andamento de verdade, quando dá para contar (ex.: 3 de 5 presets feitos)
-  parte(feito, total) { this.feito = { feito, total: Math.max(1, total) }; },
+  parte(feito, total) { this.feito = { feito, total: Math.max(1, total) }; if (this._nt && this.el) NuvemTela.passo(feito / Math.max(1, total)); },
   fmt(s) { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; },
   pinta() {
     if (!this.el) return; const t = (performance.now() - this.t0) / 1000, F = this.feito, br = $('[data-barra]', this.el);
@@ -41,6 +48,7 @@ const Ocupado = {
     try { this._solta?.(); } catch { } this._solta = null; if (this.tituloAba) document.title = this.tituloAba;
     if (document.hidden) try { if (this.tipo === 'ia') Notify.send('A IA terminou', this.titulo.replace(/^A IA está /, '').replace(/^\w/, c => c.toUpperCase())); else Notify.send(this.fimTxt || 'Pronto', this.titulo); } catch { }
     clearInterval(this._iv); for (const ev of ['keydown', 'keyup', 'wheel', 'contextmenu']) removeEventListener(ev, this._bloq, { capture: true });
+    if (this._nt) { if (this._ntMeu) NuvemTela.fim(); this._nt = this._ntMeu = false; }
     const el = this.el; this.el = null; if (!el) return; $('[data-barra]', el).classList.remove('rodando'); $('[data-b]', el).style.width = '100%'; el.classList.remove('on'); setTimeout(() => el.remove(), 220);
   },
   // NUVEM: salvar/apagar/enviar trava a tela (nada muda pela metade) e continua com a aba escondida ou minimizada.

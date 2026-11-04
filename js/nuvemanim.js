@@ -38,19 +38,26 @@ const NuvemTela = {
 #nuvem-tela.nt-on .nt-ic{transform:translateY(-118px) scale(.42);opacity:.9;animation:none}
 #nuvem-tela.nt-on .nt-nv{opacity:1;transform:none}#nuvem-tela.nt-on .nt-nv path{stroke-dashoffset:0}
 #nuvem-tela.nt-on .nt-tx{opacity:1;transform:none}
+#nuvem-tela.nt-vidro{background:rgba(8,9,12,.55);-webkit-backdrop-filter:blur(16px) saturate(.9);backdrop-filter:blur(16px) saturate(.9)}
+#nuvem-tela.nt-indef .nt-br>i{width:35%!important;animation:ntIndef 1.3s ease-in-out infinite}#nuvem-tela.nt-indef .nt-pc b,#nuvem-tela.nt-indef .nt-pc .nt-sep{display:none}
+#nuvem-tela .nt-pc .nt-sep{font-style:normal}
+@keyframes ntIndef{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
 @keyframes ntRespira{50%{transform:scale(1.045)}}
 @keyframes ntGira{0%{transform:rotate(225deg);opacity:1;animation-timing-function:ease-out}7%{transform:rotate(345deg);animation-timing-function:linear}30%{transform:rotate(455deg);animation-timing-function:ease-in-out}39%{transform:rotate(690deg);animation-timing-function:linear}70%{transform:rotate(815deg);opacity:1;animation-timing-function:ease-out}75%{transform:rotate(945deg);animation-timing-function:ease-out}76%,100%{transform:rotate(945deg);opacity:0}}
 @media (prefers-reduced-motion:reduce){#nuvem-tela *{animation:none!important;transition:none!important}}`;
     document.head.appendChild(s);
   },
-  inicio(nome, prog = 'an') { // prog: 'an' (Animador) ou 'at' (Ateliê) = o ícone do começo
+  // prog: 'an' (Animador) ou 'at' (Ateliê) = o ícone do começo; o.titulo (no lugar de "Carregando da nuvem"), o.vidro (fundo desfocado
+  // por cima do programa, para salvar/enviar/atualizar), o.indef (barra andando sem % até chegar um andamento de verdade)
+  inicio(nome, prog = 'an', o = {}) {
     if (this.el) return; this.css(); this.alvo = 0; this.mostrado = 0;
     const EI = window.EstudioIcones, ic = EI ? EI.url(prog) : prog === 'at' ? 'icones/atelie.svg' : 'icones/icone-192.png';
     const el = this.el = document.createElement('div'); el.id = 'nuvem-tela'; el.setAttribute('role', 'progressbar'); el.setAttribute('aria-label', 'Carregando da nuvem');
     el.innerHTML = `<div class="nt-c"><div class="nt-ic"><img alt="" src="${esc(ic)}"></div>
       <div class="nt-nv"><svg viewBox="0 0 132 92"><path d="M34 82 H100 A26 26 0 0 0 104 30.4 A34 34 0 0 0 40.6 22 A30 30 0 0 0 34 82 Z"/></svg><span class="nt-dots"><i></i><i></i><i></i><i></i><i></i></span></div>
-      <div class="nt-tx"><div class="nt-t">Carregando da nuvem</div><div class="nt-nm"></div><div class="nt-br"><i></i></div><div class="nt-pc"><b>0%</b> · <span>Conectando…</span></div></div></div>`;
-    el.querySelector('.nt-nm').textContent = nome || '';
+      <div class="nt-tx"><div class="nt-t"></div><div class="nt-nm"></div><div class="nt-br"><i></i></div><div class="nt-pc"><b>0%</b><i class="nt-sep"> · </i><span>Conectando…</span></div></div></div>`;
+    el.querySelector('.nt-t').textContent = o.titulo || 'Carregando da nuvem'; el.querySelector('.nt-nm').textContent = nome || '';
+    if (o.vidro) el.classList.add('nt-vidro'); if (o.indef) el.classList.add('nt-indef');
     document.body.appendChild(el);
     // a transição do ícone para a nuvem acontece quando a tela de inicialização (por cima) já saiu: assim dá para ver (no máximo 13 s esperando)
     // a inicialização (já com o acesso conferido) não espera o download: sai logo e esta tela (igual por baixo) assume
@@ -59,7 +66,7 @@ const NuvemTela = {
   },
   nome(n) { const e = this.el?.querySelector('.nt-nm'); if (e && n) e.textContent = n; },
   // f = 0..1 (do download de verdade); txt = o que está baixando
-  passo(f, txt) { if (!this.el) return; this.alvo = Math.max(this.alvo, Math.min(1, f)); if (txt) this.el.querySelector('.nt-pc span').textContent = txt; },
+  passo(f, txt) { if (!this.el) return; if (f != null && isFinite(f)) { this.el.classList.remove('nt-indef'); this.alvo = Math.max(this.alvo, Math.min(1, f)); } if (txt) this.el.querySelector('.nt-pc span').textContent = txt; },
   anda() { // a barra corre suave até o valor de verdade (sem pular)
     cancelAnimationFrame(this.raf); if (!this.el) return;
     this.mostrado += (this.alvo - this.mostrado) * .12; if (this.alvo - this.mostrado < .002) this.mostrado = this.alvo;
