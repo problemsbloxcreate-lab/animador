@@ -21,7 +21,7 @@ const PastasBib = {
   async le(esc) {
     const N = this.NA_NUVEM[esc]; if (!N) { try { return this.limpo(await DB.get('arquivos', this.CHAVE_LOCAL[esc])); } catch { return this.vazio(); } }
     const g = (this._nuvemDe ||= {});
-    try { const r = await fetch(Nuvem.srv + N.rota + '?k=' + encodeURIComponent(N.k), { headers: await Nuvem.hd(), cache: 'no-store' }); if (r.status === 404) return (g[esc] = this.vazio()); if (!r.ok) throw new Error('A nuvem respondeu ' + r.status); const o = this.limpo(await r.json()); g[esc] = o; if (esc === 'nuvem') this._nuvem = o; return o; }
+    try { const r = await fetch(Nuvem.srv + N.rota + '?k=' + encodeURIComponent(N.k), { headers: await Nuvem.hd(), cache: 'no-store' }); if (r.status === 404) return (g[esc] = this.vazio()); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error?.message || 'A nuvem respondeu ' + r.status); const o = this.limpo(await r.json()); g[esc] = o; if (esc === 'nuvem') this._nuvem = o; return o; }
     catch (e) { if (g[esc]) return g[esc]; throw e; }
   },
   // muda(o) mexe no objeto (já relido agora); devolve o objeto gravado

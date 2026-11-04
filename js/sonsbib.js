@@ -8,7 +8,7 @@ const SonsBib = {
   sem: x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(),
   async indice() {
     if (this.ix) return this.ix;
-    const r = await fetch('/nuvem/bib/arq?p=indice.json', { cache: 'no-store' }); if (!r.ok) throw new Error('a biblioteca respondeu ' + r.status);
+    const r = await fetch('/nuvem/bib/arq?p=indice.json', { cache: 'no-store' }); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error?.message || 'a biblioteca de sons respondeu ' + r.status);
     const j = await r.json();
     this.ix = (j.pk?.ev || []).map(e => ({ rel: e[0], nome: e[1], pasta: e[2], mus: !!e[3], busca: this.sem(e[1] + ' ' + e[2]) }));
     return this.ix;
@@ -16,7 +16,7 @@ const SonsBib = {
   async blob(it) {
     if (this.blobs.has(it.rel)) return this.blobs.get(it.rel);
     const d = await crypto.subtle.digest('SHA-1', new TextEncoder().encode('pk:' + it.rel)), hx = [...new Uint8Array(d)].map(x => x.toString(16).padStart(2, '0')).join('');
-    const r = await fetch('/nuvem/bib/arq?p=a/' + hx); if (!r.ok) throw new Error('o som não veio (' + r.status + ')');
+    const r = await fetch('/nuvem/bib/arq?p=a/' + hx); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error?.message || 'o som não veio (' + r.status + ')');
     const b = await r.blob(); this.blobs.set(it.rel, b); return b;
   },
   parar() { try { this.fonte?.stop(); } catch { } this.fonte = null; $$('.sb-it.tocando').forEach(x => x.classList.remove('tocando')); },
