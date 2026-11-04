@@ -151,7 +151,7 @@ const NuvemAnim = {
     andou(.1, 'Conferindo os arquivos…');
     const ks = await this.noServidor(id).catch(() => new Set());
     // MAIS RÁPIDO (04/11/2026): 1) o que já está neste computador (as mesmas imagens/personagens de outras animações) nem é pedido;
-    // 2) o que falta baixa 6 de cada vez (antes era 1 por vez). O número de pedidos à nuvem é o mesmo, só não fica um esperando o outro.
+    // 2) o que falta baixa 10 de cada vez (antes era 1 por vez). O número de pedidos à nuvem é o mesmo, só não fica um esperando o outro.
     const ids = [...Toon.ids(P)], falta = [];
     for (const k of ids) { if (await Arq.pegaBlob(k).catch(() => null)) continue; if (ks.has(this.chaveArq(id, k)) || /^personagens\//.test(k)) falta.push(k); }
     const ja = ids.length - falta.length; let feitos = 0, prox = 0;
@@ -159,7 +159,7 @@ const NuvemAnim = {
     const um = async k => { const ka = this.chaveArq(id, k);
       if (ks.has(ka)) { try { const b = await (await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(ka))).blob(); await Arq.guardar(b, k); return; } catch { } }
       if (/^personagens\//.test(k)) await Nuvem.baixar(k).catch(() => null); };
-    await Promise.all(Array.from({ length: Math.min(6, falta.length) }, async () => { while (prox < falta.length) { await um(falta[prox++]); feitos++; andou(.14 + .8 * feitos / falta.length, 'Arquivos ' + feitos + ' de ' + falta.length); } }));
+    await Promise.all(Array.from({ length: Math.min(10, falta.length) }, async () => { while (prox < falta.length) { await um(falta[prox++]); feitos++; andou(.14 + .8 * feitos / falta.length, 'Arquivos ' + feitos + ' de ' + falta.length); } }));
     andou(.95, 'Quase pronto…');
     if (ks.has(this.pasta(id) + 'thumb.jpg')) { try { const b = await (await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(this.pasta(id) + 'thumb.jpg'))).blob(); P.thumb = await new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(b); }); } catch { } }
     return P;
