@@ -51,7 +51,16 @@ const App = {
     if (modo === 'simples' && !Modelo.aparece(P, n, this.q)) this.setQ(n.de || 0); // fora do quadro: vai para onde ele aparece
     this.selecionar(n.id); return n;
   },
-  async fechar() { QuadroEd.fechar?.(); this.pausa(); await this.salvarJa(); await NuvemAnim.aoFechar(); if (AoVivo.ad?.ctx === 'animador') await this.sairJunto(false, true); this.P = null; try { const u = new URL(location.href); if (u.searchParams.has('projeto')) { u.searchParams.delete('projeto'); history.replaceState(null, '', u.pathname + u.search + u.hash); } } catch { } Telas.mostra('home'); Home.pinta(); this.titulo(); },
+  // SAIR MOSTRA O PORQUÊ (pedido do dono, 05/11/2026): se sair demorar (salvando, enviando para a nuvem, saindo do ao vivo), a tela da
+  // nuvem aparece no meio dizendo o que está fazendo — antes o clique em ANIMADOR parecia não funcionar
+  async fechar() {
+    if (this._fechando) return; this._fechando = true; QuadroEd.fechar?.(); this.pausa();
+    let fim = null, agora = 'Salvando neste computador…'; const diz = t => { agora = t; if (fim) Ocupado.anda(t); };
+    const tm = setTimeout(() => { fim = Ocupado.inicio({ tipo: 'nuvem', icone: 'cloud', titulo: 'Saindo da animação', subtitulo: agora, aba: 'Saindo…' }); }, 300);
+    try { await this.salvarJa(); diz(NuvemAnim.vai?.(this.P) && (NuvemAnim.sujo?.(this.P) || NuvemAnim.enviando) ? 'Enviando as últimas mudanças para a nuvem…' : 'Conferindo a nuvem…'); await NuvemAnim.aoFechar();
+      if (AoVivo.ad?.ctx === 'animador') { diz('Saindo do trabalhar junto…'); await this.sairJunto(false, true); } }
+    finally { clearTimeout(tm); fim?.(); this._fechando = false; }
+    this.P = null; try { const u = new URL(location.href); if (u.searchParams.has('projeto')) { u.searchParams.delete('projeto'); history.replaceState(null, '', u.pathname + u.search + u.hash); } } catch { } Telas.mostra('home'); Home.pinta(); this.titulo(); },
   // TRABALHAR JUNTO: o arquivo vai TEMPORARIAMENTE para a nuvem enquanto as pessoas trabalham (js/aovivo.js)
   async trabalharJunto() {
     if (AoVivo.ativo && AoVivo.ad?.ctx === 'animador') return UI.toast('Já está ao vivo: quem é da equipe entra pela tela inicial, em "Ao vivo agora".');
