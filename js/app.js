@@ -19,6 +19,17 @@ const App = {
     if (!P.autor && !P.anterior) Autores.eu().then(eu => { if (this.P === P && !P.autor && eu?.id) { P.autor = { ...eu, em: P.criado || P.modificado || Date.now() }; this.salvarJa(); this.pintaNuvem(); } }).catch(() => { });
     AtualizaProj.lista = []; AtualizaProj.pinta(); AtualizaProj.confere(true); // botão "Atualizar projeto" só se este projeto estiver atrás da versão atual (js/atualizar.js)
     NuvemAnim.aoAbrir(P); // vai sozinha para a nuvem da equipe e entra no ao vivo (js/nuvemanim.js)
+    if (typeof NuvemTela !== 'undefined' && NuvemTela.el) await this.esperaImagens(P); // a tela de carregando só sai com a cena pronta
+  },
+  /* SEM "POP IN" (pedido da dona, 05/11/2026): a tela "Carregando da nuvem" saía assim que o editor abria e as imagens da cena
+     (camadas de imagem e as peças dos personagens) iam aparecendo uma a uma. Agora ela espera todas ficarem prontas para desenhar,
+     mostrando quantas faltam; no máximo 40 s (se alguma não vier, o editor abre mesmo assim e ela aparece quando chegar). */
+  async esperaImagens(P) {
+    const ids = [...new Set([...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq), ...Object.values(P.personagens || {}).flatMap(d => Modelo.chavesImgs(d))].filter(Boolean))];
+    if (ids.length) { NuvemTela.passo(.92, `Preparando as imagens da cena… 0 de ${ids.length}`);
+      await Promise.race([Arq.garantir(ids, (n, t) => NuvemTela.passo(.92 + .07 * n / t, `Preparando as imagens da cena… ${n} de ${t}`)), new Promise(r => setTimeout(r, 40000))]); }
+    try { this.pinta(); Folha.pinta(); } catch { }
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); // um desenho completo antes de mostrar
   },
   /* ---------- botão ATELIÊ do topo: pergunta onde abrir ----------
      Simples = o Ateliê DENTRO do Animador (ao lado/janela, js/quadroed.js), arrumando só o personagem neste quadro.
