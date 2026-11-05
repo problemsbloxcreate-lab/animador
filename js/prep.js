@@ -12,6 +12,16 @@
 'use strict';
 const Prep = {
   _lista: null, _listaEm: 0,
+  // fonte da legenda (Google Fonts, uma vez só); quando chega, redesenha o palco
+  LEG: { fonte: 'Rubik', tamanho: .045, peso: 800, x: .5, y: .82, largura: .86, alinhar: 'center', maiusculas: false,
+    contorno: { ativo: false, cor: '#000000', largura: .004 }, sombra: { ativa: false, cor: '#000000', desfoque: .006, x: 0, y: .003, opacidade: .8 }, fundo: { ativo: false, cor: '#000000', opacidade: .5 } },
+  SISTEMA: ['Arial', 'Segoe UI', 'Verdana', 'Trebuchet MS', 'Georgia', 'Impact', 'Comic Sans MS'],
+  _fontes: {},
+  fonte(f) {
+    if (this._fontes[f] || this.SISTEMA.includes(f) || !/^[A-Za-z0-9 ]{1,40}$/.test(f)) return this._fontes[f] || Promise.resolve();
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(f).replace(/%20/g, '+') + ':wght@400;500;600;700;800;900&display=swap'; document.head.appendChild(l);
+    return (this._fontes[f] = new Promise(r => { l.onload = r; l.onerror = r; }).then(() => document.fonts.load(`800 40px '${f}'`)).catch(() => { }).then(() => { try { App.P && App.pinta(); } catch { } }));
+  },
   pode() { return window.EstudioPerm?.programa?.('preparativos') ?? true; },
   // ---------- dados ----------
   lista(novo) {
@@ -89,8 +99,11 @@ const Prep = {
     const partes = (P.partes || []).filter(p => (p.falas || []).length);
     if (!partes.length) return UI.toast('Este roteiro não tem falas.', { kind: 'warn' });
     let escolha = null;
+    // o tamanho do vídeo que o Preparativos configurou (legenda.quadro, padrão 1080×1920) já vem escolhido
+    const Q = { w: +P.legenda?.quadro?.w || 1080, h: +P.legenda?.quadro?.h || 1920 }, fmts = [...FORMATOS]; let fmt0 = fmts.find(f => f.w === Q.w && f.h === Q.h);
+    if (!fmt0) fmts.unshift(fmt0 = { id: 'prep', nome: 'O do Preparativos', w: Q.w, h: Q.h, fps: 24 });
     const body = h(`<div class="pp-dlg">
-      <label class="field">Formato<select data-fmt>${FORMATOS.map(f => `<option value="${f.id}">${esc(f.nome)} · ${f.w}×${f.h}</option>`).join('')}</select></label>
+      <label class="field">Formato<select data-fmt>${fmts.map(f => `<option value="${f.id}" ${f === fmt0 ? 'selected' : ''}>${esc(f.nome)} · ${f.w}×${f.h}</option>`).join('')}</select></label>
       ${partes.length > 1 ? `<div class="pp-partes"><small>Marque as partes que entram:</small>${partes.map((p, i) => { const fs = p.falas || [], sg = fs.reduce((s, f) => s + (+f.duracao || 0), 0); return `<label class="chk"><input type="checkbox" data-p="${i}" checked> ${esc(p.capitulo ? p.capitulo + ' · ' : '')}${esc(p.nome || 'Parte ' + (i + 1))} <span>· ${fs.length} falas${sg ? ' · ' + this.dur(sg) : ''}</span></label>`; }).join('')}</div>` : ''}
       <label class="chk"><input type="checkbox" data-pers checked> Pôr na cena os personagens do Ateliê (os escolhidos no Preparativos ou, sem escolha, os da equipe com o mesmo nome), com a boca pela voz</label>
       ${partes.flatMap(p => p.falas).some(f => !f.audio) ? '<div class="pp-aviso">Algumas falas ainda não têm áudio: entram só com a legenda, no tempo de leitura.</div>' : ''}
@@ -106,7 +119,7 @@ const Prep = {
     $$('[data-p]', body).forEach(x => x.onchange = pintaBts); pintaBts();
     await UI.modal({ title: partes.length > 1 ? `"${P.nome || it.nome}" tem ${partes.length} partes` : `Montar "${P.nome || it.nome}"`, iconHtml: '<span class="hm-gic" data-estudio-icone="pr"></span>', width: 560, body, buttons: [] });
     if (!escolha) return;
-    escolha.fmt = FORMATOS.find(f => f.id === $('[data-fmt]', body).value) || FORMATOS[0]; escolha.comPers = $('[data-pers]', body).checked;
+    escolha.fmt = fmts.find(f => f.id === $('[data-fmt]', body).value) || fmt0; escolha.comPers = $('[data-pers]', body).checked;
     return this.monta(it, P, escolha);
   },
   async monta(it, prep, o) {
@@ -125,7 +138,7 @@ const Prep = {
       NuvemTela.passo(.62, 'Pegando as cores e os personagens…');
       const pers = await this.pers(), quem = this.unicos(falas.map(f => f.personagem)), nomeDe = n => quem.find(q => this.chave(q) === this.chave(n)) || String(n || '').trim();
       for (const f of falas) f._quem = nomeDe(f.personagem);
-      const qcor = Object.fromEntries(quem.map(n => [n, this.cor(prep, pers, n)])); await Short.carregaGosto().catch(() => { });
+      const qcor = Object.fromEntries(quem.map(n => [n, this.cor(prep, pers, n)])); await this.fonte(this.estilo(prep).fonte);
       // QUEM REPRESENTA CADA PERSONAGEM: o que foi escolhido no Preparativos (prep.animador.pers[chave do nome] = { id, nome } do
       // personagem do Ateliê na nuvem; null = nenhum); sem escolha = o PADRÃO do personagem (personagens.json[chave].atelie = { id, nome } | null);
       // sem padrão = personagem da equipe com o MESMO NOME
@@ -166,12 +179,12 @@ const Prep = {
     falas.forEach((f, i) => {
       const a = aud[f.id], d = a?.buf?.duration || +f.duracao || Math.max(1.2, String(f.texto || '').length * .07), nq = Math.max(1, Math.ceil(d * fps)), quem = f._quem || String(f.personagem || '').trim();
       if (a) P.audios.push({ id: uid('au'), nome: `${i + 1}. ${quem || 'Fala'}`, arq: a.k, de: q, vol: 1, tipo: 'voz', trilha: tr(quem), _quem: quem, prep: { fala: f.id } });
-      if (comLeg && f.texto) P.legendas.push(Short.legenda(P, { texto: (leg.mostrarNome && quem ? quem + ': ' : '') + f.texto, de: q, ate: q + nq - 1, cor: qcor[quem], quem, nomes, qcor }));
+      if (comLeg && f.texto) P.legendas.push({ de: q, ate: q + nq - 1, texto: (leg.mostrarNome && quem ? quem + ': ' : '') + f.texto, cor: qcor[quem], quem });
       pos.push({ quem, de: q, ate: q + nq - 1 });
       const nx = falas[i + 1]; q += nq + (nx ? Math.round(Short.pausa({ personagem: quem, texto: f.texto, acao: f.nota }, { personagem: nx._quem || nx.personagem, texto: nx.texto }) * fps) : 0);
     });
     P.duracao = q + Math.round(fps * .5);
-    if (comLeg) P.legEstilo = { pos: 'baixo', blocos: true, karaoke: false, pop: false };
+    if (comLeg) P.legEstilo = { pos: 'baixo', pop: false, prep: this.estilo(prep) }; // desenhada como no Preparativos (Render.legPrep)
     // personagens da equipe: cada um do começo ao fim, espalhados na largura (os de quem fala na ordem em que aparecem)
     const ord = [...new Set(pos.map(x => x.quem))].filter(n => defs[n]), W = P.w, H = P.h;
     ord.forEach((n, i) => { const def = defs[n]; P.personagens[def.id] = def;
@@ -181,6 +194,7 @@ const Prep = {
       P.raiz.unshift(no); }); // o 1º de P.raiz fica NA FRENTE (o fundo padrão fica atrás)
     return P;
   },
+  estilo(prep) { const e = prep?.legenda?.estilo || {}, D = this.LEG; return { ...D, ...e, contorno: { ...D.contorno, ...(e.contorno || {}) }, sombra: { ...D.sombra, ...(e.sombra || {}) }, fundo: { ...D.fundo, ...(e.fundo || {}) } }; },
   // boca pela voz de cada fala, no personagem de quem fala (na animação aberta)
   bocas() {
     const P = App.P; if (!P?.prep) return; let nb = 0;

@@ -237,6 +237,7 @@ const Render = {
   },
   legenda(ctx, P, q, W, H) {
     const l = (P.legendas || []).find(x => q >= x.de && q <= x.ate); if (!l || !l.texto) return;
+    if (P.legEstilo?.prep) return this.legPrep(ctx, P, W, H, l);
     if (l.blocos?.length) return this.legBlocos(ctx, P, q, W, H, l);
     const st = P.legEstilo || {}, ps = this.legPalavras(l); if (!ps.length) return;
     const tam = Math.round(Math.min(W, H) * .062 * (st.tam || 1)), maxW = W * .86, caixa = !!st.caixa, tx = w => caixa ? w.toUpperCase() : w;
@@ -252,6 +253,22 @@ const Render = {
       for (const i of L) { const p = ps[i], falando = tempos && q >= tempos[i][0] && q <= tempos[i][1];
         ctx.lineWidth = tam * .2; ctx.strokeStyle = '#000'; ctx.strokeText(tx(p.w), xx, yy);
         ctx.fillStyle = falando ? (l.cor || st.fala || '#5ee0ff') : p.dest ? (st.destaque || '#ffd84a') : (st.cor || '#fff'); ctx.fillText(tx(p.w), xx, yy); xx += larg[i] + esp; } });
+    ctx.restore();
+  },
+  // LEGENDA NO ESTILO DO PREPARATIVOS (prep.legenda.estilo; README do repo preparativos): medidas em fração da ALTURA do vídeo,
+  // x/y = CENTRO do bloco de texto e largura = caixa máxima (fração da largura); igual à prévia de lá (contorno por fora, sombra, fundo por linha)
+  legPrep(ctx, P, W, H, l) {
+    const e = P.legEstilo.prep, f = /^[A-Za-z0-9 ]{1,40}$/.test(e.fonte || '') ? e.fonte : 'Rubik'; if (typeof Prep !== 'undefined') Prep.fonte(f);
+    const tam = Math.max(4, (+e.tamanho || .045) * H), maxW = (+e.largura || .86) * W, al = ['left', 'right'].includes(e.alinhar) ? e.alinhar : 'center';
+    const txt = e.maiusculas ? String(l.texto).toLocaleUpperCase('pt-BR') : String(l.texto), rgba = (c, a) => { const m = /^#?([0-9a-f]{6})$/i.exec(c || '#000000'), n = parseInt(m ? m[1] : '000000', 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a ?? 1})`; };
+    ctx.save(); ctx.font = `${+e.peso || 800} ${tam}px '${f}', 'Segoe UI', sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = al; ctx.lineJoin = 'round';
+    const linhas = []; let cur = ''; for (const w of txt.split(/\s+/).filter(Boolean)) { const t = cur ? cur + ' ' + w : w; if (cur && ctx.measureText(t).width > maxW) { linhas.push(cur); cur = w; } else cur = t; } if (cur) linhas.push(cur);
+    const lh = tam * 1.2, cx = (e.x ?? .5) * W, cy = (e.y ?? .82) * H, x0 = al === 'left' ? cx - maxW / 2 : al === 'right' ? cx + maxW / 2 : cx, topo = cy - linhas.length * lh / 2;
+    linhas.forEach((s, i) => { const y = topo + lh * (i + .5), lw = ctx.measureText(s).width;
+      if (e.fundo?.ativo) { const px = .012 * H, py = .006 * H, bx = al === 'left' ? x0 : al === 'right' ? x0 - lw : x0 - lw / 2; ctx.fillStyle = rgba(e.fundo.cor, e.fundo.opacidade ?? .5); ctx.fillRect(bx - px, y - lh / 2 - py, lw + px * 2, lh + py * 2); }
+      ctx.save(); if (e.sombra?.ativa) { const sh = e.sombra; ctx.shadowColor = rgba(sh.cor, sh.opacidade ?? .8); ctx.shadowBlur = (sh.desfoque ?? .006) * H; ctx.shadowOffsetX = (sh.x || 0) * H; ctx.shadowOffsetY = (sh.y ?? .003) * H; }
+      if (e.contorno?.ativo) { ctx.lineWidth = (e.contorno.largura ?? .004) * H; ctx.strokeStyle = e.contorno.cor || '#000000'; ctx.strokeText(s, x0, y); ctx.shadowColor = 'transparent'; }
+      ctx.fillStyle = l.cor || '#ffffff'; ctx.fillText(s, x0, y); ctx.restore(); });
     ctx.restore();
   },
   // caixa de cada nó visível (no "mundo") para escolher com o mouse; a primeira é a da frente
