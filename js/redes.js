@@ -99,7 +99,8 @@ const Redes = {
     const NB = H - 150; // faixa de navegação de baixo (~150 px) nos três
     if (plat === 'shorts') {
       s += I('busca', 880, 110, 58) + I('pontosV', 1010, 110, 58);
-      const col = [['joia', '48 mil'], ['joiaB', 'Não gostei'], ['coment', '1,2 mil'], ['compart', 'Compartilhar'], ['remix', 'Remix']]; let y = NB - 1000;
+      // 2026: o Shorts trocou o joinha por um CORAÇÃO e tirou o 'Não gostei' (testes desde junho, mais amplo em julho)
+      const col = [['heartF', '48 mil'], ['comentF', '1,2 mil'], ['compartF', 'Compartilhar'], ['remix', 'Remix']]; let y = NB - 840;
       for (const [n, t] of col) { s += n === 'joiaB' ? `<g transform="translate(0 ${2 * y - 16}) scale(1 -1)">${I('joia', 1000, y - 8, 64)}</g>` : I(n, 1000, y, 64); s += T(1000, y + 66, t, { s: t.length > 9 ? 22 : 26, a: 'middle', w: 500 }); y += 168; }
       s += `<rect x="962" y="${NB - 200}" width="76" height="76" rx="14" fill="#444" stroke="#fff" stroke-width="3"/>` + I('nota', 1000, NB - 162, 40);
       const yc = NB - 300; s += av(76, yc, 38) + T(130, yc + 11, '@' + (c.arroba || 'canal'), { s: 32, w: 600 }) + `<rect x="${150 + (('@' + c.arroba).length * 17)}" y="${yc - 34}" width="210" height="68" rx="34" fill="#fff"/>` + T(255 + (('@' + c.arroba).length * 17), yc + 11, 'Inscrever-se', { s: 28, w: 700, c: '#0f0f0f', a: 'middle' });
@@ -119,13 +120,14 @@ const Redes = {
       s += nav(['casa', 'amigos', 'maisTT', 'caixa', 'perfil'], 0, NB);
     } else { // reels
       s += T(40, 132, 'Reels', { s: 50, w: 700 }) + `<path d="M190 104l14 14 14-14" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" filter="url(#sb)"/>` + I('camera', 1010, 116, 62);
-      const col = [['heart', '48,2 mil'], ['coment', '1.204'], ['aviao', '3.118']]; let y = NB - 760;
+      // botão de REPOSTAR (2025) entre comentar e compartilhar
+      const col = [['heart', '48,2 mil'], ['coment', '1.204'], ['remix', '612'], ['aviao', '3.118']]; let y = NB - 900;
       for (const [n, t] of col) { s += I(n, 1000, y, 68) + T(1000, y + 68, t, { s: 26, a: 'middle', w: 600 }); y += 160; }
       s += I('pontosH', 1000, y - 10, 60); s += `<rect x="964" y="${NB - 150}" width="72" height="72" rx="14" fill="#444" stroke="#fff" stroke-width="3"/>`;
       const yc = NB - 290; s += av(74, yc, 36) + T(126, yc + 11, c.arroba || 'canal', { s: 30, w: 700 }) + `<rect x="${144 + (c.arroba || 'canal').length * 17}" y="${yc - 28}" width="130" height="56" rx="12" fill="none" stroke="#fff" stroke-width="2.5"/>` + T(209 + (c.arroba || 'canal').length * 17, yc + 10, 'Seguir', { s: 28, w: 600, a: 'middle' });
       linhas(tit, 46).forEach((l, i) => { s += T(40, yc + 76 + i * 40, l, { s: 30, w: 400 }); });
       s += I('nota', 56, NB - 46, 28) + T(84, NB - 36, `${c.arroba} · Áudio original`, { s: 26 });
-      s += nav(['casa', 'lupa', 'reelsNav', 'sacola', 'perfil'], 2, NB);
+      s += nav(['casa', 'reelsNav', 'aviao', 'lupa', 'perfil'], 1, NB); // barra nova: Início, Reels, Mensagens, Busca, Perfil (sem o + no meio)
     }
     return s + '</svg>';
   },
