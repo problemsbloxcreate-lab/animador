@@ -31,7 +31,7 @@
   // RENOMEAR ALI MESMO (pedido do dono, 05/11/2026): clicar no nome edita no lugar (Enter ou clicar fora = pronto · Esc = desfaz), sem janela
   { const el = $('#proj-nome'); el.onclick = () => { if (!App.P || el.isContentEditable) return; const antes = App.P.nome; el.contentEditable = 'plaintext-only'; el.spellcheck = false; el.classList.add('editando'); el.focus();
       const sel = getSelection(), r = document.createRange(); r.selectNodeContents(el); sel.removeAllRanges(); sel.addRange(r);
-      const fim = ok => { el.onkeydown = el.onblur = null; el.contentEditable = 'false'; el.classList.remove('editando'); const n = el.textContent.replace(/s+/g, ' ').trim().slice(0, 120);
+      const fim = ok => { el.onkeydown = el.onblur = null; el.contentEditable = 'false'; el.classList.remove('editando'); const n = el.textContent.replace(/\s+/g, ' ').trim().slice(0, 120);
         if (ok && n && n !== antes) { App.P.nome = n; el.textContent = n; App.titulo(); App.commit('Nome'); } else el.textContent = antes; };
       el.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); fim(true); } else if (ev.key === 'Escape') { ev.preventDefault(); fim(false); } };
       el.onblur = () => fim(true); }; }
