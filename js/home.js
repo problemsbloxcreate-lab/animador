@@ -323,11 +323,11 @@ addEventListener('DOMContentLoaded', async () => {
   const naPose = new URLSearchParams(location.search).get('pose') === '1';
   const daAnim = new URLSearchParams(location.search).get('anim'); AtelieAnim.liga();
   if (at && daAnim) { Atelie.emAba = true; if (!(await AtelieAnim.entrar(at, daAnim))) { history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } } // a CÓPIA de uma animação (o que está na timeline)
-  else if (at) { Atelie.emAba = true; await Atelie.abrir(at === 'novo' ? null : at, naPose ? { reserva: await Animacoes.reservaDaPose(at) } : {}); if (naPose && Atelie.def) await Animacoes.entrarNaPose(at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
+  else if (at) { Atelie.emAba = true; const abA = (async () => Atelie.abrir(at === 'novo' ? null : at, naPose ? { reserva: await Animacoes.reservaDaPose(at) } : {}))(); window.EstudioProgresso?.tarefa(abA, 'Abrindo o personagem e as imagens', 40000); await abA; /* a tela do programa só sai com o personagem pronto (05/11/2026) */ if (naPose && Atelie.def) await Animacoes.entrarNaPose(at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
     if (at && Atelie.def) { const rc = await Citacao.receber(); if (rc?.parte) Citacao.irAtelie(rc.parte); }
   else { // F5 / "Atualizar todos os sites" com uma animação aberta (?projeto=<id>): volta direto para ela
     const pid = new URLSearchParams(location.search).get('projeto'), P = pid ? await DB.get('projetos', pid).catch(() => null) : null;
-    if (P) { await App.abrir(P); await Citacao.receber(); }
+    if (P) { const abP = App.abrir(P).then(() => App.esperaImagens(P)); window.EstudioProgresso?.tarefa(abP, 'Abrindo a animação e as imagens da cena', 40000); await abP; await Citacao.receber(); } // a tela do programa só sai com a cena pronta (05/11/2026)
     else { if (pid) history.replaceState(null, '', location.pathname);
       // atalhos do cartão ANIMAR no menu: ?aba=personagens (Ateliê) / ?aba=ideias, ?abrir=cenarios (biblioteca de Cenários)
       const qs = new URLSearchParams(location.search), aba = qs.get('aba'), abrir = qs.get('abrir');
