@@ -1767,5 +1767,5 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 #editor>header.bar #b-atelie{display:none} /* o Ateliê abre pelo menu "Ateliê de personagens…" e pelo painel ao lado (pedido do dono, 05/11/2026) */
 #editor>header.bar #b-ia{display:none} /* a IA fica no menu ⋯ (pedido do dono, 05/11/2026) */
 #editor>header.bar .b-atualizar{margin-left:4px}
-#editor>header.bar #b-onion,#editor>header.bar #b-regua{display:none} /* no menu ⋯ (05/11/2026) */
+#editor>header.bar #b-onion{display:none} /* no menu ⋯ (05/11/2026) */
 .ctx-ic-at{display:inline-block;width:15px;height:15px}

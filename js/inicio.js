@@ -7,13 +7,12 @@
   poe('b-onion', 'onion', '', () => { App.onion = !App.onion; $('#b-onion').classList.toggle('on', App.onion); App.pinta(); });
   poe('b-ia', 'sparkles', 'IA', () => IA.abrir(Lado.foco())); { const b = $('#b-atelie'); if (b) { b.innerHTML = '<span class="ic-atelie ic-ep" data-estudio-icone="at" aria-label="Ateliê"></span>'; b.classList.add('so-icone'); b.title = 'Ateliê de personagens (abrir no Animador ou numa aba nova)'; b.onclick = () => App.abrirAtelie(); } } // ícone do Ateliê (paleta laranja), pergunta simples × completo
   // MAIS (05/11/2026): a IA e o Ateliê saíram da barra e ficam neste menu
-  // casca de cebola e régua também foram para o menu ⋯ (as teclas O e R continuam); o "Design padrão" continua na barra quando algo mudou
+  // a casca de cebola foi para o menu ⋯ (a tecla O continua); o "Design padrão" continua na barra quando algo mudou
   poe('b-mais', 'dots', '', () => { const r = $('#b-mais').getBoundingClientRect();
     UI.ctx(r.right - 260, r.bottom + 4, [
       { label: 'Animar com a IA…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco()) },
       { label: 'Ateliê de personagens…', iconHtml: '<span class="ic-atelie ic-ep ctx-ic-at" data-estudio-icone="at" aria-hidden="true"></span>', action: () => App.abrirAtelie() }, '-',
       { label: 'Casca de cebola', key: 'O', checked: !!App.onion, action: () => $('#b-onion').click() },
-      { label: 'Régua e ímã', key: 'R', checked: !!App.regua(), action: () => $('#b-regua').click() },
       '-',
       { label: 'Baixar .animador', icon: 'file', action: () => Toon.baixar(App.P) },
       { label: 'Citar este quadro em mensagens…', icon: 'chat', action: () => Citacao.animacao(App.P, App.q, App.sel) }]);
