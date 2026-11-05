@@ -20,10 +20,10 @@ const AtelieAnim = {
   async abrir(projeto, id) {
     if (App.P?.id === projeto) await App.salvarJa?.(); // a cópia que está na tela é a que abre
     const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', id); u.searchParams.set('anim', projeto);
-    const w = window.open(u.href, '_blank'); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
+    const w = UI.abaNova(u.href, 'Abrindo o Ateliê…'); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
   },
   // abre o personagem da equipe (nuvem/computador) numa aba nova
-  abrirEquipe(id) { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', id); const w = window.open(u.href, '_blank'); if (!w) UI.toast('O navegador bloqueou a aba nova.', { kind: 'warn' }); },
+  abrirEquipe(id) { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', id); const w = UI.abaNova(u.href, 'Abrindo o Ateliê…'); if (!w) UI.toast('O navegador bloqueou a aba nova.', { kind: 'warn' }); },
   // na aba nova (?atelie=&anim=): lê a cópia da animação e abre
   async entrar(id, projeto) {
     const P = await DB.get('projetos', projeto).catch(() => null), def = P?.personagens?.[id];

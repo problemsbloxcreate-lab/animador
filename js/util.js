@@ -183,6 +183,15 @@ function ic(name, size = 16, sw = 2) {
 
 /* ---------- Pop-ups do editor (sem alert/confirm do navegador) ---------- */
 const UI = {
+  // ABA NOVA JÁ DIZENDO O QUE FAZ (pedido da dona, 05/11/2026): a aba abria em branco até a página chegar e parecia que nada tinha
+  // acontecido. Agora ela nasce com a tela "Abrindo…" (fundo preto e as bolinhas girando) e só depois vai para o endereço.
+  abaNova(url, txt = 'Abrindo…') {
+    const w = window.open('', '_blank'); if (!w) return null;
+    try { const e = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      w.document.write(`<!doctype html><meta charset="utf-8"><title>${e(txt)}</title><style>html,body{margin:0;height:100%;background:#000;color:#e8e9ec;font:14px/1.5 system-ui,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center}.c{display:grid;justify-items:center;gap:18px}.sp{position:relative;width:40px;height:40px}.sp i{position:absolute;inset:0;opacity:0;animation:g 4.4s infinite}.sp i::after{content:'';position:absolute;top:0;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:#fff}.sp i:nth-child(2){animation-delay:.22s}.sp i:nth-child(3){animation-delay:.44s}.sp i:nth-child(4){animation-delay:.66s}.sp i:nth-child(5){animation-delay:.88s}@keyframes g{0%{transform:rotate(180deg);opacity:1;animation-timing-function:ease-out}7%{transform:rotate(300deg);animation-timing-function:linear}30%{transform:rotate(470deg);animation-timing-function:ease-in-out}39%{transform:rotate(645deg);animation-timing-function:linear}70%{transform:rotate(770deg);animation-timing-function:ease-out}75%{transform:rotate(900deg);opacity:1}76%,100%{transform:rotate(900deg);opacity:0}}</style><div class="c"><div class="sp">${'<i></i>'.repeat(5)}</div><div>${e(txt)}</div></div>`);
+      w.document.close(); } catch { }
+    w.location.href = url; return w;
+  },
   modal(o) {
     return new Promise(resolve => {
       const root = $('#modal-root');

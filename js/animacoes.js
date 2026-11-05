@@ -241,7 +241,7 @@ const Animacoes = {
     const est = Modelo.estadoPersonagem(n, App.q), partes = {}; for (const [k, v] of Object.entries(est.partes || {})) if (v) partes[k] = v;
     await DB.put('arquivos', { def: clone(def), sessoes: est.sessoes || {}, partes, vista: est.vista || null, quadro: App.q, anim: P.nome, projeto: P.id, no: n.id, em: Date.now() }, 'pose-abrir:' + def.id); // projeto/no: o que for só deste keyframe volta para esta chave
     const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', def.id); u.searchParams.set('pose', '1');
-    const w = window.open(u.href, '_blank'); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
+    const w = UI.abaNova(u.href, 'Abrindo a pose no Ateliê…'); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
     else UI.toast(`<b>${esc(def.nome)}</b> abriu no Ateliê na pose do quadro ${App.q + 1}. Quando o personagem for salvo lá, esta animação recebe a mudança sozinha.`, { kind: 'ok', time: 6000 });
   },
   /* ---------- editor → "Abrir no Ateliê como pose nova": o jeito que o personagem está neste quadro (vista, poses, ajustes e o espelho)
@@ -263,7 +263,7 @@ const Animacoes = {
     await DB.put('arquivos', { def: clone(def0), sessoes: est.sessoes || {}, partes, vista: dv._vista || def0.vistas?.[0]?.id || null, quadro: q, anim: P.nome, em: Date.now(),
       acao: { ...r, projeto: P.id, no: n.id, quadro: q } }, 'pose-abrir:' + def0.id);
     const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', def0.id); u.searchParams.set('pose', '1');
-    const w = window.open(u.href, '_blank'); if (!w) return UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
+    const w = UI.abaNova(u.href, 'Abrindo a pose no Ateliê…'); if (!w) return UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
     UI.toast(`Abrindo no Ateliê como ${r.como === 'vista' ? 'vista nova' : 'preset novo'}…`, { time: 4000 });
   },
   // no Ateliê: cria o preset/vista pedido pelo editor a partir da pose do quadro e avisa o editor (o quadro passa a usar)

@@ -26,7 +26,7 @@ const Atelie = {
   abrirAba(id) {
     if (this.emAba) return this.abrir(id);
     const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', id || 'novo');
-    const w = window.open(u.href, '_blank'); if (!w) return this.abrir(id, { volta: !!App.P });
+    const w = UI.abaNova(u.href, 'Abrindo o Ateliê…'); if (!w) return this.abrir(id, { volta: !!App.P });
   },
   // personagem da NUVEM: tela "Carregando da nuvem" com o ícone do Ateliê, a barra e a % (decisão do dono, 04/11/2026); some no fim, no erro e antes de qualquer pergunta
   async abrir(id, o = {}) {

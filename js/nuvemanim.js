@@ -173,8 +173,15 @@ const NuvemAnim = {
   },
   // abrir uma animação pela tela inicial: a versão da nuvem quando ela é mais nova; com gente na sala ao vivo, a da sala
   async abrir(id, local, o = {}) { // o.tela: mostra a tela "Carregando da nuvem" (aberto pelos Recentes do menu) em vez da janelinha Ocupado
+    // A TELA JÁ NO CLIQUE (pedido da dona, 05/11/2026): antes ela só aparecia depois de conferir a lista da nuvem e quem está ao vivo,
+    // e nesse meio-tempo parecia que o clique não tinha funcionado. Agora aparece na hora e diz o que está fazendo.
+    const minha0 = !NuvemTela.el; if (minha0) { NuvemTela.inicio(local?.nome || ''); NuvemTela.passo(null, 'Conferindo a versão mais nova na nuvem…'); }
+    try { return await this._abrir(id, local, o); } finally { if (minha0 && NuvemTela.el) NuvemTela.fim(true); }
+  },
+  async _abrir(id, local, o = {}) {
     let it = null; try { it = (await this.lista(true)).find(x => x.id === id); } catch { }
-    let P = local;
+    let P = local; if (it?.nome) NuvemTela.nome(it.nome);
+    if (AoVivo.ligado()) NuvemTela.passo(null, 'Vendo se tem alguém trabalhando nela agora…');
     const outros = AoVivo.ligado() ? await AoVivo.outrosNaSala('an-' + id) : 0;
     if (it && !outros && (!local || (it.mod || 0) > (local.nuvemMod || 0))) {
       const mudouAqui = local && (local.modificado || 0) > (local.nuvemEm || 0) + 3000 && local.nuvemMod; // mudanças daqui que ainda não foram e a nuvem também mudou
@@ -191,7 +198,7 @@ const NuvemAnim = {
       }
     }
     if (!P && outros) { NuvemTela.fim(); const s = { sala: 'an-' + id, nome: it?.nome }; return Home.entrarJunto(s); }
-    if (P) return App.abrir(P);
+    if (P) { NuvemTela.passo(.9, 'Abrindo a animação…'); return App.abrir(P); }
   },
   // botão ATUALIZAR do Animador: confere a nuvem e traz a versão mais nova (com gente junto o ao vivo já mantém tudo igual)
   async atualizar() {
