@@ -92,7 +92,7 @@ const PaineisBase = {
     for (const box of $$('.dock-col, .dock-janela', this.raizEl)) {
       const ds = $$(':scope > .dock', box).filter(d => !this.SEM_ALT.includes(d.dataset.dock));
       ds.forEach((d, i) => { const id = d.dataset.dock, v = A[id]; $(':scope > .dock-hb', d)?.remove();
-        d.style.flex = v ? (fixo(id) ? `0 0 ${v}px` : `${v} 1 0`) : ''; if (v && fixo(id)) d.style.overflow = 'auto'; else d.style.overflow = '';
+        const pp = this.PESO?.[id]; d.style.flex = v ? (fixo(id) ? `0 0 ${v}px` : `${v} 1 0`) : pp ? `${pp} 1 0` : ''; // PESO: altura padrão de cada painel (sem ter arrastado) if (v && fixo(id)) d.style.overflow = 'auto'; else d.style.overflow = '';
         if (!i) return; const hb = h('<div class="dock-hb" title="Arraste para mudar a altura · dois cliques: volta ao normal"></div>'); d.appendChild(hb); this.bordaAlt(hb, ds[i - 1], d, ds); });
     }
   },
@@ -251,6 +251,8 @@ const PaineisEd = Object.assign(Object.create(PaineisBase), {
   CHAVE: 'animador-editor-layout', CH_ALT: 'animador-editor-alturas', CH_TL: 'animador-editor-tl', BOTAO: 'ed-layout-padrao', MSG_PADRAO: 'Voltou ao design padrão do Animador.',
   NOMES: { midia: 'Mídia', arvore: 'Hierarquia', lado: 'Propriedades · Efeitos · Voz · No quadro', linha: 'Timeline' },
   TL_PADRAO: 250,
+  // altura padrão na coluna (pedido do dono, 05/11/2026): a Mídia menor e a Hierarquia maior (~1/4 e ~3/4)
+  PESO: { midia: 1, arvore: 3 },
   SEL: { raiz: '#editor', grade: '#editor .area', esq: '#editor .area > aside.esq', dir: '#editor .area > aside.dir', palco: '#editor .palco' },
   st: null, sec: {},
   // MÍDIA em cima da Hierarquia, na esquerda (um pouco mais larga: 300 px)
