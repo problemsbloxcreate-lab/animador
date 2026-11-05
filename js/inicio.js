@@ -28,7 +28,13 @@
   $$('[data-vista]').forEach(b => b.onclick = () => App.setVista(b.dataset.vista));
   $$('#lado-abas [data-aba]').forEach(b => b.onclick = () => Lado.aba(b.dataset.aba));
   $('#ed-inicio').onclick = () => App.fechar();
-  $('#proj-nome').onclick = async () => { const n = await UI.prompt({ title: 'Nome da animação', value: App.P.nome }); if (n) { App.P.nome = n; $('#proj-nome').textContent = n; App.titulo(); App.commit('Nome'); } };
+  // RENOMEAR ALI MESMO (pedido do dono, 05/11/2026): clicar no nome edita no lugar (Enter ou clicar fora = pronto · Esc = desfaz), sem janela
+  { const el = $('#proj-nome'); el.onclick = () => { if (!App.P || el.isContentEditable) return; const antes = App.P.nome; el.contentEditable = 'plaintext-only'; el.spellcheck = false; el.classList.add('editando'); el.focus();
+      const sel = getSelection(), r = document.createRange(); r.selectNodeContents(el); sel.removeAllRanges(); sel.addRange(r);
+      const fim = ok => { el.onkeydown = el.onblur = null; el.contentEditable = 'false'; el.classList.remove('editando'); const n = el.textContent.replace(/s+/g, ' ').trim().slice(0, 120);
+        if (ok && n && n !== antes) { App.P.nome = n; el.textContent = n; App.titulo(); App.commit('Nome'); } else el.textContent = antes; };
+      el.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); fim(true); } else if (ev.key === 'Escape') { ev.preventDefault(); fim(false); } };
+      el.onblur = () => fim(true); }; }
   $('#z-menos').onclick = () => { const v = App.vista, r = App.palco.cv.getBoundingClientRect(), z = v.z / 1.25; v.x = r.width / 2 - (r.width / 2 - v.x) * z / v.z; v.y = r.height / 2 - (r.height / 2 - v.y) * z / v.z; v.z = z; App.pinta(); App.zoomTxt(); };
   $('#z-mais').onclick = () => { const v = App.vista, r = App.palco.cv.getBoundingClientRect(), z = v.z * 1.25; v.x = r.width / 2 - (r.width / 2 - v.x) * z / v.z; v.y = r.height / 2 - (r.height / 2 - v.y) * z / v.z; v.z = z; App.pinta(); App.zoomTxt(); };
   $('#zoom-txt').onclick = () => App.enquadrar();

@@ -1769,3 +1769,5 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 #editor>header.bar .b-atualizar{margin-left:4px}
 #editor>header.bar #b-onion{display:none} /* no menu ⋯ (05/11/2026) */
 .ctx-ic-at{display:inline-block;width:15px;height:15px}
+#editor>header.bar .proj-nome b{margin-left:0} /* o começo do nome não fica cortado (05/11/2026) */
+#editor>header.bar .proj-nome b.editando{cursor:text;background:var(--bg3);border-color:#3d8bff;outline:none;text-overflow:clip;max-width:340px}
