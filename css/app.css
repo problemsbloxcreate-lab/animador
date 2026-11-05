@@ -1744,3 +1744,20 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 @keyframes an-pulsa{0%{box-shadow:0 0 0 0 rgba(255,77,77,.55)}70%{box-shadow:0 0 0 6px rgba(255,77,77,0)}100%{box-shadow:0 0 0 0 rgba(255,77,77,0)}}
 .aovivo-agora{margin-top:18px}.av-fotos{display:flex;margin-top:4px}
 .pc.an-ao-vivo{border-color:#3fa35a;box-shadow:0 0 0 1px rgba(123,216,143,.35)}
+
+/* BARRA ENXUTA DO ANIMADOR (pedido do dono, 05/11/2026): menos texto e menos caixas; tudo continua com a explicação na dica */
+#editor>header.bar{gap:6px}
+#editor>header.bar .brand small{display:none}
+#editor>header.bar .brand b{font-size:13px;letter-spacing:.6px}
+#editor>header.bar #b-nuvem-atual{display:none}
+#editor>header.bar .an-nuvem-bt{margin-left:4px}
+#editor>header.bar .an-nuvem-bt .btn{height:26px}
+#editor>header.bar .an-nv-bt{padding:0 8px;gap:5px}
+#editor>header.bar .ed-autores{margin-left:4px}
+#editor>header.bar .ed-autores .autores{background:none;border:0;padding:0;max-width:none}
+#editor>header.bar .ed-autores .aut-nm{display:none}
+#editor>header.bar .av-ao{margin-right:5px}
+#editor>header.bar .aovivo-barra .btn.so-icone{width:24px;height:24px;padding:0;justify-content:center}
+#editor>header.bar .sep{margin:0 2px}
+#editor>header.bar .ed-pessoas{display:inline-flex;align-items:center;gap:6px;flex:none}
+#editor>header.bar .ed-pessoas .ed-autores{margin-left:0}
