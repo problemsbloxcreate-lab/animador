@@ -1842,7 +1842,7 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .hm-nova{height:40px;border-radius:8px;border:0;background:#e6e6e6;color:#151515;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;margin-bottom:12px;flex:none}.hm-nova:hover{background:#fff}
 .hm-g{display:flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:.08em;color:#8f8f8f;font-weight:600;padding:12px 10px 4px}
 .hm-g{border-top:1px solid var(--bd2);margin-top:8px;padding-top:14px} /* linha entre os grupos (pedido da dona) */
-.hm-gic{display:inline-grid;width:20px;height:20px;flex:none;border-radius:5px;overflow:hidden}.hm-gic>*{width:100%;height:100%;display:block}.hm-gic-sm{width:16px;height:16px;border-radius:4px}
+.hm-gic{display:inline-grid;width:20px;height:20px;flex:none}.hm-gic>*{width:100%;height:100%;display:block}.hm-gic-sm{width:16px;height:16px} /* sem border-radius/overflow: o ícone da ADM já tem o formato dele (pedido da dona) */
 .hm-it{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 10px;border:0;border-radius:7px;background:none;color:var(--tx);text-align:left;cursor:pointer;flex:none}
 .hm-it:hover{background:var(--bg3)}.hm-it.on{background:var(--bg4)}
 .hm-it>span{display:flex;flex-direction:column;min-width:0}.hm-it b{font-weight:500}.hm-it small{color:#8f8f8f;font-size:11px}
