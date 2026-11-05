@@ -127,9 +127,10 @@ const Prep = {
       for (const f of falas) f._quem = nomeDe(f.personagem);
       const qcor = Object.fromEntries(quem.map(n => [n, this.cor(prep, pers, n)])); await Short.carregaGosto().catch(() => { });
       // QUEM REPRESENTA CADA PERSONAGEM: o que foi escolhido no Preparativos (prep.animador.pers[chave do nome] = { id, nome } do
-      // personagem do Ateliê na nuvem; null = nenhum); sem escolha = personagem da equipe com o MESMO NOME
+      // personagem do Ateliê na nuvem; null = nenhum); sem escolha = o PADRÃO do personagem (personagens.json[chave].atelie = { id, nome } | null);
+      // sem padrão = personagem da equipe com o MESMO NOME
       const defs = {}, mapa = prep.animador?.pers || {}; if (o.comPers) { let L = null; const lista = async () => L || (L = await Nuvem.lista().catch(() => []));
-        for (const n of quem) { const m = mapa[this.chave(n)]; if (m === null || (m && !m.id)) continue;
+        for (const n of quem) { const k = this.chave(n), m = k in mapa ? mapa[k] : pers?.[k]?.atelie; /* escolha do roteiro › padrão do personagem (aba Personagens do Preparativos) › mesmo nome */ if (m === null || (m && !m.id)) continue;
           const id = m?.id || (await lista()).find(y => this.chave(y.nome) === this.chave(n))?.id; if (!id) continue;
           try { const d = clone(await Nuvem.abrir(id)); defs[n] = d; await Arq.garantir(Modelo.chavesImgs(d)).catch(() => { }); } catch (e) { console.warn('personagem do Ateliê', n, e); } } }
       // 3) uma animação por grupo de partes
