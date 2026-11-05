@@ -269,10 +269,18 @@ const Autores = {
   // selo do canto do cartão: a foto e o nome de quem subiu; se outra pessoa editou, a foto dela por cima e "editado por"
   // nome e foto de AGORA da pessoa (o que ela pôs na "Minha conta"), pelo código guardado no arquivo; se não achar, fica o que foi guardado
   _vivos: new Map(),
+  // FOTO DE AGORA JÁ NA 1ª PINTURA (05/11/2026): o nome/foto mais recente de cada pessoa fica guardado neste navegador; o selo já
+  // começa com ele (antes aparecia a foto antiga guardada no projeto até a nuvem responder) e a nuvem só confere depois
+  _cacheP: null,
+  cacheP() { if (!this._cacheP) { try { this._cacheP = JSON.parse(localStorage.getItem('animador-pessoas') || '{}') || {}; } catch { this._cacheP = {}; } } return this._cacheP; },
+  jaSei(p) { const c = p?.id && this.cacheP()[p.id]; return c ? { ...p, nome: c.nome || p.nome, foto: c.foto || p.foto } : p; },
+  comCache(d) { return d?.autor ? { ...d, autor: this.jaSei(d.autor), edicoes: (d.edicoes || []).map(x => this.jaSei(x)) } : d; },
+  guardaP(id, j) { const c = this.cacheP(), v = { nome: j.nome, foto: j.foto || null }; if (JSON.stringify(c[id]) === JSON.stringify(v)) return; c[id] = v;
+    try { const ks = Object.keys(c); if (ks.length > 200) delete c[ks[0]]; localStorage.setItem('animador-pessoas', JSON.stringify(c)); } catch { } },
   vivo(p) {
     if (!p?.id || !/^u[0-9a-f]{16}$/.test(p.id)) return Promise.resolve(p);
     if (!this._vivos.has(p.id)) this._vivos.set(p.id, fetch('/pessoa?u=' + encodeURIComponent(p.id), { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null));
-    return this._vivos.get(p.id).then(j => j?.nome ? { ...p, nome: j.nome, foto: j.foto || (/^\/conta\//.test(p.foto || '') ? null : p.foto) } : p);
+    return this._vivos.get(p.id).then(j => (j?.nome && this.guardaP(p.id, j), j)).then(j => j?.nome ? { ...p, nome: j.nome, foto: j.foto || (/^\/conta\//.test(p.foto || '') ? null : p.foto) } : p);
   },
   // antes de mostrar: nome e foto de AGORA de cada pessoa, com a foto já baixada (sem trocar na frente da pessoa)
   async preCarregar(gente) {
@@ -292,7 +300,7 @@ const Autores = {
   // NÃO ESTÁ NA NUVEM (saiu de lá ou nunca foi): tira o histórico da nuvem para não confundir — fica só quem criou (como arquivo normal)
   semNuvem(def) { if (!def) return def; def.edicoes = []; def.semNuvem = true; return def; },
   selo(d0, o = {}) { // o.local = este personagem está só neste computador (não está na nuvem agora)
-    if (!d0?.autor) return null; d0 = this.semIa(d0); let d = d0, eds = this.editores(d), ult = eds[0];
+    if (!d0?.autor) return null; d0 = this.semIa(d0); let d = this.comCache(d0), eds = this.editores(d), ult = eds[0];
     const el = h(`<div class="autores" title=""></div>`);
     const pinta = () => { eds = this.editores(d); ult = eds[0]; el.innerHTML = `${this.av(d.autor)}${ult ? this.av(ult, 'sob') : ''}<span class="aut-nm">${esc(d.autor.nome)}${ult ? `<small> · editado por ${esc(ult.nome)}${eds.length > 1 ? ` +${eds.length - 1}` : ''}</small>` : ''}</span>`; };
     pinta(); this.aoVivo(d0).then(x => { d = this.semIa(x); pinta(); }); // troca pelo nome e foto de agora assim que chegar
