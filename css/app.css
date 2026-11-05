@@ -1761,3 +1761,7 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 #editor>header.bar .sep{margin:0 2px}
 #editor>header.bar .ed-pessoas{display:inline-flex;align-items:center;gap:6px;flex:none}
 #editor>header.bar .ed-pessoas .ed-autores{margin-left:0}
+#editor>header.bar .ed-autores .autores{position:relative}
+#editor>header.bar .ed-autores[hidden]{display:none}
+#editor>header.bar .ed-lapis{position:absolute;right:-4px;bottom:-3px;width:14px;height:14px;border-radius:50%;background:var(--bg2,#2a2a2a);border:1px solid var(--bd,#444);display:grid;place-items:center;color:var(--tx2,#bbb);pointer-events:none}
+#editor>header.bar #b-atelie{display:none} /* o Ateliê abre pelo menu "Ateliê de personagens…" e pelo painel ao lado (pedido do dono, 05/11/2026) */

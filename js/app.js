@@ -120,7 +120,7 @@ const App = {
     b.onclick = () => this.cliqueNuvem(); m.innerHTML = ic('down', 13); m.onclick = ev => this.menuNuvem(ev);
     const at = $('#b-nuvem-atual'); if (at) { at.hidden = !vai; at.innerHTML = ic('loop', 14); at.onclick = async () => { at.disabled = true; try { await NuvemAnim.atualizar(); } finally { at.disabled = false; } }; }
     // quem criou / editou (foto e nome, igual ao Ateliê); trabalhando junto, as fotos de quem está na sala já aparecem ao lado
-    const au = $('#ed-autores'); if (au) { const de = (P.autor?.id || '') + '/' + (P.edicoes || []).map(x => x.id + x.em).join(',') + '/' + vai; if (au._de !== de) { au._de = de; au.innerHTML = ''; const sl = P.autor ? Autores.selo(P, { local: !vai }) : null; if (sl) au.appendChild(sl); } }
+    const au = $('#ed-autores'); if (au) { const de = (P.autor?.id || '') + '/' + (P.edicoes || []).map(x => x.id + x.em).join(',') + '/' + vai; if (au._de !== de) { au._de = de; au.innerHTML = ''; const sl = P.autor ? Autores.selo(P, { local: !vai }) : null; if (sl) { sl.insertAdjacentHTML('beforeend', `<span class="ed-lapis" title="Quem criou e quem editou por último">${ic('pencil', 9, 2.4)}</span>`); au.appendChild(sl); } } }
     // o texto pequeno só aparece enquanto salva ou quando dá erro (o resto o botão já diz)
     if (e) { e.textContent = /^Salvando|^Não salvou/.test(t) ? t : ''; e.classList.toggle('erro', /^Não salvou/.test(t)); }
   },

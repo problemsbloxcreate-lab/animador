@@ -414,7 +414,7 @@ const AoVivo = {
   },
   pintaBarra() {
     for (const el of $$('[data-aovivo]')) { const outros = this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx ? this.outros() : [];
-      el.hidden = !(this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx); if (el.dataset.aovivo === 'atelie') { const au = document.getElementById('at-autores'); if (au) au.hidden = !el.hidden; } // ao vivo: some o "editado por…" (mais espaço)
+      el.hidden = !(this.ativo && this.ad && el.dataset.aovivo === this.ad.ctx); if (el.dataset.aovivo === 'atelie') { const au = document.getElementById('at-autores'); if (au) au.hidden = !el.hidden; } if (el.dataset.aovivo === 'animador') { const au = document.getElementById('ed-autores'); if (au) au.hidden = !el.hidden && outros.length > 0; } // com gente ao vivo: somem as fotos de quem editou (lápis) e ficam só as de quem está junto agora // ao vivo: some o "editado por…" (mais espaço)
       if (el.hidden) { el.innerHTML = ''; continue; }
       // 2+ pessoas: a foto de TODOS (eu primeiro, depois quem está ativo, ausentes no fim); cabem 3 ou 4 conforme a tela, o resto vira "+N" (clicar abre a lista toda)
       const todos = outros.length ? [{ ...this.eu, eu: true }, ...[...outros].sort((a, b) => (a.afk ? 1 : 0) - (b.afk ? 1 : 0))] : [], max = innerWidth < 1250 ? 3 : 4, cabe = Math.min(max, todos.length), mais = todos.length - cabe;
