@@ -1781,5 +1781,6 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .redes-foto{display:flex;align-items:center;gap:8px}.rf-av{width:40px;height:40px;border-radius:50%;overflow:hidden;background:center/cover no-repeat;flex:none}
 /* QUEM EDITOU x AO VIVO (05/11/2026): as fotos de quem editou não parecem gente online — mais apagadas, com o lápis bem visível e uma barrinha antes do ao vivo */
 #editor>header.bar .ed-pessoas .ed-autores:not([hidden]){padding-right:8px;border-right:1px solid var(--bd)}
-#editor>header.bar .ed-autores .autores>*:not(.ed-lapis){filter:grayscale(.85);opacity:.7}
+#editor>header.bar .ed-autores{position:relative}
 #editor>header.bar .ed-lapis{width:16px;height:16px;right:-6px;bottom:-4px;background:#3d8bff;border-color:#1b1b1b;color:#fff}
+#editor>header.bar .ed-pessoas .ed-lapis{right:2px;bottom:-3px}

@@ -25,7 +25,7 @@
   poe('t-chave', 'diamond', 'Chave', () => App.chaveAqui()); poe('t-tira', 'minus', 'Tirar', () => App.tiraChave());
   poe('at-backup', 'download', '', () => AtelieArq.baixar(Atelie.def));   poe('at-voltar', 'left', 'Voltar'); poe('at-undo', 'undo', ''); poe('at-redo', 'redo', '');
   $$('[data-ferr]').forEach(b => { b.innerHTML = ic({ mover: 'cursor', mao: 'move', camera: 'camera' }[b.dataset.ferr], 15); b.onclick = () => App.setFerr(b.dataset.ferr); });
-  $('[data-vista]').forEach(b => b.onclick = () => App.setVista(b.dataset.vista)); try { Redes.pintaBotoes(); } catch { }
+  $$('[data-vista]').forEach(b => b.onclick = () => App.setVista(b.dataset.vista)); try { Redes.pintaBotoes(); } catch { }
   $$('#lado-abas [data-aba]').forEach(b => b.onclick = () => Lado.aba(b.dataset.aba));
   $('#ed-inicio').onclick = () => App.fechar();
   // RENOMEAR ALI MESMO (pedido do dono, 05/11/2026): clicar no nome edita no lugar (Enter ou clicar fora = pronto · Esc = desfaz), sem janela

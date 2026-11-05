@@ -120,7 +120,7 @@ const App = {
     b.onclick = () => this.cliqueNuvem(); m.innerHTML = ic('down', 13); m.onclick = ev => this.menuNuvem(ev);
     const at = $('#b-nuvem-atual'); if (at) { at.hidden = !vai; at.innerHTML = ic('loop', 14); at.onclick = async () => { at.disabled = true; try { await NuvemAnim.atualizar(); } finally { at.disabled = false; } }; }
     // quem criou / editou (foto e nome, igual ao Ateliê); trabalhando junto, as fotos de quem está na sala já aparecem ao lado
-    const au = $('#ed-autores'); if (au) { const de = (P.autor?.id || '') + '/' + (P.edicoes || []).map(x => x.id + x.em).join(',') + '/' + vai; if (au._de !== de) { au._de = de; au.innerHTML = ''; const sl = P.autor ? Autores.selo(P, { local: !vai }) : null; if (sl) { sl.insertAdjacentHTML('beforeend', `<span class="ed-lapis" title="Quem criou e quem editou por último">${ic('pencil', 9, 2.4)}</span>`); au.appendChild(sl); } } }
+    const au = $('#ed-autores'); if (au) { const de = (P.autor?.id || '') + '/' + (P.edicoes || []).map(x => x.id + x.em).join(',') + '/' + vai; if (au._de !== de) { au._de = de; au.innerHTML = ''; const sl = P.autor ? Autores.selo(P, { local: !vai }) : null; if (sl) { au.appendChild(sl); au.insertAdjacentHTML('beforeend', '<span class="ed-lapis" title="Quem criou e quem editou por último">' + ic('pencil', 10, 2.4) + '</span>'); } } }
     // o texto pequeno só aparece enquanto salva ou quando dá erro (o resto o botão já diz)
     if (e) { e.textContent = /^Salvando|^Não salvou/.test(t) ? t : ''; e.classList.toggle('erro', /^Não salvou/.test(t)); }
   },
@@ -502,7 +502,7 @@ const App = {
     this.vista = { z, x: r.width / 2 - c.x * z, y: r.height / 2 - c.y * z }; this.pinta(); this.zoomTxt(); },
   zoomTxt() { const e = $('#zoom-txt'); if (e) e.textContent = Math.round(this.vista.z * 100) + '%'; },
   setFerr(f) { this.ferr = f; $$('[data-ferr]').forEach(b => b.classList.toggle('on', b.dataset.ferr === f)); $('#palco').classList.toggle('pan', f === 'mao'); if (f === 'camera') this.selecionar('camera'); },
-  setVista(m) { this.modoVista = m; $('[data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === m)); if (typeof Redes !== 'undefined') Redes.pintaBotoes(); this.pinta(); },
+  setVista(m) { this.modoVista = m; $$('[data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === m)); if (typeof Redes !== 'undefined') Redes.pintaBotoes(); this.pinta(); },
 
   // [ e ]: vai para a chave anterior/próxima da camada escolhida (ou de qualquer camada, câmera e começos/fins de áudio e legenda)
   pulaChave(dir) {
