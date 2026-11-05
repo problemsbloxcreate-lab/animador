@@ -43,7 +43,7 @@ const AtualizaProj = {
     const b = this.botao(); if (!b) return; const n = App.P ? this.lista.length : 0; b.hidden = !n;
     b.innerHTML = `${ic('download', 14)}<span>Atualizar projeto</span><i>${n}</i>`; b.title = `Este projeto está atrás da versão atual: ${this.lista.map(x => x.titulo).join(', ')}. Clique para ver e atualizar.`;
   },
-  botao() { let b = $('#b-atualizar'); if (!b) { const ref = $('#b-junto'); if (!ref) return null; b = h('<button class="btn sm b-atualizar" id="b-atualizar" hidden></button>'); b.onclick = () => this.abrir(); ref.before(b); } return b; },
+  botao() { let b = $('#b-atualizar'); if (!b) { const ref = $('.an-nuvem-bt'); if (!ref) return null; b = h('<button class="btn sm b-atualizar" id="b-atualizar" hidden></button>'); b.onclick = () => this.abrir(); ref.after(b); /* junto do Salvo: é coisa do projeto */ } return b; },
   async abrir() {
     await this.confere(true); const L = this.lista; if (!L.length) return UI.toast('O projeto já está na versão atual.', { kind: 'ok' });
     const body = h(`<div class="atz"><div class="pr-info">O Animador mudou desde que este projeto foi feito. Marque o que atualizar. Antes, uma cópia <b>(antes da atualização)</b> fica guardada neste computador, e o Ctrl+Z também volta.</div>

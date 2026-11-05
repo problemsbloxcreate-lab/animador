@@ -260,7 +260,7 @@ const PaineisEd = Object.assign(Object.create(PaineisBase), {
   // quem já tinha o layout guardado: a Mídia entra em cima da Hierarquia e a coluna de 250 (o padrão antigo) vira 300
   migra(o, faltou) { if (!faltou.includes('midia')) return; const c = o.cols.find(x => x.p.includes('midia')); if (c && c.w === 250) c.w = 300; },
   grupos() { return { midia: [$('#midia-cab'), $('#midia-corpo')], arvore: [$('#arvore')?.previousElementSibling, $('#arvore')], lado: [$('#lado-abas'), $('#lado')], linha: [$('#editor section.tl')] }; },
-  poeBotao(b) { $('#b-ia')?.before(b); },
+  poeBotao(b) { $('#b-regua')?.after(b); }, // 'Design padrão' junto das ferramentas de ver
   leTl() { let v = 0; try { v = +localStorage.getItem(this.CH_TL) || 0; } catch { } return v || this.TL_PADRAO; },
   extraMudou() { try { return !!localStorage.getItem(this.CH_TL) || !!localStorage.getItem('animador-tl-nomes'); } catch { return false; } },
   aoPadrao() { try { localStorage.removeItem(this.CH_TL); localStorage.removeItem('animador-tl-nomes'); } catch { } Folha._poeNomes?.(0); },
