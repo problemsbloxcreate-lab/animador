@@ -2,7 +2,7 @@
    versao.json (gravado pela Action "Versão do site" a cada mudança publicada) diz o código da versão. Ao abrir, guarda o
    de agora; de 2 em 2 minutos (e ao voltar para a aba) confere de novo. Mudou = uma tela por cima de tudo trava as mudanças
    (quem continuasse mexendo numa versão velha podia estragar o arquivo de quem está na nova, no ao vivo e na nuvem) e o
-   botão (só ao vivo ou num personagem da nuvem: `precisa()`; fora disso espera) "Atualizar agora" guarda o que falta, baixa os arquivos novos (sem o cache do navegador) e recarrega. */
+   tela "Atualizando" (só ao vivo ou num personagem da nuvem: `precisa()`; fora disso espera) guarda o que falta, baixa os arquivos novos (sem o cache do navegador) e recarrega. */
 'use strict';
 const Versao = {
   atual: null, travado: false,
@@ -31,13 +31,12 @@ const Versao = {
     if (this.travado) return; this.travado = true;
     let ult = 0; try { ult = +sessionStorage.getItem('animador-versao-auto') || 0; } catch { }
     this._bloq = e => { if (e.target.closest?.('.versao-trava')) return; e.preventDefault(); e.stopPropagation(); };
-    if (Date.now() - ult > 180000) { for (const ev of ['keydown', 'wheel', 'contextmenu', 'drop', 'paste']) addEventListener(ev, this._bloq, { capture: true, passive: false }); return this.atualizar(); }
-    const el = h(`<div class="versao-trava" role="alertdialog"><div class="vt-card"><div class="vt-ic">${ic('download', 26)}</div><b>Tem uma versão nova do Animador</b>
-      <div>Para não estragar nada (no ao vivo e na nuvem todo mundo precisa estar na mesma versão), as mudanças ficam travadas até você atualizar a página.</div>
-      <small>O que você fez até agora fica guardado neste computador.</small><button class="btn primary" data-a>${ic('redo', 14)} Atualizar agora</button></div></div>`);
-    document.body.appendChild(el); $('[data-a]', el).onclick = () => this.atualizar(el);
-    this._bloq = e => { if (e.target.closest?.('.versao-trava')) return; e.preventDefault(); e.stopPropagation(); };
     for (const ev of ['keydown', 'wheel', 'contextmenu', 'drop', 'paste']) addEventListener(ev, this._bloq, { capture: true, passive: false });
+    // SEMPRE IGUAL (pedido do dono, 05/11/2026): sempre a tela "Atualizando", sozinha, sem botão. Contra laço: se atualizou sozinho há
+    // menos de 3 min nesta aba (várias publicações seguidas), a mesma tela espera o resto do tempo e aí atualiza.
+    const falta = 180000 - (Date.now() - ult);
+    if (falta <= 0) return this.atualizar();
+    const diz = this.tela(); this._tela = diz; let t = Math.ceil(falta / 1000); const anda = () => { diz(`Esperando a versão nova terminar de publicar… ${t} s`, 2); if (t-- <= 0) { clearInterval(iv); document.getElementById('ep-atualizando')?.remove(); this.atualizar(); } }, iv = setInterval(anda, 1000); anda();
   },
   tela() { // a tela "Atualizando" (igual à do Perfil › Atualizar todos os sites, do /estudio-conta.js)
     if (!document.getElementById('ep-atualizando-css')) { const st = document.createElement('style'); st.id = 'ep-atualizando-css'; st.textContent = '#ep-atualizando{position:fixed;inset:0;z-index:2147483647;background:rgba(8,9,12,.5);-webkit-backdrop-filter:blur(16px) saturate(.9);backdrop-filter:blur(16px) saturate(.9);display:flex;align-items:center;justify-content:center;font:14px/1.5 \'Segoe UI\',system-ui,sans-serif;color:#f1f2f4;cursor:progress;-webkit-user-select:none;user-select:none;animation:epAtEntra .25s ease both}'
