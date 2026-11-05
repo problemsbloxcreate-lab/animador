@@ -57,6 +57,8 @@ const Exportar = {
     const botao = () => { const b = api?.foot.querySelector('.btn.primary'); if (b) b.innerHTML = `${ic('download', 14)} ${{ mp4: 'Exportar o vídeo', png: 'Salvar a imagem', wav: 'Exportar o som', animador: 'Baixar o .animador' }[cfg.tipo]}`; };
     pinta(); await UI.modal(o); this._cancela = null;
   },
+  // carrega o módulo comum do Estúdio só quando a pessoa clica (o porteiro troca o ID do cliente do Google dentro dele)
+  youtube() { return window.EstudioYouTube ? Promise.resolve() : (this._yt ||= new Promise((ok, ruim) => { const s = document.createElement('script'); s.src = '/estudio-youtube.js'; s.onload = ok; s.onerror = () => { this._yt = null; ruim(new Error('não consegui carregar o /estudio-youtube.js')); }; document.head.appendChild(s); })); },
   limites(P, cfg) { const ult = P.duracao - 1; if (cfg.trecho === 'marcado' && Folha.trecho) return [Folha.trecho.de, Math.min(ult, Folha.trecho.ate)]; if (cfg.trecho === 'quadros') return [clamp(cfg.de, 0, ult), clamp(cfg.ate, cfg.de, ult)]; return [0, ult]; },
   nomeArq(P, cfg, ext) { return safeName((cfg.nomeProj ? P.nome : (cfg.nome || '').trim()) || P.nome || 'Animação') + ext; },
   // exporta travando a janela (não fecha até acabar; Cancelar para no meio)
@@ -79,6 +81,11 @@ const Exportar = {
       solta(); prog.hidden = true; const fim = $('.exp-fim', body); fim.hidden = false;
       fim.innerHTML = `${ic('check', 18)}<div><b>${esc(nome)}</b><small>${this.dur(seg)} de vídeo · ${mb < 10 ? mb.toFixed(1).replace('.', ',') : Math.round(mb)} MB · pronto em ${this.dur((performance.now() - t0) / 1000)}</small></div><button class="btn sm">${ic('download', 13)} Baixar de novo</button>`;
       $('button', fim).onclick = () => downloadBlob(blob, nome); UI.toast(`<b>${esc(nome)}</b> exportado!`, { kind: 'ok' });
+      // PUBLICAR NO YOUTUBE (05/11/2026): só vídeo e só para quem pode exportar e publicar no Animador (módulo comum /estudio-youtube.js)
+      if (cfg.tipo === 'mp4' && ['exportar', 'publicar'].every(k => window.EstudioPerm?.pode?.('animador.' + k) ?? true)) {
+        const yt = h(`<button class="btn sm primary">${ic('upload', 13)} Publicar no YouTube</button>`); fim.appendChild(yt);
+        yt.onclick = async () => { yt.disabled = true; try { await this.youtube(); await EstudioYouTube.abrir({ blob, nome, titulo: (cfg.nomeProj ? P.nome : cfg.nome) || P.nome, programa: 'animador' }); } catch (e) { UI.toast('Não deu para abrir o YouTube: ' + esc(e.message), { kind: 'err' }); } yt.disabled = false; };
+      }
     } catch (e) { solta(); if (cancelou || e.message === 'cancelado') { prog.hidden = true; UI.toast('Exportação cancelada.'); } else $('[data-pt]', body).textContent = 'Não deu: ' + e.message; }
     return false; // a janela fica aberta (mostra o resultado)
   },
