@@ -86,7 +86,7 @@ FORMA = {"f":FIG,"cor":COR,"sombra":true|false,"luz":true|false,"contorno":0..5,
     const pinta = () => {
       $$('.it-fil button', body).forEach(x => x.classList.toggle('on', x.dataset.f === filtro)); $('[data-g] span', body).textContent = filtro === 'oficial' ? 'Gerar item oficial…' : 'Gerar item rabiscado…';
       const b = busca.trim().toLowerCase(), L = l.filter(x => x.estilo === filtro && (!b || x.nome.toLowerCase().includes(b) || (x.tags || []).some(t => t.toLowerCase().includes(b))));
-      grade.innerHTML = ''; if (!L.length) { grade.appendChild(h(`<div class="it-vazio">${busca ? 'Nada encontrado.' : `Nenhum item ${filtro === 'oficial' ? 'oficial' : 'rabiscado'} ainda. Gere o primeiro no botão aí em cima.`}</div>`)); return; }
+      grade.innerHTML = ''; if (!L.length) { grade.appendChild(h(`<div class="it-vazio">${busca ? 'Nada encontrado.' : `Nenhum item ${filtro === 'oficial' ? 'oficial' : 'rabiscado'} ainda.`}</div>`)); return; }
       for (const it of L) {
         const c = h(`<div class="it-card ${it.estilo} ${escolhido === it.id ? 'sel' : ''}" tabindex="0" title="${esc(it.nome)}">${it.mini ? `<img src="${it.mini}" alt="">` : '<i></i>'}<b>${esc(it.nome)}</b><small>${it.estilo === 'oficial' ? 'oficial · SVG' : 'rabiscado · PNG'}</small></div>`);
         c.onclick = () => { escolhido = it.id; pinta(); }; c.ondblclick = () => { escolhido = it.id; api?.close(it); };

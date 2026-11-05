@@ -22,29 +22,82 @@ const Home = {
       g.appendChild(card);
     }
   },
-  atual: 'animacoes', q: '',
+  /* ---------- TELA INICIAL NOVA (pedido da dona, 05/11/2026; prévia aprovada): barra da esquerda com as SEÇÕES e quantos tem em
+     cada uma (Animações · Preparativos · Personagens/Ateliê), cada seção com título e uma frase do que é, pastas em cartões
+     (js/pastasbib.js, montaCartoes). As abas Animações/Ideias/Personagens saíram (as Ideias foram para o programa Preparativos). */
+  SECOES: [
+    { id: 'anim-nuvem', grupo: 'anim', sub2: 'nuvem', nome: 'Da equipe', sub: 'na nuvem', titulo: 'Animações da equipe', desc: 'Ficam na nuvem: toda a equipe vê e abre. As animações novas vêm para cá sozinhas.' },
+    { id: 'anim-local', grupo: 'anim', sub2: 'local', nome: 'Só neste computador', sub: 'ninguém mais vê', titulo: 'Animações só deste computador', desc: 'Não estão na nuvem: só quem usa este computador vê. Para a equipe ver, abra o menu do cartão › Enviar para a nuvem.' },
+    { id: 'prep', grupo: 'prep', sub2: '', nome: 'Prontos para animar', sub: 'roteiros com áudios', titulo: 'Preparativos prontos para animar', desc: 'Roteiros que a equipe marcou como prontos para o Animador no programa Preparativos. Escolha um e o Animador monta a animação: os áudios na ordem, um por fala, com as legendas nas cores de cada personagem.' },
+    { id: 'pers-nuvem', grupo: 'pers', sub2: 'nuvem', nome: 'Da equipe', sub: 'na nuvem', titulo: 'Personagens da equipe', desc: 'Ficam na nuvem: são os que aparecem em "Pôr personagem" dentro de qualquer animação. Clique num para abrir no Ateliê.' },
+    { id: 'pers-local', grupo: 'pers', sub2: 'local', nome: 'Só neste computador', sub: 'rascunhos', titulo: 'Personagens só deste computador', desc: 'Personagens novos e mudanças que ainda não foram para a nuvem (a equipe ainda não vê).' },
+    { id: 'pers-anims', grupo: 'pers', sub2: 'anims', nome: 'Cópias nas animações', sub: 'mudados dentro de uma', titulo: 'Personagens dentro das animações', desc: 'A cópia de cada personagem que está dentro de cada animação deste computador. Mudar aqui vale só para aquela animação.' },
+  ],
+  secao: null, q: '',
+  // compatível com o jeito antigo (Home.atual = 'animacoes' | 'personagens'; 'ideias' agora cai nas animações)
+  get atual() { const s = this.secao || ''; return s.startsWith('pers') ? 'personagens' : s === 'prep' ? 'prep' : 'animacoes'; },
+  set atual(a) { this.secao = a === 'personagens' ? 'pers-' + (this.subPers || 'nuvem') : (a === 'prep' || a === 'preparativos') ? 'prep' : 'anim-' + (this.subAnim || 'nuvem'); },
   aba(a) { this.atual = a; this.pinta(); },
+  secoes() {
+    const pode = k => window.EstudioPerm?.pode?.(k) ?? true, prog = k => window.EstudioPerm?.programa?.(k) ?? true;
+    return this.SECOES.filter(s => (s.grupo !== 'pers' || pode('animador.atelie')) && (s.grupo !== 'prep' || prog('preparativos')));
+  },
+  secaoAtual() { return this.SECOES.find(s => s.id === this.secao) || this.SECOES[0]; },
+  // quantos tem em cada seção: guardado neste navegador (aparece na hora) e trocado quando a lista de verdade chega
+  nGuardados() { try { return JSON.parse(localStorage.getItem('animador-home-n') || '{}') || {}; } catch { return {}; } },
+  poeN(id, n) { if (n == null || isNaN(n)) return; const o = this.nGuardados(); if (o[id] !== n) { o[id] = n; try { localStorage.setItem('animador-home-n', JSON.stringify(o)); } catch { } }
+    const e = $(`#home-in [data-n="${id}"]`); if (e) e.textContent = n; },
+  // conta só com o que já está no navegador ou já foi buscado há pouco (não pede listas novas à nuvem só para contar)
+  async contar() {
+    const locais = await DB.all('projetos').catch(() => []);
+    this.poeN('pers-anims', locais.filter(p => p && !p.anterior).reduce((s, p) => s + Object.keys(p.personagens || {}).length, 0));
+    Atelie.rascunhos().then(rs => this.poeN('pers-local', rs.length)).catch(() => { });
+    if (NuvemAnim._lista && Date.now() - (NuvemAnim._listaEm || 0) < 60000) NuvemAnim._lista.then(nv => { const ids = new Set(nv.map(x => x.id)); this.poeN('anim-nuvem', ids.size); this.poeN('anim-local', locais.filter(p => !ids.has(p.id)).length); }).catch(() => { });
+    if (Nuvem._lista && Date.now() - (Nuvem._listaEm || 0) < 120000) Nuvem._lista.then(l => this.poeN('pers-nuvem', l.length)).catch(() => { });
+    if (this.secoes().some(s => s.id === 'prep') && typeof Prep !== 'undefined') Prep.lista().then(L => this.poeN('prep', L.length)).catch(() => { });
+  },
+  cabecalho(S, botoes = '', ph = 'Buscar em todas as pastas', val = '') {
+    return `<div class="hm-cab"><div class="hm-tit"><h1>${esc(S.titulo)}</h1><p>${esc(S.desc)}</p></div><div class="hm-acoes">${ph ? `<label class="hm-busca">${ic('search', 14)}<input type="search" data-busca placeholder="${esc(ph)}" value="${esc(val || '')}" aria-label="${esc(ph)}"></label>` : ''}${botoes}</div></div>`;
+  },
   async pinta() {
     const el = $('#home-in'); if (!el) return;
-    el.innerHTML = `<div class="home-abas"><div class="home-grupo" title="ANIMADOR"><span class="home-gic" data-estudio-icone="an"></span><button data-a="animacoes" class="${this.atual === 'animacoes' ? 'on' : ''}">${ic('film', 14)}Animações</button><button data-a="ideias" class="${this.atual === 'ideias' ? 'on' : ''}">${ic('bulb', 14)}Ideias</button></div><div class="home-grupo" title="ATELIÊ"><span class="home-gic" data-estudio-icone="at"></span><button data-a="personagens" class="${this.atual === 'personagens' ? 'on' : ''}">${ic('users', 14)}Personagens da equipe</button></div></div><div data-corpo></div>`;
-    $$('[data-a]', el).forEach(b => b.onclick = () => this.aba(b.dataset.a));
-    const c = $('[data-corpo]', el); this.atual === 'animacoes' ? this.animacoes(c) : this.atual === 'ideias' ? Ideias.pinta(c) : this.personagens(c);
+    if (!this._permOuvindo) { this._permOuvindo = 1; const re = () => { if (!$('#home')?.classList.contains('hidden')) this.pinta(); }; try { window.EstudioPerm?.pronto?.then?.(re); } catch { } addEventListener('estudio-perm', re); }
+    if (!this.secao) { try { this.secao = localStorage.getItem('animador-home-secao') || ''; } catch { } }
+    const vis = this.secoes(); if (!vis.some(s => s.id === this.secao)) this.secao = vis[0]?.id || 'anim-nuvem';
+    const S = this.secaoAtual(); if (S.grupo === 'anim') this.subAnim = S.sub2; if (S.grupo === 'pers') this.subPers = S.sub2;
+    const n0 = this.nGuardados(), G = [['anim', 'an', 'ANIMAÇÕES'], ['prep', 'pr', 'PREPARATIVOS'], ['pers', 'at', 'PERSONAGENS · ATELIÊ']];
+    el.innerHTML = `<nav class="hm-nav" aria-label="Seções do Animador"><button class="hm-nova" data-nova>${ic('plus', 15)} Nova animação</button>
+      ${G.map(([g, icn, tit]) => { const its = vis.filter(s => s.grupo === g); if (!its.length) return ''; return `<div class="hm-g hm-g-${g}"><span class="hm-gic" data-estudio-icone="${icn}"></span>${tit}</div>` + its.map(s => `<button class="hm-it${s.id === this.secao ? ' on' : ''}" data-sec="${s.id}"><span><b>${esc(s.nome)}</b><small>${esc(s.sub)}</small></span><em class="${s.id === 'prep' ? 'hm-n-prep' : ''}" data-n="${s.id}">${n0[s.id] ?? ''}</em></button>`).join(''); }).join('')}
+      <span class="hm-esp"></span><button class="hm-abrir" data-abrir>${ic('folder', 14)} Abrir arquivo .animador</button></nav>
+      <main class="hm-main"><div class="hm-in" data-corpo></div></main>`;
+    try { window.EstudioIcones?.pinta?.(el); } catch { }
+    $$('[data-sec]', el).forEach(b => b.onclick = () => { const s = this.SECOES.find(x => x.id === b.dataset.sec); // clicar na seção volta para o começo dela (fecha a pasta aberta)
+      const escs = { 'anim-nuvem': 'animn', 'anim-local': 'anim', 'pers-nuvem': 'nuvem', 'pers-local': 'local' }; if (escs[s.id]) PastasBib.abre(escs[s.id], null);
+      this.secao = s.id; try { localStorage.setItem('animador-home-secao', s.id); } catch { } this.pinta(); });
+    $('[data-nova]', el).onclick = () => this.novaEscolha();
+    $('[data-abrir]', el).onclick = async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) this.importar(f); };
+    const c = $('[data-corpo]', el); this.contar();
+    if (S.grupo === 'anim') this.animacoes(c); else if (S.grupo === 'prep') Prep.pinta(c); else this.personagens(c);
+  },
+  // NOVA ANIMAÇÃO: escolher o formato (os botões que ficavam no topo da tela inicial). o.pasta: já entra nessa pasta
+  async novaEscolha(o = {}) {
+    let qual = null;
+    const body = h(`<div class="novos hm-novos">${FORMATOS.map(f => { const k = 34 / Math.max(f.w, f.h); return `<button class="novo" data-f="${f.id}"><span class="fm"><i style="width:${f.w * k}px;height:${f.h * k}px"></i></span><span><b>${f.nome}</b><small>${f.w}×${f.h} · ${f.fps} fps</small></span></button>`; }).join('')}
+      <button class="novo" data-f="pers"><span class="fm">${ic('gear', 24)}</span><span><b>Personalizado</b><small>tamanho, fps e fundo do seu jeito</small></span></button></div>`);
+    $$('[data-f]', body).forEach(b => b.onclick = () => { qual = b.dataset.f; body.closest('.modal-back')?.querySelector('[data-x]')?.click(); });
+    await UI.modal({ title: o.pasta ? `Nova animação em "${o.pasta}"` : 'Nova animação', icon: 'plus', width: 620, body, buttons: [] });
+    if (!qual) return;
+    const depois = async P => { if (o.pasta && o.esc && P) try { await PastasBib.mover(o.esc, [P.id], o.pasta); } catch { } };
+    if (qual === 'pers') return this.personalizada(depois);
+    const P = await this.nova(FORMATOS.find(f => f.id === qual)); await depois(P);
   },
   async animacoes(c) {
-    c.innerHTML = `<div class="novos">${FORMATOS.map(f => { const k = 34 / Math.max(f.w, f.h); return `<button class="novo" data-f="${f.id}"><span class="fm"><i style="width:${f.w * k}px;height:${f.h * k}px"></i></span><span><b>${f.nome}</b><small>${f.w}×${f.h} · ${f.fps} fps</small></span></button>`; }).join('')}
-      <button class="novo" data-pers><span class="fm">${ic('gear', 24)}</span><span><b>Personalizado</b><small>do seu jeito ou com a IA</small></span></button>
-      <button class="novo" data-abrir><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .animador</b><small>arquivo de animação</small></span></button></div>
-      <div class="pers-abas an-abas"><div class="seg-pers"><button data-sa="nuvem" data-s="nuvem">${ic('cloud', 14)} Na nuvem da equipe <small data-cn>…</small></button><button data-sa="local" data-s="local">${ic('save', 14)} Só neste computador <small data-cl>…</small></button></div>
-        <span class="sp"></span><button class="btn sm" data-atual-a title="Atualizar a lista (busca de novo na nuvem da equipe)">${ic('loop', 13)} Atualizar</button><button class="btn sm" data-pnova-a title="Pasta nova nesta aba">${ic('folder', 13)} Pasta nova</button><input type="search" placeholder="Buscar" value="${esc(this.q)}"></div><div data-g></div>`;
-    $$('[data-f]', c).forEach(b => b.onclick = () => this.nova(FORMATOS.find(f => f.id === b.dataset.f)));
-    $('[data-pers]', c).onclick = () => this.personalizada();
-    $('[data-abrir]', c).onclick = async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) this.importar(f); };
-    const busca = $('input[type=search]', c); busca.oninput = () => { this.q = busca.value; this.grade(c); };
-    if (!this.subAnim) { try { this.subAnim = localStorage.getItem('animador-anim-aba') || 'nuvem'; } catch { this.subAnim = 'nuvem'; } }
-    const pintaAba = () => $$('[data-sa]', c).forEach(b => b.classList.toggle('on', b.dataset.sa === this.subAnim));
-    $$('[data-sa]', c).forEach(b => b.onclick = () => { this.subAnim = b.dataset.sa; try { localStorage.setItem('animador-anim-aba', this.subAnim); } catch { } pintaAba(); this.grade(c); }); pintaAba();
+    const S = this.secaoAtual();
+    c.innerHTML = `${this.cabecalho(S, `<button class="btn sm" data-atual-a title="Atualizar a lista (busca de novo na nuvem da equipe)">${ic('loop', 13)} Atualizar</button><button class="btn sm" data-pnova-a title="Pasta nova nesta seção">${ic('folder', 13)} Pasta nova</button><button class="btn sm primary" data-nova-a>${ic('plus', 13)} Nova animação</button>`, 'Buscar em todas as pastas', this.q)}<div data-cont></div><div data-g></div>`;
+    $('[data-nova-a]', c).onclick = () => this.novaEscolha();
+    const busca = $('[data-busca]', c); busca.oninput = () => { this.q = busca.value; this.grade(c); };
     $('[data-pnova-a]', c).onclick = async () => { try { if (await PastasBib.nova(this.subAnim === 'nuvem' ? 'animn' : 'anim')) this.grade(c); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
-    $('[data-atual-a]', c).onclick = async e => { const b = e.currentTarget; b.disabled = true; try { await NuvemAnim.lista(true).catch(() => { }); await this.grade(c); UI.toast('Lista atualizada.', { kind: 'ok', time: 1800 }); } finally { b.disabled = false; } };
+    $('[data-atual-a]', c).onclick = async e => { const b = e.currentTarget; b.disabled = true; try { PastasBib.esquece('animn'); await NuvemAnim.lista(true).catch(() => { }); await this.grade(c); UI.toast('Lista atualizada.', { kind: 'ok', time: 1800 }); } finally { b.disabled = false; } };
     this.grade(c);
     // AO VIVO AGORA: animações abertas para trabalhar junto
     // AO VIVO: quem está mexendo aparece NO CARTÃO da animação (fotos + "ao vivo"). Só as salas antigas do "Trabalhar junto"
@@ -60,7 +113,7 @@ const Home = {
       let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(g => g && g.nome); } catch { }
       // o "ao vivo" só aparece nas animações que estão NA NUVEM (as só deste computador não têm sala)
       const nv = card?.dataset.nv; if (gente.length && (nv || !card)) vivos.add(id);
-      if (card) this.seloVivo(card, nv ? gente : []);
+      if (card) $$(`.pc[data-anid="${CSS.escape(id)}"]`, c).forEach(k => this.seloVivo(k, nv ? gente : []));
       else if (!s.auto && gente.length) soltas.push([s, gente]); }
     g.innerHTML = ''; for (const [s, gente] of soltas) { const b = h(`<button class="av-sala"><b>${esc(s.nome || 'Animação')}</b><small>aberta por ${esc(s.por || 'alguém')}</small><span class="av-fotos">${AoVivo.fotinhas(gente, 4)}</span><span class="btn sm">Entrar</span></button>`); b.onclick = () => this.entrarJunto(s); g.appendChild(b); }
     av.hidden = !soltas.length || this.subAnim === 'local';
@@ -83,7 +136,7 @@ const Home = {
     const soNuvem = naNuvem.filter(x => !temAqui.has(x.id)).map(x => ({ id: x.id, nome: x.nome || 'Animação', modificado: x.mod || Date.parse(x.em || 0) || 0, _nuvem: x }));
     // DUAS ABAS: na nuvem (as da equipe: as que este computador tem e as que só estão lá) × só neste computador
     const naN = p => !!(p._nuvem || idsNuvem.has(p.id)), todosT = [...locais, ...soNuvem];
-    const cN = $('[data-cn]', c), cL = $('[data-cl]', c); if (cN) cN.textContent = todosT.filter(naN).length; if (cL) cL.textContent = todosT.filter(p => !naN(p)).length;
+    const cN = $('[data-cn]', c), cL = $('[data-cl]', c); if (cN) cN.textContent = todosT.filter(naN).length; if (cL) cL.textContent = todosT.filter(p => !naN(p)).length; this.poeN('anim-nuvem', todosT.filter(naN).length); this.poeN('anim-local', todosT.filter(p => !naN(p)).length);
     const naNuvemAba = this.subAnim !== 'local', escP = naNuvemAba ? 'animn' : 'anim';
     const todos = todosT.filter(p => naN(p) === naNuvemAba).sort((a, b) => (this._vivos?.has(b.id) ? 1 : 0) - (this._vivos?.has(a.id) ? 1 : 0) || b.modificado - a.modificado), q = this.q.trim().toLowerCase(), L = todos.filter(p => !q || p.nome.toLowerCase().includes(q));
     // em PASTAS (só neste computador, arquivos["pastas-anim"]; js/pastasbib.js): abrir/fechar, arrastar entre pastas, criar/renomear/apagar.
@@ -110,8 +163,11 @@ const Home = {
       ].filter(Boolean)); };
       return card;
     };
-    if (q) { g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); const av = $('.aovivo-agora', c); if (av && this._salas) this.pintaAoVivo(c, av); return; }
-    try { ({ todas: todasP } = await PastasBib.monta(g, { esc: escP, min: 220, itens: L, cartao, aoMudar: () => this.grade(c) })); }
+    if (q) { $('[data-cont]', c)?.replaceChildren(); g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); const av = $('.aovivo-agora', c); if (av && this._salas) this.pintaAoVivo(c, av); return; }
+    // CONTINUAR DE ONDE PAROU: as 4 mais novas desta seção, em cima das pastas (só no começo da seção, sem busca)
+    const cont = $('[data-cont]', c); if (cont) { cont.innerHTML = ''; if (!PastasBib.aberta(escP) && L.length > 4) { const sec = h(`<section class="pb-sec hm-cont"><h3 class="pb-h">Continuar de onde parou</h3><div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div></section>`); for (const p of L.slice(0, 4)) $('.grade', sec).appendChild(cartao(p)); cont.appendChild(sec); } }
+    const S = this.secaoAtual(), novaAqui = pa => { const b = h(`<button class="btn sm primary">${ic('plus', 13)} Nova animação aqui</button>`); b.onclick = () => this.novaEscolha({ pasta: pa, esc: escP }); return b; };
+    try { ({ todas: todasP } = await PastasBib.monta(g, { esc: escP, min: 220, itens: L, cartao, aoMudar: () => this.grade(c), cartoes: true, titulo: S.titulo, miniatura: p => p.thumb || this._thumbN?.get(p.id), data: p => p.modificado, acoesPasta: novaAqui })); }
     catch { g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); }
     const av = $('.aovivo-agora', c); if (av && this._salas) this.pintaAoVivo(c, av);
   },
@@ -119,7 +175,9 @@ const Home = {
   cartaoNuvem(p, c, todas) {
     const x = p._nuvem, card = h(`<div class="pc an-so-nuvem"><div class="th">${ic('film', 26)}<span class="an-nv" title="Na nuvem da equipe">${ic('cloud', 12)}</span></div><div class="in"><b>${esc(p.nome)}</b><small>${p.modificado ? fmtDate(p.modificado) + ' · ' : ''}na nuvem da equipe</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span></div>`);
     card.dataset.anid = x.id; card.dataset.nv = 1; if (x.tam) { const t = $('.tam', card); t.hidden = false; t.textContent = Arquivos.fmt ? Arquivos.fmt(x.tam) : Math.round(x.tam / 1048576 * 10) / 10 + ' MB'; }
-    (async () => { try { const r = await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(NuvemAnim.pasta(x.id) + 'thumb.jpg')); const u = URL.createObjectURL(await r.blob()); const th = $('.th', card); th.style.backgroundImage = `url('${u}')`; th.firstChild?.remove?.(); } catch { } })();
+    (async () => { try { const tk = x.id + '@' + (x.mod || x.em || ''), M = (this._thumbN ||= new Map()), MK = (this._thumbK ||= new Map()); let u = MK.get(x.id) === tk ? M.get(x.id) : null;
+      if (!u) { const r = await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(NuvemAnim.pasta(x.id) + 'thumb.jpg')); u = URL.createObjectURL(await r.blob()); M.set(x.id, u); MK.set(x.id, tk); }
+      const th = $('.th', card); th.style.backgroundImage = `url('${u}')`; th.firstChild?.remove?.(); } catch { } })();
     { const d = NuvemAnim.quemDe(x); const selo = d ? Autores.selo(d) : null; if (selo) card.appendChild(selo); } // quem criou / editou
     card.onclick = e => { if (!e.target.closest('.mn')) NuvemAnim.abrir(x.id, null); };
     $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 220, r.bottom + 4, [
@@ -135,15 +193,15 @@ const Home = {
     try { await NuvemAnim.remover(p.id); UI.toast('Removida da nuvem. Ela não volta sozinha.', { kind: 'ok', time: 6000 }); this.grade(c); }
     catch (e) { UI.toast('Não removeu: ' + esc(e.message), { kind: 'err', time: 8000 }); }
   },
-  /* ---------- tela personalizada: tamanho, quadros por segundo, duração e fundo (à mão ou pedindo à IA) ---------- */
+  /* ---------- tela personalizada: tamanho, quadros por segundo, duração e fundo ---------- */
   TAMANHOS: [['1920×1080 (YouTube)', 1920, 1080], ['1080×1920 (Shorts/TikTok)', 1080, 1920], ['1080×1080 (quadrado)', 1080, 1080], ['1080×1350 (Instagram 4:5)', 1080, 1350], ['2560×1440 (2K)', 2560, 1440], ['3840×2160 (4K)', 3840, 2160], ['1280×720 (HD)', 1280, 720], ['2048×858 (cinema 2.39)', 2048, 858]],
   SIS_TELA: `Você configura uma animação 2D nova a partir do pedido em português. Responda SÓ um JSON:
 {"nome":"nome curto","w":1920,"h":1080,"fps":24,"segundos":4,"fundo":{"modo":"quadriculado|cor","cor":"#rrggbb","forca":0.35},"folha":"#rrggbb","semFolha":false,"explica":"uma frase"}
 Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma usar 12 ou 24); segundos entre 1 e 600. "folha" é a cor da folha do tamanho da câmera (Fundo padrão); semFolha=true se a pessoa não quiser folha. Se o pedido não falar de algo, use o comum (1920×1080, 24 fps, 4 s, fundo quadriculado #cfcfcf, folha #ffffff).`,
-  async personalizada() {
+  async personalizada(depois) {
     const o = { nome: 'Animação ' + new Date().toLocaleDateString('pt-BR'), w: 1920, h: 1080, fps: 24, segundos: 4, palco: { modo: 'quadriculado', cor: '#cfcfcf', forca: .35 }, folha: '#ffffff', semFolha: false };
     const body = h(`<div class="tela-p"><div data-pag="ajustes"></div>
-      <div class="tela-ia"><label class="field">${ic('sparkles', 13)} Mais com a IA <small style="color:var(--tx3)">(opcional · vale junto com os ajustes ao criar)</small><textarea rows="3" placeholder="Ex.: deixa em 12 fps com cara de desenho antigo, fundo escuro, uma vinheta leve e um título &quot;Episódio 1&quot; no começo"></textarea></label><div class="ia-res" hidden></div></div></div>`);
+      </div>`);
     const pag = $('[data-pag=ajustes]', body), prev = () => { const k = 120 / Math.max(o.w, o.h); return `<i style="width:${Math.round(o.w * k)}px;height:${Math.round(o.h * k)}px;background:${o.semFolha ? 'transparent' : o.folha}"></i>`; };
     // a prévia mostra o fundo escolhido (quadriculado na cor/intensidade, ou cor lisa), igual ao palco
     const fundoPrev = () => { const pc = o.palco, c = pc.cor; if (pc.modo === 'cor') return `background:${c}`;
@@ -165,29 +223,14 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
       $('[data-folha]', pag).onchange = ev => { o.semFolha = !ev.target.checked; pinta(); };
     };
     pinta();
-    let pedido = '';
-    const ok = await UI.modal({ title: 'Tela personalizada', icon: 'gear', width: 580, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', onClick: async api => {
-      pedido = $('textarea', body).value.trim(); if (!pedido) return true;
-      // 1) a IA ajusta a tela em cima do que a pessoa escolheu (só muda o que o pedido falar)
-      const res = $('.ia-res', body), bt = api.foot.querySelector('.btn.primary'); bt.disabled = true; res.hidden = false; res.textContent = 'A IA está ajustando a tela…';
-      try {
-        const j = IA.json(await IA.chama(this.SIS_TELA + '\nVocê recebe o que a pessoa já escolheu (ATUAL): mantenha tudo igual e só mude o que o PEDIDO falar.', `ATUAL: ${JSON.stringify(o)}\nPEDIDO: ${pedido}`)), par = v => Math.round(clamp(+v || 0, 64, 4096) / 2) * 2;
-        if (j.nome) o.nome = String(j.nome).slice(0, 60); if (j.w) o.w = par(j.w); if (j.h) o.h = par(j.h); if (j.fps) o.fps = clamp(Math.round(+j.fps), 1, 60); if (j.segundos) o.segundos = clamp(+j.segundos, 1, 600);
-        if (j.fundo) o.palco = { modo: j.fundo.modo === 'cor' ? 'cor' : 'quadriculado', cor: /^#[0-9a-f]{6}$/i.test(j.fundo.cor || '') ? j.fundo.cor : o.palco.cor, forca: Number.isFinite(+j.fundo.forca) ? clamp(+j.fundo.forca, 0, 1) : o.palco.forca };
-        if (/^#[0-9a-f]{6}$/i.test(j.folha || '')) o.folha = j.folha; if (typeof j.semFolha === 'boolean') o.semFolha = j.semFolha;
-      } catch (e) { res.textContent = 'A IA não respondeu (' + e.message + '). Crio com os ajustes, e o resto você pede depois no botão IA.'; await new Promise(r => setTimeout(r, 1800)); pedido = ''; }
-      return true;
-    } }] });
+    const ok = await UI.modal({ title: 'Tela personalizada', icon: 'gear', width: 580, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', value: true }] });
     if (!ok) return;
-    await this.nova({ w: o.w, h: o.h, fps: o.fps }, { nome: o.nome, duracao: Math.max(1, Math.round(o.segundos * o.fps)), palco: o.palco, folha: o.folha, semFolha: o.semFolha });
-    // 2) o resto do pedido (efeitos, cenário, textos…) a IA faz já dentro da animação nova
-    if (pedido && App.P) { const t = UI.toast('<span class="spin-dot"></span> <span data-p>A IA está personalizando a animação…</span>', { time: 600000 });
-      try { const r = await IA.executar(pedido, null, txt => { const e = t.querySelector('[data-p]'); if (e) e.textContent = 'A IA está personalizando… ' + txt.slice(-80); }, { conferir: false }); t.remove(); UI.toast(esc(r).replace(/\n+/g, '<br>'), { kind: 'ok', time: 8000 }); }
-      catch (e) { t.remove(); UI.toast('A IA não terminou: ' + esc(e.message), { kind: 'err' }); } }
+    const P = await this.nova({ w: o.w, h: o.h, fps: o.fps }, { nome: o.nome, duracao: Math.max(1, Math.round(o.segundos * o.fps)), palco: o.palco, folha: o.folha, semFolha: o.semFolha });
+    await depois?.(P);
   },
   async apagar(p) { if (!(await UI.confirm({ title: 'Apagar a animação?', msg: `"<b>${esc(p.nome)}</b>" sai deste computador. Baixe o .animador antes se quiser guardar.`, ok: 'Apagar', danger: true }))) return; await DB.del('projetos', p.id); this.pinta(); EstudioConta?.espaco?.atualizar?.(); },
   async nova(f, o = {}) { const P = Modelo.novoProjeto({ w: f.w, h: f.h, fps: f.fps, duracao: o.duracao || f.fps * 4, nome: o.nome || 'Animação ' + new Date().toLocaleDateString('pt-BR'), fundo: o.folha }); P.nome = await Arquivos.nomeAnimacao(P.nome, P.id);
-    if (o.palco) P.palco = o.palco; if (o.semFolha) P.raiz = P.raiz.filter(n => !n.fundoPadrao); P.temFundoPadrao = true; try { P.autor = { ...(await Autores.eu()), em: Date.now() }; } catch { } await DB.put('projetos', P); App.abrir(P); },
+    if (o.palco) P.palco = o.palco; if (o.semFolha) P.raiz = P.raiz.filter(n => !n.fundoPadrao); P.temFundoPadrao = true; try { P.autor = { ...(await Autores.eu()), em: Date.now() }; } catch { } await DB.put('projetos', P); App.abrir(P); return P; },
   // abrir um .animador; se for um personagem do Ateliê (.atelieanimador), abre no Ateliê e avisa
   async importar(f) {
     if ((await AtelieArq.tipo(f)) === 'atelie') return AtelieArq.abrir(f, { errado: true });
@@ -201,26 +244,24 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
   },
   async personagens(c) {
     Nuvem.souAdm(); // o menu de cada personagem já sai certo (apagar da nuvem: só ADM)
-    c.innerHTML = `<div class="novos"><button class="novo" data-novo><span class="fm">${ic('plus', 24)}</span><span><b>Personagem novo</b><small>montar pelas partes</small></span></button>
-      <button class="novo" data-backup><span class="fm">${ic('folder', 24)}</span><span><b>Abrir .atelieanimador</b><small>backup de um personagem</small></span></button></div>
-      <div class="pers-abas"><div class="seg-pers"><button data-s="nuvem">${ic('cloud', 14)} Na nuvem da equipe <small data-cn>…</small></button><button data-s="local">${ic('save', 14)} Só neste computador <small data-cl>0</small></button><button data-s="anims" title="A cópia de cada personagem dentro de cada animação (a da timeline)">${ic('film', 14)} Nas animações <small data-ca>…</small></button></div>
-        <span class="sp"></span><input type="search" data-busca placeholder="Buscar personagem" value="${esc(this.qp || '')}"></div>
+    const S = this.secaoAtual(), sub0 = S.sub2 || 'nuvem';
+    c.innerHTML = `${this.cabecalho(S, `<button class="btn sm" data-backup title="Abrir o backup de um personagem">${ic('folder', 13)} Abrir .atelieanimador</button><button class="btn sm" data-pnova-n title="Pasta nova na nuvem da equipe (todos veem)" ${sub0 === 'nuvem' ? '' : 'hidden'}>${ic('folder', 13)} Pasta nova</button><button class="btn sm" data-atu ${sub0 === 'nuvem' ? '' : 'hidden'}>${ic('loop', 13)} Atualizar</button><button class="btn sm primary" data-novo>${ic('plus', 13)} Personagem novo</button>`, 'Buscar personagem', this.qp)}
       <div data-anims hidden></div>
       <div data-local hidden><section class="bloco-sec local"><div class="vazio">Nenhum personagem só neste computador: tudo já está na nuvem da equipe.</div></section></div>
-      <section class="bloco-sec" data-nuvem><div class="sec">${ic('cloud', 14)} Na nuvem da equipe <small class="sec-sub">a equipe toda vê e usa</small><span class="sp"></span><button class="btn sm" data-pnova-n title="Pasta nova na nuvem da equipe (todos veem)">${ic('folder', 13)} Pasta nova</button><button class="btn sm" data-atu>${ic('redo', 13)} Atualizar</button></div><div data-res-aviso></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div></section>`;
+      <section class="bloco-sec hm-sem-cab" data-nuvem><div data-res-aviso></div><div data-l><div class="vazio"><span class="spin-dot"></span> Carregando…</div></div></section>`;
     Nuvem.avisoReserva($('[data-res-aviso]', c));
-    $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-backup]', c).onclick = () => AtelieArq.escolher(); $('[data-atu]', c).onclick = () => { Nuvem.lista(true).catch(() => { }); this.pinta(); };
+    $('[data-novo]', c).onclick = () => Atelie.abrirAba(null); $('[data-backup]', c).onclick = () => AtelieArq.escolher(); $('[data-atu]', c).onclick = () => { PastasBib.esquece('nuvem'); Nuvem.lista(true).catch(() => { }); this.pinta(); };
     const l = $('[data-l]', c);
     // as duas listas ficam em abas separadas (com quantos tem em cada): muitos personagens numa não empurram a outra
     const sub = s => { this.subPers = s; try { localStorage.setItem('animador-pers-aba', s); } catch { } $$('[data-s]', c).forEach(b => b.classList.toggle('on', b.dataset.s === s)); $('[data-nuvem]', c).hidden = s !== 'nuvem'; $('[data-local]', c).hidden = s !== 'local'; $('[data-anims]', c).hidden = s !== 'anims'; };
-    if (!this.subPers) { try { this.subPers = localStorage.getItem('animador-pers-aba') || 'nuvem'; } catch { this.subPers = 'nuvem'; } }
-    $$('[data-s]', c).forEach(b => b.onclick = () => sub(b.dataset.s)); sub(this.subPers);
+    sub(sub0);
     const filtra = () => { const q = (this.qp || '').trim().toLowerCase(); $$('.pc', c).forEach(card => { const n = $('.in b', card)?.textContent.toLowerCase() || ''; card.hidden = !!q && !n.includes(q); });
       $$('.grade', c).forEach(g => { const t = g.previousElementSibling; if (t?.classList.contains('pasta-t')) t.hidden = g.children.length && [...g.children].every(x => x.hidden); }); };
-    $('[data-busca]', c).oninput = ev => { this.qp = ev.target.value; filtra(); };
+    // buscando: tudo numa grade só (sem pastas); parou de buscar: volta às pastas
+    $('[data-busca]', c).oninput = ev => { const antes = !!(this.qp || '').trim(); this.qp = ev.target.value; if (antes !== !!this.qp.trim()) { this._pl?.(); this._pn?.(); } else filtra(); };
     // rascunhos: mudanças guardadas só neste computador (ainda não foram para a nuvem)
     // rascunhos: mudanças guardadas só neste computador (ainda não foram para a nuvem), em PASTAS (js/pastasbib.js)
-    const pintaLocal = () => Atelie.rascunhos().then(async rs => { const box = $('[data-local]', c); $('[data-cl]', c).textContent = rs.length;
+    const pintaLocal = () => Atelie.rascunhos().then(async rs => { const box = $('[data-local]', c); this.poeN('pers-local', rs.length);
       if (!rs.length) { box.innerHTML = '<section class="bloco-sec local"><div class="vazio">Nenhum personagem só neste computador: tudo já está na nuvem da equipe.</div></section>'; return; }
       const sec = h(`<section class="bloco-sec local"><div class="sec">${ic('save', 14)} Só neste computador <small class="sec-sub">personagens locais e mudanças que ainda não foram para a nuvem (a equipe não vê)</small><span class="sp"></span><button class="btn sm" data-pnova>${ic('folder', 13)} Pasta nova</button><button class="btn sm danger-l" data-apaga-todos>${ic('trash', 13)} Apagar todos</button></div><div data-pb></div></section>`);
       const itens = rs.map(r => ({ id: r.def.id, nome: r.def.nome, r })); let todas = [];
@@ -234,15 +275,15 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
           '-', r.nuvem ? { label: 'Descartar o rascunho', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Descartar o rascunho de "${esc(r.def.nome)}"?`, msg: 'As mudanças que não foram para a nuvem somem deste computador. O personagem da nuvem continua lá.', ok: 'Descartar', danger: true })) { await Atelie.apagarRascunho(r.def.id, true); this.pinta(); } } }
             : { label: 'Apagar deste computador', icon: 'trash', danger: true, action: async () => { if (await UI.confirm({ title: `Apagar "${esc(r.def.nome)}"?`, msg: 'Ele só existe neste computador e some daqui (se estiver aberto em outra aba, ela fecha o personagem). <b>Não dá para desfazer.</b>', ok: 'Apagar', danger: true })) { await Atelie.apagarRascunho(r.def.id, true); this.pinta(); } } }]); };
         return card; };
-      ({ todas } = await PastasBib.monta($('[data-pb]', sec), { esc: 'local', itens, cartao, aoMudar: pintaLocal }));
+      ({ todas } = await PastasBib.monta($('[data-pb]', sec), { esc: 'local', itens, cartao, aoMudar: pintaLocal, cartoes: true, get plano() { return !!(Home.qp || '').trim(); }, titulo: S.titulo, nomes: true, miniatura: it => it.r.thumb, data: it => it.r.em }));
       $('[data-pnova]', sec).onclick = async () => { if (await PastasBib.nova('local')) pintaLocal(); };
       $('[data-apaga-todos]', sec).onclick = async () => { if (!(await UI.confirm({ title: `Apagar os ${rs.length} personagens só deste computador?`, msg: 'Somem os personagens locais e as mudanças que ainda não foram para a nuvem. Os que estão na nuvem continuam lá. <b>Não dá para desfazer.</b>', ok: 'Apagar todos', danger: true }))) return;
         for (const r of rs) await Atelie.apagarRascunho(r.def.id, true); UI.toast(`${rs.length} apagado(s) deste computador.`, { kind: 'ok' }); this.pinta(); };
       box.innerHTML = ''; box.appendChild(sec); filtra(); });
-    pintaLocal();
-    AtelieAnim.pintaLista($('[data-anims]', c), () => filtra()).then(n => { const e = $('[data-ca]', c); if (e) e.textContent = n; });
+    pintaLocal(); this._pl = pintaLocal;
+    if (sub0 === 'anims') AtelieAnim.pintaLista($('[data-anims]', c), () => filtra()).then(n => this.poeN('pers-anims', n));
     try {
-      const lista = await Nuvem.lista(); $('[data-cn]', c).textContent = lista.length;
+      if (sub0 !== 'nuvem') return; const lista = await Nuvem.lista(); this.poeN('pers-nuvem', lista.length);
       if (Nuvem.semLista) { this.copiasLocais(l, Nuvem.copiasPc); return; }
       if (!lista.length) { l.innerHTML = '<div class="vazio">Ninguém criou personagens ainda. Clique em <b>Personagem novo</b>.</div>'; return; }
       // em PASTAS da equipe (personagens/pastas.json; js/pastasbib.js): abrir/fechar, arrastar entre pastas, criar/renomear/apagar
@@ -259,7 +300,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
             '-', !Nuvem.adm ? { label: 'Apagar da nuvem (só ADM)', icon: 'lock', action: () => Nuvem.pedeAdm(it.nome) } : { label: 'Apagar da nuvem', icon: 'trash', danger: true, action: async () => { if (!(await Nuvem.souAdm())) return Nuvem.pedeAdm(it.nome); if (await UI.confirm({ title: `Apagar "${esc(it.nome)}" da nuvem da equipe?`, msg: 'Some para todo mundo. Animações que já usam ele continuam com a cópia delas.', ok: 'Apagar', danger: true })) { await Nuvem.apagar(it.id).catch(er => UI.toast(esc(er.message), { kind: 'err' })); this.pinta(); } } },
           ]); };
           return card; };
-      let pintaNuvem = async () => { try { lista.sort((a, b) => (this._vivosAt?.has(b.id) ? 1 : 0) - (this._vivosAt?.has(a.id) ? 1 : 0)); ({ todas: todasN } = await PastasBib.monta(l, { esc: 'nuvem', itens: lista, cartao: cartaoN, aoMudar: pintaNuvem })); if (Nuvem.parcial && Nuvem.copiasPc?.length) this.copiasLocais(l, Nuvem.copiasPc, true); filtra(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
+      let pintaNuvem = async () => { try { lista.sort((a, b) => (this._vivosAt?.has(b.id) ? 1 : 0) - (this._vivosAt?.has(a.id) ? 1 : 0)); ({ todas: todasN } = await PastasBib.monta(l, { esc: 'nuvem', itens: lista, cartao: cartaoN, aoMudar: () => pintaNuvem(), cartoes: true, get plano() { return !!(Home.qp || '').trim(); }, titulo: S.titulo, nomes: true, min: 150, miniatura: it => it.thumb, data: it => it.modificado })); if (Nuvem.parcial && Nuvem.copiasPc?.length) this.copiasLocais(l, Nuvem.copiasPc, true); filtra(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
       // AO VIVO no Ateliê: personagem com gente mexendo agora (sala at-<id>) ganha o selo e vai para o topo da pasta
       const marcaVivos = async () => { const t = await AoVivo.transporte().catch(() => null), vivos = new Set();
         for (const s of this._salasAt || []) { const id = s.sala.slice(3); let gente = []; try { gente = Object.values((await t?.genteDe?.(s.sala)) || {}).filter(g => g && g.nome); } catch { }
@@ -267,7 +308,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
         const ant = [...(this._vivosAt || [])].sort().join(); this._vivosAt = vivos; if (ant !== [...vivos].sort().join() && l.isConnected) { await pn0(); marcaVivos(); } };
       const pn0 = pintaNuvem; pintaNuvem = async () => { await pn0(); if (this._salasAt) marcaVivos(); };
       this._offAt?.(); this._offAt = AoVivo.ouvirLista(L => { if (!l.isConnected) return this._offAt?.(); this._salasAt = L; marcaVivos(); }, 'atelie');
-      await pintaNuvem(); $('[data-pnova-n]', c).onclick = async () => { try { if (await PastasBib.nova('nuvem')) pintaNuvem(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
+      this._pn = async () => { await pintaNuvem(); filtra(); }; await pintaNuvem(); $('[data-pnova-n]', c).onclick = async () => { try { if (await PastasBib.nova('nuvem')) pintaNuvem(); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
       filtra();
     } catch (e) { l.innerHTML = `<div class="vazio">Não consegui abrir a biblioteca: ${esc(e.message)}</div>`; }
   },
@@ -337,7 +378,7 @@ addEventListener('DOMContentLoaded', async () => {
         const local = await DB.get('projetos', nv).catch(() => null); NuvemTela.inicio(local?.nome || ''); let ok = false; // logo -> "Carregando da nuvem" com a % (some no fim ou no erro)
         try { await NuvemAnim.abrir(nv, local || null, { tela: true }); ok = true; } catch (e) { console.warn('abrir da nuvem', e); } finally { NuvemTela.fim(ok); } }
       else {
-      if (['animacoes', 'ideias', 'personagens'].includes(aba)) Home.atual = aba;
+      if (['animacoes', 'ideias', 'personagens', 'preparativos'].includes(aba)) Home.atual = aba;
       if (aba || abrir) history.replaceState(null, '', location.pathname);
       Home.pinta(); if (abrir === 'cenarios') try { CenLib.abrir({ escolher: { contexto: 'menu' } }); } catch { } // sem animação aberta: a biblioteca abre no modo de olhar/escolher
       await Citacao.receber(); } } } // aberto por uma citação das Mensagens: abre o arquivo no ponto citado

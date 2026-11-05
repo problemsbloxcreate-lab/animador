@@ -22,9 +22,9 @@ const Falas = {
     const k = `personagens/${this.def.id}/aud/${uid('au').toLowerCase().replace(/[^a-z0-9]/g, '')}.${ext}`; await Arq.guardar(blob, k);
     const b = await this.buffer(k); if (!b) { UI.toast('Não consegui abrir esse áudio.', { kind: 'err' }); return null; }
     const a = { id: uid('au'), nome: nome || 'Áudio', k, dur: round(b.duration, 2), falas: [] }; this.lista().push(a); this.aberto = a.id; Atelie.aba = 'animacoes'; Atelie.commit();
-    const tr = await UI.modal({ title: 'Áudio de teste', icon: 'mic', width: 460, body: `<div><p style="margin:0 0 10px">${this.aviso()}</p><p style="margin:0;color:var(--tx2)">Quer transcrever agora? Dá para editar cada fala (início, fim e texto) depois.</p></div>`,
-      buttons: [{ label: 'Depois', value: false }, { label: 'Transcrever', kind: 'primary ia', icon: 'sparkles', value: true }] });
-    if (tr) await this.transcrever(a); return a;
+    const tr = await UI.modal({ title: 'Áudio de teste', icon: 'mic', width: 460, body: `<div><p style="margin:0 0 10px">${this.aviso()}</p><p style="margin:0;color:var(--tx2)">Dá para pôr cada fala (início, fim e texto) à mão.</p></div>`,
+      buttons: [{ label: 'OK', kind: 'primary', value: false }] });
+    if (tr === 'nunca') await this.transcrever(a); return a; // a transcrição (IA) não aparece mais
   },
   async gravar() {
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return UI.toast('Este navegador não grava áudio. Use o Chrome ou o Edge.', { kind: 'err' });
@@ -156,7 +156,7 @@ const Falas = {
           $$('input', r).forEach(inp => inp.onchange = () => { const c = inp.dataset.c; if (c === 't') f.t = inp.value; else { const v = this.leTempo(inp.value); if (v == null) { inp.value = this.tempo(f[c]); return UI.toast('Use o tempo assim: 0:01 ou 0:01,5', { kind: 'warn' }); } f[c] = round(clamp(v, 0, a.dur || v), 2); if (f.ate < f.de) [f.de, f.ate] = [f.ate, f.de]; a.falas.sort((x, y) => x.de - y.de); } Atelie.commit(); });
           $('[data-o]', r).onclick = () => this.ouvir(a, f.de, f.ate); $('[data-x]', r).onclick = () => { a.falas.splice(i, 1); Atelie.commit(); };
           fl.appendChild(r); });
-        if (!(a.falas || []).length) fl.appendChild(h('<div class="tt-nada" style="padding:4px 0">Sem falas: transcreva com a IA ou ponha à mão.</div>'));
+        if (!(a.falas || []).length) fl.appendChild(h('<div class="tt-nada" style="padding:4px 0">Sem falas: ponha à mão.</div>'));
         $('[data-add]', bx).onclick = () => { const ult = (a.falas || []).at(-1), de = ult ? Math.min(a.dur, ult.ate + .1) : 0; (a.falas ||= []).push({ de: round(de, 2), ate: round(Math.min(a.dur, de + 1.5), 2), t: '' }); Atelie.commit(); };
         c.appendChild(bx);
       }

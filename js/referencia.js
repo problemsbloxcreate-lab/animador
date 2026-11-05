@@ -177,7 +177,7 @@ const Referencia = {
       await Arq.garantir(Modelo.chavesImgs(def));
       // a referência fica solta (se estivesse presa numa parte, iria junto quando a parte mudasse de lugar)
       if (ref.tipo === 'parte' && ref.parte.pai) A.porNoPai(ref.parte.id, null, { semCommit: true });
-      let dicas = null; if (o.ia !== false && typeof IA !== 'undefined' && IA.srv) { try { Ocupado.passo?.('A IA está olhando a referência (onde fica cada peça)…'); dicas = await IA.ondeNaRef(def, ref); } catch (e) { console.warn('dica da IA', e); } }
+      let dicas = null; if (o.ia === true && typeof IA !== 'undefined' && IA.srv) { try { Ocupado.passo?.('A IA está olhando a referência (onde fica cada peça)…'); dicas = await IA.ondeNaRef(def, ref); } catch (e) { console.warn('dica da IA', e); } }
       const r = await this.calcula(def, ref, t => Ocupado.passo?.(t), dicas), bm = Arq.img.get(ref.k);
       // a referência com o tamanho certo (σ px dela por unidade do desenho), no mesmo centro
       let paraMundo;

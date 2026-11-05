@@ -42,9 +42,8 @@
     <!-- pessoas (05/11/2026): quem criou/editou (só as fotos), trabalhar junto e quem está ao vivo, juntos do lado direito -->
     <span class="ed-pessoas"><span class="ed-autores" id="ed-autores"></span><button class="btn sm" id="b-junto" title="Trabalhar junto ao vivo: outras pessoas da equipe entram, cada uma com o cursor e o nome, e veem as mudanças na hora"></button><span class="aovivo-barra" data-aovivo="animador" hidden></span></span>
     <span class="sep"></span>
-    <button class="ibtn" id="b-mais" title="Mais: animar com a IA, Ateliê de personagens, baixar…"></button>
-    <button class="btn ia" id="b-ia" title="Animar com a IA"></button>
-    <button class="btn" id="b-atelie" title="Ateliê de personagens: montar partes, sessões e poses"></button>
+    <button class="ibtn" id="b-mais" title="Mais: Ateliê de personagens, baixar…"></button>
+        <button class="btn" id="b-atelie" title="Ateliê de personagens: montar partes, sessões e poses"></button>
     <button class="btn primary" id="b-exportar"></button>
     <span data-estudio-conta></span>
   </header>
@@ -53,7 +52,7 @@
       <div class="p-cab" id="midia-cab"><h3>Mídia</h3><small class="esq-sub">imagens para reaproveitar</small><span class="sp"></span></div>
       <div class="p-corpo midia-corpo" id="midia-corpo"></div>
       <div class="p-cab"><h3>Hierarquia</h3><span class="sp"></span>
-        <button class="ibtn" id="h-pers" title="Pôr um personagem da biblioteca"></button><button class="ibtn ia" id="h-cen" title="Pôr um cenário (prontos ou feito pela IA no estilo da casa)"></button><button class="ibtn" id="h-img" title="Pôr uma imagem (objeto, cenário próprio)"></button>
+        <button class="ibtn" id="h-pers" title="Pôr um personagem da biblioteca"></button><button class="ibtn ia" id="h-cen" title="Pôr um cenário"></button><button class="ibtn" id="h-img" title="Pôr uma imagem (objeto, cenário próprio)"></button>
         <button class="ibtn" id="h-forma" title="Pôr uma forma (retângulo, círculo, triângulo, estrela)"></button><button class="ibtn" id="h-txt" title="Pôr um texto"></button><button class="ibtn" id="h-pasta" title="Pasta nova (Ctrl+G põe o selecionado numa pasta)"></button></div>
       <div class="p-corpo arvore" id="arvore"></div>
     </aside>
@@ -101,7 +100,7 @@
     <button class="ibtn" id="at-backup" title="Baixar backup do personagem (.atelieanimador)"></button>
     <span class="aovivo-barra" data-aovivo="atelie" hidden></span><span id="at-estado" class="at-estado"></span>
     <button class="btn" id="at-cor" title="Cor interna do personagem: troca o branco do preenchimento pela cor que você quiser"></button>
-    <button class="btn ia" id="at-ia" title="IA do Ateliê: criar presets e expressões a partir das peças"></button>
+    <button class="btn ia" id="at-ia" hidden></button>
     <button class="btn primary" id="at-salvar" title="Salvar na nuvem da equipe (Ctrl+S)"></button>
     <span data-estudio-conta></span>
   </header>
@@ -200,7 +199,7 @@
 <script src="js/short.js"></script>
 <script src="js/premiere.js"></script><!-- timeline do modo Vídeo igual à do Premiere -->
 <script src="js/ideias.js"></script>
-<script src="js/home.js"></script>
+<script src="js/prep.js"></script><script src="js/home.js"></script>
 <script src="js/previa.js"></script>
 <script src="js/iauso.js"></script>
 <script src="js/pacotes.js"></script>

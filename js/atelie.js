@@ -82,8 +82,8 @@ const Atelie = {
       <label class="field" style="flex:1" title="De que ângulo são estas imagens. Depois dá para pôr as outras vistas (frente, lado, costas…)">Vista<select data-vt>${this.opcoesVista('frente')}</select></label><label class="field" style="flex:0 0 96px" title="Quadros por segundo das animações deste personagem (o padrão do Animador é 24)">FPS<select data-fps>${Linha.opcoesFps(Modelo.FPS_PADRAO).replace('<option value="outro">Outro…</option>', '')}</select></label></div>
       <div class="field">Imagens <small>(opcional) — as peças do personagem em PNG com fundo transparente. O melhor: as camadas do desenho exportadas no mesmo tamanho (já encaixam sozinhas).</small></div>
       <div class="np-drop" data-d tabindex="0">${ic('upload', 22)}<b>Arraste as imagens ou PASTAS aqui</b><small>ou clique para escolher imagens ou uma pasta · arrastando pastas, cada pasta vira uma parte (ex.: "perna_frente" → Perna frente)</small></div><div class="np-lista" data-l></div>
-      <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, profundidade, sessões, presets e animações de teste)</label>
-      <textarea rows="2" data-p placeholder="Opcional: dicas para a IA. Ex.: &quot;as bocas são para falar&quot;, &quot;o corpo é a raiz&quot;"></textarea></div>`);
+      <label class="chk np-ia" hidden><input type="checkbox" data-ia> ${ic('sparkles', 13)} A IA organiza tudo (partes, raiz, encaixes, pontos de giro, profundidade, sessões, presets e animações de teste)</label>
+      <textarea rows="2" data-p hidden placeholder="Opcional: dicas para a IA. Ex.: &quot;as bocas são para falar&quot;, &quot;o corpo é a raiz&quot;"></textarea></div>`);
     this.ligaVistaSel($('[data-vt]', body)); // "Adicionar…" = vista com nome à vontade
     const lista = $('[data-l]', body), drop = $('[data-d]', body), ia = $('[data-ia]', body), urls = [];
     const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = '';
@@ -121,7 +121,7 @@ const Atelie = {
             '-', { label: 'Tirar', icon: 'trash', danger: true, action: () => { fs.splice(i, 1); pintaL(); } }].filter(Boolean)); };
           lista.appendChild(c); } }
       drop.classList.toggle('tem', !!fs.length); const nP = new Set(fs.map(f => f._parte).filter(Boolean)).size; $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns)${nP ? ` em ${nP} parte(s) pelas pastas` : ''} — arraste mais se quiser` : 'Arraste as imagens ou PASTAS aqui';
-      $('.np-ia', body).hidden = $('[data-p]', body).hidden = !fs.length; };
+      $('.np-ia', body).hidden = $('[data-p]', body).hidden = true; }; // a IA não aparece mais: fica sempre escondida
     const poe = l => { const novos = [...l].filter(f => /^image\//.test(f.type) || /\.(png|webp|gif|jpe?g|svg)$/i.test(f.name)); for (const f of novos) if (Pastas.ehRefNome(f._parte) || Pastas.ehRefNome(f._pasta) || Pastas.ehRefNome(f.name.replace(/\.[^.]+$/, ''))) Pastas.virarRef(f, true); fs = fs.concat(novos); pintaL(); };
     drop.onclick = async ev => { const l = await Pastas.escolherDe(ev, () => pickFiles('image/png,image/webp,image/gif,image/jpeg,' + VETOR, true)); if (l) poe(l); };
     drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
@@ -131,7 +131,7 @@ const Atelie = {
     const r = await UI.modal({ title: 'Personagem novo', icon: 'layers', width: 560, body, buttons: [
       { label: 'Cancelar', value: null, left: true },
       { label: 'Pular (só o nome)', onClick: a => { const n = pega(a); return n ? { nome: n, fs: [], ia: false, vtipo: $('[data-vt]', a.body).value, vnome: $('[data-vt]', a.body).dataset.nome, fps: +$('[data-fps]', a.body).value || 24 } : false; } },
-      { label: 'Criar', kind: 'primary', onClick: a => { const n = pega(a); return n ? { nome: n, fs, raiz, ia: ia.checked && !!fs.length, pedido: $('[data-p]', a.body).value.trim(), vtipo: $('[data-vt]', a.body).value, vnome: $('[data-vt]', a.body).dataset.nome, fps: +$('[data-fps]', a.body).value || 24 } : false; } }] });
+      { label: 'Criar', kind: 'primary', onClick: a => { const n = pega(a); return n ? { nome: n, fs, raiz, ia: false, pedido: $('[data-p]', a.body).value.trim(), vtipo: $('[data-vt]', a.body).value, vnome: $('[data-vt]', a.body).dataset.nome, fps: +$('[data-fps]', a.body).value || 24 } : false; } }] });
     urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 2000)); return r;
   },
   // a parte que a pessoa marcou como raiz na tela do personagem novo (pasta → a parte dela; imagem solta → a parte com o nome dela)
@@ -1305,7 +1305,7 @@ const Atelie = {
         <label class="chk"><input type="radio" name="como" value="espelho"> O espelho da vista atual (bom para o outro lado)</label>
         <label class="chk"><input type="radio" name="como" value="vazia"> Vazia</label></div>
       <div data-img><div class="np-drop" data-d>${ic('upload', 22)}<b>Arraste as imagens desta vista aqui</b><small>ou clique para escolher · o melhor: as camadas do desenho, todas no mesmo tamanho</small></div><div class="np-lista" data-l></div>
-      <label class="chk np-ia"><input type="checkbox" data-ia checked> ${ic('sparkles', 13)} A IA organiza esta vista (e usa os mesmos nomes das outras vistas)</label></div></div>`);
+      <label class="chk np-ia" hidden><input type="checkbox" data-ia> ${ic('sparkles', 13)} A IA organiza esta vista (e usa os mesmos nomes das outras vistas)</label></div></div>`);
     const nm = $('[data-n]', body), tp = $('[data-t]', body); let mexeuNome = false; nm.oninput = () => mexeuNome = true; this.ligaVistaSel(tp, n => { if (n) { nm.value = n; mexeuNome = false; } else if (!mexeuNome || nm.value === tp.dataset.ultimo) nm.value = Modelo.nomeTipo(tp.value); tp.dataset.ultimo = nm.value; });
     const lista = $('[data-l]', body), drop = $('[data-d]', body), urls = [];
     const pintaL = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; lista.innerHTML = ''; fs.forEach((f, i) => { const u = URL.createObjectURL(f); urls.push(u); const c = h(`<div class="np-im"><img src="${u}" alt=""><span>${esc(f.name.replace(/\.[^.]+$/, ''))}</span><button class="ibtn">${ic('x', 11)}</button></div>`); $('button', c).onclick = () => { fs.splice(i, 1); pintaL(); }; lista.appendChild(c); }); $('b', drop).textContent = fs.length ? `${fs.length} imagem(ns) — arraste mais se quiser` : 'Arraste as imagens desta vista aqui'; };
@@ -1314,7 +1314,7 @@ const Atelie = {
     drop.ondragover = e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); drop.classList.add('drop-dentro'); } }; drop.ondragleave = () => drop.classList.remove('drop-dentro');
     drop.ondrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drop-dentro'); Pastas.deDrop(e.dataTransfer).then(poe); };
     $$('input[name=como]', body).forEach(r => r.onchange = () => { $('[data-img]', body).hidden = $('input[name=como]:checked', body).value !== 'imagens'; });
-    const r = await UI.modal({ title: 'Vista nova', icon: 'eye', width: 560, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', collect: () => ({ tipo: tp.value, nome: nm.value.trim() || Modelo.nomeTipo(tp.value), como: $('input[name=como]:checked', body).value, ia: $('[data-ia]', body).checked }) }] });
+    const r = await UI.modal({ title: 'Vista nova', icon: 'eye', width: 560, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Criar', kind: 'primary', collect: () => ({ tipo: tp.value, nome: nm.value.trim() || Modelo.nomeTipo(tp.value), como: $('input[name=como]:checked', body).value, ia: false }) }] });
     urls.forEach(u => setTimeout(() => URL.revokeObjectURL(u), 2000)); if (!r) return;
     await this.criaVista({ ...r, de: this.def.vistaAtual, fs: r.como === 'imagens' ? fs : [], ia: r.ia && r.como === 'imagens' && fs.length > 0 });
   },

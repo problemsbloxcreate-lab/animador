@@ -16,15 +16,15 @@ const Ocupado = {
     this._nt = (o.tipo === 'nuvem' || o.tipo === 'junto') && typeof NuvemTela !== 'undefined'; this._ntMeu = false;
     if (this._nt) { this._ntMeu = !NuvemTela.el; const at = document.getElementById('atelie'), prog = at && !at.classList.contains('hidden') ? 'at' : 'an';
       if (this._ntMeu) NuvemTela.inicio('', prog, { titulo: o.titulo || 'Na nuvem', vidro: true, indef: true }); NuvemTela.passo(null, o.subtitulo || 'Conectando à nuvem…'); }
-    Object.assign(this, { t0: performance.now(), letras: 0, tipo: o.tipo || 'ia', feito: null, titulo: o.titulo || 'A IA está trabalhando', tituloAba: document.title, abaTxt: o.aba || (o.tipo && o.tipo !== 'ia' ? o.titulo : 'IA trabalhando'), fimTxt: o.fimTxt || null });
+    Object.assign(this, { t0: performance.now(), letras: 0, tipo: o.tipo || 'ia', feito: null, titulo: o.titulo || 'Trabalhando…', tituloAba: document.title, abaTxt: o.aba || (o.tipo && o.tipo !== 'ia' ? o.titulo : 'Trabalhando'), fimTxt: o.fimTxt || null });
     // aba escondida: a IA continua. A trava pede ao Chrome para não congelar a aba enquanto isso; no fim, avisa (notificação) se a aba não estiver à vista
     try { navigator.locks?.request('animador-ia-' + Math.random(), () => new Promise(r => { this._solta = r; })).catch(() => { }); } catch { }
     this.el = h(`<div class="ocupado${(o.tipo || 'ia') === 'ia' ? '' : ' sem-ia'}" role="alertdialog" aria-live="polite"><div class="oc-card">
-      <div class="oc-ic">${ic(o.icone || 'sparkles', 30)}</div><b class="oc-tit">${esc(o.titulo || 'A IA está trabalhando')}</b>
+      <div class="oc-ic">${ic(o.icone || 'sparkles', 30)}</div><b class="oc-tit">${esc(o.titulo || 'Trabalhando…')}</b>
       <div class="oc-sub" data-sub>${esc(o.subtitulo || 'Pensando…')}</div>
       <div class="oc-barra rodando" data-barra><i data-b></i></div>
       <div class="oc-num"><span data-conta></span><span class="sp"></span><span>passou <b data-pas>0:00</b></span></div>
-      <div class="oc-av">${esc(o.aviso || 'Aguarde: enquanto a IA trabalha não dá para mexer (para nada sair do lugar). Não feche esta aba.')}</div></div></div>`);
+      <div class="oc-av">${esc(o.aviso || 'Aguarde: enquanto isso não dá para mexer (para nada sair do lugar). Não feche esta aba.')}</div></div></div>`);
     if (this._nt) this.el.style.display = 'none';
     document.body.appendChild(this.el); requestAnimationFrame(() => this.el?.classList.add('on'));
     this._bloq = e => { if (this.n > 0) { e.preventDefault(); e.stopPropagation(); } };
@@ -41,12 +41,12 @@ const Ocupado = {
     if (!this.el) return; const t = (performance.now() - this.t0) / 1000, F = this.feito, br = $('[data-barra]', this.el);
     br.classList.toggle('rodando', !F); $('[data-b]', this.el).style.width = F ? (Math.min(1, F.feito / F.total) * 100).toFixed(1) + '%' : '';
     $('[data-conta]', this.el).textContent = F ? `${F.feito} de ${F.total}` : ''; $('[data-pas]', this.el).textContent = this.fmt(t);
-    if (document.hidden) document.title = `${this.abaTxt || 'IA trabalhando'} ${this.fmt(t)} · ${this.tituloAba}`; else if (document.title !== this.tituloAba) document.title = this.tituloAba;
+    if (document.hidden) document.title = `${this.abaTxt || 'Trabalhando'} ${this.fmt(t)} · ${this.tituloAba}`; else if (document.title !== this.tituloAba) document.title = this.tituloAba;
   },
   fim() {
     this.n = Math.max(0, this.n - 1); if (this.n) return;
     try { this._solta?.(); } catch { } this._solta = null; if (this.tituloAba) document.title = this.tituloAba;
-    if (document.hidden) try { if (this.tipo === 'ia') Notify.send('A IA terminou', this.titulo.replace(/^A IA está /, '').replace(/^\w/, c => c.toUpperCase())); else Notify.send(this.fimTxt || 'Pronto', this.titulo); } catch { }
+    if (document.hidden) try { if (this.tipo === 'ia') Notify.send('Pronto', this.titulo.replace(/^A IA está /, '').replace(/^\w/, c => c.toUpperCase())); else Notify.send(this.fimTxt || 'Pronto', this.titulo); } catch { }
     clearInterval(this._iv); for (const ev of ['keydown', 'keyup', 'wheel', 'contextmenu']) removeEventListener(ev, this._bloq, { capture: true });
     if (this._nt) { if (this._ntMeu) NuvemTela.fim(); this._nt = this._ntMeu = false; }
     const el = this.el; this.el = null; if (!el) return; $('[data-barra]', el).classList.remove('rodando'); $('[data-b]', el).style.width = '100%'; el.classList.remove('on'); setTimeout(() => el.remove(), 220);

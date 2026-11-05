@@ -81,7 +81,7 @@ const AjudaModo = {
     [/aparar todas/i, 'Aparar todas da parte', 'Corta a sobra transparente em volta de todas as imagens desta parte (o desenho fica no mesmo lugar).', 'crop'],
     [/^aparar/i, 'Aparar', 'Corta a sobra transparente em volta da imagem (o desenho fica no mesmo lugar).', 'crop'],
     [/cores base/i, 'Cores base', 'As cores que mais aparecem no personagem. Clique numa para pintar com ela; Shift+clique junta mais cores na seleção para trocar.', 'palette'],
-    [/trocar cores/i, 'Trocar cores', 'Troca as cores escolhidas por outras em todas as imagens (à mão ou pedindo para a IA).', 'palette'],
+    [/trocar cores/i, 'Trocar cores', 'Troca as cores escolhidas por outras em todas as imagens.', 'palette'],
     [/^cor\b/i, 'Cor', 'A cor do pincel e do balde.', 'palette'],
     [/editar a imagem/i, 'Editar a imagem…', 'Abre esta imagem sozinha no editor (modo Photoshop) para pintar.', 'brush'],
     [/converter para svg/i, 'Converter para SVG', 'Transforma a imagem em vetor (linhas e cores separadas, sem perder qualidade no zoom). O PNG de antes fica guardado.', 'nodes'],
@@ -93,7 +93,7 @@ const AjudaModo = {
     [/apagar|excluir|remover/i, 'Apagar', 'Tira isso (o Ctrl+Z traz de volta).', 'trash'],
     [/espelhar/i, 'Espelhar', 'Vira o desenho como num espelho.', 'flip'],
     [/exportar/i, 'Exportar', 'Salva isso num arquivo para levar para outro personagem ou computador.', 'download'],
-    [/citar/i, 'Citar', 'Põe isso como referência numa mensagem (para alguém da equipe ou para a IA saber do que você fala).', 'chat'],
+    [/citar/i, 'Citar', 'Põe isso como referência numa mensagem (para alguém da equipe saber do que você fala).', 'chat'],
     [/pedir para a ia/i, 'Pedir para a IA', 'Abre a IA já com o pedido sobre isso.', 'sparkles'],
   ],
   // ---------- ligar / desligar ----------

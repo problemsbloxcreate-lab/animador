@@ -20,8 +20,10 @@ const PastasBib = {
   // ---------- ler / gravar ----------
   async le(esc) {
     const N = this.NA_NUVEM[esc]; if (!N) { try { return this.limpo(await DB.get('arquivos', this.CHAVE_LOCAL[esc])); } catch { return this.vazio(); } }
-    const g = (this._nuvemDe ||= {});
-    try { const r = await fetch(Nuvem.srv + N.rota + '?k=' + encodeURIComponent(N.k), { headers: await Nuvem.hd(), cache: 'no-store' }); if (r.status === 404) return (g[esc] = this.vazio()); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error?.message || 'A nuvem respondeu ' + r.status); const o = this.limpo(await r.json()); g[esc] = o; if (esc === 'nuvem') this._nuvem = o; return o; }
+    const g = (this._nuvemDe ||= {}), em = (this._lidoEm ||= {});
+    // ECONOMIA (05/11/2026): abrir/fechar pastas e trocar de seção não pede de novo à nuvem por 1 min ("Atualizar" chama esquece)
+    if (g[esc] && Date.now() - (em[esc] || 0) < 60000) return g[esc];
+    try { const r = await fetch(Nuvem.srv + N.rota + '?k=' + encodeURIComponent(N.k), { headers: await Nuvem.hd(), cache: 'no-store' }); if (r.status === 404) return (g[esc] = this.vazio()); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error?.message || 'A nuvem respondeu ' + r.status); const o = this.limpo(await r.json()); g[esc] = o; em[esc] = Date.now(); if (esc === 'nuvem') this._nuvem = o; return o; }
     catch (e) { if (g[esc]) return g[esc]; throw e; }
   },
   // muda(o) mexe no objeto (já relido agora); devolve o objeto gravado
@@ -29,8 +31,9 @@ const PastasBib = {
     const o = await this.le(esc); muda(o); const L = this.limpo(o);
     const N = this.NA_NUVEM[esc]; if (!N) { await DB.put('arquivos', L, this.CHAVE_LOCAL[esc]); return L; }
     await Nuvem.pede(N.rota + '?k=' + encodeURIComponent(N.k), { method: 'POST', body: JSON.stringify(L), headers: { 'content-type': 'application/json' } });
-    (this._nuvemDe ||= {})[esc] = L; if (esc === 'nuvem') this._nuvem = L; return L;
+    (this._nuvemDe ||= {})[esc] = L; (this._lidoEm ||= {})[esc] = Date.now(); if (esc === 'nuvem') this._nuvem = L; return L;
   },
+  esquece(esc) { if (this._lidoEm) { if (esc) delete this._lidoEm[esc]; else this._lidoEm = {}; } },
   pastaDe(o, it, esc) { return o.de[it.id] || (esc === 'nuvem' ? it.pasta : '') || this.PADRAO[esc]; },
   // todas as pastas na ordem: as guardadas (inclusive vazias) e depois as que só aparecem nos itens; a padrão primeiro se não estiver na lista
   ordem(o, itens, esc) { const usadas = itens.map(it => this.pastaDe(o, it, esc)), L = [...o.pastas]; for (const p of usadas) if (!L.includes(p)) L.push(p); const P = this.PADRAO[esc]; if (!o.pastas.includes(P) && (usadas.includes(P) || !L.length)) { const i = L.indexOf(P); if (i >= 0) L.splice(i, 1); L.unshift(P); } return [...new Set(L)]; }, // a padrão vem primeiro (se ninguém pôs ela em outro lugar)
@@ -70,6 +73,7 @@ const PastasBib = {
   // ---------- desenhar: título da pasta (abre/fecha) + grade de cartões; arrastar cartões entre pastas ----------
   // o = { esc, itens, cartao(it) → elemento, aoMudar() } ; devolve o fragmento
   async monta(box, o) {
+    if (o.cartoes) return this.montaCartoes(box, o);
     const esc = o.esc, dados = this._o = await this.le(esc).catch(() => this.vazio()), todas = this.ordem(dados, o.itens, esc);
     box.innerHTML = '';
     for (const pa of todas) {
@@ -104,6 +108,90 @@ const PastasBib = {
       box.appendChild(t); box.appendChild(g);
     }
     return { dados, todas };
+  },
+  /* ---------- TELA INICIAL NOVA (pedido da dona, 05/11/2026): cada pasta vira um CARTÃO (nome, quantos tem, prévia e o que tem
+     dentro); clicar abre a pasta (um nível só, com o caminho em cima para voltar). Nas animações e nos rascunhos a pasta padrão
+     não vira cartão: o que não tem pasta fica solto embaixo ("Fora de pastas"). Qual pasta está aberta fica neste navegador. ---------- */
+  SOLTA: { anim: 1, animn: 1, local: 1 },
+  abertas() { try { return JSON.parse(localStorage.getItem('animador-pasta-aberta') || '{}') || {}; } catch { return {}; } },
+  aberta(esc) { return this.abertas()[esc] || null; },
+  abre(esc, pa) { const o = this.abertas(); if (pa) o[esc] = pa; else delete o[esc]; try { localStorage.setItem('animador-pasta-aberta', JSON.stringify(o)); } catch { } },
+  // o cartão do item pode ser arrastado para uma pasta
+  arrastavel(c, it) { c.draggable = true; c.dataset.pbId = it.id; c.ondragstart = ev => { ev.dataTransfer.setData('text/pers-id', it.id); ev.dataTransfer.effectAllowed = 'move'; c.classList.add('pb-indo'); }; c.ondragend = () => c.classList.remove('pb-indo'); return c; },
+  // alvo de soltar itens: soltar = mover para a pasta "pa"
+  alvoSoltar(el, esc, o, dados, pa) {
+    el.addEventListener('dragover', ev => { if (!ev.dataTransfer.types.includes('text/pers-id')) return; ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; el.classList.add('pb-alvo'); });
+    el.addEventListener('dragleave', ev => { if (!el.contains(ev.relatedTarget)) el.classList.remove('pb-alvo'); });
+    el.addEventListener('drop', async ev => { const id = ev.dataTransfer.getData('text/pers-id'); el.classList.remove('pb-alvo'); if (!id) return; ev.preventDefault(); ev.stopPropagation(); const it = o.itens.find(x => x.id === id); if (!it || this.pastaDe(dados, it, esc) === pa) return;
+      try { await this.mover(esc, [id], pa); UI.toast(`<b>${esc2(it.nome)}</b> foi para <b>${esc2(pa)}</b>.`, { time: 2200 }); } catch (e) { UI.toast('Não consegui mover: ' + esc2(e.message), { kind: 'err' }); } o.aoMudar(); });
+  },
+  // renomeia e, se a pasta estava aberta, continua aberta com o nome novo
+  async renomeiaAberta(esc, pa, o) { const ab = this.aberta(esc) === pa, antes = new Set((await this.le(esc).catch(() => this.vazio())).pastas);
+    if (!(await this.renomear(esc, pa, o.itens))) return false;
+    if (ab) { const L = (this._nuvemDe?.[esc] || await this.le(esc).catch(() => this.vazio())).pastas, novo = L.find(p => !antes.has(p)); this.abre(esc, novo || null); } return true; },
+  menuPasta(x, y, esc, pa, o, todas) {
+    const pos = todas.indexOf(pa), cor = CoresPasta.get(this.COR[esc] + pa), [, varios] = this.QUE[esc], erro = e => UI.toast(esc2(e.message), { kind: 'err' });
+    const sobe = async d => { try { if (await this.reordena(esc, todas, pa, todas[pos + d], d > 0)) o.aoMudar(); } catch (e) { erro(e); } };
+    UI.ctx(x, y, [{ head: pa }, { label: 'Mover para antes', icon: 'left', disabled: pos <= 0, action: () => sobe(-1) }, { label: 'Mover para depois', icon: 'right', disabled: pos >= todas.length - 1, action: () => sobe(1) }, '-',
+      { label: 'Renomear…', icon: 'edit', action: async () => { try { if (await this.renomeiaAberta(esc, pa, o)) o.aoMudar(); } catch (e) { erro(e); } } },
+      { label: 'Pasta nova…', icon: 'folder', action: async () => { try { if (await this.nova(esc)) o.aoMudar(); } catch (e) { erro(e); } } },
+      menuCor(cor, c => { CoresPasta.set(this.COR[esc] + pa, c); o.aoMudar(); }),
+      '-', { label: `Apagar a pasta (${varios === 'animações' ? 'as' : 'os'} ${varios} ficam)`, icon: 'trash', danger: true, action: async () => { try { if (await this.apagar(esc, pa, o.itens, todas)) { if (this.aberta(esc) === pa) this.abre(esc, null); o.aoMudar(); } } catch (e) { erro(e); } } }]);
+  },
+  async montaCartoes(box, o) {
+    const esc = o.esc, dados = this._o = await this.le(esc).catch(() => this.vazio()), todas = this.ordem(dados, o.itens, esc), [um, varios] = this.QUE[esc], padrao = this.PADRAO[esc], solta = !!this.SOLTA[esc];
+    const conta = n => `${n} ${n === 1 ? um : varios}`, de = pa => o.itens.filter(it => this.pastaDe(dados, it, esc) === pa);
+    const grade = L => { const g = h(`<div class="grade pb-g" style="grid-template-columns:repeat(auto-fill,minmax(${o.min || 150}px,1fr))"></div>`); for (const it of L) g.appendChild(this.arrastavel(o.cartao(it), it)); return g; };
+    const frag = document.createDocumentFragment(); // monta tudo fora da tela e troca de uma vez (sem piscar)
+    if (o.plano) { frag.appendChild(o.itens.length ? grade(o.itens) : h('<div class="vazio">Nada com esse nome.</div>')); box.replaceChildren(frag); return { dados, todas }; }
+    // ---- DENTRO DE UMA PASTA ----
+    const ab = this.aberta(esc);
+    if (ab && todas.includes(ab) && !(solta && ab === padrao)) {
+      const L = de(ab), cor = CoresPasta.get(this.COR[esc] + ab);
+      const top = h(`<div class="pb-abre"><nav class="pb-cam" aria-label="Caminho"><button class="pb-volta" title="Voltar · solte ${varios} aqui para tirar desta pasta">${ic('left', 13)} ${esc2(o.titulo || 'Voltar')}</button><span aria-hidden="true">›</span><b>${esc2(ab)}</b></nav>
+        <div class="pb-abre-t"><i class="pb-tag" style="${cor ? `background:${cor}` : ''}"></i><h2>${esc2(ab)}</h2><small>${conta(L.length)}</small><span class="sp"></span><span class="pb-extra"></span><button class="btn sm" data-ren>${ic('edit', 13)} Renomear</button><button class="btn sm so-icone" data-mn title="Opções da pasta">${ic('dots', 14)}</button></div></div>`);
+      const volta = $('.pb-volta', top); volta.onclick = () => { this.abre(esc, null); o.aoMudar(); }; this.alvoSoltar(volta, esc, o, dados, padrao);
+      for (const x of [].concat(o.acoesPasta?.(ab) || [])) $('.pb-extra', top).appendChild(x);
+      $('[data-ren]', top).onclick = async () => { try { if (await this.renomeiaAberta(esc, ab, o)) o.aoMudar(); } catch (e) { UI.toast(esc2(e.message), { kind: 'err' }); } };
+      $('[data-mn]', top).onclick = e => { const r = e.currentTarget.getBoundingClientRect(); this.menuPasta(r.right - 220, r.bottom + 4, esc, ab, o, todas); };
+      frag.appendChild(top); frag.appendChild(L.length ? grade(L) : h(`<div class="pb-vazia">Pasta vazia. Para pôr ${varios} aqui: volte e arraste o cartão para esta pasta, ou use o botão de opções do cartão › Mover para a pasta.</div>`));
+      box.replaceChildren(frag); return { dados, todas };
+    }
+    if (ab) this.abre(esc, null);
+    // ---- CARTÕES DAS PASTAS + o que está fora delas ----
+    const pastas = todas.filter(p => !(solta && p === padrao)), soltos = solta ? de(padrao) : [];
+    if (pastas.length) {
+      const sec = h(`<section class="pb-sec"><h3 class="pb-h">Pastas <small>· clique para abrir</small></h3><div class="pb-cards"></div></section>`), cards = $('.pb-cards', sec);
+      for (const pa of pastas) {
+        const L = de(pa), cor = CoresPasta.get(this.COR[esc] + pa), mini = L.map(it => o.miniatura?.(it)).filter(Boolean).slice(0, 3), ult = Math.max(0, ...L.map(it => +(o.data?.(it) || 0)));
+        const nomes = o.nomes && L.length ? L.slice(0, 3).map(it => it.nome).join(', ') + (L.length > 3 ? '…' : '') : '';
+        const desc = L.length ? [nomes, ult ? 'mudou ' + fmtDate(ult) : ''].filter(Boolean).join(' · ') : 'Pasta vazia';
+        const c = h(`<div class="pb-card" role="button" tabindex="0" data-pasta="${esc2(pa)}" title="Abrir a pasta · arraste ${varios} para cá · botão direito: opções">
+          <div class="pb-prev n${mini.length}">${mini.length ? mini.map(u => `<i style="background-image:url('${u}')"></i>`).join('') : `<span>${ic('folder', 30)}</span>`}</div>
+          <div class="pb-info"><i class="pb-tag" style="${cor ? `background:${cor}` : ''}"></i><b>${esc2(pa)}</b><small>${conta(L.length)}</small><button class="ibtn pb-mn" title="Opções da pasta">${ic('dots', 14)}</button></div>
+          <small class="pb-desc">${esc2(desc)}</small></div>`);
+        const abrir = () => { this.abre(esc, pa); o.aoMudar(); };
+        c.onclick = e => { if (!e.target.closest('.pb-mn')) abrir(); }; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } };
+        $('.pb-mn', c).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); this.menuPasta(r.right - 220, r.bottom + 4, esc, pa, o, todas); };
+        c.oncontextmenu = e => { e.preventDefault(); this.menuPasta(e.clientX, e.clientY, esc, pa, o, todas); };
+        this.alvoSoltar(c, esc, o, dados, pa);
+        // arrastar o cartão da pasta para o lado de outro = muda a ordem
+        c.draggable = true; c.addEventListener('dragstart', ev => { ev.dataTransfer.setData('text/pasta-bib', esc + '\n' + pa); ev.dataTransfer.effectAllowed = 'move'; c.classList.add('pb-indo'); });
+        c.addEventListener('dragend', () => { c.classList.remove('pb-indo'); cards.querySelectorAll('.pb-antes,.pb-depois').forEach(x => x.classList.remove('pb-antes', 'pb-depois')); });
+        const ladoDe = ev => { const r = c.getBoundingClientRect(); return ev.clientX > r.left + r.width / 2; };
+        c.addEventListener('dragover', ev => { if (!ev.dataTransfer.types.includes('text/pasta-bib')) return; ev.preventDefault(); const d = ladoDe(ev); c.classList.toggle('pb-depois', d); c.classList.toggle('pb-antes', !d); });
+        c.addEventListener('dragleave', () => c.classList.remove('pb-antes', 'pb-depois'));
+        c.addEventListener('drop', async ev => { const v = ev.dataTransfer.getData('text/pasta-bib'); if (!v) return; ev.preventDefault(); c.classList.remove('pb-antes', 'pb-depois');
+          const [e2, de0] = v.split('\n'); if (e2 !== esc || de0 === pa) return; try { if (await this.reordena(esc, todas, de0, pa, ladoDe(ev))) o.aoMudar(); } catch (e) { UI.toast('Não consegui mudar a ordem: ' + esc2(e.message), { kind: 'err' }); } });
+        cards.appendChild(c);
+      }
+      frag.appendChild(sec);
+    }
+    if (solta) {
+      const sec = h(`<section class="pb-sec pb-soltos"><h3 class="pb-h">${pastas.length ? 'Fora de pastas' : 'Tudo'} <small>· ${conta(soltos.length)}</small></h3></section>`);
+      sec.appendChild(soltos.length ? grade(soltos) : h(`<div class="pb-vazia">Nada fora de pastas.</div>`)); this.alvoSoltar(sec, esc, o, dados, padrao); frag.appendChild(sec);
+    }
+    box.replaceChildren(frag); return { dados, todas };
   },
   // itens do menu do cartão: Mover para a pasta › (todas + Pasta nova…)
   menuMover(esc, it, todas, aoMudar) {

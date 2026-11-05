@@ -322,7 +322,7 @@ const Folha = {
         tr && { label: 'Citar este trecho na IA (ela muda só ele)', icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'trecho', de: tr.de, ate: tr.ate }) },
         tr && { label: 'Tirar a marcação do trecho', icon: 'x', action: () => { this.trecho = null; this.desenha(); } },
         !tr && { label: `Citar o quadro ${q + 1} na IA`, icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'quadro', q }) },
-        !tr && { label: 'Citar um trecho daqui na IA (2 s)', icon: 'cut', action: () => { const t = Trechos.novo(P, q / P.fps, q / P.fps + 2); Assistente.citar({ tipo: 'trecho', de: t.de, ate: t.ate }); } },
+        !tr && { label: 'Citar um trecho daqui na IA (2 s)', icon: 'cut', ai: true, action: () => { const t = Trechos.novo(P, q / P.fps, q / P.fps + 2); Assistente.citar({ tipo: 'trecho', de: t.de, ate: t.ate }); } },
         !tr && { label: 'Marcar um trecho: Shift + arrastar na régua', icon: 'cut', disabled: true },
         '-', { label: `Citar o quadro ${q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(App.P, q, App.sel) },
         { label: 'Revisar a animação (antes de exportar)…', icon: 'check', action: () => Revisor.abrir() }].filter(Boolean));

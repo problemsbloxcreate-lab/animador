@@ -234,7 +234,7 @@ Responda SÓ um JSON: {"trocas":[{"de":"#rrggbb","para":"#rrggbb"}],"explica":"u
       <div class="pt-selec">${sel.length ? sel.map(x => `<i style="background:${x}" title="${x}"></i>`).join('') + `<button class="btn sm" data-limpa>Limpar</button>` : '<span style="color:var(--tx3);font-size:12px">Selecione cores na paleta (ou com o conta-gotas + Shift).</span>'}</div>
       <div class="campo2"><span style="color:var(--tx2)">Onde</span><select data-onde><option value="imagem">esta imagem</option><option value="parte">todas as imagens da parte</option><option value="tudo">todas as partes</option></select></div>
       <div class="campo2"><span style="color:var(--tx2)">Por</span><input type="color" value="${this.cor}" data-para><button class="btn sm" data-trocar ${sel.length ? '' : 'disabled'}>Trocar a(s) selecionada(s)</button></div>
-      <label class="field" style="margin-top:8px">Pedir à IA<textarea rows="2" placeholder="Ex.: deixa a cor selecionada parecida com as outras selecionadas · deixa o personagem todo em tons de outono"></textarea></label>
+      <label class="field" style="margin-top:8px;display:none">Pedir à IA<textarea rows="2" placeholder="Ex.: deixa a cor selecionada parecida com as outras selecionadas · deixa o personagem todo em tons de outono"></textarea></label>
       <div class="campo2"><button class="btn sm ia" data-ia>${ic('sparkles', 13)} Ajustar as cores com a IA</button></div><div class="ia-res" hidden></div></div>`);
     $('[data-onde]', tr).value = this.escopo; $('[data-onde]', tr).onchange = ev => { this.escopo = ev.target.value; };
     if ($('[data-limpa]', tr)) $('[data-limpa]', tr).onclick = () => { this.selCores = []; Atelie.pinta(); };

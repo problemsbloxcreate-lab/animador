@@ -296,7 +296,7 @@ const UI = {
     const build = (list, px, py, parent) => {
       const m = h('<div class="ctx"></div>');
       list.forEach(it => {
-        if (!it) return;
+        if (!it || (it !== '-' && (it.ai || /\bIA\b/.test(String(it.label || ''))))) return; // SEM IA (pedido da dona, 05/11/2026): itens da IA não aparecem
         if (it === '-') return m.appendChild(h('<div class="ctx-sep"></div>'));
         if (it.head) return m.appendChild(h(`<div class="ctx-head">${esc(it.head)}</div>`));
         const el = h(`<div class="ctx-item ${it.disabled ? 'dis' : ''} ${it.danger ? 'danger' : ''} ${it.ai ? 'ai' : ''} ${it.used ? 'used' : ''}"><span class="ctx-ic">${it.img ? '<canvas class="ctx-thumb" width="36" height="36"></canvas>' : it.cor ? `<i class="ctx-cor" style="background:${it.cor}">${it.checked ? ic('check', 11) : ''}</i>` : it.iconHtml ? it.iconHtml : it.icon ? ic(it.icon, 14) : (it.checked ? ic('check', 14) : '')}</span><span class="ctx-label">${esc(it.label)}</span>${it.key ? `<span class="ctx-key">${esc(it.key)}</span>` : ''}${it.sub ? ic('right', 13) : ''}</div>`);

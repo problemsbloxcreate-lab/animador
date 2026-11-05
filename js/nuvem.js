@@ -190,14 +190,14 @@ const CenariosNuvem = {
   async escolher() {
     if (!App.P) return;
     const body = h('<div><div class="vazio"><span class="spin-dot"></span> Carregando os cenários da equipe…</div></div>'), urls = [];
-    const p = UI.modal({ title: 'Cenários da equipe', icon: 'cloud', width: 720, body, buttons: [{ label: 'Prontos e com a IA…', kind: 'ia', left: true, onClick: () => { setTimeout(() => Cenarios.abrir(), 50); return true; } }, { label: 'Fechar', value: null }] });
+    const p = UI.modal({ title: 'Cenários da equipe', icon: 'cloud', width: 720, body, buttons: [{ label: 'Prontos…', left: true, onClick: () => { setTimeout(() => Cenarios.abrir(), 50); return true; } }, { label: 'Fechar', value: null }] });
     const pinta = async () => {
       await Nuvem.souAdm();
       let lista; try { lista = await Nuvem.cenarios(); } catch (e) { body.innerHTML = `<div class="vazio">Não consegui abrir: ${esc(e.message)}</div>`; return; }
-      if (!lista.length) { body.innerHTML = '<div class="vazio">Nenhum cenário na nuvem ainda.<br>Ponha um cenário (pronto, da IA ou uma imagem) e use o botão direito › <b>Salvar na nuvem</b>.</div>'; return; }
+      if (!lista.length) { body.innerHTML = '<div class="vazio">Nenhum cenário na nuvem ainda.<br>Ponha um cenário (pronto ou uma imagem) e use o botão direito › <b>Salvar na nuvem</b>.</div>'; return; }
       body.innerHTML = ''; const g = h('<div class="grade cen-g"></div>'); body.appendChild(g);
       for (const it of lista) {
-        const c = h(`<div class="pc"><div class="th" style="aspect-ratio:16/10"><span class="spin-dot"></span></div><div class="in"><b>${esc(it.nome || 'Cenário')}${it.ia ? ' <span class="tag-ia">IA</span>' : ''}</b><small>${it.em ? fmtDate(Date.parse(it.em)) : ''}${it.por ? ` · <span data-quem="${esc(it.por)}"></span>` : ''}</small></div><button class="ibtn mn${Nuvem.adm ? '' : ' so-adm'}" title="${Nuvem.adm ? 'Apagar da nuvem' : 'Só um ADM pode apagar da nuvem'}">${ic(Nuvem.adm ? 'trash' : 'lock', 14)}</button></div>`);
+        const c = h(`<div class="pc"><div class="th" style="aspect-ratio:16/10"><span class="spin-dot"></span></div><div class="in"><b>${esc(it.nome || 'Cenário')}</b><small>${it.em ? fmtDate(Date.parse(it.em)) : ''}${it.por ? ` · <span data-quem="${esc(it.por)}"></span>` : ''}</small></div><button class="ibtn mn${Nuvem.adm ? '' : ' so-adm'}" title="${Nuvem.adm ? 'Apagar da nuvem' : 'Só um ADM pode apagar da nuvem'}">${ic(Nuvem.adm ? 'trash' : 'lock', 14)}</button></div>`);
         Nuvem.baixarCenario(it.k).then(b => { const u = URL.createObjectURL(b); urls.push(u); const th = $('.th', c); th.innerHTML = ''; th.style.backgroundImage = `url('${u}')`; }).catch(() => { $('.th', c).innerHTML = ic('alert', 18); });
         c.onclick = async e => {
           if (e.target.closest('.mn')) return; c.style.opacity = .5;

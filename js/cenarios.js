@@ -318,11 +318,11 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
     const editando = o.no || null;
     const body = h(`<div class="cen">
       ${editando ? `<button class="btn sm" data-prontos>${ic('paisagem', 13)} Trocar por um pronto…</button>` : ''}<div class="cen-sub" ${editando ? 'hidden' : ''}>Prontos</div><div class="cen-grade" ${editando ? 'hidden' : ''}></div>
-      <div class="cen-sub">Pedir à IA <span>(mesmo estilo dos prontos; com uma peça ou área escolhida, muda só ela)</span></div>
-      <textarea rows="2" maxlength="600" placeholder="Ex.: um quarto de criança com cama, estante e janela à noite"></textarea>
+      <div class="cen-sub" style="display:none">Pedir à IA <span>(mesmo estilo dos prontos; com uma peça ou área escolhida, muda só ela)</span></div>
+      <textarea rows="2" maxlength="600" style="display:none" placeholder="Ex.: um quarto de criança com cama, estante e janela à noite"></textarea>
       <div class="cen-prev" hidden><div class="ce-barra"></div><canvas width="960" height="540"></canvas><div class="cen-barra" hidden><i></i></div><div class="cen-st"></div>
         <div class="cen-pecas" hidden><div class="cen-sub">Peças <span>(a da frente em cima · clique para escolher · botão direito: mais)</span></div><div class="cen-lista"></div>
-          <div class="cen-op"><small class="ce-dica">Na cena o cenário entra como uma PASTA com uma camada por peça (dá para mexer depois, à mão ou pela IA).</small><button class="btn sm" data-todas>${ic('download', 13)} Todas as peças para a Mídia</button></div></div></div></div>`);
+          <div class="cen-op"><small class="ce-dica">Na cena o cenário entra como uma PASTA com uma camada por peça (dá para mexer depois, à mão).</small><button class="btn sm" data-todas>${ic('download', 13)} Todas as peças para a Mídia</button></div></div></div></div>`);
     const prev = $('.cen-prev', body), st = $('.cen-st', body), pc = $('canvas', prev), ta = $('textarea', body), barra = $('.cen-barra', body), boxPecas = $('.cen-pecas', body);
     let ocupado = false, btPor, btAjuste, btCriar, rab = null, vez = 0;
     const slug = t => String(t || 'cenario').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'cenario';
@@ -351,7 +351,7 @@ EXEMPLOS DO ESTILO (cenários aprovados pelo dono):`,
     const item = (nome, mini, fn) => { const b = h(`<button class="cen-item" title="Usar: ${esc(nome)}">${mini ? `<img src="${mini}" alt="">` : '<i></i>'}<span>${esc(nome)}</span></button>`);
       const im = $('img', b); if (im) im.onerror = () => im.replaceWith(h('<i></i>')); b.onclick = () => usa(fn); grade.appendChild(b); };
     for (const p of this.PRONTOS) item(p.nome, `cenarios/miniaturas/${p.id}.jpg`, async () => { rab?.parar(); await doCena(await this.pronto(p.id)); });
-    if (ult) item('Último da IA: ' + (ult.nome || 'cenário'), null, async () => { rab?.parar(); await doCena(ult, (ult.nome || 'Cenário') + ' — o último que a IA fez.'); });
+    if (false && ult) item('Último da IA: ' + (ult.nome || 'cenário'), null, async () => { rab?.parar(); await doCena(ult, (ult.nome || 'Cenário') + ' — o último que a IA fez.'); });
 
     // IA do cenário inteiro (criar, ajustar tudo ou só uma área): os rabiscos aparecem conforme as camadas chegam
     const ia = (ajuste, area) => usa(async () => {

@@ -214,17 +214,17 @@ Object.assign(CenLib, {
         <div class="cl-tags"></div>
         <div class="cl-lista"></div>
         <div class="cl-novo">
-          <div class="cl-ger">Gerar com a IA · estilo</div>
-          <div class="it-fil cl-est" role="tablist"><button data-est="rep" title="Rabiscado: rápido e barato, para lugares de passagem">${ic('pencil', 12)} Rabiscado</button><button data-est="oficial" title="Estilo do Planetário: pintado azul com profundidade, uma camada SVG por objeto. Sai como rascunho para aprovar.">${ic('brush', 12)} Oficial</button></div>
+          <div class="cl-ger" style="display:none">Gerar com a IA · estilo</div>
+          <div class="it-fil cl-est" role="tablist" style="display:none"><button data-est="rep" title="Rabiscado: rápido e barato, para lugares de passagem">${ic('pencil', 12)} Rabiscado</button><button data-est="oficial" title="Estilo do Planetário: pintado azul com profundidade, uma camada SVG por objeto. Sai como rascunho para aprovar.">${ic('brush', 12)} Oficial</button></div>
           <button class="btn sm ia" data-n="gerar">${ic('sparkles', 13)} <span>Gerar cenário…</span></button>
-          <button class="btn sm" data-n="itens" title="Põe um item de cena (gerado ou da biblioteca) como camada nova deste cenário">${ic('package', 13)} Pôr um item…</button>
+          <button class="btn sm" data-n="itens" title="Põe um item de cena da biblioteca como camada nova deste cenário">${ic('package', 13)} Pôr um item…</button>
           <button class="btn sm" data-n="imgs" title="Cada imagem ou SVG vira uma camada (a primeira cobre a tela)">${ic('image', 13)} Novo com imagens…</button>
           ${App?.P ? `<button class="btn sm" data-n="nuvem">${ic('cloud', 13)} Da nuvem da equipe…</button>` : ''}
           <button class="btn sm" data-n="arq" title="Abrir um arquivo .cenario">${ic('upload', 13)} Abrir arquivo…</button>
         </div>
       </aside>
       <section class="cl-meio">
-        <div class="cl-topo"><b class="cl-nome" title="Clique para renomear">Escolha um cenário</b><span class="cl-selo"></span><span class="cl-selo cl-cat"></span><button class="btn sm cl-aprova" data-aprova hidden title="Este oficial foi gerado pela IA e ainda é rascunho: aprovar tira o selo">${ic('check', 13)} Aprovar</button><button class="btn sm ia" data-ajusta hidden title="Pedir à IA uma mudança neste oficial (ela vê como ficou)">${ic('sparkles', 13)} Ajustar com IA</button><span class="sp"></span>
+        <div class="cl-topo"><b class="cl-nome" title="Clique para renomear">Escolha um cenário</b><span class="cl-selo"></span><span class="cl-selo cl-cat"></span><button class="btn sm cl-aprova" data-aprova hidden title="Este oficial ainda é rascunho: aprovar tira o selo">${ic('check', 13)} Aprovar</button><button class="btn sm ia" data-ajusta hidden title="Pedir à IA uma mudança neste oficial (ela vê como ficou)">${ic('sparkles', 13)} Ajustar com IA</button><span class="sp"></span>
           <label class="cl-ck" title="Mostra a faixa do meio que aparece num Short vertical (9:16)"><input type="checkbox" data-guia> Faixa do Short</label>
           <div class="cl-seg" role="tablist" hidden><button data-m="padrao" title="Mudanças valem em todos os quadros">Padrão</button><button data-m="quadro" title="Mudanças valem só a partir deste quadro até o próximo keyframe">Neste keyframe</button></div>
           <button class="ibtn" data-un title="Desfazer (Ctrl+Z)">${ic('undo', 14)}</button><button class="ibtn" data-re title="Refazer (Ctrl+Shift+Z)">${ic('redo', 14)}</button></div>

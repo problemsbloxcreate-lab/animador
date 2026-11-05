@@ -129,7 +129,7 @@ const Animacoes = {
       a.trilhas.length > 1 && { label: 'Mover para a trilha', icon: 'layers', sub: a.trilhas.map((tt, j) => ({ label: `Trilha ${j + 1}${j === ti ? ' (esta)' : ''}`, disabled: j === ti, action: () => { const [x] = t.splice(pi, 1); tt.push(x); this.passo = { t: j, i: tt.length - 1 }; Atelie.commit(); } })) },
       ...(itens.length ? ['-', ...itens] : []),
       '-', { label: 'Citar este frame em mensagens…', icon: 'chat', action: () => Citacao.atelie({ anim: a.id, passo: pi, trilha: ti }) },
-      { label: 'Pedir para a IA mudar este frame…', icon: 'sparkles', action: () => Atelie.ia('animacoes', `Mude SÓ o frame ${pi + 1}${a.trilhas.length > 1 ? ` da trilha ${ti + 1}` : ''} da animação de teste "${a.nome}" (devolva ela inteira com o mesmo nome, o resto igual). Hoje ele tem: ${this.detalhe(p).replace(/\n/g, '; ')}. Quero: `) },
+      { label: 'Pedir para a IA mudar este frame…', icon: 'sparkles', ai: true, action: () => Atelie.ia('animacoes', `Mude SÓ o frame ${pi + 1}${a.trilhas.length > 1 ? ` da trilha ${ti + 1}` : ''} da animação de teste "${a.nome}" (devolva ela inteira com o mesmo nome, o resto igual). Hoje ele tem: ${this.detalhe(p).replace(/\n/g, '; ')}. Quero: `) },
       '-', { label: 'Apagar o frame', icon: 'trash', danger: true, action: () => { t.splice(pi, 1); this.passo = null; Atelie.commit(); } },
     ].filter(Boolean));
   },
@@ -153,7 +153,7 @@ const Animacoes = {
     el.appendChild(box);
     // extras, fechados (abrem com um clique): vídeos de referência, áudios de teste e o visual do palco
     const sec = (titulo, icone, conteudo, aberta) => { const d = h(`<details class="ab-sec" ${aberta ? 'open' : ''}><summary>${ic(icone, 13)} ${titulo}</summary></details>`); conteudo(d); el.appendChild(d); };
-    sec('Vídeos de referência (para a IA)', 'film', d => d.appendChild(RefsAnim.campo({ lista: () => (def.refsAnim ||= []), chave: () => `personagens/${def.id}/img/ref${uid('').toLowerCase().replace(/[^a-z0-9]/g, '')}.jpg`, mudou: () => Atelie.commit({ soDesenho: true }) })), false);
+    if (false) sec('Vídeos de referência (para a IA)', 'film', d => d.appendChild(RefsAnim.campo({ lista: () => (def.refsAnim ||= []), chave: () => `personagens/${def.id}/img/ref${uid('').toLowerCase().replace(/[^a-z0-9]/g, '')}.jpg`, mudou: () => Atelie.commit({ soDesenho: true }) })), false);
     if (window.Falas) sec('Áudios de teste (fala)', 'mic', d => Falas.pinta(d), (def.audios || []).length > 0);
     sec('Fundo do palco e fantasma', 'image', d => d.appendChild(this.pintaVisual()), !!def.vis?.fantasma?.on);
   },
