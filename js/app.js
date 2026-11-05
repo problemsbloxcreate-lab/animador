@@ -458,7 +458,9 @@ const App = {
     if (this.modoVista === 'camera') { // só o que a câmera vê, com cor, efeitos e legenda (igual ao vídeo)
       const k = Math.min(W / P.w, H / P.h) * .94, w = Math.round(P.w * k), h = Math.round(P.h * k);
       if (!this._fin || this._fin.width !== w || this._fin.height !== h) { this._fin = new OffscreenCanvas(w, h); }
-      Render.quadro(this._fin.getContext('2d'), P, this.q, w, h); ctx.drawImage(this._fin, (W - w) / 2, (H - h) / 2); return;
+      Render.quadro(this._fin.getContext('2d'), P, this.q, w, h); ctx.drawImage(this._fin, (W - w) / 2, (H - h) / 2);
+      if (typeof Redes !== 'undefined') Redes.desenha(ctx, (W - w) / 2, (H - h) / 2, w, h); // modelo de Shorts/TikTok/Reels (só no palco, nunca no vídeo)
+      return;
     }
     const V = pc.vista(), c = Modelo.camera(P, this.q), cw = P.w / (c.zoom || 1), ch = P.h / (c.zoom || 1);
     const camM = new DOMMatrix().translate(c.x, c.y).rotate(c.r || 0), cantosCam = [[-cw / 2, -ch / 2], [cw / 2, -ch / 2], [cw / 2, ch / 2], [-cw / 2, ch / 2]].map(([x, y]) => camM.transformPoint(new DOMPoint(x, y)));
@@ -500,7 +502,7 @@ const App = {
     this.vista = { z, x: r.width / 2 - c.x * z, y: r.height / 2 - c.y * z }; this.pinta(); this.zoomTxt(); },
   zoomTxt() { const e = $('#zoom-txt'); if (e) e.textContent = Math.round(this.vista.z * 100) + '%'; },
   setFerr(f) { this.ferr = f; $$('[data-ferr]').forEach(b => b.classList.toggle('on', b.dataset.ferr === f)); $('#palco').classList.toggle('pan', f === 'mao'); if (f === 'camera') this.selecionar('camera'); },
-  setVista(m) { this.modoVista = m; $$('[data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === m)); this.pinta(); },
+  setVista(m) { this.modoVista = m; $('[data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === m)); if (typeof Redes !== 'undefined') Redes.pintaBotoes(); this.pinta(); },
 
   // [ e ]: vai para a chave anterior/próxima da camada escolhida (ou de qualquer camada, câmera e começos/fins de áudio e legenda)
   pulaChave(dir) {

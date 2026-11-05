@@ -1771,3 +1771,15 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .ctx-ic-at{display:inline-block;width:15px;height:15px}
 #editor>header.bar .proj-nome b{margin-left:0} /* o começo do nome não fica cortado (05/11/2026) */
 #editor>header.bar .proj-nome b.editando{cursor:text;background:var(--bg3);border-color:#3d8bff;outline:none;text-overflow:clip;max-width:340px}
+/* MODELOS DE SHORTS/TIKTOK/REELS (05/11/2026): botões ao lado da Mídia, só no modo Câmera */
+.redes-bts{display:inline-flex;align-items:center;gap:1px;margin-left:6px;padding-left:6px;border-left:1px solid var(--bd)}
+.redes-bts[hidden]{display:none}
+.redes-bts .ibtn{width:26px;height:26px}
+.redes-bts .ibtn.on{background:rgba(61,139,255,.22);box-shadow:inset 0 0 0 1px #3d8bff}
+#midia-cab:has(.redes-bts:not([hidden])) .esq-sub{display:none}
+.redes-cfg{display:grid;gap:10px}.redes-cfg label{display:grid;gap:4px;font-size:12px;color:var(--tx2)}.redes-cfg input{width:100%}
+.redes-foto{display:flex;align-items:center;gap:8px}.rf-av{width:40px;height:40px;border-radius:50%;overflow:hidden;background:center/cover no-repeat;flex:none}
+/* QUEM EDITOU x AO VIVO (05/11/2026): as fotos de quem editou não parecem gente online — mais apagadas, com o lápis bem visível e uma barrinha antes do ao vivo */
+#editor>header.bar .ed-pessoas .ed-autores:not([hidden]){padding-right:8px;border-right:1px solid var(--bd)}
+#editor>header.bar .ed-autores .autores>*:not(.ed-lapis){filter:grayscale(.85);opacity:.7}
+#editor>header.bar .ed-lapis{width:16px;height:16px;right:-6px;bottom:-4px;background:#3d8bff;border-color:#1b1b1b;color:#fff}
