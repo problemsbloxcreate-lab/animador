@@ -82,9 +82,15 @@ const Exportar = {
       fim.innerHTML = `${ic('check', 18)}<div><b>${esc(nome)}</b><small>${this.dur(seg)} de vídeo · ${mb < 10 ? mb.toFixed(1).replace('.', ',') : Math.round(mb)} MB · pronto em ${this.dur((performance.now() - t0) / 1000)}</small></div><button class="btn sm">${ic('download', 13)} Baixar de novo</button>`;
       $('button', fim).onclick = () => downloadBlob(blob, nome); UI.toast(`<b>${esc(nome)}</b> exportado!`, { kind: 'ok' });
       // PUBLICAR NO YOUTUBE (05/11/2026): só vídeo, só para quem pode exportar no Animador e publicar no Publicações; leva o vídeo para /publicacoes/ (lá escolhe canal, título, modo)
-      if (cfg.tipo === 'mp4' && ['animador.exportar', 'publicacoes.publicar'].every(k => window.EstudioPerm?.pode?.(k) ?? true)) {
+      const pode = k => window.EstudioPerm?.pode?.(k) ?? true, titulo = (cfg.nomeProj ? P.nome : cfg.nome) || P.nome;
+      if (cfg.tipo === 'mp4' && pode('animador.exportar') && pode('publicacoes.publicar')) {
         const yt = h(`<button class="btn sm primary">${ic('upload', 13)} Publicar no YouTube</button>`); fim.appendChild(yt);
-        yt.onclick = async () => { yt.disabled = true; try { await this.youtube(); await EstudioYouTube.levar({ blob, nome, titulo: (cfg.nomeProj ? P.nome : cfg.nome) || P.nome, programa: 'animador' }); } catch (e) { UI.toast('Não deu para levar ao Publicações: ' + esc(e.message), { kind: 'err' }); } yt.disabled = false; };
+        yt.onclick = async () => { yt.disabled = true; try { await this.youtube(); await EstudioYouTube.levar({ blob, nome, titulo, programa: 'animador' }); } catch (e) { UI.toast('Não deu para levar ao Publicações: ' + esc(e.message), { kind: 'err' }); } yt.disabled = false; };
+      }
+      // CONCLUÍDO (05/11/2026): o vídeo vai para "Não publicados" do Publicações (a equipe vê; publica agora ou depois)
+      if (cfg.tipo === 'mp4' && pode('animador.exportar') && pode('publicacoes.ver')) {
+        const cc = h(`<button class="btn sm">${ic('check', 13)} Marcar como concluído</button>`); fim.appendChild(cc);
+        cc.onclick = async () => { cc.disabled = true; try { await this.youtube(); await EstudioYouTube.levar({ blob, nome, titulo, programa: 'animador', concluir: true, abrir: P.id && typeof NuvemAnim !== 'undefined' && NuvemAnim.vai?.(P) ? '/animador/?nuvem=' + encodeURIComponent(P.id) : '/animador/' }); } catch (e) { UI.toast('Não deu para marcar como concluído: ' + esc(e.message), { kind: 'err' }); } cc.disabled = false; };
       }
     } catch (e) { solta(); if (cancelou || e.message === 'cancelado') { prog.hidden = true; UI.toast('Exportação cancelada.'); } else $('[data-pt]', body).textContent = 'Não deu: ' + e.message; }
     return false; // a janela fica aberta (mostra o resultado)
