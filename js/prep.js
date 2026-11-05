@@ -184,7 +184,7 @@ const Prep = {
       const nx = falas[i + 1]; q += nq + (nx ? Math.round(Short.pausa({ personagem: quem, texto: f.texto, acao: f.nota }, { personagem: nx._quem || nx.personagem, texto: nx.texto }) * fps) : 0);
     });
     P.duracao = q + Math.round(fps * .5);
-    if (comLeg) P.legEstilo = { pos: 'baixo', pop: false, prep: this.estilo(prep) }; // desenhada como no Preparativos (Render.legPrep)
+    if (comLeg) { P.legEstilo = { pos: 'baixo', pop: false, prep: this.estilo(prep) }; P.prep.leg = this.estilo(prep); } // desenhada como no Preparativos (Render.legPrep); muda na aba Voz › Estilo das legendas (Lado.estiloPrep); P.prep.leg = o de lá, para voltar
     // personagens da equipe: cada um do começo ao fim, espalhados na largura (os de quem fala na ordem em que aparecem)
     const ord = [...new Set(pos.map(x => x.quem))].filter(n => defs[n]), W = P.w, H = P.h;
     ord.forEach((n, i) => { const def = defs[n]; P.personagens[def.id] = def;

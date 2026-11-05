@@ -548,6 +548,35 @@ const Lado = {
     if ($('[data-lmp]', lg)) $('[data-lmp]', lg).onclick = async () => { if (await UI.confirm({ title: 'Apagar todas as legendas?', ok: 'Apagar', danger: true })) { P.legendas = []; App.commit('Apagar legendas'); } };
     if (!P.legendas.length) box.appendChild(h('<div class="pr-info">Sem legendas. Use <b>Transcrever</b> para criar pela voz, ou <b>Nova legenda</b>.</div>'));
     el.appendChild(this.secao('v-leg', 'Legendas', P.legendas.length ? `${P.legendas.length}` : '', c => c.appendChild(lg), true));
-    if (P.legendas.length) el.appendChild(this.secao('v-legest', 'Estilo das legendas', '', c => c.appendChild(est)));
+    if (P.legendas.length) el.appendChild(this.secao('v-legest', 'Estilo das legendas', P.legEstilo?.prep ? 'do Preparativos' : '', c => c.appendChild(P.legEstilo?.prep ? this.estiloPrep(P) : est)));
+  },
+  // ESTILO DA LEGENDA QUE VEIO DO PREPARATIVOS (P.legEstilo.prep, desenhado por Render.legPrep): começa igual ao de lá e muda só neste
+  // projeto (pedido da dona, 05/11/2026). Medidas em % da ALTURA do vídeo; posição = meio da legenda; "Voltar ao do Preparativos" = P.prep.leg
+  estiloPrep(P) {
+    const e = P.legEstilo.prep, box = h('<div class="leg-prep"><div class="props" style="padding:0"></div></div>'), pr = $('.props', box);
+    const vivo = (fn) => v => { fn(v); App.pinta(); }, solta = () => App.commit('Estilo da legenda'), sub = k => (e[k] ||= {});
+    const FONTES = ['Rubik', 'Arial', 'Segoe UI', 'Verdana', 'Trebuchet MS', 'Georgia', 'Impact', 'Comic Sans MS'];
+    const linha = h(`<div class="campo2"><span style="color:var(--tx2)">Fonte</span><select data-f>${[...new Set([e.fonte, ...FONTES])].map(f => `<option ${f === e.fonte ? 'selected' : ''} style="font-family:'${esc(f)}'">${esc(f)}</option>`).join('')}</select>
+      <span style="color:var(--tx2)">Grossura</span><select data-p>${[400, 500, 600, 700, 800, 900].map(p => `<option value="${p}" ${+e.peso === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>`);
+    $('[data-f]', linha).onchange = ev => { e.fonte = ev.target.value; Prep.fonte(e.fonte); solta(); }; $('[data-p]', linha).onchange = ev => { e.peso = +ev.target.value; solta(); };
+    pr.appendChild(linha);
+    pr.appendChild(this.num('Tamanho', e.tamanho ?? .045, { mult: 100, dec: 1, unid: '% alt.', passo: .001, min: .005, max: .3 }, vivo(v => e.tamanho = v), solta));
+    pr.appendChild(this.num('Posição X', e.x ?? .5, { mult: 100, dec: 1, unid: '%', passo: .005, min: 0, max: 1, dica: 'Meio da legenda, da esquerda (0%) para a direita (100%)' }, vivo(v => e.x = v), solta));
+    pr.appendChild(this.num('Posição Y', e.y ?? .82, { mult: 100, dec: 1, unid: '%', passo: .005, min: 0, max: 1, dica: 'Meio da legenda, de cima (0%) para baixo (100%)' }, vivo(v => e.y = v), solta));
+    pr.appendChild(this.num('Largura', e.largura ?? .86, { mult: 100, dec: 1, unid: '%', passo: .005, min: .1, max: 1, dica: 'Largura máxima: o texto quebra a linha dentro dela' }, vivo(v => e.largura = v), solta));
+    const al = h(`<div class="campo2"><span style="color:var(--tx2)">Alinhar</span>${[['left', 'Esquerda'], ['center', 'Meio'], ['right', 'Direita']].map(([v, n]) => `<button class="btn sm ${(e.alinhar || 'center') === v ? 'on' : ''}" data-al="${v}">${n}</button>`).join('')}<label class="chk"><input type="checkbox" data-mai ${e.maiusculas ? 'checked' : ''}> MAIÚSCULAS</label></div>`);
+    $$('[data-al]', al).forEach(b => b.onclick = () => { e.alinhar = b.dataset.al; solta(); }); $('[data-mai]', al).onchange = ev => { e.maiusculas = ev.target.checked; solta(); };
+    pr.appendChild(al);
+    // contorno, sombra e fundo: liga/desliga + o que cada um tem
+    const grupo = (k, nome, liga, corpo) => { const g = sub(k), d = h(`<div class="leg-prep-g"><label class="chk"><input type="checkbox" ${g[liga] ? 'checked' : ''}> ${nome}</label><div class="props" style="padding:0 0 0 22px" ${g[liga] ? '' : 'hidden'}></div></div>`);
+      $('input', d).onchange = ev => { g[liga] = ev.target.checked; $('.props', d).hidden = !g[liga]; solta(); }; corpo(g, $('.props', d)); pr.appendChild(d); };
+    grupo('contorno', 'Contorno', 'ativo', (g, c) => { c.appendChild(this.cor('Cor', g.cor || '#000000', vivo(v => g.cor = v), solta)); c.appendChild(this.num('Grossura', g.largura ?? .004, { mult: 100, dec: 2, unid: '% alt.', passo: .0005, min: 0, max: .05 }, vivo(v => g.largura = v), solta)); });
+    grupo('sombra', 'Sombra', 'ativa', (g, c) => { c.appendChild(this.cor('Cor', g.cor || '#000000', vivo(v => g.cor = v), solta)); c.appendChild(this.num('Desfoque', g.desfoque ?? .006, { mult: 100, dec: 2, unid: '% alt.', passo: .0005, min: 0, max: .05 }, vivo(v => g.desfoque = v), solta));
+      c.appendChild(this.num('Para baixo', g.y ?? .003, { mult: 100, dec: 2, unid: '% alt.', passo: .0005, min: -.05, max: .05 }, vivo(v => g.y = v), solta)); c.appendChild(this.barra('Opacidade', g.opacidade ?? .8, vivo(v => g.opacidade = v), solta)); });
+    grupo('fundo', 'Fundo atrás do texto', 'ativo', (g, c) => { c.appendChild(this.cor('Cor', g.cor || '#000000', vivo(v => g.cor = v), solta)); c.appendChild(this.barra('Opacidade', g.opacidade ?? .5, vivo(v => g.opacidade = v), solta)); });
+    const fim = h(`<div class="campo2"><small style="color:var(--tx3);flex:1">Veio do Preparativos. O que você muda aqui vale só nesta animação.</small>${P.prep?.leg ? '<button class="btn sm" data-volta>Voltar ao do Preparativos</button>' : ''}</div>`);
+    if ($('[data-volta]', fim)) $('[data-volta]', fim).onclick = () => { P.legEstilo = { ...P.legEstilo, prep: JSON.parse(JSON.stringify(P.prep.leg)) }; App.commit('Estilo da legenda do Preparativos'); };
+    pr.appendChild(fim);
+    return box;
   },
 };
