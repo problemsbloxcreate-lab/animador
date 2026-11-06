@@ -22,6 +22,16 @@ const Prep = {
     const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(f).replace(/%20/g, '+') + ':wght@400;500;600;700;800;900&display=swap'; document.head.appendChild(l);
     return (this._fontes[f] = new Promise(r => { l.onload = r; l.onerror = r; }).then(() => document.fonts.load(`800 40px '${f}'`)).catch(() => { }).then(() => { try { App.P && App.pinta(); } catch { } }));
   },
+  podeEditar() { return this.pode() && (window.EstudioPerm?.pode?.('preparativos.roteiro') ?? true); },
+  abrePrep(id, acao) {
+    const u = new URL('/preparativos/', location.origin); u.searchParams.set('id', id); if (acao) u.searchParams.set('acao', acao);
+    const w = UI.abaNova(u.href, 'Abrindo o roteiro no Preparativos…'); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
+  },
+  async tirarDaNuvem(id, it, usos, nomeDe) {
+    const em = [...new Set(usos.map(u => nomeDe(u.projeto) || 'uma animação'))];
+    if (em.length && !await UI.confirm({ title: 'Este roteiro está em uso', msg: `Ele está sendo usado por ${em.map(n => '<b>' + esc(n) + '</b>').join(', ')}. As animações continuam como estão, mas o roteiro sai da nuvem da equipe e fica só no Preparativos deste computador. Continuar?`, ok: 'Abrir no Preparativos', danger: true })) return;
+    this.abrePrep(id, 'tirar-nuvem'); this._lista = null;
+  },
   pode() { return window.EstudioPerm?.programa?.('preparativos') ?? true; },
   // ---------- dados ----------
   lista(novo) {
@@ -85,9 +95,17 @@ const Prep = {
         <span class="pp-info">${esc(info)}</span>
         <div class="pp-pers">${nomes.map(n => `<span><i style="background:${esc(this.cor(P, pers, n))}"></i>${esc(n)}</span>`).join('')}</div>
         <span class="pp-uso ${ult ? 'usado' : ''}">${ult ? `Sendo usado pela animação <b>${esc(nomeUlt || 'que não está neste computador')}</b>${usos.length > 1 ? ` (e mais ${usos.length - 1})` : ''} · ${esc(fmtDate(Date.parse(ult.quando) || 0))}` : 'Ainda não foi usado em nenhuma animação.'}</span>
-      </div><div class="pp-bts">${ult ? `<button class="btn" data-ir>${ic('film', 14)} Ir para a animação</button>` : ''}<button class="btn primary" data-montar>${ic('plus', 14)} ${ult ? 'Montar outra' : 'Montar animação'}</button></div></div>`);
+      </div><div class="pp-bts"><button class="btn" data-abre title="Abrir este roteiro no Preparativos (numa aba nova) para editar ou apagar"><span class="hm-gic hm-gic-sm" data-estudio-icone="pr"></span> Abrir no Preparativos</button>${this.podeEditar() ? `<button class="ibtn" data-mais title="Mais opções">${ic('dots', 16)}</button>` : ''}${ult ? `<button class="btn" data-ir>${ic('film', 14)} Ir para a animação</button>` : ''}<button class="btn primary" data-montar>${ic('plus', 14)} ${ult ? 'Montar outra' : 'Montar animação'}</button></div></div>`);
     if (!P) { $('[data-montar]', card).disabled = true; $('.pp-uso', card).textContent = 'Não consegui abrir este roteiro agora.'; }
     $('[data-montar]', card).onclick = () => this.montar(it, P);
+    // ABRIR NO PREPARATIVOS (pedido da dona, 06/11/2026): vai direto para o roteiro (?id=); "Tirar da nuvem" = o Preparativos guarda a cópia
+    // neste navegador e apaga da nuvem (?acao=tirar-nuvem; ele sempre pergunta lá). Só quem pode mudar roteiros lá vê a opção.
+    const rid = P?.id || it.id; $('[data-abre]', card).onclick = () => this.abrePrep(rid);
+    const menu = e => { if (!this.podeEditar()) return; e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(), ctx = e.type === 'contextmenu';
+      UI.ctx(ctx ? e.clientX : r.right - 260, ctx ? e.clientY : r.bottom + 4, [
+        { label: 'Abrir no Preparativos', icon: 'edit', action: () => this.abrePrep(rid) },
+        { label: 'Tirar da nuvem (manter só neste computador)', icon: 'monitor', action: () => this.tirarDaNuvem(rid, it, usos, nomeDe) }]); };
+    if ($('[data-mais]', card)) $('[data-mais]', card).onclick = menu; card.oncontextmenu = menu;
     if (ult) $('[data-ir]', card).onclick = async () => {
       const local = locais.find(p => p.id === ult.projeto);
       if (local) return NuvemAnim.abrir(local.id, local);
