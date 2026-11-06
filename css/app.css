@@ -1897,3 +1897,4 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
   .home-in{flex-direction:column}.hm-nav{width:auto;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--bd);padding:10px 16px}
   .hm-g{width:100%;padding:6px 0 2px}.hm-esp{display:none}.hm-main{padding:16px}.hm-busca{width:100%}
 }
+a.btn,a.btn:hover,a.btn:visited,a.btn:focus,a.ibtn,a.ibtn:hover,a.ibtn:visited{text-decoration:none} /* link com cara de botão: sem sublinhado */
