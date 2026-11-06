@@ -379,8 +379,7 @@ const TLP = {
     if (this.ferr === 'navalha') { if (!c || this.travada(c)) return; const q = this.ima ? this.encaixa(p.qr, { forca: false }) : p.qr; this.encaixe = null; this.congela(); const n = e.shiftKey ? this.cortaTudo(q) : this.corta(c, q) ? 1 : 0; if (n) App.commit('Cortar com a navalha'); return; }
     if (!c) { // vazio: lacuna ou laço
       this.lacuna = null; if (!e.shiftKey && !e.ctrlKey) this.escolhe([]);
-      const r = p.row; if (r && (r.lado === 'v' || r.lado === 'a')) { const cl = this.L[r.lado].filter(x => x.tr === r.tr), antes = Math.max(-1, ...cl.filter(x => x.fim < p.q).map(x => x.fim)), depois = Math.min(...cl.filter(x => x.de > p.q).map(x => x.de));
-        if (Number.isFinite(depois) && !this.estT(r.lado, r.tr).trava) { this.lacuna = { lado: r.lado, tr: r.tr, de: antes + 1, fim: depois - 1 }; this.desenha(); } }
+      this.lacuna = this.lacunaEm(p); if (this.lacuna) this.desenha();
       const base = new Set(this.sel); this.laco = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
       return this.arrastar(e, pp => { this.laco.x1 = pp.x; this.laco.y1 = pp.y; if (Math.abs(this.laco.x1 - this.laco.x0) + Math.abs(this.laco.y1 - this.laco.y0) > 4) { this.lacuna = null; this.sel = new Set([...base, ...this.dentroLaco()]); } this.desenha(); }, () => { const mexeu = Math.abs(this.laco.x1 - this.laco.x0) + Math.abs(this.laco.y1 - this.laco.y0) > 4; this.laco = null; if (mexeu) this.escolhe([...this.sel]); else this.desenha(); });
     }
@@ -540,6 +539,13 @@ const TLP = {
   // fecha o buraco [de, de+L-1] em todas as trilhas sem cadeado: o que vem depois anda L para a esquerda.
   // Um bloco de outra trilha que passa por cima do buraco impede (como no Premiere, com a sincronia ligada) — menos os que não mexem
   // depois dali (só uma chave antes; ex.: o fundo), que só encurtam.
+  // ESPAÇO VAZIO embaixo do mouse numa trilha de vídeo, áudio ou legendas (C1): do fim do bloco de antes (ou do começo) até o próximo.
+  // Clique (ou botão direito) escolhe; Delete ou o menu apagam (pedido da dona, 06/11/2026). Sem bloco depois = nada a apagar.
+  lacunaEm(p) {
+    const r = p?.row; if (!r || !['v', 'a', 'c'].includes(r.lado) || this.estT(r.lado, r.tr).trava) return null;
+    const cl = (this.L[r.lado] || []).filter(x => r.lado === 'c' || x.tr === r.tr), antes = Math.max(-1, ...cl.filter(x => x.fim < p.q).map(x => x.fim)), depois = Math.min(...cl.filter(x => x.de > p.q).map(x => x.de));
+    return Number.isFinite(depois) && depois - 1 >= antes + 1 ? { lado: r.lado, tr: r.tr, de: antes + 1, fim: depois - 1 } : null;
+  },
   fechaBuraco(de, L, ignora = new Set()) {
     const P = App.P, fim = de + L - 1, lay = this.layout(), muda = [], encurta = [];
     const ajusta = [];
@@ -699,7 +705,7 @@ const TLP = {
         Folha.trecho && { label: 'Citar o trecho de entrada/saída na IA', icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'trecho', de: Folha.trecho.de, ate: Folha.trecho.ate }) },
         '-', { label: `Citar o quadro ${q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(P, q, App.sel) }].filter(Boolean)); }
     const c = p.clip;
-    if (!c) { return UI.ctx(e.clientX, e.clientY, [{ head: this.tc(q) }, this.lacuna && { label: 'Exclusão em ondulação', icon: 'ripple', key: 'Delete', action: () => this.exclusaoOndulacao() },
+    if (!c) { this.lacuna = this.lacunaEm(p); this.desenha(); return UI.ctx(e.clientX, e.clientY, [{ head: this.tc(q) }, this.lacuna && { label: 'Apagar este espaço vazio (o resto anda para trás)', icon: 'ripple', key: 'Delete', action: () => this.exclusaoOndulacao() },
       this.copia && { label: 'Colar na agulha', icon: 'paste', key: 'Ctrl+V', action: () => this.colar() }, { label: 'Selecionar tudo', icon: 'marquee', key: 'Ctrl+A', action: () => this.escolhe(this.layout().todos.filter(x => !this.travada(x)).map(x => x.id)) }].filter(Boolean)); }
     if (this.travada(c)) return;
     const cls = this.escolhidos(), varios = cls.length > 1, nm = c.n?.nome || c.a?.nome || String(c.g?.texto || '').replace(/\*/g, '') || '';
