@@ -277,9 +277,20 @@ const Autores = {
   comCache(d) { return d?.autor ? { ...d, autor: this.jaSei(d.autor), edicoes: (d.edicoes || []).map(x => this.jaSei(x)) } : d; },
   guardaP(id, j) { const c = this.cacheP(), v = { nome: j.nome, foto: j.foto || null }; if (JSON.stringify(c[id]) === JSON.stringify(v)) return; c[id] = v;
     try { const ks = Object.keys(c); if (ks.length > 200) delete c[ks[0]]; localStorage.setItem('animador-pessoas', JSON.stringify(c)); } catch { } },
+  // ECONOMIA DE PEDIDOS (06/11/2026): as pessoas pedidas juntas (ex.: as 5 da equipe ao abrir) vão num pedido só (/pessoa?us=);
+  // porteiro sem ?us= → uma por uma, como antes
+  _fila: null,
+  _umaVez(id) {
+    const um = u => fetch('/pessoa?u=' + encodeURIComponent(u), { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (!this._fila) { const f = this._fila = new Map(); setTimeout(async () => { this._fila = null; const ids = [...f.keys()]; let res = null;
+      if (ids.length > 1) { try { const r = await fetch('/pessoa?us=' + ids.join(','), { credentials: 'same-origin', cache: 'no-store' }); const j = r.ok ? await r.json() : null; if (j?.pessoas) res = j.pessoas; } catch { } }
+      await Promise.all(ids.map(async u => f.get(u)(res && u in res ? res[u] : await um(u)))); }, 60); }
+    if (!this._fila.has(id)) { let ok; const pr = new Promise(r => ok = r); this._fila.set(id, ok); this._fila.get(id).pr = pr; }
+    return this._fila.get(id).pr;
+  },
   vivo(p) {
     if (!p?.id || !/^u[0-9a-f]{16}$/.test(p.id)) return Promise.resolve(p);
-    if (!this._vivos.has(p.id)) this._vivos.set(p.id, fetch('/pessoa?u=' + encodeURIComponent(p.id), { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null));
+    if (!this._vivos.has(p.id)) this._vivos.set(p.id, this._umaVez(p.id));
     return this._vivos.get(p.id).then(j => (j?.nome && this.guardaP(p.id, j), j)).then(j => j?.nome ? { ...p, nome: j.nome, foto: j.foto || (/^\/conta\//.test(p.foto || '') ? null : p.foto) } : p);
   },
   // antes de mostrar: nome e foto de AGORA de cada pessoa, com a foto já baixada (sem trocar na frente da pessoa)
