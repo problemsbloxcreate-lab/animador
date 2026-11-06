@@ -3,12 +3,20 @@
 const Som = {
   ctx: null, buf: new Map(), fontes: [], _picos: new Map(),
   ac() { return this.ctx || (this.ctx = new AudioContext()); },
-  async decod(arq) {
-    if (this.buf.has(arq)) return this.buf.get(arq);
-    const b = await Arq.pegaBlob(arq); if (!b) return null;
-    const ab = await this.ac().decodeAudioData(await b.arrayBuffer()).catch(() => null); if (ab) this.buf.set(arq, ab); return ab;
+  // abre o áudio UMA vez (dois pedidos juntos esperam o mesmo); se o arquivo ainda não chegou, devolve null e tenta de novo no próximo pedido
+  _dec: new Map(),
+  decod(arq) {
+    if (this.buf.has(arq)) return Promise.resolve(this.buf.get(arq)); if (this._dec.has(arq)) return this._dec.get(arq);
+    const p = (async () => { const b = await Arq.pegaBlob(arq).catch(() => null); if (!b) return null;
+      const ab = await this.ac().decodeAudioData(await b.arrayBuffer()).catch(() => null); if (ab) this.buf.set(arq, ab); return ab; })().finally(() => this._dec.delete(arq));
+    this._dec.set(arq, p); return p;
   },
-  async prepara(P) { for (const a of P.audios || []) await this.decod(a.arq); Folha.pinta(); },
+  async prepara(P) { await Promise.all((P.audios || []).map(a => this.decod(a.arq))); if (App.P === P) Folha.pinta(); },
+  // SOM QUE CARREGA DE VERDADE (pedido da dona, 06/11/2026): antes, se o arquivo chegava da nuvem depois de abrir, ninguém abria o som
+  // e o play tocava mudo até voltar ao início. Agora: os sons que faltam (faltam), o play espera eles (App.tocar), e o que chega depois
+  // (Arq.guardar → chegou) entra na hora, no ponto certo, mesmo tocando (junta).
+  faltam(P) { return [...new Set((P?.audios || []).filter(a => this.ouve(P, a) && !this.buf.has(a.arq)).map(a => a.arq))]; },
+  chegou(id) { const P = typeof App !== 'undefined' && App.P; if (!P?.audios?.some(a => a.arq === id) || this.buf.has(id)) return; this.decod(id).then(b => { if (!b || App.P !== P) return; Folha.pinta(); if (App.tocando) this.junta(id); }); },
   dur(arq) { return this.buf.get(arq)?.duration || 0; },
   // força de cada quadro (0..1), para a onda e para a boca
   picos(arq, fps) {
@@ -122,10 +130,20 @@ const Som = {
     src.start(when, off); src.stop(when + (fim - ja)); return src;
   },
   toca(q) {
-    this.para(); const P = App.P, ac = this.ac(); ac.resume(); const t0 = ac.currentTime + .03, desde = q / P.fps, falas = this.falas(P);
-    for (const a of P.audios || []) { if (!this.ouve(P, a)) continue; const s = this.fonte(ac, ac.destination, P, a, this.buf.get(a.arq), desde, t0, falas); if (s) this.fontes.push(s); }
+    this.para(); const P = App.P, ac = this.ac(); if (ac.state !== 'running') ac.resume().catch(() => { }); const t0 = ac.currentTime + .03, desde = q / P.fps, falas = this.falas(P);
+    this._toc = { P, t0, desde, falas };
+    for (const a of P.audios || []) { if (!this.ouve(P, a)) continue; const b = this.buf.get(a.arq);
+      if (b) { const s = this.fonte(ac, ac.destination, P, a, b, desde, t0, falas); if (s) this.fontes.push(s); } else this.decod(a.arq).then(x => { if (x) this.junta(a.arq); }); }
   },
-  para() { for (const s of this.fontes) { try { s.stop(); } catch { } } this.fontes = []; },
+  // um som que terminou de abrir com o play já andando: entra no ponto em que a animação está
+  junta(arq) {
+    const T = this._toc, b = this.buf.get(arq); if (!T || !b || !App.tocando || T.P !== App.P) return; const ac = this.ac(), t = Math.max(ac.currentTime + .05, T.t0), desde = T.desde + (t - T.t0);
+    for (const a of T.P.audios || []) if (a.arq === arq && this.ouve(T.P, a)) { const s = this.fonte(ac, ac.destination, T.P, a, b, desde, t, T.falas); if (s) this.fontes.push(s); }
+  },
+  // o segundo da timeline que está SAINDO NA CAIXA DE SOM agora (null = o som ainda não ligou). A imagem anda por este relógio:
+  // antes ela andava pelo relógio da tela e o som (que demora um pouco para ligar) ficava atrasado
+  agora() { const T = this._toc, ac = this.ctx; if (!T || !ac || ac.state !== 'running') return null; const lat = ac.outputLatency || ac.baseLatency || 0, d = ac.currentTime - lat - T.t0; return T.desde + Math.max(0, d); },
+  para() { for (const s of this.fontes) { try { s.stop(); } catch { } } this.fontes = []; this._toc = null; },
   // ao passar os quadros, toca o pedacinho daquele quadro (bom para acertar a boca)
   raspa(q) {
     const P = App.P, ac = this.ac(); ac.resume();

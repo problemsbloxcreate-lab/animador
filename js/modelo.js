@@ -275,7 +275,7 @@ const DB = (() => {
 /* ---------- arquivos (imagens e áudios) : guardados no navegador; imagens viram ImageBitmap na memória ---------- */
 const Arq = {
   img: new Map(), blob: new Map(), carregando: new Map(), avisar: new Map(),
-  async guardar(blob, id = uid('a')) { await DB.put('arquivos', blob, id); this.blob.set(id, blob); return id; },
+  async guardar(blob, id = uid('a')) { await DB.put('arquivos', blob, id); this.blob.set(id, blob); if (typeof Som !== 'undefined') Som.chegou?.(id); return id; }, // som da animação aberta que chegou agora: abre na hora
   async pegaBlob(id) { if (this.blob.has(id)) return this.blob.get(id); const b = await DB.get('arquivos', id); if (b) this.blob.set(id, b); return b || null; },
   // imagem pronta para desenhar (null enquanto carrega; avisa TODO MUNDO que pediu quando chegar —
   // antes só o primeiro que pediu era avisado, e a tela ficava sem a imagem até alguém clicar)

@@ -169,13 +169,35 @@ const App = {
     q = clamp(Math.round(q), 0, Modelo.ultimoQuadro(this.P)); if (q === this.q && !o.forca) return;
     this.q = q; Folha.pinta(); if (!this.tocando) Lado.pinta(); else Lado.aoVivo(); this.pinta(); if (o.som && !this.tocando) Som.raspa(q);
   },
-  tocar() {
-    if (this.tocando) return this.pausa(); if (this.q >= Modelo.ultimoQuadro(this.P)) this.q = 0;
+  async tocar() {
+    if (this.tocando) return this.pausa(); if (this._esperaSom) return;
+    // o som tem que estar CARREGADO antes do play (senão tocava mudo ou atrasado): espera; se demorar, mostra a tela de carregando
+    try { Som.ac().resume().catch(() => { }); } catch { }
+    const P = this.P, desistiu = (this._semSom ||= new WeakMap()).get(P) || new Set(); let falta = Som.faltam(P).filter(k => !desistiu.has(k)); // o que não chegou em 12 s não segura o play de novo
+    if (falta.length) {
+      this._esperaSom = true; let fim = null; const t0 = performance.now();
+      const vez = () => Promise.all(falta.map(k => Som.decod(k))).then(() => { falta = Som.faltam(P).filter(k => !desistiu.has(k)); });
+      try {
+        await Promise.race([vez(), new Promise(r => setTimeout(r, 200))]);
+        while (falta.length && this.P === P && performance.now() - t0 < 12000) { // o arquivo pode estar chegando da nuvem: tenta de novo
+          if (!fim) { fim = Ocupado.inicio({ tipo: 'som', icone: 'vol', titulo: 'Carregando o som…', subtitulo: 'O play começa sozinho quando o som estiver pronto.', aviso: 'Só um instante: o som desta animação está abrindo.' }); }
+          const n = Som.faltam(P).length, tot = new Set((P.audios || []).map(a => a.arq)).size; Ocupado.parte(tot - n, tot);
+          await Promise.race([vez(), new Promise(r => setTimeout(r, 400))]);
+        }
+      } finally { this._esperaSom = false; fim?.(); }
+      if (this.P !== P || this.tocando) return;
+      if (falta.length) { falta.forEach(k => desistiu.add(k)); this._semSom.set(P, desistiu); UI.toast('Algum som ainda não chegou neste computador. Ele entra sozinho assim que chegar.', { kind: 'warn', time: 5000 }); }
+    }
+    if (this.q >= Modelo.ultimoQuadro(this.P)) this.q = 0;
     this.tocando = true; $('#b-tocar').innerHTML = ic('pause', 15); Som.toca(this.q);
-    const t0 = performance.now(), q0 = this.q, fps = this.P.fps;
+    let t0 = performance.now(), modo = (this.P.audios || []).length ? 'espera' : 'tela'; const q0 = this.q, fps = this.P.fps;
     const passo = () => {
       if (!this.tocando) return;
-      let q = q0 + Math.floor((performance.now() - t0) / 1000 * fps);
+      // a imagem segue o relógio do SOM (o que está saindo na caixa de som); se o som não ligar em 0,4 s, anda pelo relógio da tela
+      const s = Som.agora(), agora = performance.now(); let q;
+      if (s != null) { modo = 'som'; q = Math.floor(s * fps + 1e-6); }
+      else if (modo === 'espera' && agora - t0 < 400) q = q0;
+      else { if (modo !== 'tela') { t0 = agora - (this.q - q0) / fps * 1000; modo = 'tela'; } q = q0 + Math.floor((agora - t0) / 1000 * fps); }
       if (q > Modelo.ultimoQuadro(this.P)) { if (Folha.loop) { this.pausa(); this.q = 0; return this.tocar(); } this.pausa(); q = Modelo.ultimoQuadro(this.P); }
       if (q !== this.q) { this.q = q; Folha.pinta(); this.pinta(); Lado.aoVivo(); }
       requestAnimationFrame(passo);
