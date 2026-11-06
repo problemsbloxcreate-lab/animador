@@ -476,10 +476,11 @@ const App = {
     const pc = this.palco, P = this.P; if (!P || !pc.ctx) return;
     const ctx = pc.ctx, W = pc.cv.width, H = pc.cv.height; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#151515'; ctx.fillRect(0, 0, W, H);
     if (this.modoVista === 'camera') { // só o que a câmera vê, com cor, efeitos e legenda (igual ao vídeo)
-      const k = Math.min(W / P.w, H / P.h) * .94, w = Math.round(P.w * k), h = Math.round(P.h * k);
+      const nb = typeof Redes !== 'undefined' ? Redes.barra(P) : 0; // espaço da barra de baixo do Shorts/TikTok/Reels, embaixo do vídeo
+      const k = Math.min(W / P.w, H / (P.h + nb)) * .94, w = Math.round(P.w * k), h = Math.round(P.h * k), hb = Math.round(nb * k), y0 = Math.round((H - h - hb) / 2);
       if (!this._fin || this._fin.width !== w || this._fin.height !== h) { this._fin = new OffscreenCanvas(w, h); }
-      Render.quadro(this._fin.getContext('2d'), P, this.q, w, h); ctx.drawImage(this._fin, (W - w) / 2, (H - h) / 2);
-      if (typeof Redes !== 'undefined') Redes.desenha(ctx, (W - w) / 2, (H - h) / 2, w, h); // modelo de Shorts/TikTok/Reels (só no palco, nunca no vídeo)
+      Render.quadro(this._fin.getContext('2d'), P, this.q, w, h); ctx.drawImage(this._fin, (W - w) / 2, y0);
+      if (typeof Redes !== 'undefined') Redes.desenha(ctx, (W - w) / 2, y0, w, h, hb); // modelo de Shorts/TikTok/Reels (só no palco, nunca no vídeo)
       return;
     }
     const V = pc.vista(), c = Modelo.camera(P, this.q), cw = P.w / (c.zoom || 1), ch = P.h / (c.zoom || 1);

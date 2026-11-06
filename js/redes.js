@@ -42,8 +42,11 @@ const Redes = {
     if (!v) return; const n = { ...c, foto }; for (const i of $$('[data-c]', body)) n[i.dataset.c] = i.value.trim(); n.arroba = n.arroba.replace(/^@+/, ''); this.salvaCfg(n);
   },
   // ---------- desenho: SVG (1080 de largura × a altura da animação na mesma escala) virando imagem, guardada até algo mudar ----------
-  desenha(ctx, x, y, w, h) {
-    if (!this.ativo || !App.P) return; const c = this.cfg(), tit = c.titulo || App.P.nome || 'Título do vídeo', H = Math.round(1080 * h / w);
+  // A BARRA DE BAIXO (preta, ~150 px) fica EMBAIXO do vídeo, como no celular: ela não cobre nada (pedido da dona, 06/11/2026).
+  // O palco reserva esse espaço (App.desenhaPalco) e o modelo é desenhado no vídeo + barra. Só em vídeo em pé.
+  barra(P) { return this.ativo && P && P.w / P.h <= .6 ? P.w * 150 / 1080 : 0; },
+  desenha(ctx, x, y, w, h, hb = 0) {
+    if (!this.ativo || !App.P) return; h += hb; const c = this.cfg(), tit = c.titulo || App.P.nome || 'Título do vídeo', H = Math.round(1080 * h / w);
     const chave = [this.ativo, H, tit, c.canal, c.arroba, c.foto.length, c.foto.slice(-40)].join('|');
     if (this._chave !== chave) { this._chave = chave; this._img = null; const img = new Image(); img.onload = () => { if (this._chave === chave) { this._img = img; App.pinta(); } };
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(this.svg(this.ativo, H, tit, c)); }
@@ -90,7 +93,7 @@ const Redes = {
       : this.semFoto(x, y, r);
     // quebra o título em até 2 linhas de ~n letras
     const linhas = (t, n) => { const ws = String(t).split(/\s+/), L = ['']; for (const w of ws) { if ((L[L.length - 1] + ' ' + w).trim().length > n && L[L.length - 1]) { if (L.length === 2) { L[1] = L[1].replace(/\s*\S*$/, '') + '…'; break; } L.push(''); } L[L.length - 1] = (L[L.length - 1] + ' ' + w).trim(); } return L; };
-    const nav = (ics, ativo, y) => /* SEM fundo preto (pedido da dona, 06/11/2026): no app de verdade a barra não corta o vídeo, só os ícones ficam por cima */ ics.map((n, i) => { const x = 108 + i * 216; return n === 'maisTT'
+    const nav = (ics, ativo, y) => `<rect x="0" y="${y}" width="1080" height="${H - y}" fill="#000"/>` + ics.map((n, i) => { const x = 108 + i * 216; return n === 'maisTT'
       ? `<g transform="translate(${x - 52} ${y + 30})"><rect x="0" y="0" width="104" height="64" rx="16" fill="#25f4ee"/><rect x="8" y="0" width="104" height="64" rx="16" fill="#fe2c55"/><rect x="4" y="0" width="104" height="64" rx="16" fill="#fff"/><path d="M56 16v32M40 32h32" stroke="#000" stroke-width="6" stroke-linecap="round"/></g>`
       : I(n, x, y + 62, 58, i === ativo ? 2.4 : 1.8); }).join('');
     const bx = `<linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient>`;
