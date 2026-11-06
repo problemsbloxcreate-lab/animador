@@ -48,6 +48,10 @@ const Prep = {
   corPadrao(nome) { const k = this.chave(nome); if (k === 'problems') return '#19f0f0'; let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return this.CORES[1 + h % (this.CORES.length - 1)]; },
   cor(prep, pers, nome) { const k = this.chave(nome); return prep?.legenda?.cores?.[k] || pers?.[k]?.cor || this.corPadrao(nome); },
   // nomes sem repetir (PROBLEMS e problems = o mesmo; fica o 1º jeito escrito)
+  // FALA DE VÁRIOS (contrato do Preparativos, 06/11/2026): f.personagens = ['Stick','Problems']; f.personagem continua o texto inteiro
+  vozes(f) { return Array.isArray(f?.personagens) && f.personagens.length ? f.personagens : [f?.personagem]; },
+  // f.audios = { '<nome minúsculo>': { audio, duracao } } = a versão de cada um (opcional); só usa se TODOS tiverem
+  separados(f) { const A = f?.audios, L = this.vozes(f); if (!A || L.length < 2) return null; const r = L.map(n => ({ n, a: A[this.chave(n)] || A[String(n).toLowerCase()] })); return r.every(x => x.a?.audio) ? r : null; },
   unicos(L) { const m = new Map(); for (const n of L) { const k = this.chave(n); if (k && !m.has(k)) m.set(k, String(n).trim()); } return [...m.values()]; },
   dur(s) { s = Math.round(+s || 0); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; },
   // ---------- seção da tela inicial ----------
@@ -72,7 +76,7 @@ const Prep = {
   },
   cartao(it, P, pers, nomeDe, locais) {
     const partes = P?.partes || [], falas = partes.flatMap(p => p.falas || []), seg = falas.reduce((s, f) => s + (+f.duracao || 0), 0);
-    const nomes = this.unicos(it.pers?.length ? it.pers : falas.map(f => f.personagem)).slice(0, 8);
+    const nomes = this.unicos(it.pers?.length ? it.pers : falas.flatMap(f => this.vozes(f))).slice(0, 8);
     const usos = (P?.usadoPor || []).filter(u => u.programa === 'animador').sort((a, b) => String(b.quando).localeCompare(String(a.quando)));
     const ult = usos[0], nomeUlt = ult ? nomeDe(ult.projeto) : null;
     const info = [`${partes.length || it.partes || 1} ${(partes.length || it.partes || 1) === 1 ? 'parte' : 'partes'}`, `${it.n ?? falas.length} falas, ${it.g ?? falas.filter(f => f.audio).length} gravadas`, seg ? this.dur(seg) + ' de áudio' : '', P?.legenda?.ativa === false ? 'sem legendas' : 'com legendas'].filter(Boolean).join(' · ');
@@ -123,7 +127,7 @@ const Prep = {
     return this.monta(it, P, escolha);
   },
   async monta(it, prep, o) {
-    const nomeBase = prep.nome || it.nome || 'Roteiro', grupos = o.grupos, todas = grupos.flat(), falas = todas.flatMap(p => p.falas), comAud = falas.filter(f => f.audio);
+    const nomeBase = prep.nome || it.nome || 'Roteiro', grupos = o.grupos, todas = grupos.flat(), falas = todas.flatMap(p => p.falas), comAud = falas.flatMap(f => { const s = this.separados(f); return s ? s.map(x => ({ id: f.id + '|' + this.chave(x.n), audio: x.a.audio })) : f.audio ? [{ id: f.id, audio: f.audio }] : []; });
     NuvemTela.inicio(nomeBase, 'pr', { titulo: 'Montando pelo Preparativos' }); let ok = false, primeiro = null; const feitos = [];
     try {
       // 1) áudios: baixa cada um uma vez só (guardado no banco do navegador pela chave da nuvem; regravação = chave nova)
@@ -136,8 +140,8 @@ const Prep = {
       }
       // 2) cores e personagens da equipe com o mesmo nome
       NuvemTela.passo(.62, 'Pegando as cores e os personagens…');
-      const pers = await this.pers(), quem = this.unicos(falas.map(f => f.personagem)), nomeDe = n => quem.find(q => this.chave(q) === this.chave(n)) || String(n || '').trim();
-      for (const f of falas) f._quem = nomeDe(f.personagem);
+      const pers = await this.pers(), quem = this.unicos(falas.flatMap(f => this.vozes(f))), nomeDe = n => quem.find(q => this.chave(q) === this.chave(n)) || String(n || '').trim();
+      for (const f of falas) { f._todos = this.vozes(f).map(nomeDe); f._quem = f._todos.length > 1 ? String(f.personagem || f._todos.join(' e ')).trim() : f._todos[0]; }
       const qcor = Object.fromEntries(quem.map(n => [n, this.cor(prep, pers, n)])); await this.fonte(this.estilo(prep).fonte);
       // QUEM REPRESENTA CADA PERSONAGEM: o que foi escolhido no Preparativos (prep.animador.pers[chave do nome] = { id, nome } do
       // personagem do Ateliê na nuvem; null = nenhum); sem escolha = o PADRÃO do personagem (personagens.json[chave].atelie = { id, nome } | null);
@@ -177,10 +181,15 @@ const Prep = {
     const trilha = {}; let nt = 0; const tr = n => (trilha[n] ||= ++nt);
     let q = Math.round(fps * .1); const pos = [];
     falas.forEach((f, i) => {
-      const a = aud[f.id], d = a?.buf?.duration || +f.duracao || Math.max(1.2, String(f.texto || '').length * .07), nq = Math.max(1, Math.ceil(d * fps)), quem = f._quem || String(f.personagem || '').trim();
-      if (a) P.audios.push({ id: uid('au'), nome: `${i + 1}. ${quem || 'Fala'}`, arq: a.k, de: q, vol: 1, tipo: 'voz', trilha: tr(quem), _quem: quem, prep: { fala: f.id } });
-      if (comLeg && f.texto) P.legendas.push({ de: q, ate: q + nq - 1, texto: (leg.mostrarNome && quem ? quem + ': ' : '') + f.texto, cor: qcor[quem], quem });
-      pos.push({ quem, de: q, ate: q + nq - 1 });
+      const quem = f._quem || String(f.personagem || '').trim(), todos = f._todos || [quem], varios = todos.length > 1;
+      // fala de vários: a versão de cada um (se todos tiverem) numa trilha de cada; senão a gravação de todos juntos, que mexe a boca de todos
+      const sep = varios && todos.map(n => ({ n, a: aud[f.id + '|' + this.chave(n)] })).every(x => x.a) ? todos.map(n => ({ n, a: aud[f.id + '|' + this.chave(n)] })) : null;
+      const a = aud[f.id], d = (sep ? Math.max(...sep.map(x => x.a.buf?.duration || 0)) : a?.buf?.duration) || +f.duracao || Math.max(1.2, String(f.texto || '').length * .07), nq = Math.max(1, Math.ceil(d * fps));
+      if (sep) for (const x of sep) P.audios.push({ id: uid('au'), nome: `${i + 1}. ${x.n}`, arq: x.a.k, de: q, vol: 1, tipo: 'voz', trilha: tr(x.n), _quem: x.n, prep: { fala: f.id } });
+      else if (a) P.audios.push({ id: uid('au'), nome: `${i + 1}. ${quem || 'Fala'}`, arq: a.k, de: q, vol: 1, tipo: 'voz', trilha: tr(quem), _quem: quem, ...(varios ? { _quens: todos } : {}), prep: { fala: f.id } });
+      // cor: a escolhida só para esta fala (f.cor) › vários = neutra (branco) › a de quem fala
+      if (comLeg && f.texto) P.legendas.push({ de: q, ate: q + nq - 1, texto: (leg.mostrarNome && quem ? quem + ': ' : '') + f.texto, cor: /^#[0-9a-f]{6}$/i.test(f.cor || '') ? f.cor : varios ? '#ffffff' : qcor[quem], quem });
+      for (const n of todos) pos.push({ quem: n, de: q, ate: q + nq - 1 });
       const nx = falas[i + 1]; q += nq + (nx ? Math.round(Short.pausa({ personagem: quem, texto: f.texto, acao: f.nota }, { personagem: nx._quem || nx.personagem, texto: nx.texto }) * fps) : 0);
     });
     P.duracao = q + Math.round(fps * .5);
@@ -198,7 +207,7 @@ const Prep = {
   // boca pela voz de cada fala, no personagem de quem fala (na animação aberta)
   bocas() {
     const P = App.P; if (!P?.prep) return; let nb = 0;
-    for (const n of P.raiz.filter(x => x._prepQuem)) for (const a of P.audios.filter(y => y._quem === n._prepQuem)) { try { if (Som.bocaAuto(P, n, a)) nb++; } catch { } }
+    for (const n of P.raiz.filter(x => x._prepQuem)) for (const a of P.audios.filter(y => (y._quens || [y._quem]).includes(n._prepQuem))) { try { if (Som.bocaAuto(P, n, a)) nb++; } catch { } }
     if (nb) App.commit('Boca pela voz (' + nb + ')');
   },
 };
