@@ -4,7 +4,9 @@
 'use strict';
 const IAUso = {
   dados: null, quando: 0, _p: null,
+  ligado: false, // SEM IA NA TELA (05/11/2026): nada de pedir /uso (dava 401 antes do login e gastava pedido à toa)
   async pega(forca) {
+    if (!this.ligado) return this.dados;
     if (!forca && this.dados && Date.now() - this.quando < 30000) return this.dados;
     if (this._p) return this._p;
     this._p = (async () => {
@@ -50,4 +52,4 @@ const IAUso = {
     if (window.IA?.chama && !IA._usoLigado) { IA._usoLigado = true; const orig = IA.chama.bind(IA); IA.chama = async (...a) => { try { return await orig(...a); } finally { setTimeout(() => this.pega(true), 2500); } }; }
   },
 };
-addEventListener('DOMContentLoaded', () => setTimeout(() => IAUso.liga(), 0));
+// desligado junto com a IA da tela: liga() não roda mais (para voltar: IAUso.ligado = true e chamar IAUso.liga() depois do login)
