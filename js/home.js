@@ -167,7 +167,7 @@ const Home = {
     // CONTINUAR DE ONDE PAROU: as 4 mais novas desta seção, em cima das pastas (só no começo da seção, sem busca)
     const cont = $('[data-cont]', c); if (cont) { cont.innerHTML = ''; if (!PastasBib.aberta(escP) && L.length > 4) { const sec = h(`<section class="pb-sec hm-cont"><h3 class="pb-h">Continuar de onde parou</h3><div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div></section>`); for (const p of L.slice(0, 4)) $('.grade', sec).appendChild(cartao(p)); cont.appendChild(sec); } }
     const S = this.secaoAtual(), novaAqui = pa => { const b = h(`<button class="btn sm primary">${ic('plus', 13)} Nova animação aqui</button>`); b.onclick = () => this.novaEscolha({ pasta: pa, esc: escP }); return b; };
-    try { ({ todas: todasP } = await PastasBib.monta(g, { esc: escP, min: 220, itens: L, cartao, aoMudar: () => this.grade(c), cartoes: true, titulo: S.titulo, miniatura: p => p.thumb || this._thumbN?.get(p.id), data: p => p.modificado, acoesPasta: novaAqui })); }
+    try { ({ todas: todasP } = await PastasBib.monta(g, { esc: escP, min: 220, itens: L, cartao, aoMudar: () => this.grade(c), cartoes: true, titulo: S.titulo, miniatura: p => p.thumb || this._thumbU?.get(p.id), data: p => p.modificado, acoesPasta: novaAqui })); }
     catch { g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); }
     const av = $('.aovivo-agora', c); if (av && this._salas) this.pintaAoVivo(c, av);
   },
@@ -175,9 +175,10 @@ const Home = {
   cartaoNuvem(p, c, todas) {
     const x = p._nuvem, card = h(`<div class="pc an-so-nuvem"><div class="th">${ic('film', 26)}<span class="an-nv" title="Na nuvem da equipe">${ic('cloud', 12)}</span></div><div class="in"><b>${esc(p.nome)}</b><small>${p.modificado ? fmtDate(p.modificado) + ' · ' : ''}na nuvem da equipe</small></div><button class="ibtn mn" title="Opções">${ic('dots', 15)}</button><span class="tam" hidden></span></div>`);
     card.dataset.anid = x.id; card.dataset.nv = 1; if (x.tam) { const t = $('.tam', card); t.hidden = false; t.textContent = Arquivos.fmt ? Arquivos.fmt(x.tam) : Math.round(x.tam / 1048576 * 10) / 10 + ' MB'; }
-    (async () => { try { const tk = x.id + '@' + (x.mod || x.em || ''), M = (this._thumbN ||= new Map()), MK = (this._thumbK ||= new Map()); let u = MK.get(x.id) === tk ? M.get(x.id) : null;
-      if (!u) { const r = await Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(NuvemAnim.pasta(x.id) + 'thumb.jpg')); u = URL.createObjectURL(await r.blob()); M.set(x.id, u); MK.set(x.id, tk); }
-      const th = $('.th', card); th.style.backgroundImage = `url('${u}')`; th.firstChild?.remove?.(); } catch { } })();
+    (async () => { try { const tk = x.id + '@' + (x.mod || x.em || ''), M = (this._thumbN ||= new Map()), MK = (this._thumbK ||= new Map()); // guarda a PROMESSA: a lista é desenhada várias vezes ao abrir e cada uma pedia de novo antes da 1ª resposta chegar
+      if (MK.get(x.id) !== tk) { MK.set(x.id, tk); M.set(x.id, Nuvem.pede('/animacoes/arquivo?k=' + encodeURIComponent(NuvemAnim.pasta(x.id) + 'thumb.jpg')).then(r => r.blob()).then(b => URL.createObjectURL(b)).catch(e => { MK.delete(x.id); throw e; })); }
+      const u = await M.get(x.id);
+      (this._thumbU ||= new Map()).set(x.id, u); const th = $('.th', card); th.style.backgroundImage = `url('${u}')`; th.firstChild?.remove?.(); } catch { } })();
     { const d = NuvemAnim.quemDe(x); const selo = d ? Autores.selo(d) : null; if (selo) card.appendChild(selo); } // quem criou / editou
     card.onclick = e => { if (!e.target.closest('.mn')) NuvemAnim.abrir(x.id, null); };
     $('.mn', card).onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.right - 220, r.bottom + 4, [
