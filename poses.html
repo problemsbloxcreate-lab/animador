@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>POSES · Estúdio Problems</title>
+<!-- POSES (pedido da dona, 09/11/2026): página simples para pôr um personagem do Ateliê numa pose e baixar em vetor (SVG, uma peça só).
+     Só baixa as peças que aparecem na pose (poucas leituras da nuvem). A pose fica guardada neste navegador. Não grava nada na nuvem. -->
+<script src="/estudio-login.js"></script>
+<style>
+:root{--f:#101216;--p:#1a1d23;--p2:#23272f;--l:#343a44;--t:#e8eaee;--t2:#9aa2ae;--a:#ffc83d}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{background:var(--f);color:var(--t);font:14px/1.4 "Segoe UI",system-ui,sans-serif;display:grid;grid-template-columns:260px 1fr 300px;height:100vh;overflow:hidden}
+aside{background:var(--p);display:flex;flex-direction:column;min-height:0;padding:12px;gap:10px;overflow:auto}#esq{border-right:1px solid var(--l)}#dir{border-left:1px solid var(--l)}
+h1{font-size:16px;margin:0}h2{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--t2);margin:6px 0 0}
+input[type=search],select{width:100%;height:32px;background:var(--p2);color:var(--t);border:1px solid var(--l);padding:0 8px;font:inherit}
+label.lin{display:flex;gap:6px;align-items:center;color:var(--t2);font-size:12.5px}
+#lista{flex:1;overflow:auto;display:flex;flex-direction:column;gap:2px;min-height:0}
+#lista button{all:unset;cursor:pointer;padding:7px 8px;display:flex;justify-content:space-between;gap:6px}#lista button:hover{background:var(--p2)}#lista button.on{background:var(--a);color:#1a1400;font-weight:600}#lista i{font-style:normal;font-size:11px;opacity:.75}
+main{position:relative;min-width:0;background:repeating-conic-gradient(#2a2e36 0 25%,#22262d 0 50%) 0 0/24px 24px}
+#palco{width:100%;height:100%;display:block;touch-action:none;cursor:grab}#palco g[data-p]{cursor:pointer}
+#barra{position:absolute;left:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap}
+button.b{height:32px;padding:0 12px;background:var(--p2);color:var(--t);border:1px solid var(--l);font:inherit;cursor:pointer}button.b:hover{border-color:var(--t2)}button.b.on,button.b.pri{background:var(--a);border-color:var(--a);color:#1a1400;font-weight:600}button.b:disabled{opacity:.45;cursor:default}
+#msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.72);padding:12px 18px;display:none;text-align:center;max-width:70%}
+.camp{display:grid;grid-template-columns:64px 1fr 48px;gap:6px;align-items:center;font-size:12.5px;color:var(--t2)}.camp input[type=range]{width:100%;accent-color:var(--a)}.camp output{text-align:right;color:var(--t);font-variant-numeric:tabular-nums}
+#partes{max-height:230px;overflow:auto;display:flex;flex-direction:column}#partes button{all:unset;cursor:pointer;padding:3px 6px;font-size:12.5px}#partes button:hover{background:var(--p2)}#partes button.on{background:var(--a);color:#1a1400}
+.dica{font-size:12px;color:var(--t2)}.lado{display:flex;gap:6px;flex-wrap:wrap}.ver{position:fixed;right:312px;bottom:8px;font-size:11px;color:var(--t2)}
+@media (max-width:860px){body{grid-template-columns:1fr;grid-template-rows:170px 50vh auto;overflow:auto;height:auto}#esq,#dir{border:0}}
+</style>
+</head>
+<body>
+<aside id="esq">
+  <h1>Poses</h1>
+  <input type="search" id="busca" placeholder="Procurar personagem…">
+  <label class="lin"><input type="checkbox" id="escBk" checked> Esconder backups e antigos</label>
+  <div id="lista"></div>
+</aside>
+<main>
+  <svg id="palco" xmlns="http://www.w3.org/2000/svg"><g id="conteudo"></g><circle id="junta" r="5" fill="#ffc83d" stroke="#000" stroke-width="1.5" style="display:none;pointer-events:none"/></svg>
+  <div id="barra">
+    <button class="b on" id="mGirar" title="Arraste uma peça para girar na articulação">Girar</button>
+    <button class="b" id="mMover" title="Arraste uma peça para mover (ou segure Shift)">Mover</button>
+    <button class="b" id="desf" title="Ctrl+Z">Desfazer</button>
+    <button class="b" id="zerar">Zerar pose</button>
+    <button class="b" id="enq">Enquadrar</button>
+  </div>
+  <div id="msg"></div>
+</main>
+<aside id="dir">
+  <h2>Baixar</h2>
+  <div class="lado"><button class="b pri" id="bSvg" disabled>Baixar SVG (vetor)</button><button class="b" id="bPng" disabled>Baixar PNG</button></div>
+  <div id="blocoVista"><h2>Vista</h2><select id="vista"></select></div>
+  <div id="blocoSes"></div>
+  <h2>Peça selecionada</h2><div id="sel" class="dica">Clique numa peça do boneco.</div><div id="edita"></div>
+  <h2>Peças</h2><div id="partes"></div>
+  <p class="dica">Arraste a peça para girar. Shift + arrastar move. Roda do mouse dá zoom; arrastar o fundo move a tela. A pose fica guardada neste navegador.</p>
+</aside>
+<script src="js/util.js"></script>
+<script src="js/modelo.js"></script>
+<script>
+'use strict';
+const SRV = 'https://turma-ia.problemsraiz.workers.dev', $id = i => document.getElementById(i), NS = 'http://www.w3.org/2000/svg';
+const palco = $id('palco'), cont = $id('conteudo'), msg = t => { const m = $id('msg'); m.textContent = t || ''; m.style.display = t ? 'block' : 'none'; };
+const S = { lista: [], id: null, nome: '', def: null, dv: null, vista: null, esc: { sessoes: {}, partes: {} }, sel: null, modo: 'girar', hist: [], vb: null, txt: new Map() };
+const guardadas = () => { try { return JSON.parse(localStorage.getItem('animador-poses-v1') || '{}'); } catch { return {}; } };
+const guarda = () => { if (!S.id) return; const g = guardadas(); g[S.id] = { vista: S.vista, esc: S.esc }; try { localStorage.setItem('animador-poses-v1', JSON.stringify(g)); } catch { } pintaLista(); };
+async function pede(c) { const t = await window.EstudioLogin?.token?.(); const r = await fetch(SRV + c, { headers: t ? { authorization: t } : {} }); if (!r.ok) throw new Error('A nuvem respondeu ' + r.status + ' (' + c.slice(0, 60) + ')'); return r; }
+const arq = k => pede('/personagens/arquivo?k=' + encodeURIComponent(k));
+const pool = async (L, fn, n = 6) => { let i = 0; await Promise.all(Array.from({ length: n }, async () => { while (i < L.length) await fn(L[i++]); })); };
+
+/* ---------- lista ---------- */
+async function carregaLista() {
+  msg('Buscando os personagens…');
+  const j = await (await pede('/personagens')).json(), it = j.itens || [], por = new Map();
+  for (const x of it) { const m = String(x.k || '').match(/^personagens\/([^/]+)\/personagem\.json$/); if (m) por.set(m[1], { id: m[1], nome: x.nome || m[1] }); }
+  S.lista = [...por.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')); msg(''); pintaLista();
+}
+function pintaLista() {
+  const q = $id('busca').value.trim().toLowerCase(), esc = $id('escBk').checked, g = guardadas(), L = $id('lista'); L.textContent = '';
+  for (const p of S.lista) { if (q && !p.nome.toLowerCase().includes(q)) continue; if (esc && /backup|antig|sobrescrito/i.test(p.nome)) continue;
+    const b = document.createElement('button'); if (p.id === S.id) b.className = 'on'; const n = document.createElement('span'); n.textContent = p.nome; b.append(n); if (g[p.id]) { const i = document.createElement('i'); i.textContent = 'pose'; b.append(i); } b.onclick = () => abre(p); L.append(b); }
+}
+
+/* ---------- abrir ---------- */
+async function abre(p) {
+  msg('Abrindo ' + p.nome + '…'); S.id = p.id; S.nome = p.nome; S.sel = null; S.hist = []; pintaLista();
+  try { const def = await (await arq(`personagens/${p.id}/personagem.json`)).json(); Modelo.garanteVistas(def); S.def = def;
+    const g = guardadas()[p.id]; S.esc = g?.esc || { sessoes: {}, partes: {} }; S.vista = g?.vista && def.vistas.some(v => v.id === g.vista) ? g.vista : (def.vistas[0]?.id || def.vistaAtual);
+    S.nome = def.nome || p.nome; pintaVistas(); await trocaVista(); enquadra(); msg(''); $id('bSvg').disabled = $id('bPng').disabled = false; }
+  catch (e) { msg('Não consegui abrir: ' + e.message); }
+}
+function pintaVistas() { const v = $id('vista'); v.textContent = ''; for (const x of S.def.vistas) v.add(new Option(x.nome || x.tipo || 'Vista', x.id)); v.value = S.vista; $id('blocoVista').style.display = S.def.vistas.length > 1 ? '' : 'none'; }
+async function trocaVista() { S.dv = Modelo.naVista(S.def, S.vista); for (const s of S.dv.sessoes || []) if (S.esc.sessoes[s.id] === undefined && s.presets?.[0]) { /* sem escolha = base */ } pintaSessoes(); pintaPartes(); await desenha(); }
+function pintaSessoes() { const b = $id('blocoSes'); b.textContent = ''; for (const s of S.dv.sessoes || []) { if (!s.presets?.length) continue; const h = document.createElement('h2'); h.textContent = s.nome || 'Opção'; const c = document.createElement('select'); c.add(new Option('(padrão)', '')); for (const p of s.presets) c.add(new Option(p.nome || 'Opção', p.id)); c.value = S.esc.sessoes[s.id] || ''; c.onchange = () => { marca(); if (c.value) S.esc.sessoes[s.id] = c.value; else delete S.esc.sessoes[s.id]; muda(); }; b.append(h, c); } }
+function pintaPartes() { const b = $id('partes'); b.textContent = ''; for (const p of S.dv.partes) { const x = document.createElement('button'); x.textContent = p.nome || p.id; x.dataset.p = p.id; x.onclick = () => seleciona(p.id); b.append(x); } }
+
+/* ---------- SVG das peças ---------- */
+async function texto(k) { if (S.txt.has(k)) return S.txt.get(k); let r; try { r = await arq(k); } catch (e) { if (!/\.(png|jpe?g)$/i.test(k)) throw e; r = await arq(k.replace(/\.(png|jpe?g)$/i, '.webp')); }
+  const eSvg = /\.svg$/i.test(k); let v; if (eSvg) v = { svg: await r.text() }; else { const b = await r.blob(); v = { uri: await new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); }) }; } S.txt.set(k, v); return v; }
+let nPeca = 0;
+function peca(v, img, cor) { // devolve o <svg> da peça, com ids e classes só dela (para não misturar com as outras)
+  const px = img.pivo?.x ?? img.w / 2, py = img.pivo?.y ?? img.h / 2, x = -px + (img.ajuste?.x || 0), y = -py + (img.ajuste?.y || 0);
+  if (v.uri) { const im = document.createElementNS(NS, 'image'); im.setAttribute('href', v.uri); for (const [a, b] of [['x', x], ['y', y], ['width', img.w], ['height', img.h]]) im.setAttribute(a, b); return im; }
+  let t = v.svg; if (cor && /^#[0-9a-f]{6}$/i.test(cor) && !/^#ffffff$/i.test(cor)) t = t.replace(/<mask[\s\S]*?<\/mask>|fill="(?:#fff(?:fff)?|white)"/gi, m => m[0] === '<' ? m : `fill="${cor}"`);
+  const pre = 'p' + (++nPeca) + '-', d = new DOMParser().parseFromString(t, 'image/svg+xml'), o = d.documentElement; if (o.nodeName !== 'svg') return document.createElementNS(NS, 'g');
+  o.querySelectorAll('script,foreignObject').forEach(n => n.remove());
+  o.querySelectorAll('*').forEach(n => { for (const a of [...n.attributes]) { if (/^on/i.test(a.name)) { n.removeAttribute(a.name); continue; } if (a.name === 'id') a.value = pre + a.value; else if (a.name === 'class') a.value = a.value.trim().split(/\s+/).map(c => pre + c).join(' '); else if (/^(xlink:)?href$/.test(a.name) && a.value[0] === '#') a.value = '#' + pre + a.value.slice(1); else if (a.value.includes('url(#')) a.value = a.value.replace(/url\(#/g, 'url(#' + pre); } if (n.nodeName === 'style') n.textContent = n.textContent.replace(/\.([A-Za-z_][\w-]*)/g, '.' + pre + '$1').replace(/#([A-Za-z_][\w-]*)\s*\{/g, '#' + pre + '$1{').replace(/url\(#/g, 'url(#' + pre); });
+  const s = document.importNode(o, true); s.setAttribute('x', x); s.setAttribute('y', y); s.setAttribute('width', img.w); s.setAttribute('height', img.h); if (!s.getAttribute('viewBox')) s.setAttribute('viewBox', `0 0 ${img.w} ${img.h}`); s.setAttribute('overflow', 'visible'); s.removeAttribute('id'); return s;
+}
+const estado = () => Modelo.partesNoEstado(S.dv, S.esc), mat = m => `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`;
+let vez = 0;
+async function desenha() {
+  const eu = ++vez, itens = Modelo.montar(S.dv, estado()).filter(i => i.img), falta = itens.filter(i => !S.txt.has(i.img.k));
+  if (falta.length) { let n = 0; msg(`Baixando as peças… 0 de ${falta.length}`); let erros = 0; await pool(falta, async i => { try { await texto(i.img.k); } catch { erros++; } msg(`Baixando as peças… ${++n} de ${falta.length}`); }); if (eu !== vez) return; msg(erros ? `${erros} peça(s) não vieram da nuvem agora.` : ''); if (erros) setTimeout(() => msg(''), 3500); }
+  const fr = document.createDocumentFragment();
+  for (const it of itens) { const v = S.txt.get(it.img.k); if (!v) continue; const g = document.createElementNS(NS, 'g'); g.setAttribute('data-p', it.parte.id); g.setAttribute('transform', mat(it.m)); g.append(peca(v, it.img, S.dv.corInterna)); fr.append(g); }
+  cont.textContent = ''; cont.append(fr); pintaSel();
+}
+const muda = () => { guarda(); desenha(); };
+const marca = () => { S.hist.push(JSON.stringify(S.esc)); if (S.hist.length > 60) S.hist.shift(); };
+const itemDe = pid => Modelo.montar(S.dv, estado()).find(x => x.parte.id === pid);
+const poe = (pid, o) => { S.esc.partes[pid] = { ...(S.esc.partes[pid] || {}), ...o }; };
+
+/* ---------- seleção ---------- */
+function seleciona(pid) { S.sel = pid; pintaSel(); }
+function pintaSel() {
+  document.querySelectorAll('#partes button').forEach(b => b.classList.toggle('on', b.dataset.p === S.sel));
+  const j = $id('junta'), p = S.dv?.partes.find(x => x.id === S.sel), ed = $id('edita'); ed.textContent = ''; if (!p) { j.style.display = 'none'; $id('sel').textContent = 'Clique numa peça do boneco.'; return; }
+  const e = estado()[p.id] || p.base, it = itemDe(p.id); $id('sel').textContent = p.nome || p.id; if (it) { j.style.display = ''; j.setAttribute('cx', it.mp.e); j.setAttribute('cy', it.mp.f); j.setAttribute('r', (S.vb ? S.vb.w : 800) / 160); j.setAttribute('stroke-width', (S.vb ? S.vb.w : 800) / 600); }
+  const camp = (nome, c, min, max, st, dec) => { const d = document.createElement('div'); d.className = 'camp'; const l = document.createElement('span'); l.textContent = nome; const r = document.createElement('input'); r.type = 'range'; r.min = min; r.max = max; r.step = st; r.value = e[c] ?? (c === 's' ? 1 : 0); const o = document.createElement('output'); o.textContent = (+r.value).toFixed(dec); r.onpointerdown = marca; r.oninput = () => { o.textContent = (+r.value).toFixed(dec); poe(p.id, { [c]: +r.value }); agenda(); }; r.onchange = guarda; d.append(l, r, o); ed.append(d); };
+  camp('Girar', 'r', -180, 180, 1, 0); camp('X', 'x', -400, 400, 1, 0); camp('Y', 'y', -400, 400, 1, 0); camp('Tamanho', 's', 0.2, 3, 0.01, 2);
+  if (p.imgs.length > 1) { const c = document.createElement('select'); for (const i of p.imgs) c.add(new Option(i.nome || i.id, i.id)); c.value = e.img || ''; c.style.marginTop = '6px'; c.onchange = () => { marca(); poe(p.id, { img: c.value }); muda(); }; ed.append(c); }
+  const lin = document.createElement('div'); lin.className = 'lado'; lin.style.marginTop = '6px'; const z = document.createElement('button'); z.className = 'b'; z.textContent = 'Zerar peça'; z.onclick = () => { marca(); delete S.esc.partes[p.id]; muda(); }; const oc = document.createElement('button'); oc.className = 'b'; oc.textContent = e.vis === false ? 'Mostrar' : 'Esconder'; oc.onclick = () => { marca(); poe(p.id, { vis: e.vis === false }); muda(); }; lin.append(z, oc); ed.append(lin);
+}
+let raf = 0; const agenda = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; desenhaRapido(); }); };
+function desenhaRapido() { const m = new Map(Modelo.montar(S.dv, estado()).map(i => [i.parte.id, i])); cont.querySelectorAll('g[data-p]').forEach(g => { const it = m.get(g.dataset.p); if (it) g.setAttribute('transform', mat(it.m)); }); const it = m.get(S.sel), j = $id('junta'); if (it) { j.setAttribute('cx', it.mp.e); j.setAttribute('cy', it.mp.f); } }
+
+/* ---------- tela ---------- */
+const aplicaVb = () => { const v = S.vb; palco.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`); };
+function enquadra() { const b = cont.getBBox(), r = palco.getBoundingClientRect(), m = Math.max(b.width, b.height) * .08 + 10; let w = b.width + m * 2, h = b.height + m * 2; if (w / h < r.width / r.height) w = h * r.width / r.height; else h = w * r.height / r.width; S.vb = { x: b.x + b.width / 2 - w / 2, y: b.y + b.height / 2 - h / 2, w, h }; aplicaVb(); pintaSel(); }
+const pt = e => { const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(palco.getScreenCTM().inverse()); return p; };
+palco.addEventListener('wheel', e => { if (!S.vb) return; e.preventDefault(); const k = e.deltaY > 0 ? 1.12 : 1 / 1.12, p = pt(e), v = S.vb; v.x = p.x - (p.x - v.x) * k; v.y = p.y - (p.y - v.y) * k; v.w *= k; v.h *= k; aplicaVb(); }, { passive: false });
+let arr = null;
+palco.addEventListener('pointerdown', e => { if (!S.dv) return; palco.setPointerCapture(e.pointerId); const g = e.target.closest?.('g[data-p]'), p0 = pt(e);
+  if (!g) { const r = palco.getBoundingClientRect(); arr = { tipo: 'tela', cx: e.clientX, cy: e.clientY, x: S.vb.x, y: S.vb.y, k: S.vb.w / r.width }; palco.style.cursor = 'grabbing'; return; }
+  const pid = g.dataset.p; seleciona(pid); marca(); const it = itemDe(pid), e0 = estado()[pid] || {}, mover = S.modo === 'mover' || e.shiftKey;
+  if (mover) { const pai = it.parte.pai ? itemDe(it.parte.pai)?.mp : null; arr = { tipo: 'mover', pid, p0, x: e0.x || 0, y: e0.y || 0, inv: pai ? pai.inverse() : new DOMMatrix() }; }
+  else { const c = { x: it.mp.e, y: it.mp.f }, det = it.mp.a * it.mp.d - it.mp.b * it.mp.c; arr = { tipo: 'girar', pid, c, a0: Math.atan2(p0.y - c.y, p0.x - c.x), r: e0.r || 0, sinal: det < 0 ? -1 : 1 }; } });
+palco.addEventListener('pointermove', e => { if (!arr) return;
+  if (arr.tipo === 'tela') { S.vb.x = arr.x - (e.clientX - arr.cx) * arr.k; S.vb.y = arr.y - (e.clientY - arr.cy) * arr.k; aplicaVb(); return; }
+  const p = pt(e);
+  if (arr.tipo === 'girar') { let d = (Math.atan2(p.y - arr.c.y, p.x - arr.c.x) - arr.a0) * 180 / Math.PI * arr.sinal; poe(arr.pid, { r: Math.round((arr.r + d) * 10) / 10 }); }
+  else { const v = arr.inv; const dx = p.x - arr.p0.x, dy = p.y - arr.p0.y; poe(arr.pid, { x: Math.round(arr.x + v.a * dx + v.c * dy), y: Math.round(arr.y + v.b * dx + v.d * dy) }); }
+  agenda(); });
+const solta = () => { if (!arr) return; const t = arr.tipo; arr = null; palco.style.cursor = ''; if (t !== 'tela') { guarda(); pintaSel(); } };
+palco.addEventListener('pointerup', solta); palco.addEventListener('pointercancel', solta);
+
+/* ---------- baixar ---------- */
+const nomeArq = () => (S.nome || 'personagem').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'personagem';
+function svgPronto() { const b = cont.getBBox(), m = 4, x = b.x - m, y = b.y - m, w = b.width + m * 2, h = b.height + m * 2, s = document.createElementNS(NS, 'svg'); s.setAttribute('xmlns', NS); s.setAttribute('viewBox', `${x} ${y} ${w} ${h}`); s.setAttribute('width', Math.ceil(w)); s.setAttribute('height', Math.ceil(h)); const c = cont.cloneNode(true); c.removeAttribute('id'); c.querySelectorAll('[data-p]').forEach(g => g.removeAttribute('data-p')); s.append(c); return { t: '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(s), w, h }; }
+const baixa = (blob, n) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = n; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+$id('bSvg').onclick = () => baixa(new Blob([svgPronto().t], { type: 'image/svg+xml' }), nomeArq() + '-pose.svg');
+$id('bPng').onclick = async () => { const { t, w, h } = svgPronto(), im = new Image(); im.src = URL.createObjectURL(new Blob([t], { type: 'image/svg+xml' })); await im.decode(); const k = Math.min(4096 / Math.max(w, h), 3), c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); c.toBlob(b => baixa(b, nomeArq() + '-pose.png'), 'image/png'); };
+
+/* ---------- botões ---------- */
+const modo = m => { S.modo = m; $id('mGirar').classList.toggle('on', m === 'girar'); $id('mMover').classList.toggle('on', m === 'mover'); };
+$id('mGirar').onclick = () => modo('girar'); $id('mMover').onclick = () => modo('mover'); $id('enq').onclick = () => S.dv && enquadra();
+const desfaz = () => { const h = S.hist.pop(); if (!h) return; S.esc = JSON.parse(h); pintaSessoes(); muda(); };
+$id('desf').onclick = desfaz; addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); desfaz(); } });
+$id('zerar').onclick = () => { if (!S.dv) return; marca(); S.esc = { sessoes: {}, partes: {} }; pintaSessoes(); muda(); };
+$id('vista').onchange = async e => { S.vista = e.target.value; S.sel = null; guarda(); await trocaVista(); enquadra(); };
+$id('busca').oninput = pintaLista; $id('escBk').onchange = pintaLista;
+addEventListener('resize', () => S.dv && enquadra());
+carregaLista().catch(e => msg('Não consegui listar os personagens: ' + e.message));
+</script>
+</body>
+</html>
