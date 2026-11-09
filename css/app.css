@@ -1898,3 +1898,26 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
   .hm-g{width:100%;padding:6px 0 2px}.hm-esp{display:none}.hm-main{padding:16px}.hm-busca{width:100%}
 }
 a.btn,a.btn:hover,a.btn:visited,a.btn:focus,a.ibtn,a.ibtn:hover,a.ibtn:visited{text-decoration:none} /* link com cara de botão: sem sublinhado */
+/* EXPORTAR em Metro (pedido da dona, 09/11/2026): painel lateral igual aos da nuvem e do computador */
+.modal-back.exp-metro{display:block;padding:0;background:rgba(5,20,45,.35);--bg0:rgba(0,0,0,.28);--bg1:rgba(255,255,255,.08);--bd:rgba(255,255,255,.18);--tx:#fff;--tx2:rgba(255,255,255,.75);--tx3:rgba(255,255,255,.55)}
+.exp-metro .modal{position:absolute;top:0;right:0;bottom:0;width:min(560px,100%)!important;max-width:100%;max-height:none;height:100%;box-sizing:border-box;background:rgba(14,32,58,.96);-webkit-backdrop-filter:blur(26px) saturate(1.3);backdrop-filter:blur(26px) saturate(1.3);border:0;border-radius:0;box-shadow:0 30px 80px rgba(0,20,50,.5);color:#fff;font-family:"Segoe UI",system-ui,sans-serif;animation:expEntra .45s cubic-bezier(.1,.9,.2,1) both}
+@keyframes expEntra{from{transform:translateX(100%)}}@keyframes expSaiDir{to{transform:translateX(100%)}}@keyframes expSome{to{opacity:0}}
+.modal-back.exp-metro.out{opacity:1;transition:none;animation:expSome .2s ease both}.exp-metro.out .modal{animation:expSaiDir .2s cubic-bezier(.4,0,1,1) both,expSome .2s ease both}
+.exp-metro .modal-head{padding:22px 22px 12px}.exp-metro .modal-head h3{font:300 26px/1.2 "Segoe UI Light","Segoe UI",system-ui,sans-serif}
+.exp-metro .modal-icon{width:auto;height:auto;background:none;border-radius:0}.exp-metro [data-x]{display:none}
+.exp-metro .modal-body{flex:1;min-height:0;padding:4px 22px 16px}.exp-metro .modal-foot{padding:14px 22px 18px;border-top:1px solid rgba(255,255,255,.14)}
+.exp-metro .exp{gap:16px}.exp-metro .exp-l{font-size:12px;font-weight:400;letter-spacing:.8px;color:rgba(255,255,255,.6)}
+.exp-metro input[type=text],.exp-metro input[type=number],.exp-metro select{box-sizing:border-box;height:36px;border:1px solid rgba(255,255,255,.22);border-radius:0;background:rgba(0,0,0,.28);color:#fff;font-size:13.5px;padding:0 9px}.exp-metro select option{background:#0e203a;color:#fff}
+.exp-metro input:focus,.exp-metro select:focus{outline:2px solid #fff;outline-offset:-2px}.exp-metro input[type=checkbox]{accent-color:#1f6fd6}
+.exp-metro .exp-nome{border-radius:0;border:1px solid rgba(255,255,255,.22)}.exp-metro .exp-nome input{border:0;background:none}.exp-metro .exp-nome input:focus{outline:0}
+.exp-metro .exp-tipos{gap:6px}.exp-metro .exp-tipo{justify-items:start;align-content:space-between;min-height:104px;padding:12px;border:0;border-radius:0;background:rgba(255,255,255,.08);color:#fff;text-align:left;transition:transform .12s ease}
+.exp-metro .exp-tipo svg{width:24px;height:24px}.exp-metro .exp-tipo b{color:#fff;font-size:13px;font-weight:600}.exp-metro .exp-tipo small{color:rgba(255,255,255,.75);font-size:11px}
+.exp-metro .exp-tipo:hover,.exp-metro .exp-tipo:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:-2px;border-color:transparent}.exp-metro .exp-tipo:active{transform:scale(.97)}
+.exp-metro .exp-tipo.on[data-tipo=mp4]{background:#1f6fd6}.exp-metro .exp-tipo.on[data-tipo=png]{background:#00857f}.exp-metro .exp-tipo.on[data-tipo=wav]{background:#603cba}.exp-metro .exp-tipo.on[data-tipo=animador]{background:#b05a00}.exp-metro .exp-tipo.on{color:#fff}
+.exp-metro .exp-grade{grid-template-columns:1.3fr 1fr .8fr;gap:8px}
+.exp-metro .exp-seg{border:0;border-radius:0;gap:6px}.exp-metro .exp-seg button{height:36px;padding:0 6px;border:0!important;background:rgba(255,255,255,.08);color:#fff;font-weight:400}.exp-metro .exp-seg button:hover:not(:disabled){outline:2px solid rgba(255,255,255,.85);outline-offset:-2px}.exp-metro .exp-seg button.on{background:#1f6fd6;color:#fff}
+.exp-metro .exp-quadros input{border-radius:0}
+.exp-metro .exp-resumo,.exp-metro .rv-banner,.exp-metro .exp-fim{border:0;border-radius:0}.exp-metro .rv-banner.rv-aviso{background:rgba(240,178,50,.18)}.exp-metro .rv-banner.rv-erro{background:rgba(255,77,94,.2)}.exp-metro .exp-fim{background:#1e7145;color:#fff}.exp-metro .exp-fim small{color:rgba(255,255,255,.8)}
+.exp-metro .exp-barra{height:6px;border-radius:0;background:rgba(255,255,255,.18)}.exp-metro .exp-barra i{background:#fff}
+.exp-metro .btn{border-radius:0;height:36px;border:1px solid rgba(255,255,255,.75);background:rgba(0,0,0,.25);color:#fff}.exp-metro .btn.sm{height:30px}.exp-metro .btn:hover{background:rgba(255,255,255,.14)}.exp-metro .btn.primary{background:#fff;border-color:#fff;color:#0e203a;font-weight:600}.exp-metro .btn.primary:hover{background:#dbe7f7}.exp-metro .btn.danger{background:#b91d47;border-color:#b91d47;color:#fff}
+@media (max-width:560px){.exp-metro .exp-grade{grid-template-columns:1fr}}

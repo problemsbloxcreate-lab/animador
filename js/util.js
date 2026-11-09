@@ -205,7 +205,7 @@ const UI = {
       const close = v => {
         if (done) return; done = true;
         document.removeEventListener('keydown', onKey, true);
-        back.classList.add('out'); setTimeout(() => back.remove(), 150);
+        back.classList.add('out'); setTimeout(() => back.remove(), o.saiMs || 150);
         resolve(v);
       };
       const api = { el: back, body, close, foot };
