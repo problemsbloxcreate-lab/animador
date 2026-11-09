@@ -59,8 +59,7 @@ const Exportar = {
     Revisor.conta(P).then(r => { const el = $b('[data-rv]'); if (!el || !(r.erro + r.aviso + r.dica)) return; el.hidden = false; el.className = 'rv-banner ' + (r.erro ? 'rv-erro' : r.aviso ? 'rv-aviso' : 'rv-dica');
       el.innerHTML = `${ic(r.erro + r.aviso ? 'alert' : 'info', 15)}<span>O revisor achou ${[r.erro && `${r.erro} erro${r.erro > 1 ? 's' : ''}`, r.aviso && `${r.aviso} aviso${r.aviso > 1 ? 's' : ''}`, r.dica && `${r.dica} dica${r.dica > 1 ? 's' : ''}`].filter(Boolean).join(', ')} antes de exportar.</span><button class="btn sm">Revisar</button>`;
       $('button', el).onclick = () => Revisor.abrir(); }).catch(() => { });
-    let api = null; const o = { title: 'Exportar', icon: 'download', width: 560, sticky: true, saiMs: 200, noFocus: true, body, onOpen: a => { api = a; a.el.classList.add('exp-metro'); botao(); }, buttons: [
-      { label: 'Fechar', value: null },
+    let api = null; const o = { title: 'Exportar', icon: 'download', width: 560, saiMs: 200, noFocus: true, body, onOpen: a => { api = a; a.el.classList.add('exp-metro'); const x = $('[data-x]', a.el); x.className = 'btn'; x.textContent = 'Fechar'; botao(); }, buttons: [
       { label: 'Exportar', kind: 'primary', onClick: () => this.rodar(P, cfg, body, api, o) }] };
     const botao = () => { const b = api?.foot.querySelector('.btn.primary'); if (b) b.innerHTML = `${ic('download', 14)} ${{ mp4: 'Exportar o vídeo', png: 'Salvar a imagem', wav: 'Exportar o som', animador: 'Baixar o .animador' }[cfg.tipo]}`; };
     pinta(); await UI.modal(o); this._cancela = null;

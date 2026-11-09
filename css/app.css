@@ -1904,7 +1904,7 @@ a.btn,a.btn:hover,a.btn:visited,a.btn:focus,a.ibtn,a.ibtn:hover,a.ibtn:visited{t
 @keyframes expEntra{from{transform:translateX(100%)}}@keyframes expSaiDir{to{transform:translateX(100%)}}@keyframes expSome{to{opacity:0}}
 .modal-back.exp-metro.out{opacity:1;transition:none;animation:expSome .2s ease both}.exp-metro.out .modal{animation:expSaiDir .2s cubic-bezier(.4,0,1,1) both,expSome .2s ease both}
 .exp-metro .modal-head{padding:22px 22px 12px}.exp-metro .modal-head h3{font:300 26px/1.2 "Segoe UI Light","Segoe UI",system-ui,sans-serif}
-.exp-metro .modal-icon{width:auto;height:auto;background:none;border-radius:0}.exp-metro [data-x]{display:none}
+.exp-metro .modal-icon{width:auto;height:auto;background:none;border-radius:0}
 .exp-metro .modal-body{flex:1;min-height:0;padding:4px 22px 16px}.exp-metro .modal-foot{padding:14px 22px 18px;border-top:1px solid rgba(255,255,255,.14)}
 .exp-metro .exp{gap:16px}.exp-metro .exp-l{font-size:12px;font-weight:400;letter-spacing:.8px;color:rgba(255,255,255,.6)}
 .exp-metro input[type=text],.exp-metro input[type=number],.exp-metro select{box-sizing:border-box;height:36px;border:1px solid rgba(255,255,255,.22);border-radius:0;background:rgba(0,0,0,.28);color:#fff;font-size:13.5px;padding:0 9px}.exp-metro select option{background:#0e203a;color:#fff}
@@ -1919,5 +1919,5 @@ a.btn,a.btn:hover,a.btn:visited,a.btn:focus,a.ibtn,a.ibtn:hover,a.ibtn:visited{t
 .exp-metro .exp-quadros input{border-radius:0}
 .exp-metro .exp-resumo,.exp-metro .rv-banner,.exp-metro .exp-fim{border:0;border-radius:0}.exp-metro .rv-banner.rv-aviso{background:rgba(240,178,50,.18)}.exp-metro .rv-banner.rv-erro{background:rgba(255,77,94,.2)}.exp-metro .exp-fim{background:#1e7145;color:#fff}.exp-metro .exp-fim small{color:rgba(255,255,255,.8)}
 .exp-metro .exp-barra{height:6px;border-radius:0;background:rgba(255,255,255,.18)}.exp-metro .exp-barra i{background:#fff}
-.exp-metro .btn{border-radius:0;height:36px;border:1px solid rgba(255,255,255,.75);background:rgba(0,0,0,.25);color:#fff}.exp-metro .btn.sm{height:30px}.exp-metro .btn:hover{background:rgba(255,255,255,.14)}.exp-metro .btn.primary{background:#fff;border-color:#fff;color:#0e203a;font-weight:600}.exp-metro .btn.primary:hover{background:#dbe7f7}.exp-metro .btn.danger{background:#b91d47;border-color:#b91d47;color:#fff}
+.exp-metro .btn{border-radius:0;height:36px;border:1px solid rgba(255,255,255,.75);background:rgba(0,0,0,.25);color:#fff}.exp-metro .btn.sm,.exp-metro .modal-head .btn{height:30px}.exp-metro .modal-head .btn{padding:0 10px;font-size:12.5px}.exp-metro .btn:hover{background:rgba(255,255,255,.14)}.exp-metro .btn.primary{background:#fff;border-color:#fff;color:#0e203a;font-weight:600}.exp-metro .btn.primary:hover{background:#dbe7f7}.exp-metro .btn.danger{background:#b91d47;border-color:#b91d47;color:#fff}
 @media (max-width:560px){.exp-metro .exp-grade{grid-template-columns:1fr}}
