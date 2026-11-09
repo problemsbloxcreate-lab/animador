@@ -28,6 +28,9 @@ const App = {
     const ids = [...new Set([...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq), ...Object.values(P.personagens || {}).flatMap(d => Modelo.chavesImgs(d))].filter(Boolean))];
     if (ids.length) { NuvemTela.passo(.92, `Preparando as imagens da cena… 0 de ${ids.length}`);
       await Promise.race([Arq.garantir(ids, (n, t) => NuvemTela.passo(.92 + .07 * n / t, `Preparando as imagens da cena… ${n} de ${t}`)), new Promise(r => setTimeout(r, 40000))]); }
+    // SOM TAMBÉM (pedido da dona, 09/11/2026): a tela só sai com os áudios abertos, para não abrir mudo nem com a onda aparecendo depois. Máximo de 20 s: arquivo com defeito não prende ninguém (o play avisa e o som entra quando chegar)
+    const tot = new Set((P.audios || []).map(a => a.arq)).size, fimS = Date.now() + 20000;
+    while (tot && this.P === P) { const f = Som.faltam(P); try { NuvemTela.passo(.99, `Preparando os sons… ${tot - f.length} de ${tot}`); } catch { } if (!f.length || Date.now() > fimS) break; await Promise.race([Promise.all(f.map(k => Som.decod(k))), new Promise(r => setTimeout(r, Math.max(0, fimS - Date.now())))]); if (Som.faltam(P).length) await new Promise(r => setTimeout(r, 300)); }
     try { this.pinta(); Folha.pinta(); } catch { }
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); // um desenho completo antes de mostrar
   },
