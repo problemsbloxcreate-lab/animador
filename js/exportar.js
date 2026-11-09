@@ -14,19 +14,19 @@ const Exportar = {
   mbpsTxt(b) { return (Math.round(b / 1e5) / 10).toString().replace('.', ','); },
   async abrir() {
     const P = App.P, cfg = { nomeProj: true, nome: P.nome, tipo: 'mp4', q: 1, trecho: Folha.trecho ? 'marcado' : 'tudo', de: 0, ate: P.duracao - 1, som: true, leg: true, ...(P.exportar || {}), qual: 'max', mbps: null };
-    if (cfg.nomeProj) cfg.nome = P.nome; const temSom = (P.audios || []).length > 0, temLeg = (P.legendas || []).length > 0;
-    const TIPOS = [['mp4', 'film', 'Vídeo MP4', 'com imagem e som'], ['png', 'image', 'Imagem', 'só o quadro de agora (PNG)'], ['wav', 'music', 'Só o som', 'a mistura em WAV'], ['animador', 'file', 'Arquivo .animador', 'para abrir aqui de novo']];
+    if (cfg.nomeProj) cfg.nome = P.nome; const temSom = (P.audios || []).length > 0, temLeg = (P.legendas || []).length > 0; if (cfg.tipo === 'srt' && !temLeg) cfg.tipo = 'mp4';
+    const TIPOS = [['mp4', 'film', 'Vídeo MP4', 'com imagem e som'], ['png', 'image', 'Imagem', 'só o quadro de agora (PNG)'], ['wav', 'music', 'Só o som', 'a mistura em WAV'], ['animador', 'file', 'Arquivo .animador', 'para abrir aqui de novo'], ['srt', 'text', 'Legendas', temLeg ? 'arquivo .srt para o YouTube' : 'este projeto não tem legendas']];
     const body = h(`<div class="exp">
       <div class="rv-banner" data-rv hidden></div>
       <div class="exp-sec"><label class="exp-l">Nome do arquivo</label>
         <div class="exp-nome"><input type="text" data-nome maxlength="80" value="${esc(cfg.nome)}"><span class="exp-ext" data-ext>.mp4</span></div>
         <label class="chk"><input type="checkbox" data-np ${cfg.nomeProj ? 'checked' : ''}> Usar o nome do projeto</label></div>
-      <div class="exp-sec"><label class="exp-l">O que exportar</label><div class="exp-tipos">${TIPOS.map(([id, icn, nm, d]) => `<button class="exp-tipo" data-tipo="${id}">${ic(icn, 18)}<b>${nm}</b><small>${d}</small></button>`).join('')}</div></div>
+      <div class="exp-sec"><label class="exp-l">O que exportar</label><div class="exp-tipos">${TIPOS.map(([id, icn, nm, d]) => `<button class="exp-tipo" data-tipo="${id}" ${id === 'srt' && !temLeg ? 'disabled' : ''}>${ic(icn, 18)}<b>${nm}</b><small>${d}</small></button>`).join('')}</div></div>
       <div class="exp-sec" data-so="mp4"><div class="exp-grade">
         <label class="exp-c"><span class="exp-l">Tamanho</span><select data-q>${[[1, 'Original'], [.75, '75%'], [.5, 'Metade (mais rápido)'], [.25, 'Um quarto (rascunho)']].map(([v, n]) => `<option value="${v}" ${+cfg.q === v ? 'selected' : ''}>${n} · ${Math.round(P.w * v / 2) * 2}×${Math.round(P.h * v / 2) * 2}</option>`).join('')}</select></label>
         <label class="exp-c"><span class="exp-l">Qualidade</span><select data-qual>${Object.entries(this.QUAL).map(([id, x]) => `<option value="${id}" ${cfg.qual === id ? 'selected' : ''}>${x.nome}</option>`).join('')}<option value="custom">Personalizada</option></select></label>
         <label class="exp-c"><span class="exp-l">Bitrate (Mbps)</span><input type="number" data-mbps min="${this.MBPS[0]}" max="${this.MBPS[1]}" step="0.5" title="Quanto maior, melhor a imagem e maior o arquivo"></label></div></div>
-      <div class="exp-sec" data-so="mp4 wav"><label class="exp-l">Trecho</label>
+      <div class="exp-sec" data-so="mp4 wav srt"><label class="exp-l">Trecho</label>
         <div class="exp-seg"><button data-tr="tudo">Tudo</button><button data-tr="marcado" ${Folha.trecho ? '' : 'disabled title="Marque um trecho na régua da timeline (Shift + arrastar)"'}>Marcado na régua</button><button data-tr="quadros">Escolher os quadros</button></div>
         <div class="exp-quadros" data-qd><span>do quadro</span><input type="number" data-de min="1" max="${P.duracao}"><span>até</span><input type="number" data-ate min="1" max="${P.duracao}"></div></div>
       <div class="exp-sec exp-ops" data-so="mp4"><label class="chk"><input type="checkbox" data-som ${cfg.som && temSom ? 'checked' : ''} ${temSom ? '' : 'disabled'}> Com som${temSom ? '' : ' (não tem áudio)'}</label><label class="chk"><input type="checkbox" data-leg ${cfg.leg ? 'checked' : ''} ${temLeg ? '' : 'disabled'}> Com legendas${temLeg ? '' : ' (não tem)'}</label></div>
@@ -37,14 +37,14 @@ const Exportar = {
     const pinta = () => {
       $$('[data-tipo]', body).forEach(b => b.classList.toggle('on', b.dataset.tipo === cfg.tipo)); $$('[data-tr]', body).forEach(b => b.classList.toggle('on', b.dataset.tr === cfg.trecho));
       $$('[data-so]', body).forEach(s => s.hidden = !s.dataset.so.split(' ').includes(cfg.tipo)); $b('[data-qd]').hidden = cfg.trecho !== 'quadros';
-      $b('[data-ext]').textContent = { mp4: '.mp4', png: `.png`, wav: '.wav', animador: '.animador' }[cfg.tipo]; nm.disabled = cfg.nomeProj; if (cfg.nomeProj) nm.value = P.nome;
+      $b('[data-ext]').textContent = { mp4: '.mp4', png: `.png`, wav: '.wav', animador: '.animador', srt: '.srt' }[cfg.tipo]; nm.disabled = cfg.nomeProj; if (cfg.nomeProj) nm.value = P.nome;
       const L = lim(), seg = L.n / P.fps, W = Math.round(P.w * cfg.q / 2) * 2, H = Math.round(P.h * cfg.q / 2) * 2;
       $b('[data-de]').value = L.de + 1; $b('[data-ate]').value = L.ate + 1;
       const bps = this.bps(cfg, W, H, P.fps); $b('[data-qual]').value = cfg.qual; if (document.activeElement !== $b('[data-mbps]') || cfg.qual !== 'custom') $b('[data-mbps]').value = Math.round(bps / 1e5) / 10;
       const mb = cfg.tipo === 'mp4' ? (bps * seg / 8 + (cfg.som && temSom ? 192000 / 8 * seg : 0)) / 1048576 : cfg.tipo === 'wav' ? seg * 48000 * 4 / 1048576 : 0;
       $b('[data-res]').innerHTML = cfg.tipo === 'png' ? `${ic('image', 14)} Quadro ${App.q + 1} (${this.tc(App.q / P.fps)}) · ${P.w}×${P.h}`
         : cfg.tipo === 'animador' ? `${ic('file', 14)} O projeto inteiro com personagens, imagens e sons, para abrir no Animador`
-        : `${ic('clock', 14)} <b>${this.dur(seg)}</b> <span>(${this.tc(L.de / P.fps)} → ${this.tc((L.ate + 1) / P.fps)} · ${L.n} quadros a ${P.fps} fps)</span>${cfg.tipo === 'mp4' ? ` · ${W}×${H} · ${this.mbpsTxt(bps)} Mbps` : ''}${mb ? ` · cerca de ${mb < 10 ? mb.toFixed(1).replace('.', ',') : Math.round(mb)} MB` : ''}`;
+        : `${ic('clock', 14)} <b>${this.dur(seg)}</b> <span>(${this.tc(L.de / P.fps)} → ${this.tc((L.ate + 1) / P.fps)} · ${L.n} quadros a ${P.fps} fps)</span>${cfg.tipo === 'mp4' ? ` · ${W}×${H} · ${this.mbpsTxt(bps)} Mbps` : cfg.tipo === 'srt' ? ` · ${this.srt(P, L.de, L.ate).n} legendas` : ''}${mb ? ` · cerca de ${mb < 10 ? mb.toFixed(1).replace('.', ',') : Math.round(mb)} MB` : ''}`;
       P.exportar = { ...cfg, nome: cfg.nomeProj ? undefined : cfg.nome };
     };
     nm.oninput = () => { cfg.nome = nm.value; }; $b('[data-np]').onchange = e => { cfg.nomeProj = e.target.checked; if (!cfg.nomeProj) cfg.nome = nm.value || P.nome; pinta(); if (!cfg.nomeProj) nm.focus(); };
@@ -61,16 +61,21 @@ const Exportar = {
       $('button', el).onclick = () => Revisor.abrir(); }).catch(() => { });
     let api = null; const o = { title: 'Exportar', icon: 'download', width: 560, saiMs: 200, noFocus: true, body, onOpen: a => { api = a; a.el.classList.add('exp-metro'); const x = $('[data-x]', a.el); x.className = 'btn'; x.textContent = 'Fechar'; botao(); }, buttons: [
       { label: 'Exportar', kind: 'primary', onClick: () => this.rodar(P, cfg, body, api, o) }] };
-    const botao = () => { const b = api?.foot.querySelector('.btn.primary'); if (b) b.innerHTML = `${ic('download', 14)} ${{ mp4: 'Exportar o vídeo', png: 'Salvar a imagem', wav: 'Exportar o som', animador: 'Baixar o .animador' }[cfg.tipo]}`; };
+    const botao = () => { const b = api?.foot.querySelector('.btn.primary'); if (b) b.innerHTML = `${ic('download', 14)} ${{ mp4: 'Exportar o vídeo', png: 'Salvar a imagem', wav: 'Exportar o som', animador: 'Baixar o .animador', srt: 'Baixar as legendas' }[cfg.tipo]}`; };
     pinta(); await UI.modal(o); this._cancela = null;
   },
   // carrega o módulo comum do Estúdio só quando a pessoa clica (o porteiro troca o ID do cliente do Google dentro dele)
   youtube() { return window.EstudioYouTube ? Promise.resolve() : (this._yt ||= new Promise((ok, ruim) => { const s = document.createElement('script'); s.src = '/estudio-youtube.js'; s.onload = ok; s.onerror = () => { this._yt = null; ruim(new Error('não consegui carregar o /estudio-youtube.js')); }; document.head.appendChild(s); })); },
+  // LEGENDAS PARA O YOUTUBE (pedido da dona, 09/11/2026): .srt em UTF-8, com o tempo contado do começo do trecho; os asteriscos de destaque saem
+  srt(P, de, ate) { const fps = P.fps, NL = String.fromCharCode(10), tc = s => { const t = Math.round(s * 1000), p = (n, l = 2) => String(n).padStart(l, '0'); return `${p(Math.floor(t / 3600000))}:${p(Math.floor(t / 60000) % 60)}:${p(Math.floor(t / 1000) % 60)},${p(t % 1000, 3)}`; };
+    const L = (P.legendas || []).filter(g => g.ate >= de && g.de <= ate).sort((a, b) => a.de - b.de).map(g => ({ a: Math.max(g.de, de) - de, z: Math.min(g.ate, ate) + 1 - de, t: String(g.texto || '').replace(/[*]/g, '').split(NL).map(x => x.trim()).filter(Boolean).join(NL) })).filter(x => x.t && x.z > x.a);
+    return { n: L.length, txt: L.map((x, i) => [i + 1, `${tc(x.a / fps)} --> ${tc(x.z / fps)}`, x.t, ''].join(NL)).join(NL) }; },
   limites(P, cfg) { const ult = P.duracao - 1; if (cfg.trecho === 'marcado' && Folha.trecho) return [Folha.trecho.de, Math.min(ult, Folha.trecho.ate)]; if (cfg.trecho === 'quadros') return [clamp(cfg.de, 0, ult), clamp(cfg.ate, cfg.de, ult)]; return [0, ult]; },
   nomeArq(P, cfg, ext) { return safeName((cfg.nomeProj ? P.nome : (cfg.nome || '').trim()) || P.nome || 'Animação') + ext; },
   // exporta travando a janela (não fecha até acabar; Cancelar para no meio)
   async rodar(P, cfg, body, api, o) {
-    const ext = { mp4: '.mp4', png: '.png', wav: '.wav', animador: '.animador' }[cfg.tipo], nome = this.nomeArq(P, cfg, ext);
+    const ext = { mp4: '.mp4', png: '.png', wav: '.wav', animador: '.animador', srt: '.srt' }[cfg.tipo], nome = this.nomeArq(P, cfg, ext);
+    if (cfg.tipo === 'srt') { const [a, z] = this.limites(P, cfg), r = this.srt(P, a, z); if (!r.n) { UI.toast('Não há legendas neste trecho.', { kind: 'err' }); return false; } downloadBlob(new Blob([r.txt], { type: 'application/x-subrip;charset=utf-8' }), nome); UI.toast(`<b>${esc(nome)}</b> baixado. No YouTube: Legendas › Adicionar › Enviar arquivo.`, { kind: 'ok' }); return true; }
     if (cfg.tipo === 'png') { await this.png(nome); return true; }
     if (cfg.tipo === 'animador') { const b = await Toon.montar(P); downloadBlob(b, nome); UI.toast(`<b>${esc(nome)}</b> baixado.`, { kind: 'ok' }); return true; }
     const [de, ate] = this.limites(P, cfg), foot = api.foot, prog = $('.exp-prog', body), t0 = performance.now(); let cancelou = false;
