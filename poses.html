@@ -149,7 +149,7 @@ palco.addEventListener('pointerdown', e => { if (!S.dv) return; palco.setPointer
 palco.addEventListener('pointermove', e => { if (!arr) return;
   if (arr.tipo === 'tela') { S.vb.x = arr.x - (e.clientX - arr.cx) * arr.k; S.vb.y = arr.y - (e.clientY - arr.cy) * arr.k; aplicaVb(); return; }
   const p = pt(e);
-  if (arr.tipo === 'girar') { let d = (Math.atan2(p.y - arr.c.y, p.x - arr.c.x) - arr.a0) * 180 / Math.PI * arr.sinal; poe(arr.pid, { r: Math.round((arr.r + d) * 10) / 10 }); }
+  if (arr.tipo === 'girar') { let d = (Math.atan2(p.y - arr.c.y, p.x - arr.c.x) - arr.a0) * 180 / Math.PI * arr.sinal; const ang = ((arr.r + d + 180) % 360 + 360) % 360 - 180; poe(arr.pid, { r: Math.round(ang * 10) / 10 }); }
   else { const v = arr.inv; const dx = p.x - arr.p0.x, dy = p.y - arr.p0.y; poe(arr.pid, { x: Math.round(arr.x + v.a * dx + v.c * dy), y: Math.round(arr.y + v.b * dx + v.d * dy) }); }
   agenda(); });
 const solta = () => { if (!arr) return; const t = arr.tipo; arr = null; palco.style.cursor = ''; if (t !== 'tela') { guarda(); pintaSel(); } };
