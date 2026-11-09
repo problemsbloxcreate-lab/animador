@@ -63,7 +63,7 @@ const palco = $id('palco'), cont = $id('conteudo'), msg = t => { const m = $id('
 const S = { lista: [], id: null, nome: '', def: null, dv: null, vista: null, esc: { sessoes: {}, partes: {} }, sel: null, modo: 'girar', hist: [], vb: null, txt: new Map() };
 const guardadas = () => { try { return JSON.parse(localStorage.getItem('animador-poses-v1') || '{}'); } catch { return {}; } };
 const guarda = () => { if (!S.id) return; const g = guardadas(); g[S.id] = { vista: S.vista, esc: S.esc }; try { localStorage.setItem('animador-poses-v1', JSON.stringify(g)); } catch { } pintaLista(); };
-async function pede(c) { const t = await window.EstudioLogin?.token?.(); const r = await fetch(SRV + c, { headers: t ? { authorization: t } : {} }); if (!r.ok) throw new Error('A nuvem respondeu ' + r.status + ' (' + c.slice(0, 60) + ')'); return r; }
+async function pede(c) { await window.EstudioLogin?.pronto; const t = await window.EstudioLogin?.token?.(); const r = await fetch(SRV + c, { headers: t ? { authorization: t } : {} }); if (!r.ok) throw new Error('A nuvem respondeu ' + r.status + ' (' + c.slice(0, 60) + ')'); return r; }
 const arq = k => pede('/personagens/arquivo?k=' + encodeURIComponent(k));
 const pool = async (L, fn, n = 6) => { let i = 0; await Promise.all(Array.from({ length: n }, async () => { while (i < L.length) await fn(L[i++]); })); };
 
