@@ -6,7 +6,8 @@ const Exportar = {
      Enquanto exporta a janela NÃO fecha (Esc, clique fora e o X ficam travados; dá para cancelar) e mostra quadro X de N, tempo passado e o que falta. ---------- */
   tc(seg) { seg = Math.max(0, seg); const m = Math.floor(seg / 60), s = Math.floor(seg % 60), cs = Math.floor((seg % 1) * 10); return `${m}:${String(s).padStart(2, '0')}${cs ? ',' + cs : ''}`; },
   dur(seg) { seg = Math.round(seg); if (seg < 60) return `${seg} s`; const m = Math.floor(seg / 60), s = seg % 60; return m < 60 ? `${m} min${s ? ` ${s} s` : ''}` : `${Math.floor(m / 60)} h ${m % 60} min`; },
-  QUAL: { normal: { nome: 'Normal', k: .08 }, alta: { nome: 'Alta', k: .12 }, max: { nome: 'Máxima', k: .2 } },
+  // k = bits por pixel de cada quadro. Em 1080p a 24 fps: Normal ~8 Mbps (o que o YouTube recomenda), Alta ~12, Máxima ~20 (09/11/2026: antes eram 4, 6 e 10)
+  QUAL: { normal: { nome: 'Normal', k: .16 }, alta: { nome: 'Alta', k: .24 }, max: { nome: 'Máxima', k: .4 } },
   async abrir() {
     const P = App.P, cfg = { nomeProj: true, nome: P.nome, tipo: 'mp4', q: 1, qual: 'alta', trecho: Folha.trecho ? 'marcado' : 'tudo', de: 0, ate: P.duracao - 1, som: true, leg: true, ...(P.exportar || {}) };
     if (cfg.nomeProj) cfg.nome = P.nome; const temSom = (P.audios || []).length > 0, temLeg = (P.legendas || []).length > 0;
@@ -102,7 +103,8 @@ const Exportar = {
   folga() { return new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); }); },
   async h264(w, h, fps, k = .12) {
     if (!window.VideoEncoder) return null; const px = w * h, lv = px <= 414720 ? ['1E', '1F', '28'] : px <= 921600 ? ['1F', '28', '2A'] : px <= 2228224 ? ['28', '2A', '32'] : ['33', '34'];
-    for (const hw of ['prefer-hardware', 'no-preference', 'prefer-software']) for (const L of lv) for (const pf of ['6400', '4D00', '42E0']) {
+    // PROCESSADOR PRIMEIRO (09/11/2026): a placa de vídeo dava ao quadro principal o mesmo espaço de um quadro comum (29 KB contra 86 KB no teste, com o mesmo bitrate) e a imagem borrava de 2 em 2 s
+    for (const hw of ['prefer-software', 'no-preference', 'prefer-hardware']) for (const L of lv) for (const pf of ['6400', '4D00', '42E0']) {
       const cfg = { codec: 'avc1.' + pf + L, width: w, height: h, bitrate: Math.round(px * fps * k), framerate: fps, hardwareAcceleration: hw, avc: { format: 'avc' } };
       try { if ((await VideoEncoder.isConfigSupported(cfg)).supported) return cfg; } catch { } }
     return null;
@@ -126,7 +128,7 @@ const Exportar = {
         const ad = new AudioData({ format: 'f32-planar', sampleRate: acfg.sampleRate, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((o - ini) / acfg.sampleRate * 1e6), data: dt }); ae.encode(ad); ad.close(); if (ae.encodeQueueSize > 20) await this.folga(); }
       await ae.flush(); ae.close(); if (erro) throw erro;
     }
-    const cv = new OffscreenCanvas(W, H), ctx = cv.getContext('2d'), n = ate - de + 1, gop = fps * 2;
+    const cv = new OffscreenCanvas(W, H), ctx = cv.getContext('2d'), n = ate - de + 1, gop = fps * 4; // um quadro principal a cada 4 s
     const ve = new VideoEncoder({ output: (ch, meta) => { if (meta?.decoderConfig?.description) mux.setVideoConfig(bytes(meta.decoderConfig.description)); const d = new Uint8Array(ch.byteLength); ch.copyTo(d); mux.addVideo(d, ch.type === 'key'); }, error: e => erro = e });
     ve.configure(vcfg);
     for (let i = 0; i < n; i++) {
