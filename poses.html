@@ -83,7 +83,7 @@ function pintaLista() {
 /* ---------- abrir ---------- */
 async function abre(p) {
   msg('Abrindo ' + p.nome + '…'); S.id = p.id; S.nome = p.nome; S.sel = null; S.hist = []; pintaLista();
-  try { const def = await (await arq(`personagens/${p.id}/personagem.json`)).json(); Modelo.garanteVistas(def); S.def = def;
+  try { let def; try { def = await (await arq(`personagens/${p.id}/personagem.json`)).json(); } catch (e) { def = await DB.get('personagens', p.id).catch(() => null); if (!def) throw e; } /* a nuvem não deu: usa o que o Animador já guardou neste navegador */ Modelo.garanteVistas(def); S.def = def;
     const g = guardadas()[p.id]; S.esc = g?.esc || { sessoes: {}, partes: {} }; S.vista = g?.vista && def.vistas.some(v => v.id === g.vista) ? g.vista : (def.vistas[0]?.id || def.vistaAtual);
     S.nome = def.nome || p.nome; pintaVistas(); await trocaVista(); enquadra(); msg(''); $id('bSvg').disabled = $id('bPng').disabled = false; }
   catch (e) { msg('Não consegui abrir: ' + e.message); }
@@ -94,8 +94,9 @@ function pintaSessoes() { const b = $id('blocoSes'); b.textContent = ''; for (co
 function pintaPartes() { const b = $id('partes'); b.textContent = ''; for (const p of S.dv.partes) { const x = document.createElement('button'); x.textContent = p.nome || p.id; x.dataset.p = p.id; x.onclick = () => seleciona(p.id); b.append(x); } }
 
 /* ---------- SVG das peças ---------- */
-async function texto(k) { if (S.txt.has(k)) return S.txt.get(k); let r; try { r = await arq(k); } catch (e) { if (!/\.(png|jpe?g)$/i.test(k)) throw e; r = await arq(k.replace(/\.(png|jpe?g)$/i, '.webp')); }
-  const eSvg = /\.svg$/i.test(k); let v; if (eSvg) v = { svg: await r.text() }; else { const b = await r.blob(); v = { uri: await new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); }) }; } S.txt.set(k, v); return v; }
+async function texto(k) { if (S.txt.has(k)) return S.txt.get(k); let b = await DB.get('arquivos', k).catch(() => null); /* primeiro o que já está neste navegador: não gasta a nuvem */
+  if (!(b instanceof Blob)) { let r; try { r = await arq(k); } catch (e) { if (!/\.(png|jpe?g)$/i.test(k)) throw e; r = await arq(k.replace(/\.(png|jpe?g)$/i, '.webp')); } b = await r.blob(); }
+  const eSvg = /\.svg$/i.test(k); let v; if (eSvg) v = { svg: await b.text() }; else { v = { uri: await new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); }) }; } S.txt.set(k, v); return v; }
 let nPeca = 0;
 function peca(v, img, cor) { // devolve o <svg> da peça, com ids e classes só dela (para não misturar com as outras)
   const px = img.pivo?.x ?? img.w / 2, py = img.pivo?.y ?? img.h / 2, x = -px + (img.ajuste?.x || 0), y = -py + (img.ajuste?.y || 0);
