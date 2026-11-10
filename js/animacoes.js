@@ -92,8 +92,18 @@ const Animacoes = {
     const B = Modelo.partesNoEstado(def, this.frame(a, (sv.idx + 1) % n)), vel = Math.max(40, +a.vel || 250), mov = vel <= 1250 ? 1 : Math.max(750 / vel, .45), u0 = 1 - mov; if (sv.u <= u0) return A;
     const tt = (sv.u - u0) / mov, prof = Rig.profundidades(def), lag = vel * mov >= 330 ? .1 : 0, ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     const tDe = pid => { const atr = Math.min(3, prof[pid] || 0) * lag; return ease(clamp((tt - atr) / Math.max(.05, 1 - atr), 0, 1)); }, out = {};
+    // TROCA DE DESENHO COM ENCAIXE (10/11/2026, "o joelho saindo da perna"): quando uma parte troca de desenho e ela ou as presas nela
+    // mudam de posição/tamanho (ex.: coxa "Reta" → "Vindo p/ câmera", mais curta, com a canela subindo 76 para encostar), o grupo inteiro
+    // troca desenho, posição e tamanho NO MESMO INSTANTE (no meio do movimento); só o giro continua suave. Antes a coxa trocava no fim e a
+    // canela ia descendo aos poucos: abria um vão e a tampa do joelho aparecia.
+    const filhos = {}; for (const p of def.partes) if (p.pai) (filhos[p.pai] ||= []).push(p.id);
+    const desc = id => { const L = [id]; for (let i = 0; i < L.length; i++) L.push(...(filhos[L[i]] || [])); return L; };
+    const mexe = id => ['x', 'y', 's'].some(c => (A[id]?.[c] ?? (c === 's' ? 1 : 0)) !== (B[id]?.[c] ?? (c === 's' ? 1 : 0)));
+    const junto = new Set(); for (const pid of Object.keys(A)) if (B[pid] && (A[pid]?.img || null) !== (B[pid]?.img || null)) { const g = desc(pid); if (g.some(mexe)) g.forEach(id => junto.add(id)); }
+    const virou = tt >= .5;
     for (const [pid, pa] of Object.entries(A)) { const pb = B[pid], t = tDe(pid);
       if (!pa || !pb || (pa.vis === false) !== (pb.vis === false)) { out[pid] = pa; continue; }
+      if (junto.has(pid)) { const x = { ...(virou ? pb : pa) }, ra = pa.r || 0; x.r = ra + Rig.norm((pb.r || 0) - ra) * t; if (t > 0 && (pa.z ?? 0) !== (pb.z ?? 0)) x.z = Math.max(pa.z ?? 0, pb.z ?? 0); out[pid] = x; continue; }
       let x = { ...pa }; if ((pa.img || null) !== (pb.img || null)) { const dr = Math.abs(Rig.norm((pb.r || 0) - (pa.r || 0))), dp = Math.hypot((pb.x || 0) - (pa.x || 0), (pb.y || 0) - (pa.y || 0)); if (dr < 8 && dp < 4) { out[pid] = pa; continue; } if (t >= .5) x = { ...pb, x: pa.x, y: pa.y, r: pa.r, s: pa.s }; }
       for (const c of ['x', 'y', 'r', 's']) { const va = pa[c] ?? (c === 's' ? 1 : 0), vb = pb[c] ?? (c === 's' ? 1 : 0); if (va === vb) continue; let d = vb - va; if (c === 'r') d = Rig.norm(d); x[c] = va + d * t; }
       if (t > 0 && (pa.z ?? 0) !== (pb.z ?? 0)) x.z = Math.max(pa.z ?? 0, pb.z ?? 0);
