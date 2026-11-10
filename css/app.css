@@ -1953,3 +1953,6 @@ a.btn,a.btn:hover,a.btn:visited,a.btn:focus,a.ibtn,a.ibtn:hover,a.ibtn:visited{t
 .atz-metro .atz-it{display:flex;gap:10px;align-items:center;padding:8px 10px;margin-bottom:2px;background:rgba(255,255,255,.07);border:0;border-radius:0;cursor:pointer}.atz-metro .atz-it:hover{background:rgba(255,255,255,.13)}
 .atz-metro .atz-it small{display:block;color:rgba(255,255,255,.6)}.atz-th{width:32px;height:32px;flex:none;background:rgba(255,255,255,.1) center/cover no-repeat}
 .atz-fim{margin-top:6px;padding:10px 12px;background:rgba(0,0,0,.25);font-size:12.5px;color:rgba(255,255,255,.85)}
+
+/* blocos de animação (js/blocos.js): a ferramenta Alongamento de taxa (R) só aparece em animação nova */
+body:not(.proj-rive) .pr-f-taxa { display: none; }

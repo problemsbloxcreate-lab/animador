@@ -263,7 +263,8 @@ const Animacoes = {
   },
   // escreve a animação como chaves no editor: de q0, fpp quadros por passo, reps vezes (devolve o último quadro)
   escreve(n, a, q0, fpp, reps) {
-    const P = App.P, trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return q0; const maior = Math.max(...trilhas.map(t => t.length)), total = maior * reps, mexe = new Set();
+    if (App.P?.rive && typeof Blocos !== 'undefined' && (a.trilhas || []).some(t => t.length)) return Blocos.poe(n, a, q0, fpp, reps); // animação nova: vira um BLOCO (js/blocos.js), sem chaves
+    const P = App.P, trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return q0; const maior = Math.max(...trilhas.map(t => t.length)), total = Math.round(maior * reps), mexe = new Set();
     for (const t of trilhas) for (const p of t) Object.keys(p.p || {}).forEach(x => mexe.add(x));
     for (let i = 0; i < total; i++) {
       const q = q0 + i * fpp, k = Modelo.chave(n, q); k.partes = { ...(k.partes || {}) }; k.sessoes = { ...(k.sessoes || {}) };
