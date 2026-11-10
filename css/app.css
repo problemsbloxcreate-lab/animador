@@ -1942,5 +1942,12 @@ a.btn,a.btn:hover,a.btn:visited,a.btn:focus,a.ibtn,a.ibtn:hover,a.ibtn:visited{t
 .exp-metro .btn{border-radius:0;height:36px;border:1px solid rgba(255,255,255,.75);background:rgba(0,0,0,.25);color:#fff}.exp-metro .btn.sm,.exp-metro .modal-head .btn{height:30px}.exp-metro .modal-head .btn{padding:0 10px;font-size:12.5px}.exp-metro .btn:hover{background:rgba(255,255,255,.14)}.exp-metro .btn.primary{background:#fff;border-color:#fff;color:#0e203a;font-weight:600}.exp-metro .btn.primary:hover{background:#dbe7f7}.exp-metro .btn.danger{background:#b91d47;border-color:#b91d47;color:#fff}
 @media (max-width:560px){.exp-metro .exp-grade{grid-template-columns:1fr}}
 .so-proj{display:inline-block;margin-left:6px;padding:0 5px;font-style:normal;font-size:10px;line-height:15px;background:#c9771a;color:#fff;border-radius:0;vertical-align:1px;letter-spacing:.2px}
-.b-legacy{border:0!important;border-radius:0!important;background:#1f6fd6!important;color:#fff!important;gap:6px}.b-legacy:hover{background:#2b7de9!important}
-.b-legacy i{font-style:normal;font-size:10.5px;font-weight:700;min-width:16px;height:16px;padding:0 4px;background:#fff;color:#1f6fd6;display:grid;place-items:center}
+/* ATUALIZAR PERSONAGENS (reforma Rive, 10/11/2026): um botão só, com o ícone do Ateliê; painel Metro pela direita (js/atualizar.js) */
+.b-at-logo{display:inline-block;width:16px;height:16px;flex:none;background-size:contain;background-repeat:no-repeat;background-position:center}.b-at-logo img,.b-at-logo svg{width:16px;height:16px;display:block}
+.b-atualizar.tem-legacy{border-color:#1f6fd6!important;color:#fff!important;background:#1f6fd6!important;border-radius:0!important}.b-atualizar.tem-legacy:hover{background:#2b7de9!important}.b-atualizar.tem-legacy i{background:#fff;color:#1f6fd6;border-radius:0}
+.atz-metro .pr-info{background:none;border:0;padding:0;color:rgba(255,255,255,.75);margin-bottom:12px}
+.atz-g{margin-bottom:18px}.atz-g h4{margin:0 0 4px;font:300 20px/1.2 "Segoe UI Light","Segoe UI",system-ui,sans-serif;color:#fff}.atz-g p{margin:0 0 8px;font-size:12.5px;line-height:1.4;color:rgba(255,255,255,.72)}
+.atz-g-legacy{padding:12px;background:rgba(31,111,214,.22)}.atz-g-proprio h4{color:#ffc27a}
+.atz-metro .atz-it{display:flex;gap:10px;align-items:center;padding:8px 10px;margin-bottom:2px;background:rgba(255,255,255,.07);border:0;border-radius:0;cursor:pointer}.atz-metro .atz-it:hover{background:rgba(255,255,255,.13)}
+.atz-metro .atz-it small{display:block;color:rgba(255,255,255,.6)}.atz-th{width:32px;height:32px;flex:none;background:rgba(255,255,255,.1) center/cover no-repeat}
+.atz-fim{margin-top:6px;padding:10px 12px;background:rgba(0,0,0,.25);font-size:12.5px;color:rgba(255,255,255,.85)}
