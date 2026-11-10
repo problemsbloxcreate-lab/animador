@@ -88,3 +88,30 @@ const Transicao = {
 };
 // os scripts do Ateliê (animacoes.js, linha.js) carregam depois deste: liga quando a página termina de abrir
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => Transicao.liga()); else Transicao.liga();
+
+/* ANIMAÇÃO NOVA = SÓ O EDITOR DE VÍDEO (pedido da dona, 10/11/2026): na animação nova (`P.rive`) o padrão é o modo Vídeo (trilhas e blocos,
+   js/premiere.js) e os botões "Animação | Vídeo" somem. O modo Animação (o quadro a quadro, js/folha.js) virou LEGACY: nas animações antigas
+   continua como sempre; nas novas só aparece ao entrar num bloco (dois cliques, como abrir uma sequência no Premiere), com o botão
+   "Voltar ao vídeo". Não muda o modo guardado das animações antigas (localStorage `animador-tl-modo`). */
+const SoVideo = {
+  liga() {
+    if (this._ok || typeof App === 'undefined' || typeof Folha === 'undefined' || !Folha.setModo) return; this._ok = true;
+    const ab = App.abrir; App.abrir = async function (...x) { const r = await ab.apply(this, x); try { SoVideo.aplica(); } catch (e) { console.warn(e); } return r; };
+    const pm = Folha.pintaModo; if (pm) Folha.pintaModo = function (...x) { const r = pm.apply(this, x); SoVideo.pinta(); return r; };
+    const fe = App.fechar; if (fe) App.fechar = function (...x) { const r = fe.apply(this, x); SoVideo.pinta(); return r; };
+  },
+  novo() { return !!App.P?.rive; },
+  aplica() {
+    const K = Folha.CH_MODO || 'animador-tl-modo';
+    if (this.novo()) { if (Folha.modo !== 'video') { let antes = null; try { antes = localStorage.getItem(K); } catch { } Folha.setModo('video'); this._voltar = Folha.modo; try { if (antes == null) localStorage.removeItem(K); else localStorage.setItem(K, antes); } catch { } this._forcou = true; } }
+    else if (this._forcou) { this._forcou = false; let guardado = 'anim'; try { guardado = localStorage.getItem(K) === 'video' ? 'video' : 'anim'; } catch { } if (Folha.modo !== guardado) Folha.setModo(guardado); }
+    this.pinta();
+  },
+  pinta() {
+    const novo = !!(App.P && this.novo()); document.body.classList.toggle('proj-rive', novo); const sw = document.getElementById('tl-modo'); if (!sw) return;
+    let b = document.getElementById('tl-volta-video');
+    if (!b) { b = h(`<button class="btn sm tl-volta-video" id="tl-volta-video" hidden title="Sair de dentro do bloco e voltar para as trilhas do vídeo">${ic('film', 12)}<span>Voltar ao vídeo</span></button>`); b.onclick = () => { const K = Folha.CH_MODO || 'animador-tl-modo'; let antes = null; try { antes = localStorage.getItem(K); } catch { } Folha.setModo('video'); try { if (antes == null) localStorage.removeItem(K); else localStorage.setItem(K, antes); } catch { } }; sw.after(b); }
+    sw.hidden = novo; b.hidden = !(novo && Folha.modo !== 'video');
+  },
+};
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => SoVideo.liga()); else SoVideo.liga();
