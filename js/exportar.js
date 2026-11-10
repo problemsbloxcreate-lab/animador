@@ -99,30 +99,52 @@ const Exportar = {
     try { Render.quadro(t.getContext('2d'), P, q, w, h); g.drawImage(t, (160 - w) / 2, (90 - h) / 2); } catch { }
     return c.toDataURL('image/jpeg', .6);
   },
+  /* BOTÃO Pu MOSTRA O ESTADO (pedido da dona, 10/11/2026: só o aviso embaixo ninguém via, o olho está no botão): "Enviando…" enquanto
+     anda; depois fica verde com "No Publicações" (P.publicacoes.id) em toda abertura desta animação; e ao terminar o botão pisca e abre um
+     BALÃO logo embaixo dele (pubBalao) com o resultado e "Abrir o Publicações". Erros e avisos do Pu também saem no balão. */
+  pintaPub() {
+    const b = document.getElementById('b-pub'); if (!b) return; const P = App.P, an = !!this._prontoAndando, ok = !!P?.publicacoes?.id;
+    const k = an ? 'a' : ok ? 'o' + P.publicacoes.em : 'n'; if (b.dataset.st === k) return; b.dataset.st = k;
+    b.classList.toggle('pub-andando', an); b.classList.toggle('pub-ok', ok && !an);
+    let tx = b.querySelector('.pub-tx'); if (!tx) { tx = document.createElement('span'); tx.className = 'pub-tx'; b.appendChild(tx); }
+    tx.innerHTML = an ? '<span class="spin-dot"></span> Enviando…' : ok ? ic('check', 13) + ' No Publicações' : '';
+    b.title = an ? 'Pondo no Publicações…' : ok ? `Já está no Publicações, em "Não publicados" (desde ${fmtDate(P.publicacoes.em)}). Clique para atualizar lá.` : 'Pronto: pôr no Publicações (sem exportar). Lá dá para gerar o vídeo depois.';
+  },
+  pubBalao(html, tipo = 'ok') {
+    document.querySelector('.pub-balao')?.remove(); clearTimeout(this._balaoT); const b = document.getElementById('b-pub');
+    if (!b || !b.offsetParent) return UI.toast(html, { kind: tipo });
+    const r = b.getBoundingClientRect(), el = h(`<div class="pub-balao ${tipo}" role="status"><span class="pub-balao-ic">${ic(tipo === 'ok' ? 'check' : 'alert', 16)}</span><div class="pub-balao-tx">${html}</div><button class="ibtn" data-x title="Fechar">${ic('x', 13)}</button></div>`);
+    el.style.top = Math.round(r.bottom + 8) + 'px'; el.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px'; el.style.setProperty('--seta', Math.round(r.width / 2) + 'px');
+    document.body.appendChild(el); const fecha = () => { el.remove(); document.removeEventListener('pointerdown', fora, true); clearTimeout(this._balaoT); };
+    const fora = e => { if (!el.contains(e.target) && !b.contains(e.target)) fecha(); };
+    $('[data-x]', el).onclick = fecha; setTimeout(() => document.addEventListener('pointerdown', fora, true), 0); this._balaoT = setTimeout(fecha, tipo === 'ok' ? 10000 : 8000);
+    if (tipo === 'ok') { b.classList.remove('pub-flash'); void b.offsetWidth; b.classList.add('pub-flash'); setTimeout(() => b.classList.remove('pub-flash'), 1600); }
+  },
   async pronto() {
     const P = App.P; if (!P || this._prontoAndando) return;
     const pode = k => window.EstudioPerm?.pode?.(k) ?? true;
-    if (!pode('animador.exportar') || !pode('publicacoes')) return UI.toast('Sua conta não pode mandar para o Publicações. Peça para um ADM liberar.', { kind: 'err' });
-    this._prontoAndando = true;
+    if (!pode('animador.exportar') || !pode('publicacoes')) return this.pubBalao('Sua conta não pode mandar para o Publicações. Peça para um ADM liberar.', 'err');
+    this._prontoAndando = true; this.pintaPub();
     try {
       try { await App.salvarJa?.(); } catch { }
       if (!NuvemAnim.vai(P)) {
         if (!await UI.confirm({ title: 'Mandar para a nuvem primeiro?', msg: 'Para o Publicações abrir esta animação e gerar o vídeo lá, ela precisa estar na nuvem da equipe.', ok: 'Mandar e continuar', icon: 'upload' })) return;
-        try { await NuvemAnim.enviar(P); } catch (e) { return UI.toast('Não deu para mandar para a nuvem: ' + esc(e.message), { kind: 'err' }); }
-        if (!NuvemAnim.vai(P)) return UI.toast('A animação não foi para a nuvem.', { kind: 'err' });
+        try { await NuvemAnim.enviar(P); } catch (e) { return this.pubBalao('Não deu para mandar para a nuvem: ' + esc(e.message), 'err'); }
+        if (!NuvemAnim.vai(P)) return this.pubBalao('A animação não foi para a nuvem.', 'err');
       } else if (NuvemAnim.sujo(P)) { try { await NuvemAnim.salvar(P); } catch { } } // a versão da nuvem é a que o Publicações abre
-      let L; try { L = await (await Nuvem.pede('/publicacoes')).json(); } catch (e) { return UI.toast('Não consegui falar com o Publicações: ' + esc(e.message), { kind: 'err' }); }
+      let L; try { L = await (await Nuvem.pede('/publicacoes')).json(); } catch (e) { return this.pubBalao('Não consegui falar com o Publicações: ' + esc(e.message), 'err'); }
       const ant = P.publicacoes?.id ? (L.itens || []).find(x => x.id === P.publicacoes.id) : null;
-      if (ant?.pedido) return UI.toast('Esta animação já está na fila do Publicações.', { kind: 'warn' });
+      if (ant?.pedido) return this.pubBalao('Esta animação já está na fila do Publicações. <a href="/publicacoes/" target="_blank" rel="noopener">Abrir o Publicações</a>', 'warn');
       if (P.publicacoes?.id && !ant && !await UI.confirm({ title: 'Pôr no Publicações de novo?', msg: 'Esta animação já foi para o Publicações e saiu de "Não publicados" (foi postada ou tirada de lá). Pôr de novo?', ok: 'Pôr de novo' })) return;
       const id = ant ? ant.id : 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const base = ant ? (({ meu, por, editadoPor, editadoEm, ...x }) => x)(ant) : { canal: this.CANAL_TURMA, enviadoEm: Date.now(), modo: 'naoListado', privacidade: 'unlisted' };
       const item = { ...base, id, concluido: true, titulo: String(P.nome || 'Animação').slice(0, 100), programa: 'animador', abrir: '/animador/?nuvem=' + P.id, formato: P.h > P.w ? 'short' : 'longo', thumb: this.miniPub(P, App.q || 0) };
       try { await Nuvem.pede('/publicacoes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ item }) }); }
-      catch (e) { return UI.toast('Não deu para pôr no Publicações: ' + esc(e.message), { kind: 'err' }); }
+      catch (e) { return this.pubBalao('Não deu para pôr no Publicações: ' + esc(e.message), 'err'); }
       if (App.P === P) { P.publicacoes = { id, em: Date.now() }; try { await App.salvarJa?.(); } catch { } }
-      UI.toast(`<b>${esc(P.nome || 'Animação')}</b> ${ant ? 'foi atualizada' : 'está'} em <b>Não publicados</b> no Publicações (${item.formato === 'short' ? 'Shorts' : 'Vídeos longos'}). <a href="/publicacoes/" target="_blank" rel="noopener">Abrir o Publicações</a>`, { kind: 'ok' });
-    } finally { this._prontoAndando = false; }
+      this._prontoAndando = false; this.pintaPub();
+      this.pubBalao(`<b>${ant ? 'Atualizada no Publicações' : 'Já está no Publicações'}</b><small>${esc(P.nome || 'Animação')} · em Não publicados (${item.formato === 'short' ? 'Shorts' : 'Vídeos longos'})</small><a class="btn sm" href="/publicacoes/" target="_blank" rel="noopener">Abrir o Publicações</a>`);
+    } finally { this._prontoAndando = false; this.pintaPub(); }
   },
   // carrega o módulo comum do Estúdio só quando a pessoa clica (o porteiro troca o ID do cliente do Google dentro dele)
   youtube() { return window.EstudioYouTube ? Promise.resolve() : (this._yt ||= new Promise((ok, ruim) => { const s = document.createElement('script'); s.src = '/estudio-youtube.js'; s.onload = ok; s.onerror = () => { this._yt = null; ruim(new Error('não consegui carregar o /estudio-youtube.js')); }; document.head.appendChild(s); })); },
