@@ -48,3 +48,43 @@ const RiveRig = {
   },
 };
 document.addEventListener('click', e => { if (e.target.closest?.('#at-rive')) RiveRig.abrir(); });
+
+/* TRANSIÇÕES SUAVES NO ATELIÊ (pedido da dona, 10/11/2026): trocar de animação, dar play, parar ou ir para outro frame não pula mais —
+   as peças vão da pose que estava na tela até a nova em ~0,28 s (mesma curva do movimento suave; parte que troca de desenho troca junto
+   com as presas nela, no meio, para não abrir vão). Trocar de VISTA (os desenhos são outros) faz uma passagem rápida de uma imagem para
+   a outra por cima do palco. Só muda o que aparece na tela: nada disso é gravado no personagem. */
+const Transicao = {
+  DUR: 280, _tr: null,
+  ease: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+  // guarda a pose da tela agora (antes de trocar)
+  de(antes) { if (!antes || !Atelie.def) return; this._tr = { antes, t0: performance.now(), def: Atelie.def, vista: Atelie.def.vistaAtual }; this.anda(); },
+  anda() { cancelAnimationFrame(this._raf); const passo = () => { if (!this._tr) return; try { Atelie.desenha(); } catch { } if (performance.now() - this._tr.t0 < this.DUR) this._raf = requestAnimationFrame(passo); else { this._tr = null; try { Atelie.desenha(); } catch { } } }; this._raf = requestAnimationFrame(passo); },
+  misturar(e) {
+    const tr = this._tr; if (!tr || !e) return e; const def = Atelie.def;
+    if (def !== tr.def || def.vistaAtual !== tr.vista) { this._tr = null; return e; }
+    const u = (performance.now() - tr.t0) / this.DUR; if (u >= 1) return e; const t = this.ease(Math.max(0, u)), A = tr.antes, out = {};
+    const filhos = {}; for (const p of def.partes) if (p.pai) (filhos[p.pai] ||= []).push(p.id);
+    const desc = id => { const L = [id]; for (let i = 0; i < L.length; i++) L.push(...(filhos[L[i]] || [])); return L; };
+    const junto = new Set(); for (const pid of Object.keys(e)) if (A[pid] && (A[pid].img || null) !== (e[pid]?.img || null)) desc(pid).forEach(id => junto.add(id));
+    for (const [pid, b] of Object.entries(e)) { const a = A[pid];
+      if (!a || !b || (a.vis === false) !== (b.vis === false)) { out[pid] = b; continue; }
+      const x = { ...(junto.has(pid) && t < .5 ? a : b) };
+      for (const c of junto.has(pid) ? ['r'] : ['x', 'y', 'r', 's']) { const va = a[c] ?? (c === 's' ? 1 : 0), vb = b[c] ?? (c === 's' ? 1 : 0); if (va === vb) continue; let d = vb - va; if (c === 'r') d = Rig.norm(d); x[c] = va + d * t; }
+      out[pid] = x; }
+    return out;
+  },
+  // passagem de uma vista para a outra: a imagem de antes some devagar por cima do palco
+  esmaecer(snap) { const cv = Atelie.cv, pai = cv?.parentElement; if (!snap || !pai) return; snap.style.cssText = 'pointer-events:none;opacity:1;transition:opacity .26s ease-out;z-index:1'; pai.insertBefore(snap, cv.nextSibling); requestAnimationFrame(() => requestAnimationFrame(() => { snap.style.opacity = '0'; })); setTimeout(() => snap.remove(), 420); },
+  foto() { const cv = Atelie.cv; if (!cv?.width) return null; try { const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; c.getContext('2d').drawImage(cv, 0, 0); return c; } catch { return null; } },
+  liga() {
+    if (this._ok || typeof Atelie === 'undefined' || typeof Animacoes === 'undefined') return; this._ok = true;
+    const est = Atelie.estado; Atelie.estado = function (...x) { return Transicao.misturar(est.apply(this, x)); };
+    const agora = () => { try { return Atelie.def && Atelie.cv ? JSON.parse(JSON.stringify(Atelie.estado())) : null; } catch { return null; } };
+    for (const nm of ['tocar', 'irPara']) { const f = Animacoes[nm]; Animacoes[nm] = function (...x) { const antes = agora(); const r = f.apply(this, x); Transicao.de(antes); return r; }; }
+    const pa = Animacoes.parar; Animacoes.parar = function (quieto) { const tocava = !!this.tocando, antes = tocava && !quieto ? agora() : null; const r = pa.call(this, quieto); if (antes) Transicao.de(antes); return r; };
+    if (typeof Linha !== 'undefined' && Linha.parar) { const lp = Linha.parar; Linha.parar = function (...x) { const antes = Animacoes.tocando || Atelie.teste ? agora() : null; const r = lp.apply(this, x); if (antes) Transicao.de(antes); return r; }; } // botão Parar / Esc: volta suave à pose padrão
+    const tv = Atelie.trocaVista; if (tv) Atelie.trocaVista = function (...x) { const snap = Transicao.foto(); Transicao._tr = null; const r = tv.apply(this, x); const fim = () => Transicao.esmaecer(snap); if (r?.then) r.then(fim, fim); else fim(); return r; };
+  },
+};
+// os scripts do Ateliê (animacoes.js, linha.js) carregam depois deste: liga quando a página termina de abrir
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => Transicao.liga()); else Transicao.liga();
