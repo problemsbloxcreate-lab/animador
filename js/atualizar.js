@@ -86,7 +86,7 @@ const AtualizaProj = {
       for (const it of escolhidos) { try { await it.aplica(); feitos.push(it.titulo); } catch { erros.push(it.titulo); } } };
     try { if (typeof Ocupado !== 'undefined' && Ocupado.nuvem) await Ocupado.nuvem(comLegacy ? 'Cópia LEGACY e atualização' : 'Atualizando a animação', roda); else await roda(); }
     catch (e) { return UI.toast('Não atualizei nada: ' + esc(e.message), { kind: 'err', time: 7000 }); }
-    P.versao = this.VERSAO; App.commit('Atualizar personagens'); await App.salvarJa?.();
+    P.versao = this.VERSAO; if (comLegacy) P.rive = 1; App.commit('Atualizar personagens'); await App.salvarJa?.();
     UI.toast(`${comLegacy ? `Cópia <b>${esc(copia.nome)}</b> criada. ` : ''}${feitos.length ? 'Atualizado: ' + feitos.map(esc).join(', ') + '.' : ''}${erros.length ? ` Não deu: ${erros.map(esc).join(', ')} (tente de novo).` : ''}`, { kind: erros.length ? 'warn' : 'ok', time: 7000 });
     this.confere(true);
   },

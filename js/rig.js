@@ -107,8 +107,17 @@ const Rig = {
     const dv0 = Modelo.naVista(def, eb.vista), epB = Modelo.partesNoEstado(dv0, eb), ease = Ease.daChave(ch), out = {}, prof = this.profundidades(dv0);
     // SOBREPOSIÇÃO (follow-through): cada nível da hierarquia sai ~1 quadro depois da mãe e chega junto (mão atrasa do antebraço, que atrasa do braço)
     const lag = dur >= 8 ? Math.min(1.2, dur / 10) : 0, tDe = pid => { const atr = Math.min(3, (prof[pid] || 0)) * lag; return ease(clamp((q - q0 - atr) / Math.max(1, dur - atr), 0, 1)); };
+    // REFORMA RIVE (10/11/2026, "o joelho saindo da perna"), SÓ EM ANIMAÇÃO NOVA (P.rive; as antigas ficam exatamente como eram): parte que
+    // troca de desenho e cuja posição/tamanho (ou das presas nela) muda troca desenho, posição e tamanho JUNTO com as presas, no meio do
+    // movimento; só o giro continua suave (ex.: coxa "Reta" → "Vindo p/ câmera" com a canela subindo: antes abria um vão no joelho).
+    const junto = new Set(), virou = (q - q0) / Math.max(1, dur) >= .5;
+    if (P.rive) { const fl = {}; for (const p of dv0.partes) if (p.pai) (fl[p.pai] ||= []).push(p.id);
+      const desc = id => { const L = [id]; for (let i = 0; i < L.length; i++) L.push(...(fl[L[i]] || [])); return L; };
+      const mexe = id => ['x', 'y', 's'].some(c => (ep[id]?.[c] ?? (c === 's' ? 1 : 0)) !== (epB[id]?.[c] ?? (c === 's' ? 1 : 0)));
+      for (const pid of Object.keys(ep)) if (epB[pid] && (ep[pid]?.img || null) !== (epB[pid]?.img || null)) { const g = desc(pid); if (g.some(mexe)) g.forEach(id => junto.add(id)); } }
     for (const [pid, a] of Object.entries(ep)) { const t = tDe(pid);
       const b = epB[pid]; if (!a || !b || (a.vis === false) !== (b.vis === false)) { out[pid] = a; continue; }
+      if (junto.has(pid)) { const x = { ...(virou ? b : a) }; x.r = (a.r || 0) + this.norm((b.r || 0) - (a.r || 0)) * t; if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0); out[pid] = x; continue; }
       let x = { ...a }; if ((a.img || null) !== (b.img || null)) { // troca de desenho: só a troca (boca, olhos) fica para a chave; se a parte também gira/anda bastante, o desenho troca no meio do caminho
         const dr = Math.abs(this.norm((b.r || 0) - (a.r || 0))), dp = Math.hypot((b.x || 0) - (a.x || 0), (b.y || 0) - (a.y || 0)); if (dr < 8 && dp < 4) { out[pid] = a; continue; }
         if (t >= .5) x = { ...b, x: a.x, y: a.y, r: a.r, s: a.s }; }
