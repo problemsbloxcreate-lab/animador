@@ -70,7 +70,7 @@ const CorteVoz = {
     };
     const anda = () => { if (!toca) return; pinta(); const t = curAgora(); if (t > st.v1) { const w = st.v1 - st.v0; st.v0 = Math.min(D - w, t - w * .1); st.v1 = st.v0 + w; } requestAnimationFrame(anda); };
     const para = () => { if (toca) { try { toca.src.stop(); } catch { } st.cur = curAgora(); toca = null; pinta(); } };
-    const tocar = (t0, t1 = D) => { para(); const ac = Som.ac(); ac.resume(); const src = ac.createBufferSource(); src.buffer = b; src.connect(ac.destination); src.start(ac.currentTime + .02, t0, Math.max(.02, t1 - t0)); toca = { src, t0, ctx0: ac.currentTime + .02 }; src.onended = () => { if (toca?.src === src) { st.cur = Math.min(t1, curAgora()); toca = null; pinta(); } }; requestAnimationFrame(anda); };
+    const tocar = (t0, t1 = D) => { para(); const ac = Som.ac(); ac.resume(); const src = ac.createBufferSource(); src.buffer = b; src.connect(Som.saida(ac)); src.start(ac.currentTime + .02, t0, Math.max(.02, t1 - t0)); toca = { src, t0, ctx0: ac.currentTime + .02 }; src.onended = () => { if (toca?.src === src) { st.cur = Math.min(t1, curAgora()); toca = null; pinta(); } }; requestAnimationFrame(anda); };
     const pecaEm = t => st.pecas.findIndex(([p0, p1]) => t >= p0 && t <= p1);
     const acoes = {
       toca: () => toca ? para() : tocar(st.cur),

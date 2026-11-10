@@ -72,7 +72,7 @@
         <span class="sep"></span>
         <label title="Quadros por segundo" style="color:var(--tx2);display:flex;gap:4px;align-items:center">fps <input type="number" id="tl-fps" min="1" max="60"></label>
         <label title="Quantos quadros a animação tem" style="color:var(--tx2);display:flex;gap:4px;align-items:center">quadros <input type="number" id="tl-dur" min="1" max="20000" style="width:70px"></label>
-        <button class="ibtn on" id="t-loop" title="Repetir ao tocar"></button>
+        <button class="ibtn on" id="t-loop" title="Repetir ao tocar"></button><span class="tl-vol" id="tl-vol"><button class="ibtn" id="t-mudo" title="Silenciar só aqui enquanto edita"></button><input type="range" id="tl-volg" min="0" max="200" step="1" value="100" aria-label="Volume geral"><b id="tl-volv">100%</b></span>
         <span class="sep"></span>
         <button class="btn sm" id="t-chave" title="Chave neste quadro na camada escolhida (K)"></button>
         <button class="btn sm" id="t-tira" title="Tirar a chave deste quadro (Shift+K)"></button>

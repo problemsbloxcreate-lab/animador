@@ -431,8 +431,12 @@ const Lado = {
     $('[data-add]', top).onclick = () => Som.importar(); $('[data-bib]', top).onclick = () => SonsBib.abrir(); $('[data-gravar]', top).onclick = () => Som.gravar(); if ($('[data-tr]', top)) $('[data-tr]', top).onclick = () => Som.transcrever();
     el.appendChild(top);
     if (!P.audios.length) el.appendChild(h(`<div class="pr-vazio">${ic('music', 22)}Grave a voz, ponha uma música ou solte um arquivo de áudio na timeline.</div>`));
-    // MIXAGEM do projeto: a música abaixa sozinha enquanto alguém fala (P.mix)
-    if (P.audios.some(a => Som.tipo(a) === 'musica')) el.appendChild(this.secao('v-mix', 'Mixagem', (P.mix || {}).duck !== false ? 'música abaixa na fala' : '', c => {
+    // MIXAGEM do projeto: VOLUME GERAL (P.mix.geral, prévia + vídeo exportado) e a música abaixa sozinha enquanto alguém fala (P.mix)
+    const temMus = P.audios.some(a => Som.tipo(a) === 'musica');
+    if (P.audios.length) el.appendChild(this.secao('v-mix', 'Mixagem', [Som.geral() !== 1 ? `geral ${Math.round(Som.geral() * 100)}%` : '', temMus && (P.mix || {}).duck !== false ? 'música abaixa na fala' : ''].filter(Boolean).join(' · '), c => {
+      c.appendChild(this.volumeGeral());
+      c.appendChild(h('<div class="pr-info" style="margin-bottom:8px">O <b>volume geral</b> sobe ou desce todos os sons juntos, na prévia e no vídeo exportado, sem mexer no volume de cada um. O alto-falante na barra da timeline silencia só enquanto você edita.</div>'));
+      if (!temMus) return;
       const mx = P.mix || {}, ck = h(`<label class="chk" style="margin-bottom:8px"><input type="checkbox" ${mx.duck !== false ? 'checked' : ''}> Abaixar a música quando alguém fala</label>`);
       $('input', ck).onchange = ev => { P.mix = { ...(P.mix || {}), duck: ev.target.checked }; App.commit('Música abaixa na fala'); };
       c.append(ck, this.barra('Música na fala', mx.nivel ?? .45, v => { P.mix = { ...(P.mix || {}), nivel: v }; Folha.desenha(); }, () => App.commit('Nível da música na fala')));
@@ -502,6 +506,15 @@ const Lado = {
     c.appendChild(fe);
     return ca;
   },
+  // VOLUME GERAL da animação (0–200%, P.mix.geral): o mesmo da barra da timeline
+  volumeGeral() {
+    const v0 = Som.geral(), el = h(`<label class="pr-barra au-vol"><span>Volume geral</span><input type="range" min="0" max="200" step="1" value="${Math.round(v0 * 100)}"><b>${Math.round(v0 * 100)}%</b></label>`), r = $('input', el), b = $('b', el);
+    const db = v => v <= 0 ? 'sem som' : (20 * Math.log10(v) >= 0 ? '+' : '') + (20 * Math.log10(v)).toFixed(1).replace('.', ',') + ' dB', dica = v => el.title = `${Math.round(v * 100)}% · ${db(v)} · dois cliques volta a 100%`; dica(v0);
+    r.oninput = () => { const v = +r.value / 100; b.textContent = r.value + '%'; dica(v); Som.poeGeral(v); }; r.onchange = () => App.commit('Volume geral');
+    el.ondblclick = () => { Som.poeGeral(1); App.commit('Volume geral'); };
+    (this._vivos ||= []).push(() => { if (document.activeElement === r) return; const x = Math.round(Som.geral() * 100); r.value = x; b.textContent = x + '%'; dica(x / 100); });
+    return el;
+  },
   // volume 0–200% (100% = como o arquivo está), com o valor em dB na dica
   volume(a) {
     const v0 = a.vol ?? 1, el = h(`<label class="pr-barra au-vol"><span>Volume</span><input type="range" min="0" max="200" step="1" value="${Math.round(v0 * 100)}"><b>${Math.round(v0 * 100)}%</b></label>`), r = $('input', el), b = $('b', el);
@@ -522,7 +535,7 @@ const Lado = {
   ouvir(P, a) {
     const ja = this._ouve; if (ja) { try { ja.src.stop(); } catch { } this._ouve = null; if (ja.id === a.id) return this.pinta(); }
     const b = Som.buf.get(a.arq); if (!b) return UI.toast('O áudio ainda está carregando.', { kind: 'warn' });
-    const ac = Som.ac(); ac.resume(); const t0 = ac.currentTime + .03, src = Som.fonte(ac, ac.destination, P, { ...a, de: 0, mudo: false }, b, 0, t0, []);
+    const ac = Som.ac(); ac.resume(); const t0 = ac.currentTime + .03, src = Som.fonte(ac, Som.saida(ac), P, { ...a, de: 0, mudo: false }, b, 0, t0, []);
     if (!src) return; this._ouve = { id: a.id, src }; src.onended = () => { if (this._ouve?.src === src) { this._ouve = null; this.pinta(); } }; this.pinta();
   },
   legendas(el, P) {

@@ -89,6 +89,34 @@ const Som = {
     const bs = [...new Set((a.volTrechos || []).flatMap(t => [t.de, t.ate + 1]))].filter(b => b > q0).sort((x, y) => x - y);
     for (const b of bs) { const t = t0 + (b - q0) / fps; g.gain.setValueAtTime(this.ganho(a, b - 1), Math.max(t0, t - .02)); g.gain.linearRampToValueAtTime(this.ganho(a, b), t); }
   },
+  /* ---------- VOLUME GERAL (pedido da dona, 10/11/2026): P.mix.geral (0–2; sem o campo = 100%, os projetos antigos soam igual) vale
+     para a prévia E para o vídeo exportado (Som.mistura). O MUDO (alto-falante na barra da timeline) é só para ouvir enquanto edita,
+     neste computador (localStorage animador-mudo-geral): nunca deixa o vídeo exportado mudo. Toda saída ao vivo passa por Som.saida(). ---------- */
+  geral(P = App.P) { const v = +(P?.mix?.geral ?? 1); return Number.isFinite(v) ? clamp(v, 0, 2) : 1; },
+  get mudoGeral() { try { return localStorage.getItem('animador-mudo-geral') === '1'; } catch { return false; } },
+  set mudoGeral(v) { try { v ? localStorage.setItem('animador-mudo-geral', '1') : localStorage.removeItem('animador-mudo-geral'); } catch { } },
+  poeGeral(v) { const P = App.P; if (!P) return; v = clamp(Math.round(v * 100) / 100, 0, 2); const mx = { ...(P.mix || {}) }; if (v === 1) delete mx.geral; else mx.geral = v; P.mix = mx; this.aplicaGeral(); },
+  saida(ac = this.ac()) {
+    if (!this._mestre || this._mestre.context !== ac) { this._mestre = ac.createGain(); this._mestre.connect(ac.destination); this._gv = null; }
+    this.aplicaGeral(); return this._mestre;
+  },
+  // ajusta o ganho de quem está tocando (sem estalo) e pinta o controle da barra da timeline
+  aplicaGeral() {
+    const m = this._mestre, v = this.mudoGeral ? 0 : this.geral();
+    if (m && v !== this._gv) { const t = m.context.currentTime; if (this._gv == null) m.gain.value = v; else { m.gain.cancelScheduledValues(t); m.gain.setTargetAtTime(v, t, .015); } this._gv = v; }
+    const r = document.getElementById('tl-volg'); if (!r || !App.P) return; const g = this.geral(), pc = Math.round(g * 100), mu = this.mudoGeral, bt = document.getElementById('t-mudo'), b = document.getElementById('tl-volv');
+    if (document.activeElement !== r) r.value = pc; if (b) b.textContent = pc + '%';
+    const db = g <= 0 ? 'sem som' : (20 * Math.log10(g) >= 0 ? '+' : '') + (20 * Math.log10(g)).toFixed(1).replace('.', ',') + ' dB';
+    r.title = `Volume geral: ${pc}% (${db}) · vale para ouvir e para o vídeo exportado · dois cliques volta a 100%`;
+    if (bt) { const k = mu ? 'mute' : 'vol'; if (bt.dataset.ic !== k) { bt.innerHTML = ic(k, 15); bt.dataset.ic = k; } bt.classList.toggle('on', mu); bt.title = mu ? 'Mudo só aqui enquanto edita (o vídeo exportado sai com som) · clique para ouvir de novo' : 'Silenciar só aqui enquanto edita (não muda o vídeo exportado)'; }
+    document.getElementById('tl-vol')?.classList.toggle('mudo', mu);
+  },
+  ligaGeral() {
+    const r = document.getElementById('tl-volg'), bt = document.getElementById('t-mudo'); if (!r || r._ok) return; r._ok = true;
+    r.oninput = () => this.poeGeral(+r.value / 100); r.onchange = () => App.commit('Volume geral');
+    r.ondblclick = () => { this.poeGeral(1); App.commit('Volume geral'); };
+    if (bt) bt.onclick = () => { this.mudoGeral = !this.mudoGeral; this.aplicaGeral(); };
+  },
   /* ---------- MIXAGEM (como a dos Shorts): cada áudio tem tipo (voz, música, efeito), corte (ini = segundos cortados do começo,
      dur = quanto dura na timeline), fade de entrada/saída (fi/fo em s), repetir (loop, música), mudo/solo; e a MÚSICA abaixa sozinha
      enquanto alguém fala (P.mix = { duck: true, nivel: .45 }). toca (prévia), mistura (exportar) e a onda usam as mesmas contas. ---------- */
@@ -133,12 +161,12 @@ const Som = {
     this.para(); const P = App.P, ac = this.ac(); if (ac.state !== 'running') ac.resume().catch(() => { }); const t0 = ac.currentTime + .03, desde = q / P.fps, falas = this.falas(P);
     this._toc = { P, t0, desde, falas };
     for (const a of P.audios || []) { if (!this.ouve(P, a)) continue; const b = this.buf.get(a.arq);
-      if (b) { const s = this.fonte(ac, ac.destination, P, a, b, desde, t0, falas); if (s) this.fontes.push(s); } else this.decod(a.arq).then(x => { if (x) this.junta(a.arq); }); }
+      if (b) { const s = this.fonte(ac, this.saida(ac), P, a, b, desde, t0, falas); if (s) this.fontes.push(s); } else this.decod(a.arq).then(x => { if (x) this.junta(a.arq); }); }
   },
   // um som que terminou de abrir com o play já andando: entra no ponto em que a animação está
   junta(arq) {
     const T = this._toc, b = this.buf.get(arq); if (!T || !b || !App.tocando || T.P !== App.P) return; const ac = this.ac(), t = Math.max(ac.currentTime + .05, T.t0), desde = T.desde + (t - T.t0);
-    for (const a of T.P.audios || []) if (a.arq === arq && this.ouve(T.P, a)) { const s = this.fonte(ac, ac.destination, T.P, a, b, desde, t, T.falas); if (s) this.fontes.push(s); }
+    for (const a of T.P.audios || []) if (a.arq === arq && this.ouve(T.P, a)) { const s = this.fonte(ac, this.saida(ac), T.P, a, b, desde, t, T.falas); if (s) this.fontes.push(s); }
   },
   // o segundo da timeline que está SAINDO NA CAIXA DE SOM agora (null = o som ainda não ligou). A imagem anda por este relógio:
   // antes ela andava pelo relógio da tela e o som (que demora um pouco para ligar) ficava atrasado
@@ -149,13 +177,14 @@ const Som = {
     const P = App.P, ac = this.ac(); ac.resume();
     for (const a of P.audios || []) { const b = this.buf.get(a.arq); if (!b || !this.ouve(P, a)) continue; const dq = q - (a.de || 0); if (dq < 0 || q > this.fimQ(P, a)) continue;
       let off = this.ini(a) + dq / P.fps; if (a.loop) off = this.ini(a) + (dq / P.fps) % Math.max(.05, b.duration - this.ini(a)); if (off >= b.duration) continue;
-      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; g.gain.value = this.ganho(a, q) * .9; src.connect(g).connect(ac.destination); src.start(ac.currentTime, off, 1.2 / P.fps); }
+      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; g.gain.value = this.ganho(a, q) * .9; src.connect(g).connect(this.saida(ac)); src.start(ac.currentTime, off, 1.2 / P.fps); }
   },
   // mistura tudo (para exportar)
   async mistura(P, sr = 48000) {
     const dur = P.duracao / P.fps, off = new OfflineAudioContext(2, Math.max(1, Math.ceil(dur * sr)), sr);
     for (const a of P.audios || []) await this.decod(a.arq); const falas = this.falas(P);
-    for (const a of P.audios || []) { if (!this.ouve(P, a)) continue; this.fonte(off, off.destination, P, a, this.buf.get(a.arq), 0, 0, falas); }
+    const mestre = off.createGain(); mestre.gain.value = this.geral(P); mestre.connect(off.destination); // VOLUME GERAL (o mudo da edição não entra)
+    for (const a of P.audios || []) { if (!this.ouve(P, a)) continue; this.fonte(off, mestre, P, a, this.buf.get(a.arq), 0, 0, falas); }
     return off.startRendering();
   },
   // valor da onda no quadro q da timeline (força × volume × fade), para desenhar

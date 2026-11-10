@@ -92,7 +92,7 @@ const Folha = {
   barra() {
     const P = App.P, tc = q => { const t = Math.floor(q / P.fps), qq = q % P.fps; return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}:${String(qq).padStart(2, '0')}`; };
     $('#tl-q').innerHTML = `<b>${App.q + 1}</b> / ${P.duracao} · <span title="minutos:segundos:quadros (o vídeo todo tem ${tc(P.duracao)})">${tc(App.q)}</span>`;
-    $('#tl-fps').value = P.fps; $('#tl-dur').value = P.duracao;
+    $('#tl-fps').value = P.fps; $('#tl-dur').value = P.duracao; Som.ligaGeral?.(); Som.aplicaGeral?.();
   },
   desenha() {
     const P = App.P, L = this._L; if (!P || !L) return;
