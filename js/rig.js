@@ -115,13 +115,28 @@ const Rig = {
       const desc = id => { const L = [id]; for (let i = 0; i < L.length; i++) L.push(...(fl[L[i]] || [])); return L; };
       const mexe = id => ['x', 'y', 's'].some(c => (ep[id]?.[c] ?? (c === 's' ? 1 : 0)) !== (epB[id]?.[c] ?? (c === 's' ? 1 : 0)));
       for (const pid of Object.keys(ep)) if (epB[pid] && (ep[pid]?.img || null) !== (epB[pid]?.img || null)) { const g = desc(pid); if (g.some(mexe)) g.forEach(id => junto.add(id)); } }
+    // CURVA CONTÍNUA (10/11/2026, "travado, não está liso como no Ateliê"), SÓ EM ANIMAÇÃO NOVA: com chaves curtas (ciclos de 3–4 quadros), a
+    // curva de entrada e saída de cada trecho parava o movimento em toda chave. Agora giro/posição/tamanho passam pelas poses numa curva só
+    // (Catmull-Rom pelo tempo): a velocidade continua de uma chave para a outra. Para no começo/fim do movimento, numa espera longa, numa troca
+    // de vista ou num corte. Intervalo longo (espera) continua do jeito de antes.
+    let liso = null;
+    if (P.rive && gap <= fps * 1.25 && !(+ch.dur > 0)) {
+      const i = ks.indexOf(qa), kp = ks[i - 1], kn = ks[i + 2], ok = k => k != null && Math.abs(k) < 1e9;
+      const vizinho = (k, ref) => { if (!ok(k) || Math.abs(k - ref) > fps * 1.25) return null; const e = Modelo.estadoPersonagem(n, k); if ((e.vista || null) !== (eb.vista || null)) return null; if (k > qb && n.chaves[k]?.ir === 'corte') return null; return { k, p: Modelo.partesNoEstado(dv0, e) }; };
+      const antes = vizinho(kp, qa), depois = vizinho(kn, qb), u = (q - qa) / gap, u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+      liso = (pid, c, va, vb) => { const pega = (o, d) => o?.p?.[pid]?.[c] ?? (c === 's' ? 1 : 0), rot = c === 'r';
+        const vp = antes ? pega(antes) : null, vn = depois ? pega(depois) : null, dab = rot ? this.norm(vb - va) : vb - va;
+        const ma = antes ? (dab + (rot ? this.norm(va - vp) : va - vp)) / (gap + (qa - antes.k)) * gap : 0;
+        const mb = depois ? ((rot ? this.norm(vn - vb) : vn - vb) + dab) / ((depois.k - qb) + gap) * gap : 0;
+        return va + h10 * ma + h01 * dab + h11 * mb; };
+    }
     for (const [pid, a] of Object.entries(ep)) { const t = tDe(pid);
       const b = epB[pid]; if (!a || !b || (a.vis === false) !== (b.vis === false)) { out[pid] = a; continue; }
       if (junto.has(pid)) { const x = { ...(virou ? b : a) }; x.r = (a.r || 0) + this.norm((b.r || 0) - (a.r || 0)) * t; if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0); out[pid] = x; continue; }
       let x = { ...a }; if ((a.img || null) !== (b.img || null)) { // troca de desenho: só a troca (boca, olhos) fica para a chave; se a parte também gira/anda bastante, o desenho troca no meio do caminho
         const dr = Math.abs(this.norm((b.r || 0) - (a.r || 0))), dp = Math.hypot((b.x || 0) - (a.x || 0), (b.y || 0) - (a.y || 0)); if (dr < 8 && dp < 4) { out[pid] = a; continue; }
         if (t >= .5) x = { ...b, x: a.x, y: a.y, r: a.r, s: a.s }; }
-      for (const c of ['x', 'y', 'r', 's']) { const va = a[c] ?? (c === 's' ? 1 : 0), vb = b[c] ?? (c === 's' ? 1 : 0); if (va === vb) continue; let d = vb - va; if (c === 'r') d = this.norm(d); x[c] = va + d * t; }
+      for (const c of ['x', 'y', 'r', 's']) { const va = a[c] ?? (c === 's' ? 1 : 0), vb = b[c] ?? (c === 's' ? 1 : 0); if (liso) { x[c] = liso(pid, c, va, vb); continue; } if (va === vb) continue; let d = vb - va; if (c === 'r') d = this.norm(d); x[c] = va + d * t; }
       // CAMADA no meio do movimento: vale a da frente (ex.: mão que vai para o peito já passa POR FORA do colete, não por dentro)
       if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0);
       out[pid] = x;

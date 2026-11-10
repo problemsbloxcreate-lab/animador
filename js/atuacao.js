@@ -133,7 +133,8 @@ const Atuacao = {
 
   /* ---------- aplica no estado das partes do quadro q (devolve um estado novo; o de entrada não muda) ---------- */
   aplica(P, n, q, dv, ep) {
-    const def = P.personagens[n.ref]; if (!def) return ep; const o = { ...this.opcoes(n), suave: !!n.suaveP }, fps = P.fps || 24, f = o.forca;
+    const def = P.personagens[n.ref]; if (!def) return ep; if (P.rive && n.suaveP) return ep; // REFORMA RIVE (10/11/2026): em animação nova, o rig suave faz o movimento; a atuação por cima fazia o personagem tremer
+    const o = { ...this.opcoes(n), suave: !!n.suaveP }, fps = P.fps || 24, f = o.forca;
     if (!(f > 0)) return ep;
     const L = this.linha(n, def), out = {}; for (const [k, v] of Object.entries(ep)) out[k] = { ...v };
     const raiz = dv.partes.find(p => p.id === dv.raiz) || dv.partes.find(p => !p.pai);
