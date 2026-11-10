@@ -12,8 +12,8 @@ const Exportar = {
   MBPS: [1, 60],
   bps(cfg, W, H, fps) { return cfg.qual === 'custom' && cfg.mbps ? clamp(+cfg.mbps, ...this.MBPS) * 1e6 : W * H * fps * (this.QUAL[cfg.qual] || this.QUAL.max).k; },
   mbpsTxt(b) { return (Math.round(b / 1e5) / 10).toString().replace('.', ','); },
-  async abrir() {
-    const P = App.P, cfg = { nomeProj: true, nome: P.nome, tipo: 'mp4', q: 1, trecho: Folha.trecho ? 'marcado' : 'tudo', de: 0, ate: P.duracao - 1, som: true, leg: true, ...(P.exportar || {}), qual: 'max', mbps: null };
+  async abrir(op = {}) {
+    const P = App.P, cfg = { nomeProj: true, nome: P.nome, tipo: 'mp4', q: 1, trecho: Folha.trecho ? 'marcado' : 'tudo', de: 0, ate: P.duracao - 1, som: true, leg: true, ...(P.exportar || {}), qual: 'max', mbps: null, ...(op.tipo ? { tipo: op.tipo } : {}) };
     if (cfg.nomeProj) cfg.nome = P.nome; const temSom = (P.audios || []).length > 0, temLeg = (P.legendas || []).length > 0; if (cfg.tipo === 'srt' && !temLeg) cfg.tipo = 'mp4';
     const TIPOS = [['mp4', 'film', 'Vídeo MP4', 'com imagem e som'], ['png', 'image', 'Imagem', 'só o quadro de agora (PNG)'], ['wav', 'music', 'Só o som', 'a mistura em WAV'], ['animador', 'file', 'Arquivo .animador', 'para abrir aqui de novo'], ['srt', 'text', 'Legendas', temLeg ? 'arquivo .srt para o YouTube' : 'este projeto não tem legendas']];
     const body = h(`<div class="exp">
@@ -65,23 +65,27 @@ const Exportar = {
     pinta(); await UI.modal(o); this._cancela = null;
   },
   /* GERAR O VÍDEO PELO PUBLICAÇÕES (pedido da dona, 10/11/2026): o Publicações abre /animador/?nuvem=<id>&exportar=publicacoes&item=<id>
-     num quadro dentro dele. Aqui gera o MP4 do jeito que o projeto guarda (tudo, qualidade Máxima, som e legendas conforme a última exportação),
-     guarda no IndexedDB 'ep-publicacoes' ligado ao não publicado (concluido: item) e avisa a página de cima (mesma origem) por postMessage:
-     ep-exp-prog { f, txt } · ep-exp-pronto { id } · ep-exp-erro { msg }. A página de cima cancela com { tipo: 'ep-exp-cancela' }. */
+     num quadro dentro dele. Aqui abre a MESMA janela Exportar de sempre (todas as opções; já em MP4 e qualidade Máxima). Ao exportar o vídeo,
+     ele NÃO é baixado: vai para o IndexedDB 'ep-publicacoes' ligado ao não publicado (concluido: item) e a página de cima (mesma origem) é
+     avisada por postMessage: ep-exp-prog { f, txt } · ep-exp-pronto { id } · ep-exp-erro { msg }. Cancelar = { tipo: 'ep-exp-cancela' } ou fechar a janela. */
   async paraPublicacoes(item, abriu) {
     const pai = window.parent !== window ? window.parent : null; if (!pai) return;
     const diz = m => { try { pai.postMessage({ ...m, item }, location.origin); } catch { } };
-    let cancelou = false; addEventListener('message', e => { if (e.origin === location.origin && e.source === pai && e.data?.tipo === 'ep-exp-cancela') cancelou = true; });
+    const pub = this._pub = { item, diz, entregue: false, cancelou: false };
+    addEventListener('message', e => { if (e.origin === location.origin && e.source === pai && e.data?.tipo === 'ep-exp-cancela') pub.cancelou = true; });
     try {
-      const P = App.P; if (!abriu || !P) throw new Error('Não consegui abrir a animação da nuvem.');
-      const cfg = P.exportar || {}, pr = (f, txt) => { diz({ tipo: 'ep-exp-prog', f, txt: txt || '' }); if (cancelou) throw new Error('cancelado'); };
-      pr(0, 'Preparando as imagens…');
-      const blob = await this.mp4({ q: 1, de: 0, ate: P.duracao - 1, qual: 'max', som: cfg.som !== false, semLegenda: cfg.leg === false, pr });
-      await this.youtube();
-      const id = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      await EstudioYouTube.fila.poe({ id, blob, nome: this.nomeArq(P, { nomeProj: true }, '.mp4'), titulo: String(P.nome || '').slice(0, 100), descricao: '', programa: 'animador', em: Date.now(), concluido: item });
-      diz({ tipo: 'ep-exp-pronto', id });
-    } catch (e) { diz({ tipo: 'ep-exp-erro', msg: e?.message === 'cancelado' ? 'cancelado' : String(e?.message || e) }); }
+      if (!abriu || !App.P) throw new Error('Não consegui abrir a animação da nuvem.');
+      diz({ tipo: 'ep-exp-prog', f: 0, txt: 'Escolha as opções na janela Exportar aqui embaixo e clique em “Exportar o vídeo”.' });
+      await this.abrir({ tipo: 'mp4' });
+      if (!pub.entregue) throw new Error('cancelado');
+    } catch (e) { if (!pub.entregue) diz({ tipo: 'ep-exp-erro', msg: e?.message === 'cancelado' ? 'cancelado' : String(e?.message || e) }); }
+    finally { this._pub = null; }
+  },
+  async entregaPub(blob, nome, titulo) {
+    const pub = this._pub; await this.youtube();
+    const id = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    await EstudioYouTube.fila.poe({ id, blob, nome, titulo: String(titulo || '').slice(0, 100), descricao: '', programa: 'animador', em: Date.now(), concluido: pub.item });
+    pub.entregue = true; pub.diz({ tipo: 'ep-exp-pronto', id });
   },
   // carrega o módulo comum do Estúdio só quando a pessoa clica (o porteiro troca o ID do cliente do Google dentro dele)
   youtube() { return window.EstudioYouTube ? Promise.resolve() : (this._yt ||= new Promise((ok, ruim) => { const s = document.createElement('script'); s.src = '/estudio-youtube.js'; s.onload = ok; s.onerror = () => { this._yt = null; ruim(new Error('não consegui carregar o /estudio-youtube.js')); }; document.head.appendChild(s); })); },
@@ -104,22 +108,23 @@ const Exportar = {
     const cancel = h(`<button class="btn danger">${ic('x', 14)} Cancelar a exportação</button>`); cancel.onclick = () => { cancelou = true; cancel.disabled = true; cancel.textContent = 'Cancelando…'; }; foot.appendChild(cancel);
     const sair = e => { e.preventDefault(); e.returnValue = ''; }; addEventListener('beforeunload', sair);
     const pr = (f, txt) => { const s = (performance.now() - t0) / 1000; $('.exp-barra i', body).style.width = (f * 100).toFixed(1) + '%'; $('[data-pp]', body).textContent = Math.floor(f * 100) + '%'; $('[data-pt]', body).textContent = txt || '';
-      $('[data-pr]', body).textContent = `${this.dur(s)} passado${f > .03 && f < 1 ? ` · falta cerca de ${this.dur(s / f - s)}` : ''}`; if (cancelou) throw new Error('cancelado'); };
+      $('[data-pr]', body).textContent = `${this.dur(s)} passado${f > .03 && f < 1 ? ` · falta cerca de ${this.dur(s / f - s)}` : ''}`; this._pub?.diz({ tipo: 'ep-exp-prog', f, txt: txt || '' }); if (cancelou || this._pub?.cancelou) throw new Error('cancelado'); };
     const solta = () => { o.noClose = false; api.el.classList.remove('exportando'); $$('.travado', body).forEach(s => s.classList.remove('travado')); cancel.remove(); btns.forEach(b => b.hidden = false); removeEventListener('beforeunload', sair); };
     try {
       const blob = cfg.tipo === 'wav' ? await this.wav(P, de, ate, pr) : await this.mp4({ q: cfg.q, de, ate, qual: cfg.qual, mbps: cfg.qual === 'custom' ? cfg.mbps : null, som: cfg.som, semLegenda: !cfg.leg, pr });
-      downloadBlob(blob, nome); const seg = (ate - de + 1) / P.fps, mb = blob.size / 1048576;
+      const pub = !!this._pub && cfg.tipo === 'mp4'; // pelo Publicações: o vídeo vai para lá, sem baixar
+      if (pub) await this.entregaPub(blob, nome, (cfg.nomeProj ? P.nome : cfg.nome) || P.nome); else downloadBlob(blob, nome); const seg = (ate - de + 1) / P.fps, mb = blob.size / 1048576;
       solta(); prog.hidden = true; const fim = $('.exp-fim', body); fim.hidden = false;
       fim.innerHTML = `${ic('check', 18)}<div><b>${esc(nome)}</b><small>${this.dur(seg)} de vídeo · ${mb < 10 ? mb.toFixed(1).replace('.', ',') : Math.round(mb)} MB · pronto em ${this.dur((performance.now() - t0) / 1000)}</small></div><button class="btn sm">${ic('download', 13)} Baixar de novo</button>`;
       $('button', fim).onclick = () => downloadBlob(blob, nome); UI.toast(`<b>${esc(nome)}</b> exportado!`, { kind: 'ok' });
       // PUBLICAR NO YOUTUBE (05/11/2026): só vídeo, só para quem pode exportar no Animador e publicar no Publicações; leva o vídeo para /publicacoes/ (lá escolhe canal, título, modo)
       const pode = k => window.EstudioPerm?.pode?.(k) ?? true, titulo = (cfg.nomeProj ? P.nome : cfg.nome) || P.nome;
-      if (cfg.tipo === 'mp4' && pode('animador.exportar') && pode('animador.youtube') && pode('publicacoes.publicar')) {
+      if (!pub && cfg.tipo === 'mp4' && pode('animador.exportar') && pode('animador.youtube') && pode('publicacoes.publicar')) {
         const yt = h(`<button class="btn sm primary">${ic('upload', 13)} Publicar no YouTube</button>`); fim.appendChild(yt);
         yt.onclick = async () => { yt.disabled = true; try { await this.youtube(); await EstudioYouTube.levar({ blob, nome, titulo, programa: 'animador' }); } catch (e) { UI.toast('Não deu para levar ao Publicações: ' + esc(e.message), { kind: 'err' }); } yt.disabled = false; };
       }
       // CONCLUÍDO (05/11/2026): o vídeo vai para "Não publicados" do Publicações (a equipe vê; publica agora ou depois)
-      if (cfg.tipo === 'mp4' && pode('animador.exportar') && pode('publicacoes')) {
+      if (!pub && cfg.tipo === 'mp4' && pode('animador.exportar') && pode('publicacoes')) {
         const cc = h(`<button class="btn sm">${ic('check', 13)} Marcar como concluído</button>`); fim.appendChild(cc);
         cc.onclick = async () => { cc.disabled = true; try { await this.youtube(); await EstudioYouTube.levar({ blob, nome, titulo, programa: 'animador', concluir: true, abrir: P.id && typeof NuvemAnim !== 'undefined' && NuvemAnim.vai?.(P) ? '/animador/?nuvem=' + encodeURIComponent(P.id) : '/animador/' }); } catch (e) { UI.toast('Não deu para marcar como concluído: ' + esc(e.message), { kind: 'err' }); } cc.disabled = false; };
       }
