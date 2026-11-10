@@ -1773,6 +1773,8 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 #editor>header.bar .b-atualizar{margin-left:4px}
 #editor>header.bar #b-onion{display:none} /* no menu ⋯ (05/11/2026) */
 .ctx-ic-at{display:inline-block;width:15px;height:15px}
+/* PRONTO → Publicações: ícone Pu ao lado do Exportar (10/11/2026) */
+#b-pub{padding:0;width:34px;justify-content:center}#b-pub .ic-pub{width:20px;height:20px;display:inline-grid;place-items:center}#b-pub .ic-pub b{font:700 10px/1 'Segoe UI',system-ui;color:#ff3b3b}#b-pub .ic-pub:has(svg) b{display:none}
 #editor>header.bar .proj-nome b{margin-left:0} /* o começo do nome não fica cortado (05/11/2026) */
 #editor>header.bar .proj-nome b.editando{cursor:text;background:var(--bg3);border-color:#3d8bff;outline:none;text-overflow:clip;max-width:340px}
 /* MODELOS DE SHORTS/TIKTOK/REELS (05/11/2026): botões ao lado da Mídia, só no modo Câmera */

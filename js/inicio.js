@@ -14,9 +14,11 @@
       { label: 'Ateliê de personagens…', iconHtml: '<span class="ic-atelie ic-ep ctx-ic-at" data-estudio-icone="at" aria-hidden="true"></span>', action: () => App.abrirAtelie() }, '-',
       { label: 'Casca de cebola', key: 'O', checked: !!App.onion, action: () => $('#b-onion').click() },
       '-',
+      { label: 'Pronto: pôr no Publicações', iconHtml: '<span class="ic-ep ctx-ic-at" data-estudio-icone="x-publicacoes" aria-hidden="true"></span>', action: () => Exportar.pronto() },
       { label: 'Baixar .animador', icon: 'file', action: () => Toon.baixar(App.P) },
       { label: 'Citar este quadro em mensagens…', icon: 'chat', action: () => Citacao.animacao(App.P, App.q, App.sel) }]);
     try { window.EstudioIcones?.pinta?.($('#ctx-root')); } catch { } });
+  { const b = $('#b-pub'); if (b) b.onclick = () => Exportar.pronto(); } // PRONTO → Publicações (ícone Pu, 10/11/2026)
   poe('b-exportar', 'download', '', () => Exportar.abrir()); { const b = $('#b-exportar'); if (b) { b.classList.add('so-icone'); b.title = 'Exportar o vídeo (MP4)'; } } // só o ícone: poupa espaço no topo
   poe('h-pers', 'plus', '', () => App.addPersonagem()); poe('h-cen', 'paisagem', '', () => { const r = $('#h-cen').getBoundingClientRect(); App.menuCenario(r.left, r.bottom + 4); }); { const b = $('#h-cen'); if (b) { b.classList.remove('ia'); b.title = 'Pôr um cenário na cena (menu rápido: prontos ou da nuvem)'; } } /* o ícone Cn (da ADM) é só do botão que abre a janela Cenários (na Mídia); este abre um menu */ poe('h-img', 'image', '', () => App.addImagem()); poe('h-forma', 'shapes', '', () => { const r = $('#h-forma').getBoundingClientRect(); App.menuForma(r.left, r.bottom + 4); }); poe('h-txt', 'text', '', () => App.addTexto()); poe('h-pasta', 'folder', '', () => App.addPasta());
   poe('t-ini', 'start', '', () => App.setQ(0)); poe('t-ant', 'prev', '', () => App.setQ(App.q - 1, { som: true })); poe('b-tocar', 'play', '', () => App.tocar());
@@ -61,7 +63,7 @@
       { label: 'Desfazer', icon: 'undo', key: 'Ctrl+Z', action: () => App.undo() }, { label: 'Refazer', icon: 'redo', key: 'Ctrl+Y', action: () => App.redo() }, '-',
       { label: 'Pôr um personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Pôr uma forma…', icon: 'shapes', action: () => App.menuForma(e.clientX, e.clientY) }, { label: 'Pôr um texto', icon: 'text', action: () => App.addTexto() }, '-',
       { label: 'Animar com a IA…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco()) }, { label: 'Ateliê de personagens…', icon: 'palette', action: () => App.abrirAtelie() },
-      { label: 'Exportar…', icon: 'download', action: () => Exportar.abrir() }, { label: 'Baixar .animador', icon: 'file', action: () => Toon.baixar(App.P) }, { label: 'Citar este quadro em mensagens…', icon: 'chat', action: () => Citacao.animacao(App.P, App.q, App.sel) }, '-',
+      { label: 'Exportar…', icon: 'download', action: () => Exportar.abrir() }, { label: 'Pronto: pôr no Publicações', iconHtml: '<span class="ic-ep ctx-ic-at" data-estudio-icone="x-publicacoes" aria-hidden="true"></span>', action: () => Exportar.pronto() }, { label: 'Baixar .animador', icon: 'file', action: () => Toon.baixar(App.P) }, { label: 'Citar este quadro em mensagens…', icon: 'chat', action: () => Citacao.animacao(App.P, App.q, App.sel) }, '-',
       { label: 'Voltar ao início', icon: 'left', action: () => App.fechar() },
     ] : tela === 'atelie' ? [
       { head: 'ATELIÊ' },
@@ -76,6 +78,6 @@
       { label: 'Abrir .animador…', icon: 'folder', action: async () => { const [f] = await pickFiles('.animador,.toon', false); if (f) Home.importar(f); } }, { label: 'Abrir .atelieanimador…', icon: 'layers', action: () => AtelieArq.escolher() }, '-',
       { label: 'Personagem novo', icon: 'layers', action: () => Atelie.abrirAba(null) },
     ];
-    UI.ctx(e.clientX, e.clientY, itens);
+    UI.ctx(e.clientX, e.clientY, itens); try { window.EstudioIcones?.pinta?.($("#ctx-root")); } catch { }
   });
 })();

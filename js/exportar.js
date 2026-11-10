@@ -87,6 +87,43 @@ const Exportar = {
     await EstudioYouTube.fila.poe({ id, blob, nome, titulo: String(titulo || '').slice(0, 100), descricao: '', programa: 'animador', em: Date.now(), concluido: pub.item });
     pub.entregue = true; pub.diz({ tipo: 'ep-exp-pronto', id });
   },
+  /* PRONTO → PUBLICAÇÕES (pedido da dona, 10/11/2026): botão com o ícone "Pu" ao lado do Exportar (e no menu ⋯ / botão direito).
+     SEM EXPORTAR: põe a animação em "Não publicados" do Publicações (POST /publicacoes no turma-ia) com o nome, uma miniatura do quadro
+     de agora (160×90 JPEG), o formato (em pé = Short), o canal padrão Turma do Problems e abrir = /animador/?nuvem=<id>. Lá, "Gerar o
+     vídeo aqui" abre esta animação com a janela Exportar. Precisa estar na nuvem. P.publicacoes.id = o item (clicar de novo atualiza o
+     mesmo, sem mexer no canal nem na data que a equipe escolheu lá). */
+  CANAL_TURMA: { id: 'UC3V4c447QO0zEyTJlsqqSWQ', nome: 'Turma do Problems' },
+  miniPub(P, q) {
+    const c = document.createElement('canvas'); c.width = 160; c.height = 90; const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 160, 90);
+    const k = Math.min(160 / P.w, 90 / P.h), w = Math.max(2, Math.round(P.w * k)), h = Math.max(2, Math.round(P.h * k)), t = document.createElement('canvas'); t.width = w; t.height = h;
+    try { Render.quadro(t.getContext('2d'), P, q, w, h); g.drawImage(t, (160 - w) / 2, (90 - h) / 2); } catch { }
+    return c.toDataURL('image/jpeg', .6);
+  },
+  async pronto() {
+    const P = App.P; if (!P || this._prontoAndando) return;
+    const pode = k => window.EstudioPerm?.pode?.(k) ?? true;
+    if (!pode('animador.exportar') || !pode('publicacoes')) return UI.toast('Sua conta não pode mandar para o Publicações. Peça para um ADM liberar.', { kind: 'err' });
+    this._prontoAndando = true;
+    try {
+      try { await App.salvarJa?.(); } catch { }
+      if (!NuvemAnim.vai(P)) {
+        if (!await UI.confirm({ title: 'Mandar para a nuvem primeiro?', msg: 'Para o Publicações abrir esta animação e gerar o vídeo lá, ela precisa estar na nuvem da equipe.', ok: 'Mandar e continuar', icon: 'upload' })) return;
+        try { await NuvemAnim.enviar(P); } catch (e) { return UI.toast('Não deu para mandar para a nuvem: ' + esc(e.message), { kind: 'err' }); }
+        if (!NuvemAnim.vai(P)) return UI.toast('A animação não foi para a nuvem.', { kind: 'err' });
+      } else if (NuvemAnim.sujo(P)) { try { await NuvemAnim.salvar(P); } catch { } } // a versão da nuvem é a que o Publicações abre
+      let L; try { L = await (await Nuvem.pede('/publicacoes')).json(); } catch (e) { return UI.toast('Não consegui falar com o Publicações: ' + esc(e.message), { kind: 'err' }); }
+      const ant = P.publicacoes?.id ? (L.itens || []).find(x => x.id === P.publicacoes.id) : null;
+      if (ant?.pedido) return UI.toast('Esta animação já está na fila do Publicações.', { kind: 'warn' });
+      if (P.publicacoes?.id && !ant && !await UI.confirm({ title: 'Pôr no Publicações de novo?', msg: 'Esta animação já foi para o Publicações e saiu de "Não publicados" (foi postada ou tirada de lá). Pôr de novo?', ok: 'Pôr de novo' })) return;
+      const id = ant ? ant.id : 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const base = ant ? (({ meu, por, editadoPor, editadoEm, ...x }) => x)(ant) : { canal: this.CANAL_TURMA, enviadoEm: Date.now(), modo: 'naoListado', privacidade: 'unlisted' };
+      const item = { ...base, id, concluido: true, titulo: String(P.nome || 'Animação').slice(0, 100), programa: 'animador', abrir: '/animador/?nuvem=' + P.id, formato: P.h > P.w ? 'short' : 'longo', thumb: this.miniPub(P, App.q || 0) };
+      try { await Nuvem.pede('/publicacoes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ item }) }); }
+      catch (e) { return UI.toast('Não deu para pôr no Publicações: ' + esc(e.message), { kind: 'err' }); }
+      if (App.P === P) { P.publicacoes = { id, em: Date.now() }; try { await App.salvarJa?.(); } catch { } }
+      UI.toast(`<b>${esc(P.nome || 'Animação')}</b> ${ant ? 'foi atualizada' : 'está'} em <b>Não publicados</b> no Publicações (${item.formato === 'short' ? 'Shorts' : 'Vídeos longos'}). <a href="/publicacoes/" target="_blank" rel="noopener">Abrir o Publicações</a>`, { kind: 'ok' });
+    } finally { this._prontoAndando = false; }
+  },
   // carrega o módulo comum do Estúdio só quando a pessoa clica (o porteiro troca o ID do cliente do Google dentro dele)
   youtube() { return window.EstudioYouTube ? Promise.resolve() : (this._yt ||= new Promise((ok, ruim) => { const s = document.createElement('script'); s.src = '/estudio-youtube.js'; s.onload = ok; s.onerror = () => { this._yt = null; ruim(new Error('não consegui carregar o /estudio-youtube.js')); }; document.head.appendChild(s); })); },
   // LEGENDAS PARA O YOUTUBE (pedido da dona, 09/11/2026): .srt em UTF-8, com o tempo contado do começo do trecho; os asteriscos de destaque saem
