@@ -93,7 +93,7 @@ const Home = {
   },
   async animacoes(c) {
     const S = this.secaoAtual();
-    c.innerHTML = `${this.cabecalho(S, `<button class="btn sm" data-atual-a title="Atualizar a lista (busca de novo na nuvem da equipe)">${ic('loop', 13)} Atualizar</button><button class="btn sm" data-pnova-a title="Pasta nova nesta seção">${ic('folder', 13)} Pasta nova</button><button class="btn sm primary" data-nova-a>${ic('plus', 13)} Nova animação</button>`, 'Buscar em todas as pastas', this.q)}<div data-cont></div><div data-g></div>`;
+    c.innerHTML = `${this.cabecalho(S, `<button class="btn sm" data-atual-a title="Atualizar a lista (busca de novo na nuvem da equipe)">${ic('loop', 13)} Atualizar</button><button class="btn sm" data-pnova-a title="Pasta nova nesta seção">${ic('folder', 13)} Pasta nova</button><button class="btn sm primary" data-nova-a>${ic('plus', 13)} Nova animação</button>`, 'Buscar em todas as pastas', this.q)}<div data-cont></div><div data-g><div class="vazio hm-carregando"><span class="spin-dot"></span> Carregando as animações…</div></div>`;
     $('[data-nova-a]', c).onclick = () => this.novaEscolha();
     const busca = $('[data-busca]', c); busca.oninput = () => { this.q = busca.value; this.grade(c); };
     $('[data-pnova-a]', c).onclick = async () => { try { if (await PastasBib.nova(this.subAnim === 'nuvem' ? 'animn' : 'anim')) this.grade(c); } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } };
@@ -165,7 +165,7 @@ const Home = {
     };
     if (q) { $('[data-cont]', c)?.replaceChildren(); g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); const av = $('.aovivo-agora', c); if (av && this._salas) this.pintaAoVivo(c, av); return; }
     // CONTINUAR DE ONDE PAROU: as 4 mais novas desta seção, em cima das pastas (só no começo da seção, sem busca)
-    const cont = $('[data-cont]', c); if (cont) { cont.innerHTML = ''; if (!PastasBib.aberta(escP) && L.length > 4) { const sec = h(`<section class="pb-sec hm-cont"><h3 class="pb-h">Continuar de onde parou</h3><div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div></section>`); for (const p of L.slice(0, 4)) $('.grade', sec).appendChild(cartao(p)); cont.appendChild(sec); } }
+    const cont = $('[data-cont]', c); if (cont) { cont.innerHTML = ''; if (!PastasBib.aberta(escP) && L.length > 4) { const sec = h(`<section class="pb-sec hm-cont"><h3 class="pb-h">Continuar de onde parou</h3><div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div></section>`); for (const p of L.slice(0, Math.max(4, L.filter(p => this._vivos?.has(p.id)).length))) $('.grade', sec).appendChild(cartao(p)); cont.appendChild(sec); } }
     const S = this.secaoAtual(), novaAqui = pa => { const b = h(`<button class="btn sm primary">${ic('plus', 13)} Nova animação aqui</button>`); b.onclick = () => this.novaEscolha({ pasta: pa, esc: escP }); return b; };
     try { ({ todas: todasP } = await PastasBib.monta(g, { esc: escP, min: 220, itens: L, cartao, aoMudar: () => this.grade(c), cartoes: true, titulo: S.titulo, miniatura: p => p.thumb || this._thumbU?.get(p.id), data: p => p.modificado, acoesPasta: novaAqui })); }
     catch { g.innerHTML = ''; const gr = h('<div class="grade"></div>'); for (const p of L) gr.appendChild(cartao(p)); g.appendChild(gr); }

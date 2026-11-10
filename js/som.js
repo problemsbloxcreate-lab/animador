@@ -105,7 +105,7 @@ const Som = {
     const m = this._mestre, v = this.mudoGeral ? 0 : this.geral();
     if (m && v !== this._gv) { const t = m.context.currentTime; if (this._gv == null) m.gain.value = v; else { m.gain.cancelScheduledValues(t); m.gain.setTargetAtTime(v, t, .015); } this._gv = v; }
     const r = document.getElementById('tl-volg'); if (!r || !App.P) return; const g = this.geral(), pc = Math.round(g * 100), mu = this.mudoGeral, bt = document.getElementById('t-mudo'), b = document.getElementById('tl-volv');
-    if (document.activeElement !== r) r.value = pc; if (b) b.textContent = pc + '%';
+    if (document.activeElement !== r) r.value = pc; if (b && document.activeElement !== b) b.value = pc;
     const db = g <= 0 ? 'sem som' : (20 * Math.log10(g) >= 0 ? '+' : '') + (20 * Math.log10(g)).toFixed(1).replace('.', ',') + ' dB';
     r.title = `Volume geral: ${pc}% (${db}) · vale para ouvir e para o vídeo exportado · dois cliques volta a 100%`;
     if (bt) { const k = mu ? 'mute' : 'vol'; if (bt.dataset.ic !== k) { bt.innerHTML = ic(k, 15); bt.dataset.ic = k; } bt.classList.toggle('on', mu); bt.title = mu ? 'Mudo só aqui enquanto edita (o vídeo exportado sai com som) · clique para ouvir de novo' : 'Silenciar só aqui enquanto edita (não muda o vídeo exportado)'; }
@@ -116,6 +116,12 @@ const Som = {
     r.oninput = () => this.poeGeral(+r.value / 100); r.onchange = () => App.commit('Volume geral');
     r.ondblclick = () => { this.poeGeral(1); App.commit('Volume geral'); };
     if (bt) bt.onclick = () => { this.mudoGeral = !this.mudoGeral; this.aplicaGeral(); };
+    // o NÚMERO também muda (pedido da dona, 10/11/2026): digitar e Enter/sair do campo; Esc desfaz
+    const n = document.getElementById('tl-volv'); if (n) {
+      n.onchange = () => { const v = parseFloat(String(n.value).replace(',', '.')); if (!Number.isFinite(v)) return this.aplicaGeral(); this.poeGeral(clamp(v, 0, 200) / 100); n.value = Math.round(this.geral() * 100); App.commit('Volume geral'); };
+      n.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') n.blur(); else if (e.key === 'Escape') { n.value = Math.round(this.geral() * 100); n.blur(); } };
+      n.onfocus = () => n.select(); n.onblur = () => this.aplicaGeral();
+    }
   },
   /* ---------- MIXAGEM (como a dos Shorts): cada áudio tem tipo (voz, música, efeito), corte (ini = segundos cortados do começo,
      dur = quanto dura na timeline), fade de entrada/saída (fi/fo em s), repetir (loop, música), mudo/solo; e a MÚSICA abaixa sozinha
