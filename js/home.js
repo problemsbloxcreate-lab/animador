@@ -377,7 +377,9 @@ addEventListener('DOMContentLoaded', async () => {
       const nv = qs.get('nuvem');
       if (nv && /^[A-Za-z0-9_-]{2,40}$/.test(nv)) { history.replaceState(null, '', location.pathname); Home.atual = 'animacoes'; Home.pinta();
         const local = await DB.get('projetos', nv).catch(() => null); NuvemTela.inicio(local?.nome || ''); let ok = false; // logo -> "Carregando da nuvem" com a % (some no fim ou no erro)
-        try { await NuvemAnim.abrir(nv, local || null, { tela: true }); ok = true; } catch (e) { console.warn('abrir da nuvem', e); } finally { NuvemTela.fim(ok); } }
+        try { await NuvemAnim.abrir(nv, local || null, { tela: true }); ok = true; } catch (e) { console.warn('abrir da nuvem', e); } finally { NuvemTela.fim(ok); }
+        // aberto pelo PUBLICAÇÕES num quadro para gerar o vídeo ali (&exportar=publicacoes&item=<id do não publicado>, 10/11/2026)
+        const itPub = qs.get('item'); if (qs.get('exportar') === 'publicacoes' && /^[A-Za-z0-9_-]{6,20}$/.test(itPub || '')) Exportar.paraPublicacoes(itPub, ok); }
       else {
       if (['animacoes', 'ideias', 'personagens', 'preparativos'].includes(aba)) Home.atual = aba;
       if (aba || abrir) history.replaceState(null, '', location.pathname);

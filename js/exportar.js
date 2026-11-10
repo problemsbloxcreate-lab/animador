@@ -64,6 +64,25 @@ const Exportar = {
     const botao = () => { const b = api?.foot.querySelector('.btn.primary'); if (b) b.innerHTML = `${ic('download', 14)} ${{ mp4: 'Exportar o vídeo', png: 'Salvar a imagem', wav: 'Exportar o som', animador: 'Baixar o .animador', srt: 'Baixar as legendas' }[cfg.tipo]}`; };
     pinta(); await UI.modal(o); this._cancela = null;
   },
+  /* GERAR O VÍDEO PELO PUBLICAÇÕES (pedido da dona, 10/11/2026): o Publicações abre /animador/?nuvem=<id>&exportar=publicacoes&item=<id>
+     num quadro dentro dele. Aqui gera o MP4 do jeito que o projeto guarda (tudo, qualidade Máxima, som e legendas conforme a última exportação),
+     guarda no IndexedDB 'ep-publicacoes' ligado ao não publicado (concluido: item) e avisa a página de cima (mesma origem) por postMessage:
+     ep-exp-prog { f, txt } · ep-exp-pronto { id } · ep-exp-erro { msg }. A página de cima cancela com { tipo: 'ep-exp-cancela' }. */
+  async paraPublicacoes(item, abriu) {
+    const pai = window.parent !== window ? window.parent : null; if (!pai) return;
+    const diz = m => { try { pai.postMessage({ ...m, item }, location.origin); } catch { } };
+    let cancelou = false; addEventListener('message', e => { if (e.origin === location.origin && e.source === pai && e.data?.tipo === 'ep-exp-cancela') cancelou = true; });
+    try {
+      const P = App.P; if (!abriu || !P) throw new Error('Não consegui abrir a animação da nuvem.');
+      const cfg = P.exportar || {}, pr = (f, txt) => { diz({ tipo: 'ep-exp-prog', f, txt: txt || '' }); if (cancelou) throw new Error('cancelado'); };
+      pr(0, 'Preparando as imagens…');
+      const blob = await this.mp4({ q: 1, de: 0, ate: P.duracao - 1, qual: 'max', som: cfg.som !== false, semLegenda: cfg.leg === false, pr });
+      await this.youtube();
+      const id = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      await EstudioYouTube.fila.poe({ id, blob, nome: this.nomeArq(P, { nomeProj: true }, '.mp4'), titulo: String(P.nome || '').slice(0, 100), descricao: '', programa: 'animador', em: Date.now(), concluido: item });
+      diz({ tipo: 'ep-exp-pronto', id });
+    } catch (e) { diz({ tipo: 'ep-exp-erro', msg: e?.message === 'cancelado' ? 'cancelado' : String(e?.message || e) }); }
+  },
   // carrega o módulo comum do Estúdio só quando a pessoa clica (o porteiro troca o ID do cliente do Google dentro dele)
   youtube() { return window.EstudioYouTube ? Promise.resolve() : (this._yt ||= new Promise((ok, ruim) => { const s = document.createElement('script'); s.src = '/estudio-youtube.js'; s.onload = ok; s.onerror = () => { this._yt = null; ruim(new Error('não consegui carregar o /estudio-youtube.js')); }; document.head.appendChild(s); })); },
   // LEGENDAS PARA O YOUTUBE (pedido da dona, 09/11/2026): .srt em UTF-8, com o tempo contado do começo do trecho; os asteriscos de destaque saem
