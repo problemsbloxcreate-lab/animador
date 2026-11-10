@@ -10,10 +10,13 @@
 'use strict';
 const AtualizaProj = {
   VERSAO: 3,
-  // REFORMA RIVE DO ATELIÊ (10/11/2026, pedido da dona): personagem salvo no Ateliê depois disso, num projeto com a cópia de antes, vem
-  // DESMARCADO (projeto antigo não muda sem querer; a cópia de antes também está na pasta LEGACY). Cópia com mudanças só do projeto também.
+  /* REFORMA RIVE DO ATELIÊ (10/11/2026, pedido da dona): os projetos que já existiam continuam COMO ESTAVAM. Personagem com versão salva
+     no Ateliê depois da reforma, num projeto com a cópia de antes, NÃO entra no "Atualizar projeto": aparece o botão azul
+     "Personagens LEGACY" (#b-legacy). Clicar avisa que vai substituir pela versão nova do Ateliê e, antes, cria sozinho uma CÓPIA LEGACY
+     DA ANIMAÇÃO ("<nome> (LEGACY)", na nuvem da equipe quando a animação está nela), com tudo como estava. Cópia com mudanças só
+     do projeto (`soProjeto`) continua no "Atualizar projeto", desmarcada. */
   REFORMA_RIVE: 1794339000000,
-  lista: [], _em: 0,
+  lista: [], legacy: [], _em: 0,
   async itens(P) {
     const out = [];
     if ((P.efeitos?.tela || []).length || (P.efeitos?.visual && P.efeitos.visual !== 'normal'))
@@ -23,7 +26,8 @@ const AtualizaProj = {
     for (const def of Object.values(P.personagens || {})) {
       if (!def?.id || def._local) continue; const it = L.find(x => x.id === def.id); if (!it?.modificado || !def.modificado) continue;
       if (it.modificado > def.modificado + 1000) { const rive = it.modificado >= this.REFORMA_RIVE && def.modificado < this.REFORMA_RIVE;
-        out.push({ id: 'pers:' + def.id, titulo: `Personagem ${def.nome}`, desmarcado: !!(rive || def.soProjeto), desc: def.soProjeto ? `Este projeto tem mudanças só dele nesse personagem: atualizar troca pela versão do Ateliê geral (salva ${fmtDate(it.modificado)}).` : rive ? `Versão nova do Ateliê (reforma Rive, salva ${fmtDate(it.modificado)}): pode mudar o jeito das poses e animações deste projeto. A de antes está na pasta LEGACY.` : `Tem uma versão mais nova na nuvem da equipe (salva ${fmtDate(it.modificado)}). As poses e chaves da animação continuam.`, aplica: () => this.personagem(P, def.id) }); }
+        if (rive && !def.soProjeto) { (out.legacy ||= []).push({ id: def.id, nome: def.nome, em: it.modificado }); continue; } // vai para o botão "Personagens LEGACY"
+        out.push({ id: 'pers:' + def.id, titulo: `Personagem ${def.nome}`, desmarcado: !!def.soProjeto, desc: def.soProjeto ? `Este projeto tem mudanças só dele nesse personagem: atualizar troca pela versão do Ateliê geral (salva ${fmtDate(it.modificado)}).` : `Tem uma versão mais nova na nuvem da equipe (salva ${fmtDate(it.modificado)}). As poses e chaves da animação continuam.`, aplica: () => this.personagem(P, def.id) }); }
     }
     return out;
   },
@@ -41,11 +45,31 @@ const AtualizaProj = {
   async confere(forca) {
     const P = App.P; if (!P || (!forca && Date.now() - this._em < 120000)) return this.pinta(); this._em = Date.now();
     const id = P.id; let L = []; try { L = await this.itens(P); } catch { }
-    if (App.P?.id !== id) return; this.lista = L; this.pinta();
+    if (App.P?.id !== id) return; this.lista = L; this.legacy = L.legacy || []; this.pinta();
   },
   pinta() {
+    const bl = this.botaoLegacy(); if (bl) { const nl = App.P ? this.legacy.length : 0; bl.hidden = !nl; bl.innerHTML = `${ic('layers', 14)}<span>Personagens LEGACY</span><i>${nl}</i>`; bl.title = `Esta animação usa personagens de antes da reforma do Ateliê: ${this.legacy.map(x => x.nome).join(', ')}. Ela continua igual. Clique para trocar pelos do Ateliê novo (antes, uma cópia LEGACY da animação é criada).`; }
     const b = this.botao(); if (!b) return; const n = App.P ? this.lista.length : 0; b.hidden = !n;
     b.innerHTML = `${ic('download', 14)}<span>Atualizar projeto</span><i>${n}</i>`; b.title = `Este projeto está atrás da versão atual: ${this.lista.map(x => x.titulo).join(', ')}. Clique para ver e atualizar.`;
+  },
+  botaoLegacy() { let b = $('#b-legacy'); if (!b) { const ref = $('.an-nuvem-bt'); if (!ref) return null; b = h('<button class="btn sm b-legacy" id="b-legacy" hidden></button>'); b.onclick = () => this.trocarLegacy(); ref.after(b); } return b; },
+  // trocar os personagens LEGACY pelos do Ateliê novo: avisa, cria a cópia LEGACY da animação e só então substitui
+  async trocarLegacy() {
+    await this.confere(true); const L = this.legacy, P = App.P; if (!P || !L.length) return UI.toast('Esta animação já usa os personagens do Ateliê novo.', { kind: 'ok' });
+    const body = h(`<div class="atz"><div class="pr-info">Esta animação usa personagens de <b>antes da reforma do Ateliê</b> (LEGACY). Ela continua igual enquanto você não trocar.<br><br>Ao trocar, os marcados viram a <b>versão nova do Ateliê</b>, e as poses podem mudar de jeito. Antes, uma <b>cópia LEGACY desta animação</b> ("${esc(P.nome)} (LEGACY)") é criada sozinha, com tudo como está agora.</div>
+      ${L.map(x => `<label class="atz-it"><input type="checkbox" data-id="${esc(x.id)}" checked><span><b>${esc(x.nome)}</b><small>Versão nova do Ateliê salva ${esc(fmtDate(x.em))}</small></span></label>`).join('')}</div>`);
+    const ids = await UI.modal({ title: 'Trocar pelos personagens do Ateliê novo?', icon: 'layers', width: 500, body, buttons: [{ label: 'Agora não', value: null }, { label: 'Criar a cópia e substituir', kind: 'primary', collect: x => $$('[data-id]', x.body).filter(c => c.checked).map(c => c.dataset.id) }] });
+    if (!ids?.length) return;
+    await App.salvarJa?.(); const copia = clone(P); copia.id = uid('p'); copia.nome = await Arquivos.nomeAnimacao(P.nome + ' (LEGACY)', copia.id); delete copia.nuvemEm; delete copia.nuvemMod; delete copia.soLocal;
+    if (NuvemAnim.vai(P)) copia.nuvemAuto = true; copia.legacyDe = { id: P.id, em: Date.now() }; copia.modificado = Date.now();
+    const feitos = [], erros = [];
+    const roda = async () => {
+      await DB.put('projetos', copia); if (NuvemAnim.vai(copia) && !(await NuvemAnim.salvar(copia, t => Ocupado.anda?.(t)))) throw new Error('a cópia LEGACY não foi para a nuvem');
+      for (const id of ids) { try { await this.personagem(P, id); feitos.push(P.personagens[id]?.nome || id); } catch { erros.push(L.find(x => x.id === id)?.nome || id); } } };
+    try { if (typeof Ocupado !== 'undefined' && Ocupado.nuvem) await Ocupado.nuvem('Cópia LEGACY e troca dos personagens', roda); else await roda(); }
+    catch (e) { return UI.toast('Não troquei nada: ' + esc(e.message), { kind: 'err', time: 7000 }); }
+    App.commit('Trocar pelos personagens do Ateliê novo'); await App.salvarJa?.(); this.confere(true);
+    UI.toast(`Cópia <b>${esc(copia.nome)}</b> criada. ${feitos.length ? 'Agora com o Ateliê novo: ' + feitos.map(esc).join(', ') + '.' : ''}${erros.length ? ` Não deu: ${erros.map(esc).join(', ')}.` : ''}`, { kind: erros.length ? 'warn' : 'ok', time: 8000 });
   },
   botao() { let b = $('#b-atualizar'); if (!b) { const ref = $('.an-nuvem-bt'); if (!ref) return null; b = h('<button class="btn sm b-atualizar" id="b-atualizar" hidden></button>'); b.onclick = () => this.abrir(); ref.after(b); /* junto do Salvo: é coisa do projeto */ } return b; },
   async abrir() {

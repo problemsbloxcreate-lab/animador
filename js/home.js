@@ -408,7 +408,9 @@ addEventListener('DOMContentLoaded', async () => {
     if (d?.tipo === 'personagem-anim' && d.def && App.P?.id === d.projeto) { // a cópia DESTA animação foi mudada no Ateliê (outra aba): vale só aqui
       App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem desta animação (Ateliê)', { livre: true }); return; }
     if (d?.tipo !== 'personagem' || !d.def) return;
-    if (App.P?.personagens?.[d.def.id]?.soProjeto) { UI.toast(`<b>${esc(d.def.nome)}</b> foi salvo no Ateliê geral, mas este projeto tem mudanças só dele nesse personagem: ficou como estava (use "Atualizar projeto" se quiser trocar).`, { kind: 'warn', time: 7000 }); }
+    const velhoP = App.P?.personagens?.[d.def.id];
+    if (velhoP && !velhoP.soProjeto && (velhoP.modificado || 0) < AtualizaProj.REFORMA_RIVE && (d.def.modificado || 0) >= AtualizaProj.REFORMA_RIVE) { AtualizaProj.confere(true); UI.toast(`<b>${esc(d.def.nome)}</b> foi salvo no Ateliê novo. Esta animação continua com a versão de antes (LEGACY): use o botão azul "Personagens LEGACY" se quiser trocar.`, { time: 7000 }); } // reforma Rive: projeto antigo não muda sozinho
+    else if (App.P?.personagens?.[d.def.id]?.soProjeto) { UI.toast(`<b>${esc(d.def.nome)}</b> foi salvo no Ateliê geral, mas este projeto tem mudanças só dele nesse personagem: ficou como estava (use "Atualizar projeto" se quiser trocar).`, { kind: 'warn', time: 7000 }); }
     else if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = AtelieAnim.junta(App.P.personagens[d.def.id], d.def); /* imagens feitas só para um quadro continuam */ await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem atualizado', { livre: true }); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
     else if (!App.P && Home.atual === 'personagens' && !Atelie.emAba) Home.pinta();
   }; } catch { }
