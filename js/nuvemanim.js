@@ -255,6 +255,7 @@ const NuvemAnim = {
       try { await App.salvarJa(); const snap = JSON.parse(JSON.stringify(App.P)); if (snap.id !== id) return;
         App.salvoTxt('Enviando para a nuvem…'); await this.salvar(snap);
         let mod = Date.now(); try { mod = (await this.lista(true)).find(x => x.id === id)?.mod || mod; } catch { }
+        if (App.P?.id === id && App.P.publicacoes?.id) { try { await Exportar.pubAuto?.(App.P, snap); } catch (e) { console.warn('Publicações automático', e); } } // Pu: atualiza o Não publicados junto
         if (App.P?.id === id) { App.P.nuvemEm = em; App.P.nuvemMod = mod; await DB.put('projetos', JSON.parse(JSON.stringify(App.P))).catch(() => { }); App.salvoTxt(this.sujo(App.P) ? 'Salvo neste computador' : 'Salvo na nuvem da equipe'); }
         if (this.aoVivoJunto()) try { AoVivo.t.setMeta(AoVivo.sala, { nuvemEm: { t: Date.now(), por: AoVivo.eu.id, mod } }); } catch { }
         this.erro = null;

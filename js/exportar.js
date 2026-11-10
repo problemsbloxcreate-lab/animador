@@ -103,22 +103,61 @@ const Exportar = {
      anda; depois fica verde com "No Publicações" (P.publicacoes.id) em toda abertura desta animação; e ao terminar o botão pisca e abre um
      BALÃO logo embaixo dele (pubBalao) com o resultado e "Abrir o Publicações". Erros e avisos do Pu também saem no balão. */
   pintaPub() {
-    const b = document.getElementById('b-pub'); if (!b) return; const P = App.P, an = !!this._prontoAndando, ok = !!P?.publicacoes?.id;
-    const k = an ? 'a' : ok ? 'o' + P.publicacoes.em : 'n'; if (b.dataset.st === k) return; b.dataset.st = k;
-    b.classList.toggle('pub-andando', an); b.classList.toggle('pub-ok', ok && !an);
+    const b = document.getElementById('b-pub'); if (!b) return; const P = App.P, an = !!this._prontoAndando, ok = !!P?.publicacoes?.id && !P.publicacoes.saiu, ds = ok && this.pubDesat(P);
+    const k = an ? 'a' : ds ? 'd' + P.publicacoes.em : ok ? 'o' + P.publicacoes.em : 'n'; if (b.dataset.st === k) return; b.dataset.st = k;
+    b.classList.toggle('pub-andando', an); b.classList.toggle('pub-ok', ok && !an && !ds); b.classList.toggle('pub-desat', ds && !an);
     let tx = b.querySelector('.pub-tx'); if (!tx) { tx = document.createElement('span'); tx.className = 'pub-tx'; b.appendChild(tx); }
-    tx.innerHTML = an ? '<span class="spin-dot"></span> Enviando…' : ok ? ic('check', 13) + ' No Publicações' : '';
-    b.title = an ? 'Pondo no Publicações…' : ok ? `Já está no Publicações, em "Não publicados" (desde ${fmtDate(P.publicacoes.em)}). Clique para atualizar lá.` : 'Pronto: pôr no Publicações (sem exportar). Lá dá para gerar o vídeo depois.';
+    tx.innerHTML = an ? '<span class="spin-dot"></span> Enviando…' : ds ? ic('alert', 13) + ' Desatualizado' : ok ? ic('check', 13) + ' No Publicações' : '';
+    b.title = an ? 'Pondo no Publicações…' : ds ? `A animação mudou depois de ir para o Publicações (lá está a de ${fmtDate(P.publicacoes.em)}). Ela se atualiza sozinha lá quando salvar na nuvem; clique para atualizar agora.`
+      : ok ? `Já está no Publicações, em "Não publicados" (atualizado ${fmtDate(P.publicacoes.em)}). Cada vez que salvar na nuvem, atualiza lá também.` : 'Pronto: pôr no Publicações (sem exportar). Lá dá para gerar o vídeo depois.';
+  },
+  // DESATUALIZADO (pedido da dona, 10/11/2026): a animação mudou (P.modificado) depois da versão que está no Publicações (P.publicacoes.mod)
+  pubDesat(P) { const u = P?.publicacoes; return !!(u?.id && !u.saiu && (P.modificado || 0) > (u.mod || u.em || 0) + 1000); },
+  // o item do Não publicados com o nome, o formato e a miniatura de agora (o resto — canal, data, modo — fica como a equipe deixou lá)
+  itemPub(P, ant, id, q) {
+    const base = ant ? (({ meu, por, editadoPor, editadoEm, ...x }) => x)(ant) : { canal: this.CANAL_TURMA, enviadoEm: Date.now(), modo: 'naoListado', privacidade: 'unlisted' };
+    return { ...base, id, concluido: true, titulo: String(P.nome || 'Animação').slice(0, 100), programa: 'animador', abrir: '/animador/?nuvem=' + P.id, formato: P.h > P.w ? 'short' : 'longo', thumb: this.miniPub(P, clamp(q || 0, 0, Math.max(0, (P.duracao || 1) - 1))) };
+  },
+  /* ATUALIZA SOZINHO JUNTO COM O SALVAR NA NUVEM (NuvemAnim.sincronizar, depois de mandar): se está desatualizado, regrava o mesmo item
+     (nome, formato, miniatura do quadro escolhido no clique). Saiu de Não publicados (postado/tirado) = marca saiu e NÃO põe de novo;
+     na fila de gerar (pedido) = espera a próxima vez. snap = a versão que acabou de ir para a nuvem. Devolve se mudou P.publicacoes. */
+  async pubAuto(P, snap) {
+    const u = P?.publicacoes; if (!u?.id || u.saiu || !this.pubDesat(snap)) return false;
+    const pode = k => window.EstudioPerm?.pode?.(k) ?? true; if (!pode('animador.exportar') || !pode('publicacoes')) return false;
+    const L = await (await Nuvem.pede('/publicacoes')).json(), ant = (L.itens || []).find(x => x.id === u.id);
+    if (!ant) { P.publicacoes = { ...u, saiu: true }; this.pintaPub(); return true; }
+    if (ant.pedido) return false;
+    await Nuvem.pede('/publicacoes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ item: this.itemPub(snap, ant, u.id, u.q) }) });
+    if (P.publicacoes?.id === u.id) P.publicacoes = { ...P.publicacoes, em: Date.now(), mod: snap.modificado || Date.now() }; this.pintaPub(); return true;
   },
   pubBalao(html, tipo = 'ok') {
     document.querySelector('.pub-balao')?.remove(); clearTimeout(this._balaoT); const b = document.getElementById('b-pub');
     if (!b || !b.offsetParent) return UI.toast(html, { kind: tipo });
-    const r = b.getBoundingClientRect(), el = h(`<div class="pub-balao ${tipo}" role="status"><span class="pub-balao-ic">${ic(tipo === 'ok' ? 'check' : 'alert', 16)}</span><div class="pub-balao-tx">${html}</div><button class="ibtn" data-x title="Fechar">${ic('x', 13)}</button></div>`);
+    const r = b.getBoundingClientRect(), el = h(`<div class="pub-balao ${tipo}" role="status"><span class="pub-balao-ic">${ic(tipo === 'ok' ? 'check' : tipo === 'info' ? 'info' : 'alert', 16)}</span><div class="pub-balao-tx">${html}</div><button class="ibtn" data-x title="Fechar">${ic('x', 13)}</button></div>`);
     el.style.top = Math.round(r.bottom + 8) + 'px'; el.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px'; el.style.setProperty('--seta', Math.round(r.width / 2) + 'px');
     document.body.appendChild(el); const fecha = () => { el.remove(); document.removeEventListener('pointerdown', fora, true); clearTimeout(this._balaoT); };
     const fora = e => { if (!el.contains(e.target) && !b.contains(e.target)) fecha(); };
     $('[data-x]', el).onclick = fecha; setTimeout(() => document.addEventListener('pointerdown', fora, true), 0); this._balaoT = setTimeout(fecha, tipo === 'ok' ? 10000 : 8000);
     if (tipo === 'ok') { b.classList.remove('pub-flash'); void b.offsetWidth; b.classList.add('pub-flash'); setTimeout(() => b.classList.remove('pub-flash'), 1600); }
+  },
+  /* TIRAR DO PUBLICAÇÕES (pedido da dona, 10/11/2026): botão direito no Pu, menu ⋯ e o botão "Tirar de lá" no balão.
+     DELETE /publicacoes?id=<item> (o servidor só deixa quem pôs lá ou um ADM). Tira P.publicacoes: o Pu volta ao normal. */
+  temPub(P = App.P) { return !!(P?.publicacoes?.id && !P.publicacoes.saiu); },
+  async tirarPub() {
+    const P = App.P, u = P?.publicacoes; if (!u?.id || this._prontoAndando) return;
+    if (!await UI.confirm({ title: 'Tirar do Publicações?', msg: `"${esc(P.nome || 'Animação')}" sai de "Não publicados" no Publicações. A animação continua aqui, e dá para pôr de novo depois pelo botão Pu.`, ok: 'Tirar de lá', danger: true, icon: 'trash' })) return;
+    this._prontoAndando = true; this.pintaPub();
+    try {
+      if (!u.saiu) { try { await Nuvem.pede('/publicacoes?id=' + encodeURIComponent(u.id), { method: 'DELETE' }); }
+        catch (e) { return this.pubBalao(e.status === 403 ? 'Só quem pôs no Publicações (ou um ADM) pode tirar de lá.' : 'Não deu para tirar do Publicações: ' + esc(e.message), 'err'); } }
+      if (App.P === P) { delete P.publicacoes; try { await App.salvarJa?.(); } catch { } }
+      this._prontoAndando = false; this.pintaPub(); this.pubBalao(`<b>Tirada do Publicações</b><small>${esc(P.nome || 'Animação')} não está mais em Não publicados.</small>`, 'info');
+    } finally { this._prontoAndando = false; this.pintaPub(); }
+  },
+  menuPub(x, y) {
+    UI.ctx(x, y, [{ label: this.temPub() ? (this.pubDesat(App.P) ? 'Atualizar no Publicações agora' : 'Atualizar no Publicações') : 'Pronto: pôr no Publicações', icon: 'upload', action: () => this.pronto() },
+      { label: 'Abrir o Publicações', icon: 'right', action: () => window.open('/publicacoes/', '_blank', 'noopener') },
+      App.P?.publicacoes?.id && '-', App.P?.publicacoes?.id && { label: 'Tirar do Publicações', icon: 'trash', danger: true, action: () => this.tirarPub() }].filter(Boolean));
   },
   async pronto() {
     const P = App.P; if (!P || this._prontoAndando) return;
@@ -137,13 +176,13 @@ const Exportar = {
       if (ant?.pedido) return this.pubBalao('Esta animação já está na fila do Publicações. <a href="/publicacoes/" target="_blank" rel="noopener">Abrir o Publicações</a>', 'warn');
       if (P.publicacoes?.id && !ant && !await UI.confirm({ title: 'Pôr no Publicações de novo?', msg: 'Esta animação já foi para o Publicações e saiu de "Não publicados" (foi postada ou tirada de lá). Pôr de novo?', ok: 'Pôr de novo' })) return;
       const id = ant ? ant.id : 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      const base = ant ? (({ meu, por, editadoPor, editadoEm, ...x }) => x)(ant) : { canal: this.CANAL_TURMA, enviadoEm: Date.now(), modo: 'naoListado', privacidade: 'unlisted' };
-      const item = { ...base, id, concluido: true, titulo: String(P.nome || 'Animação').slice(0, 100), programa: 'animador', abrir: '/animador/?nuvem=' + P.id, formato: P.h > P.w ? 'short' : 'longo', thumb: this.miniPub(P, App.q || 0) };
+      const qMini = App.q || 0, item = this.itemPub(P, ant, id, qMini);
       try { await Nuvem.pede('/publicacoes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ item }) }); }
       catch (e) { return this.pubBalao('Não deu para pôr no Publicações: ' + esc(e.message), 'err'); }
-      if (App.P === P) { P.publicacoes = { id, em: Date.now() }; try { await App.salvarJa?.(); } catch { } }
+      if (App.P === P) { P.publicacoes = { id, em: Date.now(), mod: P.modificado || Date.now(), q: qMini }; try { await App.salvarJa?.(); } catch { } }
       this._prontoAndando = false; this.pintaPub();
-      this.pubBalao(`<b>${ant ? 'Atualizada no Publicações' : 'Já está no Publicações'}</b><small>${esc(P.nome || 'Animação')} · em Não publicados (${item.formato === 'short' ? 'Shorts' : 'Vídeos longos'})</small><a class="btn sm" href="/publicacoes/" target="_blank" rel="noopener">Abrir o Publicações</a>`);
+      this.pubBalao(`<b>${ant ? 'Atualizada no Publicações' : 'Já está no Publicações'}</b><small>${esc(P.nome || 'Animação')} · em Não publicados (${item.formato === 'short' ? 'Shorts' : 'Vídeos longos'})</small><span class="pub-balao-acoes"><a class="btn sm" href="/publicacoes/" target="_blank" rel="noopener">Abrir o Publicações</a><button class="btn sm" data-tirar title="Não quero lá: tirar de Não publicados">Tirar de lá</button></span>`);
+      { const t = document.querySelector('.pub-balao [data-tirar]'); if (t) t.onclick = () => { document.querySelector('.pub-balao')?.remove(); this.tirarPub(); }; }
     } finally { this._prontoAndando = false; this.pintaPub(); }
   },
   // carrega o módulo comum do Estúdio só quando a pessoa clica (o porteiro troca o ID do cliente do Google dentro dele)

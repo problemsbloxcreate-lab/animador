@@ -1780,6 +1780,7 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 #b-pub.pub-ok,#b-pub.pub-andando{width:auto;padding:0 10px 0 7px;gap:6px}#b-pub.pub-ok .pub-tx,#b-pub.pub-andando .pub-tx{display:inline-flex}
 #b-pub.pub-ok{background:#1e7a43;border-color:#1e7a43;color:#fff}#b-pub.pub-ok:hover{background:#23904f}
 #b-pub.pub-andando{opacity:.85;cursor:progress}
+#b-pub.pub-desat{width:auto;padding:0 10px 0 7px;gap:6px;background:#7a5a12;border-color:#c99a2e;color:#fff}#b-pub.pub-desat .pub-tx{display:inline-flex}#b-pub.pub-desat:hover{background:#8c6815}
 #b-pub.pub-flash{animation:pubFlash 1.5s ease-out}
 @keyframes pubFlash{0%,30%{background:#2fbf6a;border-color:#2fbf6a;box-shadow:0 0 0 0 rgba(47,191,106,.7)}100%{box-shadow:0 0 0 12px rgba(47,191,106,0)}}
 .pub-balao{position:fixed;z-index:9000;display:flex;align-items:flex-start;gap:10px;min-width:260px;max-width:380px;padding:12px 10px 12px 14px;background:#1e7a43;color:#fff;border-radius:0;box-shadow:0 8px 24px rgba(0,0,0,.45);animation:pubEntra .18s ease-out}
@@ -1788,6 +1789,7 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .pub-balao-ic{flex:none;margin-top:1px}.pub-balao-tx{flex:1;display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.35}.pub-balao-tx b{font-weight:600;font-size:14px}.pub-balao-tx small{opacity:.85;font-size:12px}
 .pub-balao-tx a{color:#fff;text-decoration:underline}.pub-balao-tx a.btn{align-self:flex-start;margin-top:4px;text-decoration:none;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);color:#fff;border-radius:0}
 .pub-balao .ibtn{color:#fff;flex:none}
+.pub-balao.info{background:#2b4f7a}.pub-balao.info::before{border-bottom-color:#2b4f7a}.pub-balao-acoes{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.pub-balao-acoes .btn{margin-top:0!important;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);color:#fff;border-radius:0}
 @keyframes pubEntra{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 #editor>header.bar .proj-nome b{margin-left:0} /* o começo do nome não fica cortado (05/11/2026) */
 #editor>header.bar .proj-nome b.editando{cursor:text;background:var(--bg3);border-color:#3d8bff;outline:none;text-overflow:clip;max-width:340px}
