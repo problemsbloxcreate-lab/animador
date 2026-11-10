@@ -38,6 +38,8 @@ const AtelieAnim = {
   // a mudança vai para a animação: a aberta (outra aba) e a guardada neste computador
   async mandar(avisa) {
     clearTimeout(this._t); const A = Atelie.daAnim; if (!A || !Atelie.def) return; const def = JSON.parse(Atelie.ultimo || JSON.stringify(Atelie.def));
+    // MUDANÇA SÓ DESTE PROJETO (10/11/2026): a cópia ganha a marca e o Animador mostra o selo "só neste projeto"
+    if (Atelie.def.soProjeto || (Atelie.base0 && Atelie.ultimo !== Atelie.base0)) { const sp = { em: Date.now(), projeto: A.projeto }; Atelie.def.soProjeto = def.soProjeto = sp; }
     try { def.thumb = Atelie.miniatura(); } catch { }
     try { (Atelie._canal ||= new BroadcastChannel('animador')).postMessage({ tipo: 'personagem-anim', projeto: A.projeto, def }); } catch { }
     try { const P = await DB.get('projetos', A.projeto); if (P?.personagens) { P.personagens[def.id] = def; P.modificado = Date.now(); await DB.put('projetos', P); } A.em = Date.now(); }

@@ -364,7 +364,7 @@ addEventListener('DOMContentLoaded', async () => {
   const at = new URLSearchParams(location.search).get('atelie');
   const naPose = new URLSearchParams(location.search).get('pose') === '1';
   const daAnim = new URLSearchParams(location.search).get('anim'); AtelieAnim.liga();
-  if (at && daAnim) { Atelie.emAba = true; if (!(await AtelieAnim.entrar(at, daAnim))) { history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } } // a CÓPIA de uma animação (o que está na timeline)
+  if (at && daAnim) { Atelie.emAba = true; const okA = await AtelieAnim.entrar(at, daAnim); if (okA && naPose) await Animacoes.entrarNaPose(at); if (!okA) { history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } } // a CÓPIA de uma animação (o que está na timeline)
   else if (at) { Atelie.emAba = true; const abA = (async () => Atelie.abrir(at === 'novo' ? null : at, naPose ? { reserva: await Animacoes.reservaDaPose(at) } : {}))(); window.EstudioProgresso?.tarefa(abA, 'Abrindo o personagem e as imagens', 40000); await abA; /* a tela do programa só sai com o personagem pronto (05/11/2026) */ if (naPose && Atelie.def) await Animacoes.entrarNaPose(at); if (!Atelie.def) { if (at === 'novo') window.close(); history.replaceState(null, '', location.pathname); Atelie.emAba = false; Home.pinta(); } }
     if (at && Atelie.def) { const rc = await Citacao.receber(); if (rc?.parte) Citacao.irAtelie(rc.parte); }
   else { // F5 / "Atualizar todos os sites" com uma animação aberta (?projeto=<id>): volta direto para ela
@@ -408,7 +408,8 @@ addEventListener('DOMContentLoaded', async () => {
     if (d?.tipo === 'personagem-anim' && d.def && App.P?.id === d.projeto) { // a cópia DESTA animação foi mudada no Ateliê (outra aba): vale só aqui
       App.P.personagens[d.def.id] = d.def; await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem desta animação (Ateliê)', { livre: true }); return; }
     if (d?.tipo !== 'personagem' || !d.def) return;
-    if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = AtelieAnim.junta(App.P.personagens[d.def.id], d.def); /* imagens feitas só para um quadro continuam */ await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem atualizado', { livre: true }); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
+    if (App.P?.personagens?.[d.def.id]?.soProjeto) { UI.toast(`<b>${esc(d.def.nome)}</b> foi salvo no Ateliê geral, mas este projeto tem mudanças só dele nesse personagem: ficou como estava (use "Atualizar projeto" se quiser trocar).`, { kind: 'warn', time: 7000 }); }
+    else if (App.P?.personagens?.[d.def.id]) { App.P.personagens[d.def.id] = AtelieAnim.junta(App.P.personagens[d.def.id], d.def); /* imagens feitas só para um quadro continuam */ await Arq.garantir(Modelo.chavesImgs(d.def)); App.commit('Personagem atualizado', { livre: true }); UI.toast(`<b>${esc(d.def.nome)}</b> atualizado nesta animação.`, { kind: 'ok' }); }
     else if (!App.P && Home.atual === 'personagens' && !Atelie.emAba) Home.pinta();
   }; } catch { }
   // círculo de espaço (padrão de todos os projetos): as animações deste computador, com "Baixar .animador"

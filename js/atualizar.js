@@ -10,6 +10,9 @@
 'use strict';
 const AtualizaProj = {
   VERSAO: 3,
+  // REFORMA RIVE DO ATELIÊ (10/11/2026, pedido da dona): personagem salvo no Ateliê depois disso, num projeto com a cópia de antes, vem
+  // DESMARCADO (projeto antigo não muda sem querer; a cópia de antes também está na pasta LEGACY). Cópia com mudanças só do projeto também.
+  REFORMA_RIVE: 1794339000000,
   lista: [], _em: 0,
   async itens(P) {
     const out = [];
@@ -19,7 +22,8 @@ const AtualizaProj = {
     let L = []; try { L = await Nuvem.lista(); } catch { }
     for (const def of Object.values(P.personagens || {})) {
       if (!def?.id || def._local) continue; const it = L.find(x => x.id === def.id); if (!it?.modificado || !def.modificado) continue;
-      if (it.modificado > def.modificado + 1000) out.push({ id: 'pers:' + def.id, titulo: `Personagem ${def.nome}`, desc: `Tem uma versão mais nova na nuvem da equipe (salva ${fmtDate(it.modificado)}). As poses e chaves da animação continuam.`, aplica: () => this.personagem(P, def.id) });
+      if (it.modificado > def.modificado + 1000) { const rive = it.modificado >= this.REFORMA_RIVE && def.modificado < this.REFORMA_RIVE;
+        out.push({ id: 'pers:' + def.id, titulo: `Personagem ${def.nome}`, desmarcado: !!(rive || def.soProjeto), desc: def.soProjeto ? `Este projeto tem mudanças só dele nesse personagem: atualizar troca pela versão do Ateliê geral (salva ${fmtDate(it.modificado)}).` : rive ? `Versão nova do Ateliê (reforma Rive, salva ${fmtDate(it.modificado)}): pode mudar o jeito das poses e animações deste projeto. A de antes está na pasta LEGACY.` : `Tem uma versão mais nova na nuvem da equipe (salva ${fmtDate(it.modificado)}). As poses e chaves da animação continuam.`, aplica: () => this.personagem(P, def.id) }); }
     }
     return out;
   },
@@ -47,7 +51,7 @@ const AtualizaProj = {
   async abrir() {
     await this.confere(true); const L = this.lista; if (!L.length) return UI.toast('O projeto já está na versão atual.', { kind: 'ok' });
     const body = h(`<div class="atz"><div class="pr-info">O Animador mudou desde que este projeto foi feito. Marque o que atualizar. Antes, uma cópia <b>(antes da atualização)</b> fica guardada neste computador, e o Ctrl+Z também volta.</div>
-      ${L.map(x => `<label class="atz-it"><input type="checkbox" data-id="${esc(x.id)}" checked><span><b>${esc(x.titulo)}</b><small>${esc(x.desc)}</small></span></label>`).join('')}</div>`);
+      ${L.map(x => `<label class="atz-it"><input type="checkbox" data-id="${esc(x.id)}" ${x.desmarcado ? '' : 'checked'}><span><b>${esc(x.titulo)}</b><small>${esc(x.desc)}</small></span></label>`).join('')}</div>`);
     const ids = await UI.modal({ title: 'Atualizar o projeto', icon: 'download', width: 480, body, buttons: [{ label: 'Agora não', value: null }, { label: 'Atualizar', kind: 'primary', collect: x => $$('[data-id]', x.body).filter(c => c.checked).map(c => c.dataset.id) }] });
     if (!ids?.length) return;
     const P = App.P, copia = clone(P); copia.id = uid('p'); copia.nome = P.nome + ' (antes da atualização)'; copia.soLocal = true; delete copia.nuvemEm; delete copia.nuvemMod; copia.modificado = Date.now(); try { await DB.put('projetos', copia); } catch { }

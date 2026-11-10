@@ -350,6 +350,7 @@ const Atelie = {
   sessao() { return this.edit ? this.def.sessoes.find(s => s.id === this.edit.s) : null; },
   preset() { const s = this.sessao(); return s ? s.presets.find(p => p.id === this.edit.p) : null; },
   estado() {
+    if (this.teste && Animacoes.rodando && Animacoes._sv) { const e = Animacoes.estadoSuave(); if (e) return e; } // tocando com movimento suave (Rive): o meio do caminho entre as poses
     if (this.edit && !this.editPasso && !Animacoes.mexivel) return Modelo.partesNoEstado(this.def, { sessoes: { [this.edit.s]: this.edit.p } }); // arrumando um preset (mesmo com o painel aberto)
     if (this.teste && Animacoes.mexivel) return Modelo.partesNoEstado(this.def, Animacoes.frameAtual()); // pausado / pose do editor: o quadro inteiro (as edições caem no passo ou preset certo)
     return Modelo.partesNoEstado(this.def, this.teste ? this.teste : this.edit ? { sessoes: { [this.edit.s]: this.edit.p } } : {});
@@ -1539,7 +1540,7 @@ const Atelie = {
     let n = 0; for (const a0 of pl.animacoes || []) {
       const trilhas = (a0.trilhas || []).map(t => (t || []).map(p0 => { const p = { s: {}, p: {} }; for (const [pn, v0] of Object.entries(p0 || {})) { const pt = nome(pn); if (!pt) continue; const v = typeof v0 === 'string' ? { img: v0 } : v0 || {}, im = img(pt, v.img); const num = c => v[c] != null && isFinite(+v[c]); if (!im && !num('r') && !num('x') && !num('y')) continue; p.p[pt.id] = { ...(im ? { img: im.id } : {}), ...(num('r') ? { r: +v.r } : {}), ...(num('x') ? { x: +v.x } : {}), ...(num('y') ? { y: +v.y } : {}) }; } return p; }).filter(p => Object.keys(p.p).length)).filter(t => t.length);
       if (!trilhas.length) continue; const L = def.animacoes ||= [], velha = L.find(x => x.nome.toLowerCase() === String(a0.nome || '').toLowerCase());
-      const a = { id: velha?.id || uid('an'), nome: String(a0.nome || 'Animação').slice(0, 40), vel: clamp(+a0.vel || 250, 60, 2000), trilhas };
+      const a = { id: velha?.id || uid('an'), nome: String(a0.nome || 'Animação').slice(0, 40), vel: clamp(+a0.vel || 250, 60, 2000), suave: velha ? !!velha.suave : true, trilhas };
       if (velha) L[L.indexOf(velha)] = a; else L.push(a); n++;
     }
     if (n) feito.push(`${n} animação(ões) de teste`);

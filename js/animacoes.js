@@ -68,13 +68,42 @@ const Animacoes = {
   tocar(a, de = 0) {
     this.parar(true); window.Falas?.parar(); if (!a) return; const trilhas = (a.trilhas || []).filter(t => t.length); if (!trilhas.length) return UI.toast('Essa animação ainda não tem frames. Escolha no Testar e clique em "+ Passo".', { kind: 'warn' });
     this.poseFixa = null; Atelie.edit = null; Atelie.editPasso = null; Atelie.teste = this.frame(a, de); this.tocando = a.id; this.sel = a.id; this.passo = null; this.passoSel = null; this.pausado = false; this.i = de;
+    if (a.suave && this.ciclo(a) > 1) return this.tocarSuave(a, de);
     const vai = () => { if (!Atelie.teste || this.tocando !== a.id) return this.parar(); Atelie.teste = this.frame(a, this.i); Atelie.desenha(); Atelie.pintaTesteLeve(); this.i = (this.i + 1) % this.ciclo(a); }; // tudo recomeça junto a cada volta da trilha mais comprida (igual à timeline)
     vai(); this._t = setInterval(vai, +a.vel || 250); Atelie.pinta();
   },
+  /* MOVIMENTO SUAVE NO ATELIÊ ("Rive", a.suave; pedido da dona, 10/11/2026): cada frame é uma POSE-CHAVE e as peças vão girando/andando
+     até a próxima, como o Animador faz com `suaveP` (Rig.tween): curva de entrada e saída, cada nível da hierarquia sai um pouco depois
+     da mãe (follow-through), troca de desenho (boca, olhos) só na chave, e a última pose volta para a primeira no laço.
+     Intervalo até 1,25 s = movimento no intervalo inteiro; maior = segura a pose e o movimento leva ~45% dele (igual ao Animador).
+     this.i continua sendo o PRÓXIMO frame (pausar/continuar/timeline funcionam igual ao quadro a quadro). */
+  tocarSuave(a, de = 0) {
+    const n = this.ciclo(a), vel = Math.max(40, +a.vel || 250); this.i = (de + 1) % n;
+    this._sv = { a, idx: ((de % n) + n) % n, u: 0, t0: performance.now(), de };
+    const anda = agora => { const sv = this._sv; if (!sv || sv.a !== a || this.tocando !== a.id || this.pausado || !Atelie.teste) return;
+      const el = (agora - sv.t0) / vel, k = Math.floor(el), idx = (((sv.de + k) % n) + n) % n; sv.u = el - k;
+      if (idx !== sv.idx) { sv.idx = idx; this.i = (idx + 1) % n; Atelie.teste = this.frame(a, idx); Atelie.pintaTesteLeve(); }
+      Atelie.desenha(); this._raf = requestAnimationFrame(anda); };
+    Atelie.teste = this.frame(a, this._sv.idx); Atelie.pinta(); this._raf = requestAnimationFrame(anda);
+  },
+  // estado das partes no meio do caminho entre a pose de agora e a próxima (Atelie.estado usa enquanto toca suave)
+  estadoSuave() {
+    const sv = this._sv, def = this.def; if (!sv) return null; const a = sv.a, n = this.ciclo(a), A = Modelo.partesNoEstado(def, this.frame(a, sv.idx)); if (n < 2) return A;
+    const B = Modelo.partesNoEstado(def, this.frame(a, (sv.idx + 1) % n)), vel = Math.max(40, +a.vel || 250), mov = vel <= 1250 ? 1 : Math.max(750 / vel, .45), u0 = 1 - mov; if (sv.u <= u0) return A;
+    const tt = (sv.u - u0) / mov, prof = Rig.profundidades(def), lag = vel * mov >= 330 ? .1 : 0, ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const tDe = pid => { const atr = Math.min(3, prof[pid] || 0) * lag; return ease(clamp((tt - atr) / Math.max(.05, 1 - atr), 0, 1)); }, out = {};
+    for (const [pid, pa] of Object.entries(A)) { const pb = B[pid], t = tDe(pid);
+      if (!pa || !pb || (pa.vis === false) !== (pb.vis === false)) { out[pid] = pa; continue; }
+      let x = { ...pa }; if ((pa.img || null) !== (pb.img || null)) { const dr = Math.abs(Rig.norm((pb.r || 0) - (pa.r || 0))), dp = Math.hypot((pb.x || 0) - (pa.x || 0), (pb.y || 0) - (pa.y || 0)); if (dr < 8 && dp < 4) { out[pid] = pa; continue; } if (t >= .5) x = { ...pb, x: pa.x, y: pa.y, r: pa.r, s: pa.s }; }
+      for (const c of ['x', 'y', 'r', 's']) { const va = pa[c] ?? (c === 's' ? 1 : 0), vb = pb[c] ?? (c === 's' ? 1 : 0); if (va === vb) continue; let d = vb - va; if (c === 'r') d = Rig.norm(d); x[c] = va + d * t; }
+      if (t > 0 && (pa.z ?? 0) !== (pb.z ?? 0)) x.z = Math.max(pa.z ?? 0, pb.z ?? 0);
+      out[pid] = x; }
+    return out;
+  },
   // pausa no passo que está na tela (clicar numa peça arruma aquele passo/preset); continuar segue dali
-  pausar(quieto) { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; this.pausado = true; this.i = Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); if (!quieto) UI.toast('Pausado. Clique numa peça para arrumar <b>este frame</b> (ou o preset que ele usa).', { time: 4000 }); },
+  pausar(quieto) { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; cancelAnimationFrame(this._raf); const sv = this._sv; this._sv = null; this.pausado = true; this.i = sv ? sv.idx : Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); if (!quieto) UI.toast('Pausado. Clique numa peça para arrumar <b>este frame</b> (ou o preset que ele usa).', { time: 4000 }); },
   continuar() { const a = this.achar(this.tocando); if (!a) return; Atelie.edit = null; Atelie.editPasso = null; this.tocar(a, this.i + 1); },
-  parar(quieto) { clearInterval(this._t); this._t = null; const tinha = this.tocando; this.tocando = null; this.pausado = false; if (Atelie.editPasso) Atelie.editPasso = null; if (tinha && !quieto) Atelie.pinta(); },
+  parar(quieto) { clearInterval(this._t); this._t = null; cancelAnimationFrame(this._raf); this._sv = null; const tinha = this.tocando; this.tocando = null; this.pausado = false; if (Atelie.editPasso) Atelie.editPasso = null; if (tinha && !quieto) Atelie.pinta(); },
   // com a animação pausada (ou a pose do editor): clicou na peça → o que ela edita (o passo da trilha, o preset da sessão, ou a base)
   alvoPausa(pid) {
     Atelie.edit = null; Atelie.editPasso = null; const def = this.def, F = this.frameAtual(); if (!F) return;
@@ -99,7 +128,7 @@ const Animacoes = {
   /* ---------- mexer ---------- */
   async nova() {
     const nome = await UI.prompt({ title: 'Animação de teste nova', label: 'Nome (ex.: Andar, Falar, Piscar, Acenar)', ok: 'Criar' }); if (!nome) return;
-    const a = { id: uid('an'), nome, vel: 250, trilhas: [[]] }; this.lista().push(a); this.sel = a.id; Atelie.commit();
+    const a = { id: uid('an'), nome, vel: 250, suave: true, trilhas: [[]] }; // nasce com movimento suave (Rive); o botão Rive da timeline desliga this.lista().push(a); this.sel = a.id; Atelie.commit();
     a.trilhas = [[{ s: {}, p: {} }]]; Atelie.commit(); this.irPara(a, 0, 0); UI.toast('Animação criada com 1 frame. Na timeline embaixo: clique num frame e escolha as <b>poses</b> dele (aba Poses); <b>+ Frame</b> cria o próximo.', { kind: 'ok', time: 8000 });
   },
   menu(ev, a) {
@@ -235,14 +264,25 @@ const Animacoes = {
     if (mexe.size) { kf.partes = { ...(kf.partes || {}) }; for (const pid of mexe) kf.partes[pid] = null; }
     if (P.duracao < fim + 1) P.duracao = fim + 1; return fim;
   },
+  /* ---------- ONDE VAI A MUDANÇA (pedido da dona, 10/11/2026): mexer num personagem a partir de uma animação pergunta antes se a mudança
+     vai para o ATELIÊ GERAL (o personagem da equipe: os outros projetos recebem quando atualizarem) ou SÓ PARA ESTE PROJETO (a cópia dele,
+     `P.personagens[id]`, que ganha `soProjeto` e o selo "só neste projeto" no Animador). Devolve 'projeto' | 'geral' | null. ---------- */
+  async ondeMudar(def, P) {
+    const ja = def?.soProjeto ? '<div style="color:var(--warn);font-size:12px;margin-top:8px">Este projeto já tem mudanças só dele neste personagem.</div>' : '';
+    return UI.modal({ title: `Onde vai a mudança em ${def?.nome || 'personagem'}?`, icon: 'edit', width: 480,
+      body: `<div><b>Só neste projeto</b>: muda a cópia que está em "${esc(P?.nome || 'esta animação')}". O personagem do Ateliê e os outros projetos ficam como estão.</div><div style="margin-top:8px"><b>Ateliê geral</b>: muda o personagem da equipe. Os outros projetos recebem quando alguém usar "Atualizar projeto".</div>${ja}`,
+      buttons: [{ label: 'Cancelar', value: null }, { label: 'Ateliê geral', value: 'geral' }, { label: 'Só neste projeto', kind: 'primary', value: 'projeto' }] });
+  },
+  // abre a aba do Ateliê: a cópia do projeto (anim=) ou o personagem da equipe, já na pose guardada em pose-abrir
+  abrirAbaPose(id, onde) { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', id); u.searchParams.set('pose', '1'); if (onde === 'projeto' && App.P) u.searchParams.set('anim', App.P.id); return UI.abaNova(u.href, 'Abrindo a pose no Ateliê…'); },
   /* ---------- editor → "Editar no Ateliê": abre o personagem numa aba nova, parado nesta pose (deste quadro) ---------- */
   async editarNoAtelie(n) {
     const P = App.P, def = P?.personagens?.[n?.ref]; if (!def) return; App.pausa?.(); // pausa a animação no quadro atual
+    const onde = await this.ondeMudar(def, P); if (!onde) return; if (onde === 'projeto') await App.salvarJa?.();
     const est = Modelo.estadoPersonagem(n, App.q), partes = {}; for (const [k, v] of Object.entries(est.partes || {})) if (v) partes[k] = v;
     await DB.put('arquivos', { def: clone(def), sessoes: est.sessoes || {}, partes, vista: est.vista || null, quadro: App.q, anim: P.nome, projeto: P.id, no: n.id, em: Date.now() }, 'pose-abrir:' + def.id); // projeto/no: o que for só deste keyframe volta para esta chave
-    const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', def.id); u.searchParams.set('pose', '1');
-    const w = UI.abaNova(u.href, 'Abrindo a pose no Ateliê…'); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
-    else UI.toast(`<b>${esc(def.nome)}</b> abriu no Ateliê na pose do quadro ${App.q + 1}. Quando o personagem for salvo lá, esta animação recebe a mudança sozinha.`, { kind: 'ok', time: 6000 });
+    const w = this.abrirAbaPose(def.id, onde); if (!w) UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
+    else UI.toast(onde === 'projeto' ? `A cópia de <b>${esc(def.nome)}</b> deste projeto abriu no Ateliê na pose do quadro ${App.q + 1}. O que mudar lá vale só aqui.` : `<b>${esc(def.nome)}</b> abriu no Ateliê geral na pose do quadro ${App.q + 1}. Quando o personagem for salvo lá, esta animação recebe a mudança sozinha.`, { kind: 'ok', time: 6000 });
   },
   /* ---------- editor → "Abrir no Ateliê como pose nova": o jeito que o personagem está neste quadro (vista, poses, ajustes e o espelho)
      vira um PRESET novo ou uma VISTA nova, para arrumar só aquele ângulo. O quadro passa a usar a pose nova na hora. ---------- */
@@ -258,12 +298,11 @@ const Animacoes = {
       ${espelhado ? `<label class="chk np-ia" style="margin-top:8px"><input type="checkbox" data-esp checked> O personagem está <b>espelhado</b> aqui: levar o espelho para dentro da pose (assim dá para arrumar o lado certo, ex.: a franja) e tirar o espelho deste quadro</label>` : ''}
       <div style="color:var(--tx3);font-size:12px;margin-top:10px">Abre o Ateliê numa aba nova já nessa pose. O quadro ${q + 1} passa a usar a pose nova; o que você arrumar lá volta para cá ao salvar (Ctrl+S ou nuvem).</div></div>`);
     const r = await UI.modal({ title: 'Abrir no Ateliê como pose nova', icon: 'edit', width: 520, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'Abrir no Ateliê', kind: 'primary', collect: () => ({ nome: $('[data-n]', body).value.trim() || `Pose do quadro ${q + 1}`, como: $('input[name=como]:checked', body).value, sessao: $('[data-s]', body)?.value, espelho: !!$('[data-esp]', body)?.checked }) }] });
-    if (!r) return;
+    if (!r) return; const onde = await this.ondeMudar(def0, P); if (!onde) return; if (onde === 'projeto') await App.salvarJa?.();
     const partes = {}; for (const [k, v] of Object.entries(est.partes || {})) if (v) partes[k] = v;
     await DB.put('arquivos', { def: clone(def0), sessoes: est.sessoes || {}, partes, vista: dv._vista || def0.vistas?.[0]?.id || null, quadro: q, anim: P.nome, em: Date.now(),
       acao: { ...r, projeto: P.id, no: n.id, quadro: q } }, 'pose-abrir:' + def0.id);
-    const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('atelie', def0.id); u.searchParams.set('pose', '1');
-    const w = UI.abaNova(u.href, 'Abrindo a pose no Ateliê…'); if (!w) return UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
+    const w = this.abrirAbaPose(def0.id, onde); if (!w) return UI.toast('O navegador bloqueou a aba nova. Libere pop-ups para o Animador e tente de novo.', { kind: 'warn', time: 6000 });
     UI.toast(`Abrindo no Ateliê como ${r.como === 'vista' ? 'vista nova' : 'preset novo'}…`, { time: 4000 });
   },
   // no Ateliê: cria o preset/vista pedido pelo editor a partir da pose do quadro e avisa o editor (o quadro passa a usar)

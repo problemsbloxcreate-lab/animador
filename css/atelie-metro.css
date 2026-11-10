@@ -1,0 +1,77 @@
+/* ===================== ATELIÊ em METRO (pedido da dona, 10/11/2026) =====================
+   Combina com o menu do Estúdio: blocos planos, títulos finos, nenhum canto arredondado e janelas laterais iguais às da nuvem
+   (as janelas pequenas do Ateliê abrem pela direita, com o mesmo painel do Exportar: `.exp-metro` + `.at-metro`, ligado em UI.modal).
+   Só vale dentro de #atelie (o resto do Animador fica como está). Cores: as mesmas do Animador + o azul do menu (#1f6fd6). */
+#atelie{--mt-az:#1f6fd6;--mt-az2:#2b7de9;--mt-bloco:rgba(255,255,255,.06);--mt-bloco2:rgba(255,255,255,.11)}
+#atelie *,#atelie *::before,#atelie *::after{border-radius:0!important}
+#atelie ::-webkit-scrollbar-thumb{border-radius:0;border-width:3px}
+
+/* cabeçalho: faixa plana, nome em letra fina */
+#atelie > .bar{background:var(--bg1);border-bottom:1px solid var(--bd);box-shadow:none}
+#atelie > .bar .brand b{font:300 19px/1 "Segoe UI Light","Segoe UI",system-ui,sans-serif;letter-spacing:.6px}
+#atelie > .bar .brand small{font-weight:300;letter-spacing:.4px}
+#atelie #at-nome{font:300 17px/1 "Segoe UI Light","Segoe UI",system-ui,sans-serif!important;border:0;border-bottom:1px solid var(--bd2);background:transparent;height:30px}
+#atelie #at-nome:focus{outline:0;border-bottom-color:var(--mt-az2)}
+
+/* botões: blocos planos */
+#atelie .btn{border:0;background:var(--mt-bloco);box-shadow:none;font-weight:400}
+#atelie .btn:hover{background:var(--mt-bloco2)}
+#atelie .btn:focus-visible,#atelie .ibtn:focus-visible{outline:2px solid #fff;outline-offset:-2px}
+#atelie .btn.primary{background:var(--mt-az);color:#fff;font-weight:600}#atelie .btn.primary:hover{background:var(--mt-az2)}
+#atelie .btn.ghost{background:transparent}
+#atelie .btn:active,#atelie .ibtn:active{transform:scale(.97)}
+#atelie .ibtn{border:0;background:transparent}#atelie .ibtn:hover{background:var(--mt-bloco2)}
+#atelie input[type=text],#atelie input[type=number],#atelie select,#atelie textarea{border:1px solid var(--bd2);background:rgba(0,0,0,.25);box-shadow:none}
+#atelie input:focus,#atelie select:focus,#atelie textarea:focus{outline:2px solid var(--mt-az2);outline-offset:-2px}
+
+/* painéis e cabeçalhos: título fino em maiúsculas pequenas, sem moldura arredondada */
+#atelie .painel{background:var(--bg1)}
+#atelie .p-cab{background:transparent;border-color:var(--bd)}
+#atelie .p-cab h3,#atelie .titulo-p{font:300 15px/1.2 "Segoe UI Light","Segoe UI",system-ui,sans-serif;letter-spacing:.5px;text-transform:none;color:var(--tx)}
+#atelie .dock,#atelie .dock-jan{box-shadow:none}
+#atelie .dock-jbar{background:var(--bg2)}
+
+/* abas da direita (Peça · Poses · Animações): blocos lado a lado, a escolhida em azul */
+#atelie .abas{gap:2px;padding:6px 6px 0;background:transparent;border-bottom:0}
+#atelie .abas button{flex:1;border:0;background:var(--mt-bloco);height:34px;font:400 13px/1 "Segoe UI",system-ui,sans-serif;color:var(--tx2)}
+#atelie .abas button:hover{background:var(--mt-bloco2);color:var(--tx)}
+#atelie .abas button.on{background:var(--mt-az);color:#fff;box-shadow:none}
+
+/* vistas (Frente, Três-quartos, Perfil, Costas): blocos */
+#atelie .at-vistas button,#atelie .at-vistas .vista{border:0;background:var(--mt-bloco)}
+#atelie .at-vistas .on,#atelie .at-vistas button.on{background:var(--mt-az);color:#fff}
+
+/* listas (partes, poses, animações): linhas planas; a escolhida em azul */
+#atelie .ab-item{border:0;background:var(--mt-bloco);margin-bottom:2px}
+#atelie .ab-item:hover{background:var(--mt-bloco2)}
+#atelie .ab-item.on{background:var(--mt-az);color:#fff}#atelie .ab-item.on small{color:rgba(255,255,255,.8)}
+#atelie .ab-sec{border:0;background:transparent}#atelie .ab-sec summary{font-weight:300;font-size:14px}
+
+/* palco: barra de modo e ferramentas planas */
+#atelie .modo-at,#atelie .ferr-at,#atelie .fb{box-shadow:none}
+#atelie .at-sel{border:0;background:var(--mt-bloco)}
+
+/* linha do tempo: cabeçalho plano, frames como blocos */
+#atelie .at-tl{border-top:1px solid var(--bd)}
+#atelie .tl-vel{border:0;background:var(--mt-bloco)}
+#atelie .tl-play.on{background:var(--mt-az);color:#fff}
+#atelie .tl-rive.on{background:var(--mt-az);color:#fff}
+#atelie .tl-vistas{gap:0}
+
+/* cartões e prévias */
+#atelie .pc{box-shadow:none;border:0;background:var(--mt-bloco)}
+
+/* janelas do Ateliê abertas pela direita (UI.modal liga .exp-metro + .at-metro quando o Ateliê está na tela) */
+.at-metro .modal-body .field,.at-metro .modal-body label{color:rgba(255,255,255,.85)}
+.at-metro .btn{border:0;border-radius:0;background:rgba(255,255,255,.1);color:#fff;height:34px;padding:0 16px}
+.at-metro .btn:hover{background:rgba(255,255,255,.18)}
+.at-metro .btn.primary{background:#1f6fd6;color:#fff;font-weight:600}.at-metro .btn.primary:hover{background:#2b7de9}
+.at-metro .btn.danger{background:#b3261e;color:#fff}
+.at-metro .modal-foot{display:flex;gap:6px;justify-content:flex-end}
+.at-metro textarea,.at-metro input[type=text],.at-metro input[type=number],.at-metro select{border-radius:0}
+
+/* janela "Conferir rig (Rive)" (js/rive.js) */
+.rive-v{margin-bottom:16px}.rive-vt{display:flex;align-items:baseline;gap:10px;font:300 19px/1.2 "Segoe UI Light","Segoe UI",system-ui,sans-serif;margin-bottom:6px}
+.rive-vt small{font:400 11px/1 "Segoe UI",system-ui,sans-serif;letter-spacing:.6px;color:rgba(255,255,255,.6);text-transform:uppercase}
+.rive-i{display:flex;gap:8px;align-items:flex-start;padding:7px 10px;margin-bottom:2px;background:rgba(255,255,255,.06);font-size:12.5px;line-height:1.35}
+.rive-i svg{flex:none;margin-top:1px}.rive-i.ok svg{color:#7bd88f}.rive-i.nao{background:rgba(232,140,40,.16)}.rive-i.nao svg{color:#f0a24a}
