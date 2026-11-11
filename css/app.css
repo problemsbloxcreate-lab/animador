@@ -535,6 +535,7 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .seg-pers button small{min-width:20px;padding:1px 6px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:11px;text-align:center}
 .seg-pers button.on{background:var(--bg3);color:var(--tx)}.seg-pers button.on small{background:var(--bg5,#555);color:var(--tx)}
 .seg-pers button[data-s=nuvem].on{background:rgba(159,195,255,.16);color:#d6e6ff}.seg-pers button[data-s=local].on{background:rgba(227,179,65,.16);color:#ffe6a8}.seg-pers button[data-s=anims].on{background:rgba(180,140,255,.16);color:#e4d6ff}
+.np-tipo .seg-pers{margin-top:6px}.seg-pers button:disabled{opacity:.45;cursor:not-allowed}.seg-pers button small{text-transform:none}
 .at-palco .modo-at{flex-wrap:wrap;right:12px}.mover-seg button{white-space:nowrap}
 /* folhas de peças / fundo / tamanho (js/folhas.js) */
 .fl-lista{display:flex;flex-direction:column;gap:12px;max-height:68vh;overflow:auto;user-select:none}.fl-intro{margin:0;color:var(--tx2);font-size:12.5px}

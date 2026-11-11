@@ -38,6 +38,9 @@ const Rig = {
   sinal(def, est, pid) { const p = def.partes.find(x => x.id === pid), pm = p?.pai ? this._matSo(def, est, p.pai) : new DOMMatrix(); return pm.a * pm.d - pm.b * pm.c < 0 ? -1 : 1; },
   ang(a, b) { return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; },
   norm(d) { return ((d + 540) % 360) - 180; },
+  // tangente de curva MONÓTONA entre duas inclinações vizinhas (Fritsch–Carlson): zero quando o movimento vira (ponta do balanço) e
+  // nunca grande a ponto de a curva passar do valor das chaves. Usada no movimento suave do Animador (Rig.tween) e do Ateliê.
+  tanMono(d0, d1) { if (!(d0 * d1 > 0)) return 0; const m = (d0 + d1) / 2, lim = 3 * Math.min(Math.abs(d0), Math.abs(d1)); return Math.sign(m) * Math.min(Math.abs(m), lim); },
   ROSTO: /olho|boca|sobrancelh|c[íi]lio|pupila|nariz|bochecha|l[áa]bio|dente|l[íi]ngua|blush|express/i,
   visivel(def, est, id) { const e = est[id], p = def.partes.find(x => x.id === id); return !!(e && p && e.vis !== false && p.imgs.some(i => i.id === e.img)); },
   // meio da tinta da imagem da parte (coordenadas do personagem): "onde a mão está" para quem olha
@@ -126,8 +129,9 @@ const Rig = {
       const antes = vizinho(kp, qa), depois = vizinho(kn, qb), u = (q - qa) / gap, u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
       liso = (pid, c, va, vb) => { const pega = (o, d) => o?.p?.[pid]?.[c] ?? (c === 's' ? 1 : 0), rot = c === 'r';
         const vp = antes ? pega(antes) : null, vn = depois ? pega(depois) : null, dab = rot ? this.norm(vb - va) : vb - va;
-        const ma = antes ? (dab + (rot ? this.norm(va - vp) : va - vp)) / (gap + (qa - antes.k)) * gap : 0;
-        const mb = depois ? ((rot ? this.norm(vn - vb) : vn - vb) + dab) / ((depois.k - qb) + gap) * gap : 0;
+        // tangente MONÓTONA (11/11/2026): a curva nunca passa do valor de uma chave (joelho/cotovelo não "passam do ponto")
+        const ma = antes ? this.tanMono((rot ? this.norm(va - vp) : va - vp) / (qa - antes.k), dab / gap) * gap : 0;
+        const mb = depois ? this.tanMono(dab / gap, (rot ? this.norm(vn - vb) : vn - vb) / (depois.k - qb)) * gap : 0;
         return va + h10 * ma + h01 * dab + h11 * mb; };
     }
     for (const [pid, a] of Object.entries(ep)) { const t = tDe(pid);

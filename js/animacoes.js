@@ -101,15 +101,40 @@ const Animacoes = {
     const mexe = id => ['x', 'y', 's'].some(c => (A[id]?.[c] ?? (c === 's' ? 1 : 0)) !== (B[id]?.[c] ?? (c === 's' ? 1 : 0)));
     const junto = new Set(); for (const pid of Object.keys(A)) if (B[pid] && (A[pid]?.img || null) !== (B[pid]?.img || null)) { const g = desc(pid); if (g.some(mexe)) g.forEach(id => junto.add(id)); }
     const virou = tt >= .5;
+    // CURVA CONTÍNUA (11/11/2026, dona: "o movimento das pernas ainda duro, na hora de andar"): igual ao Rig.tween das animações novas,
+    // giro/posição/tamanho passam pelas poses numa curva só (Hermite pelas poses vizinhas do laço), sem frear em cada pose. Tangente
+    // MONÓTONA: a curva nunca passa do valor de uma pose-chave (joelho/cotovelo não "passam do ponto" entre duas poses), e numa pose que é
+    // ponta do movimento (vai e volta) a velocidade chega a zero, como no balanço de verdade. Espera longa (mov < 1) continua como antes.
+    let liso = null;
+    if (mov === 1 && n >= 3) {
+      const Pv = Modelo.partesNoEstado(def, this.frame(a, (sv.idx - 1 + n) % n)), Nx = Modelo.partesNoEstado(def, this.frame(a, (sv.idx + 2) % n)), u = tt, u2 = u * u, u3 = u2 * u, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+      liso = (pid, c, va, vb) => { const pega = o => o?.[pid]?.[c] ?? (c === 's' ? 1 : 0), dd = (x, y) => c === 'r' ? Rig.norm(y - x) : y - x, dab = dd(va, vb);
+        const dp = Pv[pid] && Pv[pid].vis !== false ? dd(pega(Pv), va) : 0, dn = Nx[pid] && Nx[pid].vis !== false ? dd(vb, pega(Nx)) : 0;
+        return va + h10 * Rig.tanMono(dp, dab) + h01 * dab + h11 * Rig.tanMono(dab, dn); };
+    }
     for (const [pid, pa] of Object.entries(A)) { const pb = B[pid], t = tDe(pid);
       if (!pa || !pb || (pa.vis === false) !== (pb.vis === false)) { out[pid] = pa; continue; }
       if (junto.has(pid)) { const x = { ...(virou ? pb : pa) }, ra = pa.r || 0; x.r = ra + Rig.norm((pb.r || 0) - ra) * t; if (t > 0 && (pa.z ?? 0) !== (pb.z ?? 0)) x.z = Math.max(pa.z ?? 0, pb.z ?? 0); out[pid] = x; continue; }
       let x = { ...pa }; if ((pa.img || null) !== (pb.img || null)) { const dr = Math.abs(Rig.norm((pb.r || 0) - (pa.r || 0))), dp = Math.hypot((pb.x || 0) - (pa.x || 0), (pb.y || 0) - (pa.y || 0)); if (dr < 8 && dp < 4) { out[pid] = pa; continue; } if (t >= .5) x = { ...pb, x: pa.x, y: pa.y, r: pa.r, s: pa.s }; }
-      for (const c of ['x', 'y', 'r', 's']) { const va = pa[c] ?? (c === 's' ? 1 : 0), vb = pb[c] ?? (c === 's' ? 1 : 0); if (va === vb) continue; let d = vb - va; if (c === 'r') d = Rig.norm(d); x[c] = va + d * t; }
+      for (const c of ['x', 'y', 'r', 's']) { const va = pa[c] ?? (c === 's' ? 1 : 0), vb = pb[c] ?? (c === 's' ? 1 : 0); if (liso) { x[c] = liso(pid, c, va, vb); continue; } if (va === vb) continue; let d = vb - va; if (c === 'r') d = Rig.norm(d); x[c] = va + d * t; }
       if (t > 0 && (pa.z ?? 0) !== (pb.z ?? 0)) x.z = Math.max(pa.z ?? 0, pb.z ?? 0);
       out[pid] = x; }
+    // ATRASO DOS ACESSÓRIOS (11/11/2026, dona: "cachecol e acessórios seguem o corpo com atraso suave, sem tremer"; bíblia 19-Movimento:
+    // cabelo ~6 quadros depois do tronco): capa, cachecol, cabelo, mecha, franja, saia, capuz e cordão fazem a MESMA curva, só que um
+    // pouco depois (o estado deles vem de um tempo atrás no laço). Só giro/posição/tamanho; desenho e camada ficam os de agora.
+    if (liso && !this._semAtraso) { const ms = Math.min(250, vel * 1.5), du = ms / vel;
+      const atr = def.partes.filter(p => Animacoes.ACESSORIO.test(p.nome) && out[p.id]); if (atr.length) {
+        let ii = sv.idx, uu = sv.u - du; while (uu < 0) { uu += 1; ii = (ii - 1 + n) % n; }
+        const sv0 = this._sv; this._sv = { ...sv0, idx: ii, u: uu }; this._semAtraso = true; let D; try { D = this.estadoSuave(); } finally { this._sv = sv0; this._semAtraso = false; }
+        // o giro da mãe também chega atrasado (a capa fica para trás quando o corpo inclina): soma a diferença do giro da mãe
+        for (const p of atr) if (D?.[p.id] && D[p.id].vis !== false && out[p.id].vis !== false) { const dm = p.pai && Animacoes.PENDURADO.test(p.nome) && !Animacoes.ACESSORIO.test(def.partes.find(q => q.id === p.pai)?.nome || '') ? Rig.norm((D[p.pai]?.r || 0) - (out[p.pai]?.r || 0)) : 0;
+          out[p.id] = { ...out[p.id], x: D[p.id].x, y: D[p.id].y, r: (D[p.id].r || 0) + dm, s: D[p.id].s }; } } }
     return out;
   },
+  // peças que fazem a curva atrasada (o que se mexe sozinho nelas chega depois); contorno e fundo de cabelo ficam presos na cabeça
+  ACESSORIO: /^(?!.*(contorno|fundo)).*(cachecol|capa\b|capa$|cabelo|mecha|franja|saia|cord[aã]o|rabo|trança|laço)/i,
+  // só as PENDURADAS (presas num ponto e soltas na ponta) ficam para trás quando a mãe gira; o cachecol enrolado no pescoço e o de trás (pivô no chão) não; capuz fica preso na cabeça
+  PENDURADO: /capa\b|capa$|ponta do cachecol|rabo|trança|mecha|saia|cord[aã]o|laço/i,
   // pausa no passo que está na tela (clicar numa peça arruma aquele passo/preset); continuar segue dali
   pausar(quieto) { const a = this.achar(this.tocando); if (!a || this.pausado) return; clearInterval(this._t); this._t = null; cancelAnimationFrame(this._raf); const sv = this._sv; this._sv = null; this.pausado = true; this.i = sv ? sv.idx : Math.max(0, this.i - 1); Atelie.teste = this.frame(a, this.i); Atelie.pinta(); if (!quieto) UI.toast('Pausado. Clique numa peça para arrumar <b>este frame</b> (ou o preset que ele usa).', { time: 4000 }); },
   continuar() { const a = this.achar(this.tocando); if (!a) return; Atelie.edit = null; Atelie.editPasso = null; this.tocar(a, this.i + 1); },
