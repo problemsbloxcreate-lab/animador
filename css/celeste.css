@@ -1,0 +1,43 @@
+/* ===================== CELESTE (2.0, 11/11/2026): CABEÇALHO do Animador e do Ateliê igual aos outros programas =====================
+   Tokens e letra: /estudio-visual.css (site). Só o cabeçalho (header.bar) muda nesta etapa; o resto do Animador continua no visual dele.
+   Por isso o Animador fica sempre ESCURO por enquanto (html data-tema-fixo: sem o sol/lua). Tirar a classe "cel" do <html> volta como era.
+   Regras da dona: nada de Metro; cabeçalho igual em todos; sem botões desnecessários nem textos inúteis. */
+html.cel header.bar,html.cel #atelie > header.bar{height:var(--alt-cabecalho);gap:var(--e2);padding:0 var(--e3) 0 var(--e2);background:var(--vidro)!important;
+  backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border-bottom:1px solid var(--linha)!important;box-shadow:none!important;
+  font-family:var(--fonte);color:var(--texto);position:relative;z-index:20}
+html.cel header.bar *{font-family:inherit}
+html.cel header.bar :is(.btn,.ibtn,.brand,.proj-nome b,.ferr,.ferr *){border-radius:var(--raio-controle)!important}
+html.cel header.bar .ferr button{border-radius:6px!important}
+/* nome do programa (volta ao início) */
+html.cel header.bar .brand{gap:10px;padding:4px 6px 4px 4px;flex:none}
+html.cel header.bar .brand:hover{background:var(--fundo-3)}
+html.cel header.bar .brand .logo.logo-ep{width:28px!important;height:28px!important}
+html.cel header.bar .brand b,html.cel #atelie > header.bar .brand b{display:block;font:700 13px/1.1 var(--fonte)!important;letter-spacing:.06em!important;color:var(--texto)}
+html.cel header.bar .brand small,html.cel #atelie > header.bar .brand small{display:block;font:400 11px/1.2 var(--fonte)!important;letter-spacing:0!important;color:var(--texto-3)}
+html.cel #editor > header.bar .brand small{display:block}
+/* nome do projeto */
+html.cel header.bar .proj-nome b{font:600 var(--t-corpo) var(--fonte);color:var(--texto);border:0;padding:4px 8px;margin-left:0}
+html.cel header.bar .proj-nome b:hover{background:var(--fundo-3)}
+html.cel header.bar .salvo{color:var(--texto-3);font-size:var(--t-legenda)}
+html.cel #atelie #at-nome{font:600 var(--t-corpo) var(--fonte)!important;border:0!important;border-radius:var(--raio-controle)!important;background:transparent!important;height:var(--alt-controle);padding:0 8px}
+html.cel #atelie #at-nome:hover{background:var(--fundo-3)!important}
+html.cel #atelie #at-nome:focus{outline:2px solid var(--acento)!important;outline-offset:0;background:var(--fundo-3)!important}
+/* botões do cabeçalho */
+html.cel header.bar .btn{height:var(--alt-controle);padding:0 var(--e3);border:0!important;background:var(--fundo-3)!important;color:var(--texto)!important;font:500 var(--t-pequeno) var(--fonte);box-shadow:none!important;gap:6px}
+html.cel header.bar .btn:hover{background:var(--fundo-4)!important}
+html.cel header.bar .btn:active{transform:scale(.97)}
+html.cel header.bar .btn.sm{height:28px;padding:0 10px}
+html.cel header.bar .btn.so-icone{width:28px;padding:0}
+html.cel header.bar .btn.primary{background:var(--acento)!important;color:var(--acento-texto)!important;font-weight:600}
+html.cel header.bar .btn.primary:hover{background:var(--acento)!important;filter:brightness(1.08)}
+html.cel header.bar .btn.ghost{background:transparent!important}
+html.cel header.bar .ibtn{width:var(--alt-controle);height:var(--alt-controle);border:0;background:transparent!important;color:var(--texto-2)}
+html.cel header.bar .ibtn:hover{background:var(--fundo-3)!important;color:var(--texto)}
+html.cel header.bar .ibtn.on{background:var(--fundo-4)!important;color:var(--texto)}
+/* grupos (ferramentas, Palco/Câmera) = controle segmentado */
+html.cel header.bar .ferr{gap:2px;padding:2px;background:var(--fundo-3);border:0}
+html.cel header.bar .ferr .ibtn{width:28px;height:28px}
+html.cel header.bar .ferr .btn{height:28px;background:transparent!important;color:var(--texto-2)!important}
+html.cel header.bar .ferr :is(.btn,.ibtn).on{background:var(--fundo-4)!important;color:var(--texto)!important;box-shadow:var(--sombra-1)}
+html.cel header.bar .sep{height:20px;background:var(--linha)}
+html.cel header.bar :focus-visible{outline:2px solid var(--acento)!important;outline-offset:2px}
