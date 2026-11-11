@@ -126,8 +126,9 @@ const Animacoes = {
       const atr = def.partes.filter(p => Animacoes.ACESSORIO.test(p.nome) && out[p.id]); if (atr.length) {
         let ii = sv.idx, uu = sv.u - du; while (uu < 0) { uu += 1; ii = (ii - 1 + n) % n; }
         const sv0 = this._sv; this._sv = { ...sv0, idx: ii, u: uu }; this._semAtraso = true; let D; try { D = this.estadoSuave(); } finally { this._sv = sv0; this._semAtraso = false; }
-        // o giro da mãe também chega atrasado (a capa fica para trás quando o corpo inclina): soma a diferença do giro da mãe
-        for (const p of atr) if (D?.[p.id] && D[p.id].vis !== false && out[p.id].vis !== false) { const dm = p.pai && Animacoes.PENDURADO.test(p.nome) && !Animacoes.ACESSORIO.test(def.partes.find(q => q.id === p.pai)?.nome || '') ? Rig.norm((D[p.pai]?.r || 0) - (out[p.pai]?.r || 0)) : 0;
+        // o giro da mãe também chega atrasado (a capa fica para trás quando o corpo inclina): soma a diferença do giro da mãe.
+        // SÓ SE O PERSONAGEM PEDIR (def.acessorioSegue; dona, 11/11/2026: "o cachecol de trás não mexe por padrão, só se especificado")
+        for (const p of atr) if (D?.[p.id] && D[p.id].vis !== false && out[p.id].vis !== false) { const dm = def.acessorioSegue && p.pai && Animacoes.PENDURADO.test(p.nome) && !Animacoes.ACESSORIO.test(def.partes.find(q => q.id === p.pai)?.nome || '') ? Rig.norm((D[p.pai]?.r || 0) - (out[p.pai]?.r || 0)) : 0;
           out[p.id] = { ...out[p.id], x: D[p.id].x, y: D[p.id].y, r: (D[p.id].r || 0) + dm, s: D[p.id].s }; } } }
     return this._semAtraso ? out : Rig.trava(def, out); // trava das juntas (perfil): cotovelo/joelho nunca para o lado errado nem dobrando demais
   },
