@@ -51,6 +51,42 @@ const Rig = {
   limites(def, pid) { let M = this._lims.get(def); if (!M) this._lims.set(def, M = new Map()); if (M.has(pid)) return M.get(pid);
     const p = def.partes.find(x => x.id === pid), rs = [p?.base?.r || 0]; for (const s of def.sessoes || []) for (const pr of s.presets || []) { const e = pr.estado?.[pid]; if (e && e.r != null) rs.push(+e.r); }
     const L = rs.length > 1 ? { min: Math.min(...rs), max: Math.max(...rs), n: rs.length } : null; M.set(pid, L); return L; },
+  // TRAVA DAS JUNTAS (11/11/2026, dona: "nenhuma parte pode escapar"; skill movimento-base): mede a dobra NA TELA (osso de cima → osso de
+  // baixo), então vale para qualquer personagem/vista sem depender do sinal dos giros de cada desenho. Cotovelo até 150°, joelho até 140°
+  // (def.travas = { cotovelo, joelho } muda por personagem; def.semTrava desliga). De perfil e três-quartos (o rosto aponta para um lado)
+  // o cotovelo só dobra para a FRENTE e o joelho só para TRÁS (folga de 15° no cotovelo e 20° no joelho: o pé desenhado na canela puxa a medida).
+  TRAVA: { cotovelo: 150, joelho: 140, folga: 15, folgaJoelho: 20 },
+  // para onde o personagem olha nesta vista: +1 direita, -1 esquerda, 0 de frente/costas (olhos/rosto x cabeça, na pose de agora)
+  olhaPara(def, est) { const P = def.partes, cab = P.find(p => /^cabe[çc]a/i.test(p.nome)), ros = P.find(p => /^(olhos?|rosto|boca)\b/i.test(p.nome) && p.pai === cab?.id);
+    if (!cab || !ros) return 0; const J = this.juntas(def, est), a = J[cab.id], b = J[ros.id]; if (!a || !b) return 0; const t = this.centroTinta(def, est, ros.id) || b, ci = this.centroTinta(def, est, cab.id) || a, dx = t.x - ci.x; return Math.abs(dx) > 25 ? Math.sign(dx) : 0; },
+  // dobras de cada membro: [{ cad, tipo, dobra (graus, + = sentido horário na tela), max, errado (passou para o lado errado), excesso }]
+  // SÓ NO PERFIL (vista tipo "lado"): de frente, costas e três-quartos o braço que vem para a câmera encurta e a dobra NA TELA engana
+  // (a guarda de luta aprovada do Problems de frente tem o antebraço a ~180°). Medido em 11/11 em todas as poses dos 11 personagens.
+  ehPerfil(def) { const id = def._vista || def.vistaAtual, v = (def.vistas || []).find(x => x.id === id); return !!v && (v.tipo === 'lado' || /perfil|lado/i.test(v.nome || '')); },
+  dobras(def, est, olha) {
+    if (!this.ehPerfil(def)) return []; if (olha == null) olha = this.olhaPara(def, est);
+    const J = this.juntas(def, est), T = { ...this.TRAVA, ...(def.travas || {}) }, out = [];
+    for (const c of this.membrosTrava(def)) { if (c.tipo !== 'braco' && c.tipo !== 'perna') continue; const S = J[c.raiz], E = J[c.meio]; if (!S || !E) continue;
+      const W = (c.tipo === 'perna' ? this.centroTinta(def, est, c.meio) : null) || J[c.fim]; if (!W || Math.hypot(W.x - E.x, W.y - E.y) < 2 || Math.hypot(E.x - S.x, E.y - S.y) < 2) continue;
+      const dobra = this.norm(this.ang(E, W) - this.ang(S, E)), max = c.tipo === 'braco' ? T.cotovelo : T.joelho;
+      // flexão certa: cotovelo gira para a frente (olhando à direita = sentido anti-horário na tela = dobra negativa); joelho o contrário
+      const folga = c.tipo === 'braco' ? T.folga : T.folgaJoelho, certo = olha ? (c.tipo === 'braco' ? -olha : olha) : 0, errado = certo ? Math.max(0, -certo * dobra - folga) : 0, excesso = Math.max(0, Math.abs(dobra) - max);
+      out.push({ cad: c, tipo: c.tipo, dobra, max, certo, errado, excesso, folga }); }
+    return out;
+  },
+  // membros para a trava: as cadeias do IK + pernas Coxa › Canela sem pé separado (o pé vem desenhado na canela, esqueleto padrão)
+  membrosTrava(def) { const L = this.cadeias(def).filter(c => c.tipo === 'braco' || c.tipo === 'perna'), usados = new Set(L.map(c => c.meio)), porId = Object.fromEntries(def.partes.map(p => [p.id, p]));
+    for (const p of def.partes) { const pai = porId[p.pai]; if (usados.has(p.id) || !/canela|perna de baixo/i.test(p.nome) || this.NAO.test(p.nome) || !pai || !/coxa|perna/i.test(pai.nome) || !pai.pai) continue; L.push({ nome: pai.nome, raiz: pai.id, meio: p.id, fim: null, tipo: 'perna' }); usados.add(p.id); }
+    return L; },
+  // devolve o estado com as juntas dentro da trava (só gira o osso de baixo: antebraço/canela; a mão/pé vão junto)
+  trava(def, est) {
+    if (!def || !est || def.semTrava || !this.membrosTrava(def).length) return est; let D; try { D = this.dobras(def, est); } catch { return est; }
+    let out = est; for (const d of D) { if (!d.errado && !d.excesso) continue; if (out === est) out = { ...est };
+      // lado errado: volta até a borda da folga (braço/perna quase reto); dobra demais: para no máximo
+      const alvo = d.errado ? Math.sign(d.dobra) * d.folga : Math.sign(d.dobra) * d.max, delta = this.norm(alvo - d.dobra), pid = d.cad.meio;
+      out[pid] = { ...(out[pid] || {}), r: (out[pid]?.r || 0) + delta * this.sinal(def, out, pid) }; }
+    return out;
+  },
   foraDoLimite(def, pid, r, folga = 20) { const L = this.limites(def, pid); if (!L) return 0; return r < L.min - folga ? L.min - folga - r : r > L.max + folga ? r - L.max - folga : 0; },
   // IK de dois ossos: devolve { [raiz]: r, [meio]: r } (giros novos) para a ponta (fim) chegar em alvo {x,y} (coordenadas do personagem)
   // o.dobra: 1/-1 força o lado da dobra; sem = o lado que respeita os limites das poses e muda menos a pose de partida
@@ -75,7 +111,7 @@ const Rig = {
       return e; };
     let lados = o.dobra ? [o.dobra] : [agora, -agora], melhor = null;
     for (const l of lados) { const e = comPonta(l), custo = this.foraDoLimite(def, cad.meio, e[cad.meio].r) * 2 + this.foraDoLimite(def, cad.raiz, e[cad.raiz].r, 35) + .25 * (Math.abs(this.norm(e[cad.raiz].r - (e0[cad.raiz].r || 0))) + Math.abs(this.norm(e[cad.meio].r - (e0[cad.meio].r || 0)))) + (l === agora ? 0 : 4); /* o mais perto da pose de partida (o preset escolhido) */ if (!melhor || custo < melhor.custo) melhor = { e, custo }; }
-    const e = melhor.e, out = { [cad.raiz]: round(e[cad.raiz].r, 2), [cad.meio]: round(e[cad.meio].r, 2) };
+    const e = this.trava(def, melhor.e), out = { [cad.raiz]: round(e[cad.raiz].r, 2), [cad.meio]: round(e[cad.meio].r, 2) }; // trava: arrastar a mão/pé nunca dobra a junta para o lado errado
     if (o.manterMao) { const J2 = this.juntas(def, e), giroMao = this.ang(J0[cad.meio], J0[cad.fim]) - this.ang(J2[cad.meio], J2[cad.fim]); if (Math.abs(giroMao) > .1) out[cad.fim] = round((e0[cad.fim].r || 0) + giroMao * this.sinal(def, e, cad.fim), 2); }
     return out;
   },
@@ -145,7 +181,7 @@ const Rig = {
       if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0);
       out[pid] = x;
     }
-    return out;
+    return P.rive ? this.trava(dv0, out) : out; // trava das juntas só em animação nova (as antigas ficam exatamente como eram)
   },
   _prof: new WeakMap(),
   profundidades(def) { let r = this._prof.get(def); if (r && r.n === def.partes.length) return r.m; const porId = Object.fromEntries(def.partes.map(p => [p.id, p])), m = {};

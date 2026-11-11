@@ -129,7 +129,7 @@ const Animacoes = {
         // o giro da mãe também chega atrasado (a capa fica para trás quando o corpo inclina): soma a diferença do giro da mãe
         for (const p of atr) if (D?.[p.id] && D[p.id].vis !== false && out[p.id].vis !== false) { const dm = p.pai && Animacoes.PENDURADO.test(p.nome) && !Animacoes.ACESSORIO.test(def.partes.find(q => q.id === p.pai)?.nome || '') ? Rig.norm((D[p.pai]?.r || 0) - (out[p.pai]?.r || 0)) : 0;
           out[p.id] = { ...out[p.id], x: D[p.id].x, y: D[p.id].y, r: (D[p.id].r || 0) + dm, s: D[p.id].s }; } } }
-    return out;
+    return this._semAtraso ? out : Rig.trava(def, out); // trava das juntas (perfil): cotovelo/joelho nunca para o lado errado nem dobrando demais
   },
   // peças que fazem a curva atrasada (o que se mexe sozinho nelas chega depois); contorno e fundo de cabelo ficam presos na cabeça
   ACESSORIO: /^(?!.*(contorno|fundo)).*(cachecol|capa\b|capa$|cabelo|mecha|franja|saia|cord[aã]o|rabo|trança|laço)/i,

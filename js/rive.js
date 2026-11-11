@@ -32,6 +32,11 @@ const RiveRig = {
       ok(!duras.length, anims.length ? (duras.length ? `${duras.length} de ${anims.length} animação(ões) ainda quadro a quadro: ${duras.map(a => a.nome).slice(0, 6).join(', ')}${duras.length > 6 ? '…' : ''}` : `${anims.length} animação(ões) com movimento suave`) : 'Nenhuma animação de teste');
       const png = P.flatMap(p => p.imgs || []).filter(i => /\.png$/i.test(i.k || '')).length;
       ok(!png, png ? `${png} imagem(ns) em PNG (o padrão é só vetor)` : 'Só vetor (0 PNG)');
+      // TRAVA DAS JUNTAS (11/11/2026): no perfil, poses com cotovelo/joelho para o lado errado ou dobrando demais (Rig.trava corrige no movimento)
+      if (Rig.ehPerfil(dv)) { let ruins = []; try { const olha = Rig.olhaPara(dv, Modelo.partesNoEstado(dv, {})), M = Rig.membrosTrava(dv);
+        for (const s of dv.sessoes || []) for (const pr of s.presets || []) { const ids = Object.keys(pr.estado || {}); if (!M.some(c => ids.includes(c.raiz) || ids.includes(c.meio))) continue;
+          for (const x of Rig.dobras(dv, Modelo.partesNoEstado(dv, { sessoes: { [s.id]: pr.id } }), olha)) if ((x.errado || x.excesso) && (ids.includes(x.cad.raiz) || ids.includes(x.cad.meio))) ruins.push(`${pr.nome} (${x.tipo === 'braco' ? 'cotovelo' : 'joelho'} ${x.errado ? 'para o lado errado' : 'dobrando demais'})`); } } catch { }
+        ok(!ruins.length, ruins.length ? `Poses fora da trava das juntas: ${ruins.slice(0, 6).join(', ')}${ruins.length > 6 ? '…' : ''}` : 'Cotovelos e joelhos dentro da trava'); }
       out.push({ vista: v.nome, itens, falta: itens.filter(x => !x.ok).length });
     }
     return out;
