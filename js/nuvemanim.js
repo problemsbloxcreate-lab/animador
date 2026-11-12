@@ -61,11 +61,11 @@ html[data-tema="claro"] #nuvem-tela::before{background:radial-gradient(260px 260
 #nuvem-tela .nt-br{display:none}
 /* A NUVEM VOLTA (ajuste da dona, 12/11/2026): quando passa a carregar da nuvem, a logo some devagar e a nuvem com as bolinhas
    aparece no mesmo lugar, dentro do MESMO anel parado (fade + leve subida, 380 ms). Mesmo tema, mesmas cores, nada de pular de tela. */
-#nuvem-tela .nt-nv,#nuvem-tela.nt-on .nt-nv{position:absolute;top:60px;left:50%;width:78px;height:54px;margin:-29px 0 0 -39px;z-index:1;pointer-events:none;transition:opacity .38s cubic-bezier(.2,.7,.2,1),transform .38s cubic-bezier(.2,.7,.2,1)}
+#nuvem-tela .nt-nv,#nuvem-tela.nt-on .nt-nv{position:absolute;top:60px;left:50%;width:78px;height:54px;margin:-25px 0 0 -39px;z-index:1;pointer-events:none;transition:opacity .38s cubic-bezier(.2,.7,.2,1),transform .38s cubic-bezier(.2,.7,.2,1)}
 #nuvem-tela .nt-nv{opacity:0;transform:translateY(7px)}#nuvem-tela.nt-on .nt-nv{opacity:1;transform:none}
 #nuvem-tela .nt-nv svg{width:78px;height:54px}
 #nuvem-tela .nt-nv path,#nuvem-tela.nt-on .nt-nv path{stroke:var(--pt-tx);stroke-width:4.2;stroke-dasharray:none;stroke-dashoffset:0;transition:none}
-#nuvem-tela .nt-dots{width:22px;height:22px;margin:-11px 0 0 -11px}#nuvem-tela .nt-dots i::after{width:3.4px;height:3.4px;margin-left:-1.7px;background:var(--pt-tx)}
+#nuvem-tela .nt-dots{left:28px;top:21px;width:22px;height:22px;margin:0}#nuvem-tela .nt-dots i{transform-origin:50% 50%}#nuvem-tela .nt-dots i::after{left:9px;width:4px;height:4px;margin-left:0;background:var(--pt-tx)}
 #nuvem-tela .nt-ic img{transition:opacity .32s ease}#nuvem-tela.nt-on .nt-ic img{opacity:0}
 #nuvem-tela .nt-t,#nuvem-tela .nt-pc span{transition:opacity .2s ease}#nuvem-tela .nt-troca{opacity:0}
 @media (prefers-reduced-motion:reduce){#nuvem-tela .nt-nv,#nuvem-tela.nt-on .nt-nv{transform:none!important;transition:opacity .35s ease!important}#nuvem-tela .nt-ic img{transition:opacity .35s ease!important}#nuvem-tela .nt-pc span{transition:opacity .2s ease!important}}
@@ -73,7 +73,8 @@ html[data-tema="claro"] #nuvem-tela::before{background:radial-gradient(260px 260
 #nuvem-tela .nt-t{margin:26px 0 4px;font-weight:600;font-size:20px;line-height:1.25;letter-spacing:-.01em;color:var(--pt-tx)}
 #nuvem-tela .nt-pc{font-size:13.5px;color:var(--pt-tx2);white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis}#nuvem-tela .nt-pc b{color:var(--pt-tx);font-weight:600;font-variant-numeric:tabular-nums}
 #nuvem-tela .nt-nm{position:absolute;top:100%;left:50%;transform:translateX(-50%);width:max-content;max-width:60vw;margin-top:6px;font-size:12px;color:var(--pt-tx2)}
-@media (prefers-reduced-motion:reduce){#nuvem-tela::before{animation:none}}`;
+@media (prefers-reduced-motion:reduce){#nuvem-tela::before{animation:none}}
+#nuvem-tela .nt-pc b{display:inline-block;min-width:2.6em;text-align:right;font-variant-numeric:tabular-nums}`;
     document.head.appendChild(s);
   },
   // prog: 'an' (Animador) ou 'at' (Ateliê) = o ícone do começo; o.titulo (no lugar de "Carregando da nuvem"), o.vidro (fundo desfocado

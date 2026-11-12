@@ -58,6 +58,8 @@ html[data-tema="claro"] #turma-login::before{background:radial-gradient(260px 26
 #turma-login .ep-pc{margin:0!important;justify-self:end}
 #turma-login .ep-pc b{font:600 13.5px "Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif!important;color:var(--pt-tx)!important;font-variant-numeric:tabular-nums;text-shadow:none!important}
 #turma-login .ep-pc b::after{content:" ·";color:var(--pt-tx2)}
+#turma-login .ep-pc b{display:inline-block!important;min-width:3.4em!important;text-align:right!important;font-variant-numeric:tabular-nums!important;white-space:nowrap} /* % com largura fixa: 9%, 97% e 100% não empurram a frase (pedido da dona, 12/11/2026) */
+#turma-login .ep-c{column-gap:5px!important} /* número e frase juntos, sem vão grande */
 #turma-login .ep-m,#turma-login:not(.ep-erro) .ep-m{display:block!important;justify-self:start;margin:0!important;font:400 13.5px "Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif!important;color:var(--pt-tx2)!important;text-shadow:none!important;max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #turma-login.ep-erro .ep-pc{display:none!important}#turma-login.ep-erro .ep-m{grid-column:1/-1;justify-self:center;white-space:normal;color:var(--pt-tx)!important}
 #turma-login.ep-erro .ep-lg::before{background:color-mix(in srgb,#ff453a 70%,transparent)}
