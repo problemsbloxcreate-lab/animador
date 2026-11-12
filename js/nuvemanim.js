@@ -44,7 +44,36 @@ const NuvemTela = {
 @keyframes ntIndef{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
 @keyframes ntRespira{50%{transform:scale(1.045)}}
 @keyframes ntGira{0%{transform:rotate(225deg);opacity:1;animation-timing-function:ease-out}7%{transform:rotate(345deg);animation-timing-function:linear}30%{transform:rotate(455deg);animation-timing-function:ease-in-out}39%{transform:rotate(690deg);animation-timing-function:linear}70%{transform:rotate(815deg);opacity:1;animation-timing-function:ease-out}75%{transform:rotate(945deg);animation-timing-function:ease-out}76%,100%{transform:rotate(945deg);opacity:0}}
-@media (prefers-reduced-motion:reduce){#nuvem-tela *{animation:none!important;transition:none!important}}`;
+@media (prefers-reduced-motion:reduce){#nuvem-tela *{animation:none!important;transition:none!important}}
+/* CARREGAMENTO ÚNICO (pedido da dona, 12/11/2026): esta tela é a MESMA do carregamento C (a da entrada, #turma-login):
+   fundo liso, ícone do programa dentro do anel parado, brilho na cor do programa piscando leve, título e UMA linha "54% · frase".
+   Do começo ao fim só o texto muda (nada de nuvem desenhada, barra ou fundo preto). */
+#nuvem-tela{--pt-tx:#f5f5f7;--pt-tx2:rgba(235,235,245,.66);background:#141416;font-family:"Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+html[data-tema="claro"] #nuvem-tela{--pt-tx:#1d1d1f;--pt-tx2:rgba(60,60,67,.66);background:#f2f2f5}
+#nuvem-tela.nt-vidro{background:color-mix(in srgb,#141416 84%,transparent)}html[data-tema="claro"] #nuvem-tela.nt-vidro{background:color-mix(in srgb,#f2f2f5 84%,transparent)}
+#nuvem-tela::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#3fd6f2) 30%,transparent),transparent 72%);animation:epBrilho 1.8s ease-in-out infinite alternate}
+html[data-tema="claro"] #nuvem-tela::before{background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#3fd6f2) 22%,transparent),transparent 72%)}
+#nuvem-tela .nt-c{position:relative;z-index:1;width:auto;height:auto;transform:translateY(-4vh);display:flex;flex-direction:column;align-items:center;justify-content:center}
+#nuvem-tela .nt-ic,#nuvem-tela.nt-on .nt-ic{position:relative;width:60px;height:60px;margin:30px;transform:none;opacity:1;animation:none;transition:none}
+#nuvem-tela .nt-ic::before{content:"";position:absolute;inset:-30px;border-radius:50%;background:conic-gradient(var(--pt-tx) calc(var(--ep-p,0) * 1%),color-mix(in srgb,var(--pt-tx) 13%,transparent) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px))}
+#nuvem-tela .nt-ic img{width:60px;height:60px;border-radius:14px;box-shadow:0 8px 22px rgba(0,0,0,.3);animation:epRespira2 2.6s ease-in-out infinite}
+@keyframes epRespira2{50%{transform:scale(1.06)}}@keyframes epBrilho{from{opacity:.6}to{opacity:1}}
+#nuvem-tela .nt-br{display:none}
+/* A NUVEM VOLTA (ajuste da dona, 12/11/2026): quando passa a carregar da nuvem, a logo some devagar e a nuvem com as bolinhas
+   aparece no mesmo lugar, dentro do MESMO anel parado (fade + leve subida, 380 ms). Mesmo tema, mesmas cores, nada de pular de tela. */
+#nuvem-tela .nt-nv,#nuvem-tela.nt-on .nt-nv{position:absolute;top:60px;left:50%;width:78px;height:54px;margin:-29px 0 0 -39px;z-index:1;pointer-events:none;transition:opacity .38s cubic-bezier(.2,.7,.2,1),transform .38s cubic-bezier(.2,.7,.2,1)}
+#nuvem-tela .nt-nv{opacity:0;transform:translateY(7px)}#nuvem-tela.nt-on .nt-nv{opacity:1;transform:none}
+#nuvem-tela .nt-nv svg{width:78px;height:54px}
+#nuvem-tela .nt-nv path,#nuvem-tela.nt-on .nt-nv path{stroke:var(--pt-tx);stroke-width:4.2;stroke-dasharray:none;stroke-dashoffset:0;transition:none}
+#nuvem-tela .nt-dots{width:22px;height:22px;margin:-11px 0 0 -11px}#nuvem-tela .nt-dots i::after{width:3.4px;height:3.4px;margin-left:-1.7px;background:var(--pt-tx)}
+#nuvem-tela .nt-ic img{transition:opacity .32s ease}#nuvem-tela.nt-on .nt-ic img{opacity:0}
+#nuvem-tela .nt-t,#nuvem-tela .nt-pc span{transition:opacity .2s ease}#nuvem-tela .nt-troca{opacity:0}
+@media (prefers-reduced-motion:reduce){#nuvem-tela .nt-nv,#nuvem-tela.nt-on .nt-nv{transform:none!important;transition:opacity .35s ease!important}#nuvem-tela .nt-ic img{transition:opacity .35s ease!important}#nuvem-tela .nt-pc span{transition:opacity .2s ease!important}}
+#nuvem-tela .nt-tx,#nuvem-tela.nt-on .nt-tx{position:relative;top:auto;left:auto;width:auto;margin:0;opacity:1;transform:none;transition:none}
+#nuvem-tela .nt-t{margin:26px 0 4px;font-weight:600;font-size:20px;line-height:1.25;letter-spacing:-.01em;color:var(--pt-tx)}
+#nuvem-tela .nt-pc{font-size:13.5px;color:var(--pt-tx2);white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis}#nuvem-tela .nt-pc b{color:var(--pt-tx);font-weight:600;font-variant-numeric:tabular-nums}
+#nuvem-tela .nt-nm{position:absolute;top:100%;left:50%;transform:translateX(-50%);width:max-content;max-width:60vw;margin-top:6px;font-size:12px;color:var(--pt-tx2)}
+@media (prefers-reduced-motion:reduce){#nuvem-tela::before{animation:none}}`;
     document.head.appendChild(s);
   },
   // prog: 'an' (Animador) ou 'at' (Ateliê) = o ícone do começo; o.titulo (no lugar de "Carregando da nuvem"), o.vidro (fundo desfocado
@@ -58,6 +87,7 @@ const NuvemTela = {
       <div class="nt-tx"><div class="nt-t"></div><div class="nt-nm"></div><div class="nt-br"><i></i></div><div class="nt-pc"><b>0%</b><i class="nt-sep"> · </i><span>Conectando…</span></div></div></div>`;
     el.querySelector('.nt-t').textContent = o.titulo || 'Carregando da nuvem'; el.querySelector('.nt-nm').textContent = nome || '';
     if (o.vidro) el.classList.add('nt-vidro'); if (o.indef) el.classList.add('nt-indef');
+    try { const fg = EI?.config?.()?.[prog]?.fg; el.style.setProperty('--ep-cor', /^#[0-9a-f]{6}$/i.test(fg || '') ? fg : prog === 'at' ? '#ffb04a' : '#3fd6f2'); } catch { } // brilho na cor do programa, igual à entrada
     document.body.appendChild(el);
     // a transição do ícone para a nuvem acontece quando a tela de inicialização (por cima) já saiu: assim dá para ver (no máximo 13 s esperando)
     // a inicialização (já com o acesso conferido) não espera o download: sai logo e esta tela (igual por baixo) assume
@@ -66,11 +96,13 @@ const NuvemTela = {
   },
   nome(n) { const e = this.el?.querySelector('.nt-nm'); if (e && n) e.textContent = n; },
   // f = 0..1 (do download de verdade); txt = o que está baixando
-  passo(f, txt) { if (!this.el) return; if (f != null && isFinite(f)) { this.el.classList.remove('nt-indef'); this.alvo = Math.max(this.alvo, Math.min(1, f)); } if (txt) this.el.querySelector('.nt-pc span').textContent = txt; },
+  passo(f, txt) { if (!this.el) return; if (f != null && isFinite(f)) { this.el.classList.remove('nt-indef'); this.alvo = Math.max(this.alvo, Math.min(1, f)); } if (txt) { const sp = this.el.querySelector('.nt-pc span'), so = s => s.replace(/[\d\s\/.…%]+/g, ''); // frase nova = troca suave (crossfade); só o número mudou = na hora
+      if (so(sp.textContent) === so(txt)) { if (!sp._troca) sp.textContent = txt; else sp._prox = txt; }
+      else { sp._prox = txt; if (!sp._troca) { sp._troca = 1; sp.classList.add('nt-troca'); setTimeout(() => { sp.textContent = sp._prox; sp._troca = 0; sp.classList.remove('nt-troca'); }, 200); } } } },
   anda() { // a barra corre suave até o valor de verdade (sem pular)
     cancelAnimationFrame(this.raf); if (!this.el) return;
     this.mostrado += (this.alvo - this.mostrado) * .12; if (this.alvo - this.mostrado < .002) this.mostrado = this.alvo;
-    const p = Math.round(this.mostrado * 100); this.el.querySelector('.nt-br>i').style.width = (this.mostrado * 100).toFixed(1) + '%'; this.el.querySelector('.nt-pc b').textContent = p + '%';
+    const p = Math.round(this.mostrado * 100); this.el.querySelector('.nt-br>i').style.width = (this.mostrado * 100).toFixed(1) + '%'; this.el.querySelector('.nt-pc b').textContent = p + '%'; this.el.style.setProperty('--ep-p', (this.mostrado * 100).toFixed(1));
     this.raf = requestAnimationFrame(() => this.anda());
   },
   async fim(ok) {

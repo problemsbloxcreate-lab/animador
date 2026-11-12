@@ -39,16 +39,18 @@ document.documentElement.classList.add('turma-locked');
    suave na cor do programa atrás; embaixo o nome e uma linha "54% · o que está acontecendo". Sem foto, sem barra, sem lista de passos. ===== */
 #turma-login{background:#141416!important;--pt-tx:#f5f5f7!important;--pt-tx2:rgba(235,235,245,.66)!important}
 html[data-tema="claro"] #turma-login{background:#f2f2f5!important;--pt-tx:#1d1d1f!important;--pt-tx2:rgba(60,60,67,.66)!important}
-#turma-login::before{content:""!important;position:absolute;inset:0;z-index:0;pointer-events:none;filter:none!important;animation:none!important;background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#5cc4ff) 30%,transparent),transparent 72%)!important}
+#turma-login::before{content:""!important;position:absolute;inset:0;z-index:0;pointer-events:none;filter:none!important;animation:epBrilho 1.8s ease-in-out infinite alternate!important;background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#5cc4ff) 30%,transparent),transparent 72%)!important}
 html[data-tema="claro"] #turma-login::before{background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#5cc4ff) 22%,transparent),transparent 72%)!important}
 #turma-login::after{display:none!important}
 #turma-login .ep-c{display:grid!important;grid-template-columns:auto auto;justify-content:center;align-items:center;column-gap:6px;row-gap:0!important;transform:translateY(-4vh)!important;width:auto!important;text-align:center}
-#turma-login .ep-lg,#turma-login .ep-lg.ep-prog,#turma-login.ep-erro .ep-lg{grid-column:1/-1;justify-self:center;position:relative;width:74px!important;height:74px!important;margin:23px!important;border-radius:18px!important;overflow:visible!important;box-shadow:none!important;background:none!important;animation:epRespira2 2.6s ease-in-out infinite}
-@keyframes epRespira2{50%{transform:scale(1.035)}}
+#turma-login .ep-lg,#turma-login .ep-lg.ep-prog,#turma-login.ep-erro .ep-lg{grid-column:1/-1;justify-self:center;position:relative;width:60px!important;height:60px!important;margin:30px!important;border-radius:15px!important;overflow:visible!important;box-shadow:none!important;background:none!important;animation:none!important;transform:none!important}
+/* só a LOGO pulsa; o anel fica parado; o brilho atrás pisca leve (pedido da dona, 12/11/2026) */
+@keyframes epRespira2{50%{transform:scale(1.06)}}@keyframes epBrilho{from{opacity:.6}to{opacity:1}}
 /* o anel: fica 16 px para fora do ícone; a parte cheia segue a porcentagem (--ep-p, posto pelo contador) */
-#turma-login .ep-lg::before{content:"";position:absolute;inset:-23px;border-radius:50%;background:conic-gradient(var(--pt-tx) calc(var(--ep-p,0) * 1%),color-mix(in srgb,var(--pt-tx) 13%,transparent) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));transition:background .3s}
+#turma-login .ep-lg::before{content:"";position:absolute;inset:-30px;border-radius:50%;background:conic-gradient(var(--pt-tx) calc(var(--ep-p,0) * 1%),color-mix(in srgb,var(--pt-tx) 13%,transparent) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));transition:background .3s}
 #turma-login .ep-lg::after{display:none!important}
-#turma-login .ep-lg :is(.ep-img,.ep-cam),#turma-login .ep-lg.ep-prog .ep-img{width:74px!important;height:74px!important;border-radius:17px!important;display:block;box-shadow:0 10px 26px rgba(0,0,0,.3)}
+#turma-login .ep-lg :is(.ep-img,.ep-cam),#turma-login .ep-lg.ep-prog .ep-img{width:60px!important;height:60px!important;border-radius:14px!important;display:block;box-shadow:0 8px 22px rgba(0,0,0,.3);animation:epRespira2 2.6s ease-in-out infinite!important}
+@media (prefers-reduced-motion:reduce){#turma-login::before,#turma-login .ep-lg :is(.ep-img,.ep-cam){animation:none!important}}
 #turma-login .ep-lg:not(.ep-prog){background:none!important}
 #turma-login .ep-lg.ep-prog .ep-cam{display:none!important} /* com o ícone do programa, a claquete do Estúdio some (antes aparecia embaixo, por cima do título) */
 #turma-login .ep-nm{grid-column:1/-1;display:block!important;margin:26px 0 4px!important;font:600 20px/1.25 "Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif!important;letter-spacing:-.01em!important;color:var(--pt-tx)!important;text-shadow:none!important}
