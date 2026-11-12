@@ -12,6 +12,9 @@ const Legacy = {
     if (this._ok || typeof App === 'undefined') return; this._ok = true;
     const ab = App.abrir; App.abrir = async function (...x) { const r = await ab.apply(this, x); try { Legacy.pinta(); } catch (e) { console.warn(e); } return r; };
     const tr = App.troca; if (tr) App.troca = function (...x) { const r = tr.apply(this, x); try { Legacy.pinta(); } catch { } return r; };
+    // abrir pela nuvem/ao vivo troca o projeto por outros caminhos: confere também junto do botão Atualizar personagens e depois de abrir
+    if (typeof AtualizaProj !== 'undefined') { const ap = AtualizaProj.pinta; AtualizaProj.pinta = function (...x) { const r = ap.apply(this, x); try { Legacy.pinta(); } catch { } return r; }; }
+    setInterval(() => { try { if (App.P) Legacy.pinta(); } catch { } }, 3000);
   },
   antiga(P = App.P) { return !!P && !P.rive && !P.legacyDe && !P.anterior && !P.soLocal; },
   botao() {
