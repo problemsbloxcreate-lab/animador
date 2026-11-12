@@ -9,13 +9,17 @@ const Versao = {
   async le() { try { const r = await fetch('versao.json?_=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return null; return (await r.json())?.v || null; } catch { return null; } },
   async liga() {
     if (this._ok) return; this._ok = true; this.atual = await this.le();
-    setInterval(() => this.confere(), 120000); setInterval(() => { if (this.nova && !this.travado && this.precisa()) this.trava(this.nova); }, 3000);
+    setInterval(() => this.confere(), 120000);
+    // ATUALIZAÇÃO NUNCA FORÇADA (pedido da dona, 12/11/2026): antes, com versão nova, esta tela travava tudo e recarregava sozinha (ao vivo ou
+    // personagem da nuvem). Agora quem decide é a pessoa: o /estudio-conta.js mostra a notificação (Atualizar / Fechar) ou, com
+    // "Atualizar sozinho" ligado, o blur com o anel e a logo. Antes de recarregar, ele guarda o que está aberto (ESTUDIO_AO_SAIR).
+    (window.ESTUDIO_AO_SAIR ||= []).push(async () => { try { if (typeof Atelie !== 'undefined' && Atelie.def && Atelie.sujo) await Atelie.rascunho?.(true); } catch { } try { if (typeof AoVivo !== 'undefined') await AoVivo._fila; } catch { } });
     addEventListener('focus', () => this.confere()); document.addEventListener('visibilitychange', () => { if (!document.hidden) this.confere(); });
   },
   async confere() {
     if (this.travado || Date.now() - (this._ult || 0) < 20000) return; this._ult = Date.now();
     const v = await this.le(); if (!v) return; if (!this.atual) { this.atual = v; return; }
-    if (v !== this.atual) { this.nova = v; if (this.precisa()) this.trava(v); }
+    if (v !== this.atual) { this.nova = v; const EC = window.EstudioConta?.versao; if (EC?.programaMudou) EC.programaMudou('/animador/versao.json'); }
   },
   // a trava só aparece quando a versão importa para os outros: trabalhando junto AO VIVO ou mexendo num personagem que está NA NUVEM.
   // Fora disso (projeto local, tela inicial) a versão nova fica esperando e trava quando entrar num desses (vê de 3 em 3 s).
