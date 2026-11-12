@@ -12,6 +12,7 @@
 <link rel="preload" href="/estudio-inter.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/estudio-visual.css">
 <link rel="stylesheet" href="css/celeste.css">
+<link rel="stylesheet" href="css/blender.css">
 </head>
 <body>
 <!-- ====================== TELA INICIAL ====================== -->
@@ -32,16 +33,6 @@
     <span class="sep"></span>
     <button class="ibtn" id="b-undo" title="Desfazer (Ctrl+Z)"></button><button class="ibtn" id="b-redo" title="Refazer (Ctrl+Y)"></button>
     <span class="sp"></span>
-    <div class="ferr" title="Ferramentas">
-      <button class="ibtn on" data-ferr="mover" title="Mover, girar e tamanho (V)"></button>
-      <button class="ibtn" data-ferr="mao" title="Mão: arrastar a tela (H, ou botão do meio)"></button>
-      <button class="ibtn" data-ferr="camera" title="Câmera: arrastar para enquadrar (C)"></button>
-    </div>
-    <div class="ferr" title="O que o palco mostra (Tab)">
-      <button class="btn sm ghost on" data-vista="mundo" title="Palco: canvas infinito, para montar a cena">Palco</button>
-      <button class="btn sm ghost" data-vista="camera" title="Só o que a câmera vê, com cor, efeitos e legendas (igual ao vídeo)">Câmera</button>
-    </div>
-    <button class="ibtn" id="b-onion" title="Casca de cebola: ver os quadros vizinhos (O)"></button><button class="ibtn" id="b-regua" title="Régua e ímã: gruda nas bordas da câmera e nos outros personagens/objetos (R) · segure Ctrl para soltar sem grudar"></button>
     <span class="sep"></span><!-- ferramentas à direita, separadas das pessoas por uma barrinha (pedido do dono, 05/11/2026) -->
     <!-- pessoas (05/11/2026): quem criou/editou (só as fotos), trabalhar junto e quem está ao vivo, juntos do lado direito -->
     <span class="ed-pessoas"><span class="ed-autores" id="ed-autores"></span><button class="btn sm" id="b-junto" title="Trabalhar junto ao vivo: outras pessoas da equipe entram, cada uma com o cursor e o nome, e veem as mudanças na hora"></button><span class="aovivo-barra" data-aovivo="animador" hidden></span></span>
@@ -62,7 +53,21 @@
       <div class="p-corpo arvore" id="arvore"></div>
     </aside>
     <main class="palco" id="palco"><canvas id="palco-cv"></canvas>
-      <div class="palco-zoom"><button class="btn sm" id="z-menos">−</button><button class="btn sm" id="zoom-txt" title="Enquadrar a câmera (F)">100%</button><button class="btn sm" id="z-mais">+</button></div>
+      <!-- barra do palco (2.0, 12/11/2026): ferramentas e o que o palco mostra moram aqui, como o cabeçalho da vista do Blender -->
+      <div class="palco-cab">
+    <div class="ferr" title="Ferramentas">
+      <button class="ibtn on" data-ferr="mover" title="Mover, girar e tamanho (V)"></button>
+      <button class="ibtn" data-ferr="mao" title="Mão: arrastar a tela (H, ou botão do meio)"></button>
+      <button class="ibtn" data-ferr="camera" title="Câmera: arrastar para enquadrar (C)"></button>
+    </div>
+    <div class="ferr" title="O que o palco mostra (Tab)">
+      <button class="btn sm ghost on" data-vista="mundo" title="Palco: canvas infinito, para montar a cena">Palco</button>
+      <button class="btn sm ghost" data-vista="camera" title="Só o que a câmera vê, com cor, efeitos e legendas (igual ao vídeo)">Câmera</button>
+    </div>
+    <button class="ibtn" id="b-onion" title="Casca de cebola: ver os quadros vizinhos (O)"></button><button class="ibtn" id="b-regua" title="Régua e ímã: gruda nas bordas da câmera e nos outros personagens/objetos (R) · segure Ctrl para soltar sem grudar"></button>
+        <span class="sp"></span>
+        <div class="palco-zoom"><button class="btn sm" id="z-menos" title="Diminuir">−</button><button class="btn sm" id="zoom-txt" title="Enquadrar a câmera (F)">100%</button><button class="btn sm" id="z-mais" title="Aumentar">+</button></div>
+      </div>
     </main>
     <aside class="painel dir">
       <div class="abas" id="lado-abas"><button data-aba="props" class="on">Propriedades</button><button data-aba="efeitos">Efeitos</button><button data-aba="som">Voz</button><button data-aba="quadro" class="aba-menos" title="Poses, vista e animações dos personagens neste quadro">No quadro</button></div>
@@ -178,6 +183,7 @@
 <script src="js/pngtuber.js"></script>
 <script src="js/atelie.js"></script>
 <script src="js/rive.js"></script>
+<script src="js/legacy.js"></script><!-- botão LEGACY: atualizar animação antiga para a versão nova (cópia LEGACY na nuvem) -->
 <script src="js/animacoes.js"></script>
 <script src="js/quadro.js"></script>
 <script src="js/linha.js"></script>

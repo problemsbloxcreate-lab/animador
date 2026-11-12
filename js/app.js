@@ -111,6 +111,7 @@ const App = {
     this.commit('Cor interna do personagem');
   },
   commit(rotulo, o = {}) {
+    try { if (typeof TLP !== 'undefined') TLP.encaixaNovos(this.P); } catch (e) { console.warn('[trilhas]', e); } // bloco novo vai para a 1ª trilha livre (js/premiere.js)
     const agora = JSON.stringify(this.P); if (agora === this.ultimo) return this.atualiza(o);
     if (this.P.anterior) delete this.P.anterior; // mudou de verdade: deixa de ser "o anterior" (virou um arquivo comum)
     this.desfazer.push(this.ultimo); if (this.desfazer.length > 120) this.desfazer.shift(); this.refazer = []; this.ultimo = agora;

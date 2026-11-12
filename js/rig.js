@@ -55,7 +55,7 @@ const Rig = {
   // baixo), então vale para qualquer personagem/vista sem depender do sinal dos giros de cada desenho. Cotovelo até 150°, joelho até 140°
   // (def.travas = { cotovelo, joelho } muda por personagem; def.semTrava desliga). De perfil e três-quartos (o rosto aponta para um lado)
   // o cotovelo só dobra para a FRENTE e o joelho só para TRÁS (folga de 15° no cotovelo e 20° no joelho: o pé desenhado na canela puxa a medida).
-  TRAVA: { cotovelo: 150, joelho: 140, folga: 15, folgaJoelho: 20 },
+  TRAVA: { cotovelo: 150, joelho: 140, folga: 15, folgaJoelho: 20, folgaVista: 20 },
   // para onde o personagem olha nesta vista: +1 direita, -1 esquerda, 0 de frente/costas (olhos/rosto x cabeça, na pose de agora)
   olhaPara(def, est) { const P = def.partes, cab = P.find(p => /^cabe[çc]a/i.test(p.nome)), ros = P.find(p => /^(olhos?|rosto|boca)\b/i.test(p.nome) && p.pai === cab?.id);
     if (!cab || !ros) return 0; const J = this.juntas(def, est), a = J[cab.id], b = J[ros.id]; if (!a || !b) return 0; const t = this.centroTinta(def, est, ros.id) || b, ci = this.centroTinta(def, est, cab.id) || a, dx = t.x - ci.x; return Math.abs(dx) > 25 ? Math.sign(dx) : 0; },
@@ -79,8 +79,15 @@ const Rig = {
     for (const p of def.partes) { const pai = porId[p.pai]; if (usados.has(p.id) || !/canela|perna de baixo/i.test(p.nome) || this.NAO.test(p.nome) || !pai || !/coxa|perna/i.test(pai.nome) || !pai.pai) continue; L.push({ nome: pai.nome, raiz: pai.id, meio: p.id, fim: null, tipo: 'perna' }); usados.add(p.id); }
     return L; },
   // devolve o estado com as juntas dentro da trava (só gira o osso de baixo: antebraço/canela; a mão/pé vão junto)
-  trava(def, est) {
-    if (!def || !est || def.semTrava || !this.membrosTrava(def).length) return est; let D; try { D = this.dobras(def, est); } catch { return est; }
+  trava(def, est, o = {}) {
+    if (!def || !est || def.semTrava || !this.membrosTrava(def).length) return est;
+    // FRENTE, TRÊS-QUARTOS E COSTAS (2.0.x, 12/11/2026, decisão da dona: "todas as vistas"): a dobra na tela engana fora do perfil, então ali o
+    // osso de baixo (antebraço/canela) fica dentro dos giros que as poses aprovadas DESTA vista usam, com 20° de folga (Rig.limites)
+    // só no Animador (o.vistas): no Ateliê o IK precisa poder criar pose nova fora das que já existem
+    if (!this.ehPerfil(def)) { if (!o.vistas) return est; let out = est; for (const c of this.membrosTrava(def)) { const pid = c.meio, r = est[pid]?.r; if (r == null) continue; const L = this.limites(def, pid); if (!L) continue;
+        const v = clamp(r, L.min - this.TRAVA.folgaVista, L.max + this.TRAVA.folgaVista); if (v !== r) { if (out === est) out = { ...est }; out[pid] = { ...out[pid], r: v }; } }
+      return out; }
+    let D; try { D = this.dobras(def, est); } catch { return est; }
     let out = est; for (const d of D) { if (!d.errado && !d.excesso) continue; if (out === est) out = { ...est };
       // lado errado: volta até a borda da folga (braço/perna quase reto); dobra demais: para no máximo
       const alvo = d.errado ? Math.sign(d.dobra) * d.folga : Math.sign(d.dobra) * d.max, delta = this.norm(alvo - d.dobra), pid = d.cad.meio;
@@ -181,7 +188,7 @@ const Rig = {
       if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0);
       out[pid] = x;
     }
-    return P.rive ? this.trava(dv0, out) : out; // trava das juntas só em animação nova (as antigas ficam exatamente como eram)
+    return out; // a trava das juntas agora vale em TODO quadro de animação nova, chave ou não (js/desenho.js → Rig.trava)
   },
   _prof: new WeakMap(),
   profundidades(def) { let r = this._prof.get(def); if (r && r.n === def.partes.length) return r.m; const porId = Object.fromEntries(def.partes.map(p => [p.id, p])), m = {};

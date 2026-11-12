@@ -24,7 +24,7 @@
    Ctrl+arrastar a ponta = ondulação. Ctrl+Z/Ctrl+Shift+Z ficam com o App. */
 'use strict';
 const TLP = {
-  RG: 44, CABW: 196, HV: 40, HA: 40, HC: 24, HCAM: 18, HDIV: 7, ROLA: 10,
+  RG: 44, CABW: 210, HV: 48, HA: 48, HC: 28, HCAM: 20, HDIV: 7, ROLA: 10,
   pxq: 0, sx: 0, sy: 0, ferr: 'sel', sel: new Set(), foco: false, semAlvo: new Set(), vel: 0, copia: null, lacuna: null,
   ROT: [['#9b8bd9', 'Violeta'], ['#7d8fe0', 'Íris'], ['#29b896', 'Caribe'], ['#c79be6', 'Lavanda'], ['#3aa0d8', 'Cerúleo'], ['#5c9b3f', 'Floresta'], ['#e889ad', 'Rosa'], ['#e8a040', 'Manga'],
     ['#a35cc9', 'Roxo'], ['#4a68d8', 'Azul'], ['#2e8f91', 'Azul-petróleo'], ['#d14fa3', 'Magenta'], ['#c9a77a', 'Bronzeado'], ['#4ca34c', 'Verde'], ['#8f5f3a', 'Marrom'], ['#d9cc45', 'Amarelo']],
@@ -75,7 +75,7 @@ const TLP = {
   aoModo() {
     const v = Folha.modo === 'video'; if (!v) { this.paraShuttle(); return; }
     if (!this.liga()) return; this.foco = true; this.pintaFoco();
-    if (App.P && App.modoVista !== 'camera') App.setVista('camera'); // pedido da dona: no modo vídeo o palco vai sozinho para a Câmera
+    // (2.0.x, 12/11/2026, dona: "pode remover isso ok? pra n atrapalhar") o modo Vídeo NÃO leva mais o palco sozinho para a Câmera: fica onde estava
     if (!this.pxq) requestAnimationFrame(() => this.encaixaTudo());
   },
   pintaFoco() { $('#editor .tl')?.classList.toggle('pr-foco', this.foco && Folha.modo === 'video'); },
@@ -135,6 +135,28 @@ const TLP = {
   linhaDe(c) { return this.rows.find(r => r.lado === c.lado && (r.tr === c.tr || r.lado === 'c' || r.lado === 't')); },
   // grava a trilha de cada bloco (na 1ª edição do modo Vídeo; depois só confirma)
   congela() { const L = this.layout(); for (const c of L.v) c.n.trilha = c.tr; for (const c of L.a) c.a.trilha = c.tr; },
+  // TRILHAS SEM ESCADA (2.0.x, 12/11/2026, dona: "o que de pra usar em uma linha só se mantem nela"): bloco NOVO (sem n.trilha) entra na
+  // PRIMEIRA trilha do mesmo tipo onde cabe sem encostar em outro no tempo; só abre trilha nova se não couber. Igual ao Premiere: a trilha
+  // manda em quem fica na frente (ordena). Vale em animação nova (P.rive) e em projeto que já tem trilhas gravadas; projeto antigo sem
+  // trilhas continua com as trilhas saindo da ordem do palco (abrir não muda nada). Chamado pelo App.commit, antes de guardar o desfazer.
+  encaixaNovos(P) {
+    if (!P || !Array.isArray(P.raiz)) return false; const aud = P.audios || [];
+    const ja = P.raiz.some(n => +n.trilha) || aud.some(a => +a.trilha); if (!ja && !P.rive) return false;
+    if (!ja) { if (P !== App.P) return false; this.congela(); return true; } // 1ª vez: grava as trilhas que já aparecem (sem mudar quem está na frente)
+    const novosV = P.raiz.filter(n => !(+n.trilha)), novosA = aud.filter(a => !(+a.trilha)); if (!novosV.length && !novosA.length) return false;
+    const encaixa = (todos, novos, fim) => { const oc = {}; for (const x of todos) if (+x.trilha) (oc[+x.trilha] ||= []).push([x.de || 0, fim(x)]);
+      for (const x of novos.slice().reverse()) { const de = x.de || 0, f = fim(x); let t = 1; while ((oc[t] || []).some(([a, b]) => a <= f && b >= de)) t++; x.trilha = t; (oc[t] ||= []).push([de, f]); } };
+    encaixa(P.raiz, novosV, n => Modelo.fimNo(P, n)); encaixa(aud, novosA, a => Folha.fimAudio(P, a));
+    if (novosV.length) this.ordena(); return true;
+  },
+  // COMPACTAR TRILHAS (projetos que já existem): refaz as trilhas pela ordem do palco, no mínimo de trilhas que NÃO muda o que aparece
+  // na tela (quem está na frente continua na frente) e tira trilhas vazias. Ctrl+Z desfaz.
+  compactar() { const P = App.P; if (!P) return; const antes = this.layout(), nV = antes.nV, nA = antes.nA;
+    for (const n of P.raiz) delete n.trilha; for (const a of P.audios || []) delete a.trilha;
+    const L = this.layout(); for (const c of L.v) c.n.trilha = c.tr;
+    const oc = {}; for (const c of L.a.slice().sort((x, y) => x.de - y.de)) { let t = 1; while ((oc[t] || []).some(([a, b]) => a <= c.fim && b >= c.de)) t++; c.a.trilha = t; (oc[t] ||= []).push([c.de, c.fim]); }
+    const depois = this.layout(); App.commit('Compactar trilhas');
+    UI.toast(`Trilhas: vídeo ${nV} → ${depois.nV}, áudio ${nA} → ${depois.nA} (Ctrl+Z desfaz)`); },
   // trilha mais alta = desenhada na frente (P.raiz[0] é a da frente)
   ordena() { const P = App.P, idx = new Map(P.raiz.map((n, i) => [n, i])); P.raiz.sort((x, y) => (+y.trilha || 0) - (+x.trilha || 0) || idx.get(x) - idx.get(y)); },
 
@@ -212,12 +234,12 @@ const TLP = {
   desenha() {
     if (!this.el || !App.P || !this.rows || Folha.modo !== 'video') return;
     const P = App.P, c = this.cv.getContext('2d'), d = devicePixelRatio || 1, W = this.W(), H = this.H(), RG = this.RG, sy = this.sy, fps = P.fps;
-    c.setTransform(d, 0, 0, d, 0, 0); c.fillStyle = '#1b1b1b'; c.fillRect(0, 0, W, H); this._miniN = 0;
+    c.setTransform(d, 0, 0, d, 0, 0); c.fillStyle = '#1e1e21'; c.fillRect(0, 0, W, H); this._miniN = 0;
     c.save(); c.beginPath(); c.rect(0, RG, W, H - RG); c.clip();
     const xFim = this.q2x(P.duracao);
     for (const r of this.rows) { const y = RG + r.y - sy; if (y > H || y + r.h < RG) continue;
-      if (r.tipo === 'div') { c.fillStyle = '#121212'; c.fillRect(0, y, W, r.h); c.fillStyle = '#3a3a3a'; c.fillRect(0, y + 3, W, 1); continue; }
-      c.fillStyle = r.tipo === 'cam' ? '#1e1e1e' : '#232323'; c.fillRect(0, y, W, r.h); c.fillStyle = '#191919'; c.fillRect(0, y + r.h - 1, W, 1);
+      if (r.tipo === 'div') { c.fillStyle = '#151517'; c.fillRect(0, y, W, r.h); c.fillStyle = '#333338'; c.fillRect(0, y + 3, W, 1); continue; }
+      c.fillStyle = r.tipo === 'cam' ? '#242428' : '#202024'; c.fillRect(0, y, W, r.h); c.fillStyle = '#151517'; c.fillRect(0, y + r.h - 1, W, 1);
       if (xFim < W) { c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(Math.max(0, xFim), y, W, r.h - 1); } } // depois do fim da animação
     // entrada/saída: faixa clara nas trilhas
     const tr = Folha.trecho; if (tr) { c.fillStyle = 'rgba(255,255,255,.035)'; c.fillRect(this.q2x(tr.de), RG, (tr.ate - tr.de + 1) * this.pxq, H); }
@@ -236,7 +258,7 @@ const TLP = {
     // encaixe: linha + triângulos
     if (this.encaixe != null) { const x = Math.round(this.q2x(this.encaixe)) + .5; c.strokeStyle = '#fff'; c.lineWidth = 1; c.beginPath(); c.moveTo(x, RG); c.lineTo(x, H); c.stroke(); }
     // agulha: linha VERMELHA nas trilhas
-    const xa = Math.round(this.q2x(App.q)) + .5; if (xa >= -2 && xa <= W + 2) { c.strokeStyle = '#e8362d'; c.lineWidth = 1; c.beginPath(); c.moveTo(xa, RG); c.lineTo(xa, H); c.stroke(); }
+    const xa = Math.round(this.q2x(App.q)) + .5; if (xa >= -2 && xa <= W + 2) { c.strokeStyle = '#ff453a'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(xa, RG); c.lineTo(xa, H); c.stroke(); }
     c.restore();
     this.regua(c, W);
   },
@@ -299,21 +321,21 @@ const TLP = {
   },
   regua(c, W) {
     const P = App.P, RG = this.RG, fps = P.fps, px = this.pxq;
-    c.fillStyle = '#232323'; c.fillRect(0, 0, W, RG); c.fillStyle = '#111'; c.fillRect(0, RG - 1, W, 1);
+    c.fillStyle = '#242428'; c.fillRect(0, 0, W, RG); c.fillStyle = '#151517'; c.fillRect(0, RG - 1, W, 1);
     const cand = [1, 2, 5, 10, fps, fps * 2, fps * 5, fps * 10, fps * 15, fps * 30, fps * 60, fps * 120, fps * 300, fps * 600, fps * 1800, fps * 3600].filter((v, i, l) => !i || v > l[i - 1]);
     const passo = cand.find(v => v * px >= 92) || cand[cand.length - 1], sub = passo >= fps ? (passo / fps % 5 === 0 ? 5 : passo / fps % 2 === 0 ? 4 : passo === fps ? (fps % 4 === 0 ? 4 : fps % 3 === 0 ? 3 : 2) : 2) : (passo % 5 === 0 ? 5 : passo), mini = passo / sub;
     const q0 = Math.max(0, Math.floor(this.x2q(0) / passo) * passo), q1 = this.x2q(W);
-    c.font = '10px ' + (getComputedStyle(document.body).getPropertyValue('--mono') || 'monospace'); c.textBaseline = 'top';
+    c.font = '500 11px Inter, "Segoe UI", sans-serif'; c.textBaseline = 'top';
     // entrada/saída na régua
     const tr = Folha.trecho; if (tr) { const xa = this.q2x(tr.de), xb = this.q2x(tr.ate + 1); c.fillStyle = 'rgba(160,160,160,.35)'; c.fillRect(xa, 22, xb - xa, 12); c.fillStyle = '#d8d8d8'; c.fillRect(xa, 22, 2, 12); c.fillRect(xb - 2, 22, 2, 12); }
     for (let q = q0; q <= q1; q += mini) { const x = Math.round(this.q2x(q)) + .5, grande = Math.abs(q / passo - Math.round(q / passo)) < 1e-6; if (mini * px < 4 && !grande) continue;
-      c.fillStyle = grande ? '#8a8a8a' : '#5a5a5a'; c.fillRect(x - .5, grande ? 17 : 27, 1, grande ? 17 : 7); if (grande) { c.fillStyle = '#a6a6a6'; c.fillText(this.tc(q), x + 3, 4); } }
+      c.fillStyle = grande ? '#8e8e93' : '#4a4a52'; c.fillRect(x - .5, grande ? 17 : 27, 1, grande ? 17 : 7); if (grande) { c.fillStyle = 'rgba(235,235,245,.64)'; c.fillText(this.tc(q), x + 3, 4); } }
     // marcadores
     for (const mk of P.marcadores || []) { const x = this.q2x(mk.q); if (x < -10 || x > W + 10) continue; c.fillStyle = mk.cor || '#3fbf61'; c.beginPath(); c.moveTo(x - 5, 17); c.lineTo(x + 5, 17); c.lineTo(x + 5, 26); c.lineTo(x, 31); c.lineTo(x - 5, 26); c.closePath(); c.fill(); if (this.selMarca === mk.id) { c.strokeStyle = '#fff'; c.lineWidth = 1; c.stroke(); } }
     // barra de render: linha vermelha embaixo da régua onde há bloco de vídeo (amarela onde só tem foto/forma/texto)
     const L = this.L; if (L) { const yb = RG - 5; for (const cl of L.v) { if (cl.n.vis === false) continue; const xa = Math.max(0, this.q2x(cl.de)), xb = Math.min(W, this.q2x(cl.fim + 1)); if (xb <= xa) continue; c.fillStyle = this.tipoNo(cl.n) === 'anim' || this.tipoNo(cl.n) === 'efeito' ? '#d62a1e' : '#d8c21f'; c.fillRect(xa, yb, xb - xa, 3); } }
-    // agulha: cabeça AMARELA
-    const x = Math.round(this.q2x(App.q)) + .5; if (x >= -8 && x <= W + 8) { c.fillStyle = '#f5c518'; c.beginPath(); c.moveTo(x - 6, 16); c.lineTo(x + 6, 16); c.lineTo(x + 6, 27); c.lineTo(x, 34); c.lineTo(x - 6, 27); c.closePath(); c.fill(); c.strokeStyle = '#e8362d'; c.beginPath(); c.moveTo(x, 34); c.lineTo(x, RG); c.stroke(); }
+    // agulha: cabeça VERMELHA (2.0, pedido da dona: agulha vermelha, como a linha)
+    const x = Math.round(this.q2x(App.q)) + .5; if (x >= -8 && x <= W + 8) { c.fillStyle = '#ff453a'; c.beginPath(); c.moveTo(x - 6, 16); c.lineTo(x + 6, 16); c.lineTo(x + 6, 27); c.lineTo(x, 34); c.lineTo(x - 6, 27); c.closePath(); c.fill(); c.strokeStyle = '#e8362d'; c.beginPath(); c.moveTo(x, 34); c.lineTo(x, RG); c.stroke(); }
   },
   // barras de rolagem (a de baixo dá zoom pelas pontas, como no Premiere)
   ligaBarras() {
@@ -741,7 +763,7 @@ const TLP = {
       { label: 'Expandir todas as trilhas', icon: 'sliders', action: () => { this.pref.alt = {}; for (const r2 of this.rows) if (r2.lado === 'v' || r2.lado === 'a') this.pref.alt[r2.lado + r2.tr] = 84; this.guardaPref(); this.pinta(); } },
       { label: 'Recolher todas as trilhas', icon: 'sliders', action: () => { this.pref.alt = {}; for (const r2 of this.rows) if (r2.lado === 'v' || r2.lado === 'a') this.pref.alt[r2.lado + r2.tr] = 26; this.guardaPref(); this.pinta(); } },
       { label: 'Altura padrão das trilhas', icon: 'x', action: () => { delete this.pref.alt; this.guardaPref(); this.pinta(); } },
-      '-', { label: 'Mostrar a timeline toda', icon: 'zoomOut', key: '\\', action: () => this.encaixaTudo() }]); },
+      '-', { label: 'Compactar trilhas', icon: 'sliders', action: () => this.compactar() }, { label: 'Mostrar a timeline toda', icon: 'zoomOut', key: '\\', action: () => this.encaixaTudo() }]); },
   async digitaTempo() { const el = $('.pr-tc', this.el); if (el.querySelector('input')) return; const i = h(`<input class="pr-tc-in" value="${this.tc(App.q)}">`); el.textContent = ''; el.appendChild(i); i.select();
     const fim = ok => { if (ok) { const q = this.lerTc(i.value); if (q != null) App.setQ(q); } el.textContent = this.tc(App.q); };
     i.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter') fim(true); if (ev.key === 'Escape') fim(false); }; i.onblur = () => fim(true); },

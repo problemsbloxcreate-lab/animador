@@ -1,0 +1,141 @@
+/* ===================== EDITOR COM CARA DE BLENDER, TIMELINE PREMIERE (2.0 Celeste, 12/11/2026, pedido da dona) =====================
+   "deixe o design com cara de blender e a timeline mais premiere mesmo", "mas ainda com tudo que você aprendeu com o design apple".
+   - Cores, letra e cantos do sistema Celeste (tokens do /estudio-visual.css) no editor inteiro: as variáveis antigas (--bg0…, --tx…)
+     passam a apontar para os tokens, então tudo o que já usava var(--bg1) muda junto.
+   - Blender: painéis escuros ENCAIXADOS (vão de 3 px entre eles, cantos de 8 px), cabeçalho de painel compacto em faixa própria,
+     propriedades à direita em caixas que abrem e fecham.
+   - Premiere: trilhas mais altas, código de tempo grande, agulha vermelha, alvos de clique maiores.
+   - Nada de Metro. Tirar este arquivo do index.html volta tudo como era. */
+html.cel{
+  --bg0:var(--fundo);--bg1:var(--fundo-2);--bg2:var(--elevado);--bg3:var(--fundo-3);--bg4:var(--fundo-4);--bg5:#3d3d43;
+  --bd:var(--linha);--bd2:var(--linha-forte);--tx:var(--texto);--tx2:var(--texto-2);--tx3:var(--texto-3);
+  --ac:var(--acento);--sel:rgba(92,196,255,.32);--sel2:var(--acento-suave);--f:var(--fonte);
+}
+html.cel body{font:13px/1.4 var(--fonte)}
+
+/* ---------- peças: botões, campos, menus ---------- */
+html.cel .btn{height:28px;border-radius:var(--raio-controle);border:0;background:var(--fundo-3);font-weight:500}
+html.cel .btn:hover{background:var(--fundo-4)}
+html.cel .btn.sm{height:26px;border-radius:var(--raio-p)}
+html.cel .btn.ghost{background:none}html.cel .btn.ghost:hover{background:var(--fundo-3)}
+html.cel .btn.on{background:var(--acento-suave);color:var(--acento)}
+html.cel .btn.primary{background:var(--acento);color:#04223a;font-weight:600}html.cel .btn.primary:hover{background:#7fd1ff}
+html.cel .btn:active:not(:disabled),html.cel .ibtn:active:not(:disabled){transform:scale(.97)}
+html.cel .ibtn{width:28px;height:28px;border-radius:var(--raio-p)}
+html.cel .ibtn:hover{background:var(--fundo-3)}
+html.cel .ibtn.on{background:var(--acento-suave);color:var(--acento)}
+html.cel #editor :is(input[type=text],input[type=number],input[type=search],select,textarea){background:var(--fundo-3);border:1px solid transparent;border-radius:var(--raio-p);height:26px}
+html.cel #editor textarea{height:auto}
+html.cel #editor :is(input,select,textarea):focus{border-color:var(--acento);box-shadow:0 0 0 3px var(--acento-suave)}
+html.cel input[type=range]{accent-color:var(--acento)}
+html.cel :focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+html.cel ::-webkit-scrollbar-thumb{background:var(--fundo-4);border-color:var(--fundo-2)}
+
+/* ---------- área de trabalho: painéis encaixados (Blender) ---------- */
+html.cel #editor .area{background:#0e0e10;gap:4px;padding:4px}
+html.cel #editor :is(.painel,.dock-col,.palco,.tl,.dock-baixo-ed){border-radius:8px;overflow:hidden;border:0!important}
+html.cel #editor .area.com-docks>aside.dock-area{gap:3px;background:none}
+html.cel #editor aside.dock-area>.dock-col+.dock-col{border-left:0}
+html.cel #editor .dock-col{background:var(--fundo-2);border-radius:8px}
+html.cel #editor .dock+.dock{border-top:4px solid #0e0e10}
+html.cel #editor .dock-col-borda:hover,html.cel #editor .dock-col-borda.on,html.cel .dock-hb:hover,html.cel .dock-hb.on{background:var(--acento-suave)}
+/* cabeçalho do painel: faixa compacta, título curto (sem maiúsculas espaçadas) */
+html.cel #editor .p-cab{height:30px;background:var(--elevado);border-bottom:1px solid var(--linha);gap:2px}
+html.cel #editor .p-cab h3{font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--texto)}
+html.cel #editor .p-cab .ibtn{width:24px;height:24px}
+html.cel #editor .p-cab .esq-sub{display:none}
+/* alça de arrastar o painel: some até passar o mouse no cabeçalho */
+html.cel #editor .dock-pega{opacity:0;top:5px!important}
+html.cel #editor .dock:hover>.dock-pega,html.cel #editor .dock:hover>.abas .dock-pega,html.cel #editor .dock-pega:focus-visible{opacity:.7}
+/* mídia vazia não ocupa meio painel */
+html.cel #editor .midia-corpo:not(:has(*)),html.cel #editor .midia-corpo:has(> .vazio:only-child){min-height:0!important;flex:0 0 auto!important;max-height:56px;font-size:12px}
+/* hierarquia: linhas de 28 px, nome em cor normal (a cor do personagem fica no ícone), selos só ao passar o mouse */
+html.cel #editor .arvore .no,html.cel #editor .arvore .item,html.cel #editor .arvore li>div{min-height:28px}
+html.cel #editor .arvore .nm{color:var(--texto)!important;font-style:normal}
+html.cel #editor .arvore .sel{background:var(--acento-suave)!important}
+html.cel #editor .arvore :is(.selo,.tag,.misto,.svg-tag,.so-proj){opacity:0;transition:opacity var(--rapido)}
+html.cel #editor .arvore :hover>:is(.selo,.tag,.misto,.svg-tag,.so-proj),html.cel #editor .arvore :hover :is(.selo,.tag,.misto,.svg-tag){opacity:1}
+/* abas da direita = controle segmentado */
+html.cel #editor .abas{gap:2px;padding:5px 6px;background:var(--elevado);border-bottom:1px solid var(--linha)}
+html.cel #editor .abas button{height:26px;border-radius:var(--raio-p);font-weight:500;color:var(--texto-2);background:none}
+html.cel #editor .abas button:hover{background:var(--fundo-3);color:var(--texto)}
+html.cel #editor .abas button.on{background:var(--fundo-4);color:var(--texto);box-shadow:var(--sombra-1)}
+/* propriedades em caixas (Blender): cada seção é um bloco com cabeçalho que abre e fecha */
+html.cel #editor .nq-sec{margin:6px;border-radius:8px;background:var(--fundo-3);overflow:hidden}
+html.cel #editor .nq-sec{border-bottom:0}
+html.cel #editor .nq-sec>summary{background:var(--elevado);padding:7px 10px}
+html.cel #editor .nq-sec>summary:hover{background:var(--fundo-4)}
+html.cel #editor .nq-sec>summary b{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--texto)}
+html.cel #editor .pr-num{background:var(--fundo-3);border:1px solid transparent;border-radius:var(--raio-p)}
+html.cel #editor .pr-num-n{border-right:0}
+html.cel #editor .pr-num:focus-within{border-color:var(--acento)}
+html.cel #editor .pr-seg>div{background:var(--fundo-3);border:0;border-radius:var(--raio-controle)}
+
+/* ---------- palco: barra própria no topo (como o cabeçalho da vista 3D do Blender) ---------- */
+html.cel #editor .palco{background:#111113}
+html.cel #editor .palco-cab{position:absolute;left:0;right:0;top:0;height:36px;z-index:3;display:flex;align-items:center;gap:6px;padding:0 6px;background:var(--elevado);border-bottom:1px solid var(--linha)}
+html.cel #editor .palco:has(.palco-cab) canvas{top:36px;height:calc(100% - 36px)}
+html.cel #editor .palco-cab .ferr{background:var(--fundo-3);border:0;border-radius:var(--raio-controle);padding:2px;gap:2px}
+html.cel #editor .palco-cab .ferr .ibtn{width:28px;height:26px}
+html.cel #editor .palco-cab .ferr .btn{height:26px;border-radius:var(--raio-p)}
+html.cel #editor .palco-cab .ferr .on{background:var(--fundo-4);color:var(--texto);box-shadow:var(--sombra-1)}
+html.cel #editor .palco-cab .sp{flex:1}
+html.cel #editor .palco-cab .palco-zoom{position:static;display:flex;gap:2px}
+html.cel #editor .palco-cab .palco-zoom .btn{background:none;min-width:28px}
+html.cel #editor .palco-cab .palco-zoom .btn:hover{background:var(--fundo-3)}
+html.cel #editor .palco-cab #zoom-txt{font-variant-numeric:tabular-nums;min-width:52px}
+
+/* ---------- topo: só o essencial ---------- */
+/* "Atualizar personagens" vira o ícone do Ateliê com o número (o texto fica no balão do mouse) */
+html.cel header.bar .b-atualizar{position:relative;width:32px;height:32px;padding:0!important;gap:0;background:none!important;border:0!important}
+html.cel header.bar .b-atualizar:hover{background:var(--fundo-3)!important}
+html.cel header.bar .b-atualizar>span:not(.b-at-logo){display:none}
+html.cel header.bar .b-atualizar .b-at-logo{width:22px;height:22px}
+html.cel header.bar .b-atualizar>i{position:absolute;top:0;right:-1px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--acento);color:#04223a;font:700 10px/16px var(--fonte);font-style:normal;text-align:center}
+html.cel header.bar .b-atualizar.tem-legacy>i{background:var(--aviso)}
+/* onde está salva: texto discreto com bolinha, não um botão grande */
+html.cel header.bar #b-nuvem{background:none!important;border:0!important;color:var(--texto-3);font-weight:500;padding:0 6px}
+html.cel header.bar #b-nuvem:hover{color:var(--texto);background:var(--fundo-3)!important}
+html.cel header.bar #b-nuvem-mais{background:none!important;border:0!important;width:22px;padding:0}
+/* LEGACY (animação antiga): pílula laranja ao lado do nome; clicar pergunta se atualiza (js/legacy.js) */
+html.cel header.bar .b-legacy{height:24px;padding:0 9px;border-radius:var(--raio-p);background:rgba(255,159,10,.16)!important;color:var(--aviso)!important;font:700 11px var(--fonte);letter-spacing:.06em;border:0!important}
+html.cel header.bar .b-legacy:hover{background:rgba(255,159,10,.26)!important}
+.lg-txt p{margin:0 0 10px;color:var(--texto-2);line-height:1.5}.lg-txt b{color:var(--texto)}
+/* exportar = botão principal com texto */
+html.cel header.bar #b-exportar{min-width:auto;padding:0 14px}
+
+/* ---------- timeline (Premiere): maior, mais legível, nas cores do Celeste ---------- */
+html.cel #editor .tl{background:var(--fundo-2)}
+html.cel #editor .tl-barra{height:40px;gap:6px;background:var(--elevado);border-bottom:1px solid var(--linha)}
+html.cel #editor .tl-barra .qd{font:600 13px var(--fonte);font-variant-numeric:tabular-nums;background:none;border:0;min-width:0;color:var(--texto-2)}
+html.cel #editor .tl-barra .tl-leg{display:none}
+html.cel #editor .tl.modo-video .tl-barra>label{display:none!important} /* fps e quadros: ficam em Propriedades › Projeto */
+html.cel #editor #b-tocar{background:var(--fundo-3);color:var(--texto)}
+html.cel #editor .tl-nomes .reg{height:auto}
+html.cel .pr{background:var(--fundo-2);font:12px var(--fonte);color:var(--texto-2);grid-template-columns:36px 210px minmax(0,1fr) 10px;grid-template-rows:44px minmax(0,1fr) 16px}
+html.cel .tl.pr-foco .pr{box-shadow:inset 0 0 0 1px rgba(92,196,255,.45)}
+html.cel .pr-ferr{background:var(--elevado);border-right:1px solid var(--linha);gap:4px;padding:8px 0}
+html.cel .pr-f{width:28px;height:28px;border-radius:var(--raio-p);color:var(--texto-2)}
+html.cel .pr-f:hover{background:var(--fundo-3);color:var(--texto)}html.cel .pr-f.on{background:var(--acento);color:#04223a}
+html.cel .pr-tc-area{background:var(--elevado);border-color:var(--linha);padding:0 10px;gap:4px}
+html.cel .pr-tc{font:600 20px/1.1 var(--fonte);font-variant-numeric:tabular-nums;color:var(--acento);letter-spacing:.02em}
+html.cel .pr-tc-in{font:600 18px var(--fonte);font-variant-numeric:tabular-nums;color:var(--acento);background:var(--fundo);border-color:var(--acento);border-radius:var(--raio-p);width:140px}
+html.cel .pr-b{width:24px;height:20px;border-radius:5px;color:var(--texto-2)}html.cel .pr-b:hover{background:var(--fundo-3);color:var(--texto)}html.cel .pr-b.on{color:var(--acento)}
+html.cel .pr-cabs{background:var(--elevado);border-color:var(--linha)}
+html.cel .pr-cab{background:var(--fundo-3);border-bottom:1px solid var(--fundo-2);gap:4px;padding:6px 6px 0}
+html.cel .pr-cab.curto{padding-top:0}
+html.cel .pr-cab.div{background:var(--fundo)}
+html.cel .pr-cab.cam{background:var(--elevado);color:var(--texto-3);font-size:11px}
+html.cel .pr-cab.c,html.cel .pr-cab.t{background:var(--elevado)}
+html.cel .pr-cab .nm{color:var(--texto);font-size:12px}
+html.cel .pr-cab.travada{background:repeating-linear-gradient(135deg,var(--fundo-3) 0 6px,var(--fundo-2) 6px 12px)}
+html.cel .pr-alvo{min-width:30px;height:22px;border:0;border-radius:5px;background:var(--fundo-4);color:var(--texto-2);font:600 11px var(--fonte)}
+html.cel .pr-alvo.on{background:var(--acento);color:#04223a}
+html.cel .pr-ic{width:24px;height:22px;border-radius:5px;color:var(--texto-3)}
+html.cel .pr-ic:hover:not(:disabled){background:var(--fundo-4);color:var(--texto)}html.cel .pr-ic.on{color:var(--texto)}html.cel .pr-ic.off{color:var(--texto-4)}
+html.cel .pr-ms{width:22px;height:22px;border:0;border-radius:5px;background:var(--fundo-4);color:var(--texto-2);font:700 11px var(--fonte)}
+html.cel .pr-ms.m.on{background:var(--sucesso);color:#04220e}html.cel .pr-ms.s.on{background:#ffd60a;color:#2a2200}
+html.cel .pr-vbar,html.cel .pr-hbar,html.cel .pr-pe{background:var(--fundo-2);border-color:var(--linha)}
+html.cel .pr-vbar i,html.cel .pr-hpol{background:var(--fundo-4)}html.cel .pr-vbar i:hover,html.cel .pr-hpol:hover{background:#4a4a52}
+html.cel .pr-hpol i{width:12px;height:12px;top:-1px;background:var(--texto-2);border-color:var(--fundo)}
+@media (prefers-reduced-motion:reduce){html.cel .btn:active,html.cel .ibtn:active{transform:none}}

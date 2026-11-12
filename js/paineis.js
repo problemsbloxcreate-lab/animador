@@ -250,7 +250,7 @@ const Paineis = Object.assign(Object.create(PaineisBase), {
 const PaineisEd = Object.assign(Object.create(PaineisBase), {
   CHAVE: 'animador-editor-layout', CH_ALT: 'animador-editor-alturas', CH_TL: 'animador-editor-tl', BOTAO: 'ed-layout-padrao', MSG_PADRAO: 'Voltou ao design padrão do Animador.',
   NOMES: { midia: 'Mídia', arvore: 'Hierarquia', lado: 'Propriedades · Efeitos · Voz · No quadro', linha: 'Timeline' },
-  TL_PADRAO: 250,
+  TL_PADRAO: 320, // 2.0 (12/11/2026, dona: "as coisas hoje são muito pequenas"): timeline mais alta
   // altura padrão na coluna (pedido do dono, 05/11/2026): a Mídia menor e a Hierarquia maior (~1/4 e ~3/4)
   PESO: { midia: 1, arvore: 3 },
   SEL: { raiz: '#editor', grade: '#editor .area', esq: '#editor .area > aside.esq', dir: '#editor .area > aside.dir', palco: '#editor .palco' },

@@ -73,7 +73,7 @@ const AtualizaProj = {
       <div class="atz-fim" data-fim></div></div>`);
     const fim = () => { const leg = $$('.atz-legacy input', body).some(c => c.checked); $('[data-fim]', body).innerHTML = leg ? `Antes de trocar: cópia <b>"${esc(P.nome)} (LEGACY)"</b>${NuvemAnim.vai(P) ? ' na nuvem da equipe' : ' neste computador'}.` : 'Antes de atualizar: cópia <b>(antes da atualização)</b> só neste computador. O Ctrl+Z também volta.'; };
     body.addEventListener('change', fim); fim();
-    const ids = await UI.modal({ title: 'Atualizar personagens', icon: 'download', width: 560, metro: true, body, buttons: [{ label: 'Agora não', value: null }, { label: 'Atualizar', kind: 'primary', collect: x => $$('[data-id]', x.body).filter(c => c.checked).map(c => c.dataset.id) }] });
+    const ids = await UI.modal({ title: 'Atualizar personagens', icon: 'download', width: 560, semMetro: true, body, buttons: [{ label: 'Agora não', value: null }, { label: 'Atualizar', kind: 'primary', collect: x => $$('[data-id]', x.body).filter(c => c.checked).map(c => c.dataset.id) }] });
     if (!ids?.length) return;
     const escolhidos = L.filter(x => ids.includes(x.id)), comLegacy = escolhidos.some(x => x.grupo === 'legacy');
     await App.salvarJa?.(); const copia = clone(P); copia.id = uid('p'); delete copia.nuvemEm; delete copia.nuvemMod; copia.modificado = Date.now();
