@@ -80,7 +80,7 @@ html[data-tema="claro"] #nuvem-tela::before{background:radial-gradient(260px 260
   // prog: 'an' (Animador) ou 'at' (Ateliê) = o ícone do começo; o.titulo (no lugar de "Carregando da nuvem"), o.vidro (fundo desfocado
   // por cima do programa, para salvar/enviar/atualizar), o.indef (barra andando sem % até chegar um andamento de verdade)
   inicio(nome, prog = 'an', o = {}) {
-    if (this.el) return; this.css(); this.alvo = 0; this.mostrado = 0;
+    if (this.el) return; this.css(); this.alvo = 0; this.mostrado = 0; this.acabou = false;
     const EI = window.EstudioIcones, ic = EI ? EI.url(prog) : prog === 'at' ? 'icones/atelie.svg' : 'icones/icone-192.png';
     const el = this.el = document.createElement('div'); el.id = 'nuvem-tela'; el.setAttribute('role', 'progressbar'); el.setAttribute('aria-label', 'Carregando da nuvem');
     el.innerHTML = `<div class="nt-c"><div class="nt-ic"><img alt="" src="${esc(ic)}"></div>
@@ -92,7 +92,7 @@ html[data-tema="claro"] #nuvem-tela::before{background:radial-gradient(260px 260
     document.body.appendChild(el);
     // a transição do ícone para a nuvem acontece quando a tela de inicialização (por cima) já saiu: assim dá para ver (no máximo 13 s esperando)
     // a inicialização (já com o acesso conferido) não espera o download: sai logo e esta tela (igual por baixo) assume
-    const t0 = Date.now(), vira = () => { if (!this.el) return; const b = document.getElementById('turma-login'); if (b && Date.now() - t0 < 13000) { if (Date.now() - t0 > 500 && !b.classList.contains('ep-saindo')) { b.classList.add('ep-saindo'); setTimeout(() => b.remove(), 380); } return setTimeout(vira, 120); } setTimeout(() => this.el?.classList.add('nt-on'), 150); };
+    const t0 = Date.now(), vira = () => { if (!this.el) return; const b = document.getElementById('turma-login'); if (b && Date.now() - t0 < 13000) { if (Date.now() - t0 > 500 && !b.classList.contains('ep-saindo')) { b.classList.add('ep-saindo'); setTimeout(() => b.remove(), 380); } return setTimeout(vira, 120); } setTimeout(() => { if (!this.acabou) this.el?.classList.add('nt-on'); }, Math.max(150, 300 - (Date.now() - t0))); }; // conferência rápida (< 0,3 s) nem mostra a nuvem (pedido da dona, 12/11/2026)
     vira(); this.anda();
   },
   nome(n) { const e = this.el?.querySelector('.nt-nm'); if (e && n) e.textContent = n; },
@@ -107,7 +107,7 @@ html[data-tema="claro"] #nuvem-tela::before{background:radial-gradient(260px 260
     this.raf = requestAnimationFrame(() => this.anda());
   },
   async fim(ok) {
-    const el = this.el; if (!el) return;
+    const el = this.el; if (!el) return; this.acabou = true; // terminou: a nuvem não entra mais (conferência rápida nem pisca)
     if (ok) { this.passo(1, 'Pronto'); await new Promise(r => setTimeout(r, 380)); }
     cancelAnimationFrame(this.raf); this.el = null; el.classList.add('nt-sai'); setTimeout(() => el.remove(), 450);
   },
