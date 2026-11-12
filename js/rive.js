@@ -26,7 +26,8 @@ const RiveRig = {
       ok(!escondidos.length, escondidos.length ? `Começam escondidos (o braço troca de desenho para dobrar): ${escondidos.map(p => p.nome).join(', ')}` : 'Antebraço e canela visíveis desde a pose padrão');
       const tampas = P.filter(p => /tampa/i.test(p.nome)).length, contornos = P.filter(p => /contorno/i.test(p.nome)).length, juntas = br + pe;
       ok(juntas && tampas >= juntas && contornos >= juntas, `Juntas com Contorno + Tampa: ${Math.min(tampas, contornos)} de ${juntas || 4}`);
-      const pescoco = P.find(p => /pesco[çc]o/i.test(p.nome)), cab = P.find(p => /^cabe[çc]a/i.test(p.nome));
+      // o pescoço de verdade é o pai da Cabeça; "Contorno do pescoço e ombros" e afins não contam (Lumi, 11/11/2026)
+      const cab = P.find(p => /^cabe[çc]a/i.test(p.nome)), paiCab = cab && porId[cab.pai], pescoco = paiCab && /pesco[çc]o/i.test(paiCab.nome) ? paiCab : P.find(p => /^pesco[çc]o$/i.test(p.nome)) || P.find(p => /pesco[çc]o/i.test(p.nome) && !/contorno|ombro/i.test(p.nome));
       ok(pescoco && cab?.pai === pescoco.id, pescoco ? (cab?.pai === pescoco.id ? 'Pescoço › Cabeça' : 'A Cabeça não está presa no Pescoço') : 'Sem Pescoço (a cabeça vai direto no Corpo)');
       const anims = dv.animacoes || [], duras = anims.filter(a => !a.suave);
       ok(!duras.length, anims.length ? (duras.length ? `${duras.length} de ${anims.length} animação(ões) ainda quadro a quadro: ${duras.map(a => a.nome).slice(0, 6).join(', ')}${duras.length > 6 ? '…' : ''}` : `${anims.length} animação(ões) com movimento suave`) : 'Nenhuma animação de teste');
