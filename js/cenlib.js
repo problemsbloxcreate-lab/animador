@@ -207,7 +207,8 @@ Object.assign(CenLib, {
     const E = o.escolher || null;
     if (!App?.P && !E) return UI.toast('Abra uma animação primeiro.', { kind: 'err' });
     const st = { def: null, orig: null, sel: null, modo: 'padrao', pasta: o.no || null, desf: [], ref: [], busca: '', tag: '', vez: 0, multi: false, escolhido: null,
-      guia: !!E || (App?.P ? App.P.h > App.P.w : false) };
+      guia: !!E || (App?.P ? App.P.h > App.P.w : false),
+      claro: (() => { try { return localStorage.getItem('cenlib-tudo-claro') !== '0'; } catch { return true; } })() }; // fora do quadro sem escurecer (cenários longos)
     const body = h(`<div class="cl">
       <aside class="cl-bib">
         <input type="search" class="cl-busca" placeholder="Buscar cenário…" aria-label="Buscar cenário">
@@ -225,6 +226,7 @@ Object.assign(CenLib, {
       </aside>
       <section class="cl-meio">
         <div class="cl-topo"><b class="cl-nome" title="Clique para renomear">Escolha um cenário</b><span class="cl-selo"></span><span class="cl-selo cl-cat"></span><button class="btn sm cl-aprova" data-aprova hidden title="Este oficial ainda é rascunho: aprovar tira o selo">${ic('check', 13)} Aprovar</button><button class="btn sm ia" data-ajusta hidden title="Pedir à IA uma mudança neste oficial (ela vê como ficou)">${ic('sparkles', 13)} Ajustar com IA</button><span class="sp"></span>
+          <label class="cl-ck" title="Mostra o cenário inteiro claro, também o que fica fora do quadro do vídeo (só a borda marca o quadro)"><input type="checkbox" data-claro> Tudo claro</label>
           <label class="cl-ck" title="Mostra a faixa do meio que aparece num Short vertical (9:16)"><input type="checkbox" data-guia> Faixa do Short</label>
           <div class="cl-seg" role="tablist" hidden><button data-m="padrao" title="Mudanças valem em todos os quadros">Padrão</button><button data-m="quadro" title="Mudanças valem só a partir deste quadro até o próximo keyframe">Neste keyframe</button></div>
           <button class="ibtn" data-un title="Desfazer (Ctrl+Z)">${ic('undo', 14)}</button><button class="ibtn" data-re title="Refazer (Ctrl+Shift+Z)">${ic('redo', 14)}</button></div>
@@ -268,8 +270,8 @@ Object.assign(CenLib, {
       for (const c of st.def.camadas) this.desenhaCamada(x, vivo?.id === c.id ? { ...c, ...vivo } : c, S, { fantasma: c2 => c2.id === st.sel, ox, oy });
       g.filter = this.fil(st.def.cena); g.drawImage(t, 0, 0); g.filter = 'none';
       // fora do quadro do cenário (o que não aparece no vídeo) fica escurecido, com a borda do quadro
-      g.save(); g.beginPath(); g.rect(0, 0, cv.width, cv.height); g.rect(ox, oy, this.W * S, this.H * S); g.fillStyle = 'rgba(8,9,11,.62)'; g.fill('evenodd');
-      g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; g.strokeRect(Math.round(ox) + .5, Math.round(oy) + .5, Math.round(this.W * S), Math.round(this.H * S)); g.restore();
+      g.save(); if (!st.claro) { g.beginPath(); g.rect(0, 0, cv.width, cv.height); g.rect(ox, oy, this.W * S, this.H * S); g.fillStyle = 'rgba(8,9,11,.62)'; g.fill('evenodd'); }
+      g.strokeStyle = st.claro ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.35)'; g.lineWidth = st.claro ? 1.5 * dpr() : 1; g.strokeRect(Math.round(ox) + .5, Math.round(oy) + .5, Math.round(this.W * S), Math.round(this.H * S)); g.restore();
       if (st.guia) { const vw = this.FAIXA, x0 = (this.W - vw) / 2 * S + ox; g.save(); g.fillStyle = 'rgba(8,9,11,.35)'; g.fillRect(ox, oy, x0 - ox, this.H * S); g.fillRect(x0 + vw * S, oy, this.W * S - (x0 - ox) - vw * S, this.H * S);
         g.strokeStyle = '#ffd34f'; g.lineWidth = 1.5; g.setLineDash([8, 6]); g.strokeRect(x0, oy + 2, vw * S, this.H * S - 4); g.setLineDash([]); g.fillStyle = '#ffd34f'; g.font = `600 ${Math.round(11 * dpr())}px sans-serif`; g.fillText('Short 9:16', x0 + 6 * dpr(), oy + 16 * dpr()); g.restore(); }
       if (guia) { g.save(); g.strokeStyle = '#ff4fd8'; g.lineWidth = 1; g.setLineDash([4, 4]); g.beginPath(); for (const gx of guia.x) { g.moveTo(gx * S + ox, 0); g.lineTo(gx * S + ox, cv.height); } for (const gy of guia.y) { g.moveTo(0, gy * S + oy); g.lineTo(cv.width, gy * S + oy); } g.stroke(); g.restore(); }
@@ -564,6 +566,7 @@ Object.assign(CenLib, {
     $('[data-aprova]', body).onclick = () => st.def && aprova(st.def.id);
     $('[data-ajusta]', body).onclick = async () => { if (!st.def?.fonte) return; const ped = await UI.prompt({ title: 'Ajustar com a IA', label: 'O que mudar neste cenário? (a IA vê como ele está agora)', multiline: true, ia: true, placeholder: 'Ex.: estante menor, mais cristais de gelo, chão de madeira mais claro' }); if (!ped?.trim()) return;
       await ocupa('A IA está ajustando o cenário…', async () => { guarda(); const d = await CenOficial.ajustar(st.def, ped.trim()); d.aprovar = true; await this.salvaMeu(d, await this.miniDe(d)); await recarrega(); st.def = { ...clone(d), origem: 'meu' }; st.orig = clone(st.def); st.sel = null; st.mexido = false; pintaBib(); pinta(); UI.toast('Ajustado. O de antes volta com Ctrl+Z (aí salve de novo).', { kind: 'ok' }); }); };
+    $('[data-claro]', body).checked = st.claro; $('[data-claro]', body).onchange = e => { st.claro = e.target.checked; try { localStorage.setItem('cenlib-tudo-claro', st.claro ? '1' : '0'); } catch { } desenha(); };
     $('[data-guia]', body).checked = st.guia; $('[data-guia]', body).onchange = e => { st.guia = e.target.checked; desenha(); };
     $('[data-n="arq"]', body).onclick = async () => { const [f] = await pickFiles('.cenario,application/json', false); if (!f) return;
       await ocupa('Abrindo o arquivo…', async () => { const j = JSON.parse(await f.text()); if (j?.tipo === 'cenario-animador') { api?.close(); return Cenarios.abrirArquivo(f); } const d = await this.importar(j); await recarrega(); await escolhe(async () => d); UI.toast(`<b>${esc(d.nome)}</b> entrou em Meus cenários.`, { kind: 'ok' }); }); };
