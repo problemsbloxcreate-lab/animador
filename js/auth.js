@@ -33,7 +33,35 @@ document.documentElement.classList.add('turma-locked');
 #turma-login:not(.ep-erro) .ep-m{display:none}
 /* o ícone do PROGRAMA respira de leve (não fica 100% parado); o do Estúdio fica parado */
 #turma-login .ep-lg.ep-prog .ep-img{animation:epRespira 2.6s ease-in-out infinite}@keyframes epRespira{50%{transform:scale(1.045)}}@media (prefers-reduced-motion:reduce){#turma-login .ep-lg.ep-prog .ep-img{animation:none}}
-#turma-login a.ep-bt{padding:10px 20px;border-radius:999px;background:rgba(255,255,255,.1);color:#f1f2f4;border:1px solid rgba(255,255,255,.16);font-weight:500;font-size:13.5px;margin-top:18px}#turma-login a.ep-bt:hover{filter:none;background:rgba(255,255,255,.16)}#turma-login .tl-out{color:#9aa0ab;text-decoration:none}#turma-login .ep-m{margin-top:18px}`;
+#turma-login a.ep-bt{padding:10px 20px;border-radius:999px;background:rgba(255,255,255,.1);color:#f1f2f4;border:1px solid rgba(255,255,255,.16);font-weight:500;font-size:13.5px;margin-top:18px}#turma-login a.ep-bt:hover{filter:none;background:rgba(255,255,255,.16)}#turma-login .tl-out{color:#9aa0ab;text-decoration:none}#turma-login .ep-m{margin-top:18px}
+/* (a mesma tela de carregamento do resto do Estúdio, 12/11/2026) */
+/* ===== CARREGAMENTO C (escolha da dona, 12/11/2026): fundo liso; o ícone com um ANEL de progresso em volta e um BRILHO
+   suave na cor do programa atrás; embaixo o nome e uma linha "54% · o que está acontecendo". Sem foto, sem barra, sem lista de passos. ===== */
+#turma-login{background:#141416!important;--pt-tx:#f5f5f7!important;--pt-tx2:rgba(235,235,245,.66)!important}
+html[data-tema="claro"] #turma-login{background:#f2f2f5!important;--pt-tx:#1d1d1f!important;--pt-tx2:rgba(60,60,67,.66)!important}
+#turma-login::before{content:""!important;position:absolute;inset:0;z-index:0;pointer-events:none;filter:none!important;animation:none!important;background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#5cc4ff) 30%,transparent),transparent 72%)!important}
+html[data-tema="claro"] #turma-login::before{background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#5cc4ff) 22%,transparent),transparent 72%)!important}
+#turma-login::after{display:none!important}
+#turma-login .ep-c{display:grid!important;grid-template-columns:auto auto;justify-content:center;align-items:center;column-gap:6px;row-gap:0!important;transform:translateY(-4vh)!important;width:auto!important;text-align:center}
+#turma-login .ep-lg,#turma-login .ep-lg.ep-prog,#turma-login.ep-erro .ep-lg{grid-column:1/-1;justify-self:center;position:relative;width:74px!important;height:74px!important;margin:23px!important;border-radius:18px!important;overflow:visible!important;box-shadow:none!important;background:none!important;animation:epRespira2 2.6s ease-in-out infinite}
+@keyframes epRespira2{50%{transform:scale(1.035)}}
+/* o anel: fica 16 px para fora do ícone; a parte cheia segue a porcentagem (--ep-p, posto pelo contador) */
+#turma-login .ep-lg::before{content:"";position:absolute;inset:-23px;border-radius:50%;background:conic-gradient(var(--pt-tx) calc(var(--ep-p,0) * 1%),color-mix(in srgb,var(--pt-tx) 13%,transparent) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));transition:background .3s}
+#turma-login .ep-lg::after{display:none!important}
+#turma-login .ep-lg :is(.ep-img,.ep-cam),#turma-login .ep-lg.ep-prog .ep-img{width:74px!important;height:74px!important;border-radius:17px!important;display:block;box-shadow:0 10px 26px rgba(0,0,0,.3)}
+#turma-login .ep-lg:not(.ep-prog){background:none!important}
+#turma-login .ep-lg.ep-prog .ep-cam{display:none!important} /* com o ícone do programa, a claquete do Estúdio some (antes aparecia embaixo, por cima do título) */
+#turma-login .ep-nm{grid-column:1/-1;display:block!important;margin:26px 0 4px!important;font:600 20px/1.25 "Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif!important;letter-spacing:-.01em!important;color:var(--pt-tx)!important;text-shadow:none!important}
+#turma-login .ep-sb,#turma-login .ep-br,#turma-login [data-ep-arq]{display:none!important}
+#turma-login .ep-pc{margin:0!important;justify-self:end}
+#turma-login .ep-pc b{font:600 13.5px "Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif!important;color:var(--pt-tx)!important;font-variant-numeric:tabular-nums;text-shadow:none!important}
+#turma-login .ep-pc b::after{content:" ·";color:var(--pt-tx2)}
+#turma-login .ep-m,#turma-login:not(.ep-erro) .ep-m{display:block!important;justify-self:start;margin:0!important;font:400 13.5px "Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif!important;color:var(--pt-tx2)!important;text-shadow:none!important;max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#turma-login.ep-erro .ep-pc{display:none!important}#turma-login.ep-erro .ep-m{grid-column:1/-1;justify-self:center;white-space:normal;color:var(--pt-tx)!important}
+#turma-login.ep-erro .ep-lg::before{background:color-mix(in srgb,#ff453a 70%,transparent)}
+#turma-login a.ep-bt{grid-column:1/-1;justify-self:center;border-radius:999px!important}
+@media (prefers-reduced-motion:reduce){#turma-login .ep-lg{animation:none}}
+`;
   document.head.appendChild(st);
 })();
 
@@ -77,12 +105,12 @@ const TurmaAuth = {
     if (!el) {
       el = document.createElement('div'); el.id = 'turma-login';
       // aba do Ateliê (?atelie=): a tela de carregamento mostra ANIMADOR | ATELIÊ com o ícone do Ateliê
-      const at = new URLSearchParams(location.search).has('atelie');
+      const at = new URLSearchParams(location.search).has('atelie'); el.style.setProperty('--ep-cor', at ? '#ffb04a' : '#3fd6f2'); // brilho do carregamento na cor do programa
       // logo = o ícone do ANIMADOR (o mesmo da aba e do cabeçalho); na aba do Ateliê, o ícone do ATELIÊ (paleta laranja, icones/atelie.svg)
       const icone = '<img class="ep-img" alt="" src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 28 28%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238a8a8a%27/%3E%3Cstop offset=%271%27 stop-color=%27%23d8d8d8%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2728%27 height=%2728%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Cg transform=%27translate(5.5 5.5) scale(.7083)%27 fill=%27none%27 stroke=%27%231b1b1b%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2712%27 cy=%275%27 r=%272.2%27/%3E%3Cpath d=%27M12 7.2v6.4M12 9.3l-4.2 2.4-1.5 3.3M12 9.3l4.2-1.8 2.3-2.5M12 13.6l-2.9 3.6-.6 4.3M12 13.6l3.3 3 1.5 4%27/%3E%3C/g%3E%3C/svg%3E">';
       const EI = window.EstudioIcones; // ícones novos (An / At; ADM › Ícones)
       if (at) { document.title = 'ATELIÊ · Estúdio Problems'; if (EI) EI.usar('at'); else { const li = document.querySelector('link[rel="icon"]'); if (li) li.href = 'icones/atelie.svg'; } } // Ateliê: título e ícone dele já no carregamento
-      el.innerHTML = `<div class="ep-c"><div class="ep-lg ep-prog">${EI ? '<img class="ep-img" alt="" data-estudio-icone-img="' + (at ? 'at' : 'an') + '" src="' + EI.url(at ? 'at' : 'an') + '">' : at ? '<img class="ep-img" alt="" src="icones/atelie.svg">' : icone}</div><div class="ep-nm">ANIMADOR${at ? '<span style="opacity:.45;font-weight:300;margin:0 9px">|</span>ATELIÊ' : ''}</div><div class="ep-sb">Estúdio Problems</div><div class="ep-br"><i data-ep-barra></i></div><div class="ep-pc"><b data-ep-pct>0%</b><span data-ep-arq></span></div>
+      el.innerHTML = `<div class="ep-c"><div class="ep-lg ep-prog">${EI ? '<img class="ep-img" alt="" data-estudio-icone-img="' + (at ? 'at' : 'an') + '" src="' + EI.url(at ? 'at' : 'an') + '">' : at ? '<img class="ep-img" alt="" src="icones/atelie.svg">' : icone}</div><div class="ep-nm">${at ? 'Abrindo o Ateliê' : 'Abrindo o Animador'}</div><div class="ep-sb">Estúdio Problems</div><div class="ep-br"><i data-ep-barra></i></div><div class="ep-pc"><b data-ep-pct>0%</b><span data-ep-arq></span></div>
         <div class="ep-m" data-msg></div><a class="ep-bt" data-menu hidden>Ir para o menu</a></div>`;
       (document.body || document.documentElement).appendChild(el);
     }
