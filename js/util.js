@@ -295,9 +295,12 @@ const UI = {
   ctx(x, y, items) {
     UI.closeCtx();
     const root = $('#ctx-root');
+    // SEM MENSAGENS (2.0, pedido da dona, 12/11/2026): itens "… em mensagens" não aparecem; separadores que sobram somem
+    const limpa = list => { const v = (list || []).filter(it => it && !(it !== '-' && /em mensagens/i.test(String(it.label || '')))), out = [];
+      for (const it of v) { if (it === '-' && (!out.length || out[out.length - 1] === '-')) continue; out.push(it); } while (out[out.length - 1] === '-') out.pop(); return out; };
     const build = (list, px, py, parent) => {
       const m = h('<div class="ctx"></div>');
-      list.forEach(it => {
+      limpa(list).forEach(it => {
         if (!it || (it !== '-' && (it.ai || /\bIA\b/.test(String(it.label || ''))))) return; // SEM IA (pedido da dona, 05/11/2026): itens da IA não aparecem
         if (it === '-') return m.appendChild(h('<div class="ctx-sep"></div>'));
         if (it.head) return m.appendChild(h(`<div class="ctx-head">${esc(it.head)}</div>`));

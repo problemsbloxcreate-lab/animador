@@ -244,10 +244,10 @@ const CenaEd = {
         <button class="ibtn" data-un title="Desfazer (Ctrl+Z)" ${ed.desf.length ? '' : 'disabled'}>${ic('undo', 14)}</button><button class="ibtn" data-re title="Refazer (Ctrl+Shift+Z)" ${ed.ref.length ? '' : 'disabled'}>${ic('redo', 14)}</button><span class="ce-sep"></span>
         ${p ? `<b class="ce-nome" title="Clique para renomear">${esc(p.nome)}</b>
           <button class="btn sm ia" data-ia title="A IA muda só esta peça (escreva o que mudar no campo de cima)">${ic('sparkles', 13)} Mudar com a IA</button>
-          <button class="ibtn" data-cit title="Citar esta peça em mensagens">${ic('chat', 14)}</button><button class="ibtn" data-tr title="Trocar a imagem">${ic('image', 14)}</button>
+          <button class="ibtn" data-tr title="Trocar a imagem">${ic('image', 14)}</button>
           <button class="ibtn" data-fr title="Mais para a frente">${ic('up', 14)}</button><button class="ibtn" data-tz title="Mais para trás">${ic('down', 14)}</button>
           <button class="ibtn" data-tv title="${p.trava ? 'Destravar' : 'Travar no lugar'}">${ic(p.trava ? 'lock' : 'unlock', 14)}</button><button class="ibtn" data-x title="Tirar a peça (Del)">${ic('trash', 14)}</button>`
-        : a ? `<b class="ce-nome">Área ${Math.round(a.w)}×${Math.round(a.h)}</b><button class="btn sm ia" data-iaa>${ic('sparkles', 13)} Mudar só a área com a IA</button><button class="ibtn" data-cita title="Citar esta área em mensagens">${ic('chat', 14)}</button><button class="ibtn" data-xa title="Tirar a área">${ic('x', 14)}</button>`
+        : a ? `<b class="ce-nome">Área ${Math.round(a.w)}×${Math.round(a.h)}</b><button class="btn sm ia" data-iaa>${ic('sparkles', 13)} Mudar só a área com a IA</button><button class="ibtn" data-xa title="Tirar a área">${ic('x', 14)}</button>`
         : '<small class="ce-dica">Clique numa peça para escolher · arraste para mover · cantos mudam o tamanho · arraste no fundo (ou com Alt) para escolher uma área · botão direito: mais</small>'}`;
       const on = (s, f) => { const el = $(s, b); if (el) el.onclick = f; };
       on('[data-add]', async () => ed.addImagens(await pickFiles('image/*', true))); on('[data-un]', () => ed.desfaz(false)); on('[data-re]', () => ed.desfaz(true));
