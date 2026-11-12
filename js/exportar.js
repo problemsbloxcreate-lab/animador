@@ -30,6 +30,7 @@ const Exportar = {
         <div class="exp-seg"><button data-tr="tudo">Tudo</button><button data-tr="marcado" ${Folha.trecho ? '' : 'disabled title="Marque um trecho na régua da timeline (Shift + arrastar)"'}>Marcado na régua</button><button data-tr="quadros">Escolher os quadros</button></div>
         <div class="exp-quadros" data-qd><span>do quadro</span><input type="number" data-de min="1" max="${P.duracao}"><span>até</span><input type="number" data-ate min="1" max="${P.duracao}"></div></div>
       <div class="exp-sec exp-ops" data-so="mp4"><label class="chk"><input type="checkbox" data-som ${cfg.som && temSom ? 'checked' : ''} ${temSom ? '' : 'disabled'}> Com som${temSom ? '' : ' (não tem áudio)'}</label><label class="chk"><input type="checkbox" data-leg ${cfg.leg ? 'checked' : ''} ${temLeg ? '' : 'disabled'}> Com legendas${temLeg ? '' : ' (não tem)'}</label></div>
+      <div class="exp-sec exp-ops" data-so="mp4 wav"><label class="chk" title="Mede o volume do trecho e leva para −14 LUFS, o volume dos Shorts e do YouTube. Desligado, fica o volume da mistura. O pico fica sempre em −1 dB, para não estourar."><input type="checkbox" data-niv ${cfg.nivelar !== false && temSom ? 'checked' : ''} ${temSom ? '' : 'disabled'}> Nivelar o volume (−14 LUFS)</label></div>
       <div class="exp-resumo" data-res></div>
       <div class="exp-prog" hidden><div class="exp-barra"><i></i></div><div class="exp-pt"><b data-pp>0%</b><span data-pt></span><span class="sp"></span><span data-pr></span></div></div>
       <div class="exp-fim" hidden></div></div>`);
@@ -54,7 +55,7 @@ const Exportar = {
     $b('[data-ate]').onchange = e => { cfg.trecho = 'quadros'; cfg.ate = clamp(+e.target.value - 1, 0, P.duracao - 1); if (cfg.ate < cfg.de) cfg.de = cfg.ate; pinta(); };
     $b('[data-q]').onchange = e => { cfg.q = +e.target.value; pinta(); }; $b('[data-qual]').onchange = e => { if (e.target.value === 'custom' && !cfg.mbps) cfg.mbps = Math.round(this.bps(cfg, Math.round(P.w * cfg.q / 2) * 2, Math.round(P.h * cfg.q / 2) * 2, P.fps) / 1e5) / 10; cfg.qual = e.target.value; pinta(); };
     $b('[data-mbps]').onchange = e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (Number.isFinite(v) && v > 0) { cfg.mbps = clamp(v, ...this.MBPS); cfg.qual = 'custom'; } e.target.blur(); pinta(); };
-    $b('[data-som]').onchange = e => { cfg.som = e.target.checked; pinta(); }; $b('[data-leg]').onchange = e => { cfg.leg = e.target.checked; };
+    $b('[data-som]').onchange = e => { cfg.som = e.target.checked; pinta(); }; $b('[data-leg]').onchange = e => { cfg.leg = e.target.checked; }; $b('[data-niv]').onchange = e => { cfg.nivelar = e.target.checked; };
     // REVISOR: antes de exportar, mostra quantas coisas achou
     Revisor.conta(P).then(r => { const el = $b('[data-rv]'); if (!el || !(r.erro + r.aviso + r.dica)) return; el.hidden = false; el.className = 'rv-banner ' + (r.erro ? 'rv-erro' : r.aviso ? 'rv-aviso' : 'rv-dica');
       el.innerHTML = `${ic(r.erro + r.aviso ? 'alert' : 'info', 15)}<span>O revisor achou ${[r.erro && `${r.erro} erro${r.erro > 1 ? 's' : ''}`, r.aviso && `${r.aviso} aviso${r.aviso > 1 ? 's' : ''}`, r.dica && `${r.dica} dica${r.dica > 1 ? 's' : ''}`].filter(Boolean).join(', ')} antes de exportar.</span><button class="btn sm">Revisar</button>`;
@@ -209,7 +210,7 @@ const Exportar = {
       $('[data-pr]', body).textContent = `${this.dur(s)} passado${f > .03 && f < 1 ? ` · falta cerca de ${this.dur(s / f - s)}` : ''}`; this._pub?.diz({ tipo: 'ep-exp-prog', f, txt: txt || '' }); if (cancelou || this._pub?.cancelou) throw new Error('cancelado'); };
     const solta = () => { o.noClose = false; api.el.classList.remove('exportando'); $$('.travado', body).forEach(s => s.classList.remove('travado')); cancel.remove(); btns.forEach(b => b.hidden = false); removeEventListener('beforeunload', sair); };
     try {
-      const blob = cfg.tipo === 'wav' ? await this.wav(P, de, ate, pr) : await this.mp4({ q: cfg.q, de, ate, qual: cfg.qual, mbps: cfg.qual === 'custom' ? cfg.mbps : null, som: cfg.som, semLegenda: !cfg.leg, pr });
+      const blob = cfg.tipo === 'wav' ? await this.wav(P, de, ate, pr, cfg.nivelar !== false) : await this.mp4({ q: cfg.q, de, ate, qual: cfg.qual, mbps: cfg.qual === 'custom' ? cfg.mbps : null, som: cfg.som, semLegenda: !cfg.leg, nivelar: cfg.nivelar !== false, pr });
       const pub = !!this._pub && cfg.tipo === 'mp4'; // pelo Publicações: o vídeo vai para lá, sem baixar
       if (pub) await this.entregaPub(blob, nome, (cfg.nomeProj ? P.nome : cfg.nome) || P.nome); else downloadBlob(blob, nome); const seg = (ate - de + 1) / P.fps, mb = blob.size / 1048576;
       solta(); prog.hidden = true; const fim = $('.exp-fim', body); fim.hidden = false;
@@ -230,7 +231,8 @@ const Exportar = {
     return false; // a janela fica aberta (mostra o resultado)
   },
   // só o som (WAV) do trecho
-  async wav(P, de, ate, pr) { pr?.(.1, 'Misturando o som…'); const mix = await Som.mistura(P, 48000), a = Math.round(de / P.fps * 48000), z = Math.min(mix.length, Math.round((ate + 1) / P.fps * 48000));
+  async wav(P, de, ate, pr, nivelar = true) { pr?.(.1, 'Misturando o som…'); const mix = await Som.mistura(P, 48000), a = Math.round(de / P.fps * 48000), z = Math.min(mix.length, Math.round((ate + 1) / P.fps * 48000));
+    pr?.(.5, nivelar ? 'Nivelando o volume…' : 'Segurando os picos…'); await Som.masteriza(mix, { nivelar, ini: a, fim: z }); // −14 LUFS (opcional) e pico em −1 dBTP
     const ac = new OfflineAudioContext(2, Math.max(1, z - a), 48000), b = ac.createBuffer(2, Math.max(1, z - a), 48000); for (let c = 0; c < 2; c++) b.getChannelData(c).set(mix.getChannelData(Math.min(c, mix.numberOfChannels - 1)).subarray(a, z)); pr?.(1, 'Pronto'); return Som.wav(b); },
   png(nome) { const P = App.P, c = document.createElement('canvas'); c.width = P.w; c.height = P.h; Render.quadro(c.getContext('2d'), P, App.q, P.w, P.h); return new Promise(ok => c.toBlob(b => { downloadBlob(b, nome || `${safeName(P.nome)} - quadro ${App.q + 1}.png`); ok(); }, 'image/png')); },
   folga() { return new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); }); },
@@ -242,7 +244,7 @@ const Exportar = {
       try { if ((await VideoEncoder.isConfigSupported(cfg)).supported) return cfg; } catch { } }
     return null;
   },
-  async mp4({ q = 1, de = 0, ate, pr, qual = 'max', mbps = null, som = true, semLegenda = false }) {
+  async mp4({ q = 1, de = 0, ate, pr, qual = 'max', mbps = null, som = true, semLegenda = false, nivelar = true }) {
     const P = App.P; App.pausa(); ate = clamp(ate ?? P.duracao - 1, de, P.duracao - 1);
     const W = Math.max(2, Math.round(P.w * q / 2) * 2), H = Math.max(2, Math.round(P.h * q / 2) * 2), fps = P.fps;
     const vcfg = await this.h264(W, H, fps, this.bps({ qual, mbps }, W, H, fps) / (W * H * fps)); if (!vcfg) throw new Error('Este navegador não grava MP4. Use o Chrome ou o Edge atualizado.');
@@ -255,6 +257,7 @@ const Exportar = {
     await Arq.garantir([...Object.values(P.personagens).flatMap(d => Modelo.chavesImgs(d)), ...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq)]);
     if (acfg) {
       pr?.(0, 'Misturando o áudio…'); const mix = await Som.mistura(P, acfg.sampleRate), ini = Math.round(de / fps * acfg.sampleRate), fim = Math.min(mix.length, Math.round((ate + 1) / fps * acfg.sampleRate));
+      pr?.(0, nivelar ? 'Nivelando o volume…' : 'Segurando os picos…'); await Som.masteriza(mix, { nivelar, ini, fim }); // −14 LUFS (opcional) e pico em −1 dBTP (pedido da dona, 12/11/2026)
       const ae = new AudioEncoder({ output: (ch, meta) => { if (meta?.decoderConfig?.description) mux.setAudioConfig(bytes(meta.decoderConfig.description)); const d = new Uint8Array(ch.byteLength); ch.copyTo(d); mux.addAudio(d, Math.round((ch.duration || 0) * acfg.sampleRate / 1e6) || 1024); }, error: e => erro = e });
       ae.configure(acfg); const Lc = mix.getChannelData(0), Rc = mix.numberOfChannels > 1 ? mix.getChannelData(1) : Lc;
       for (let o = ini; o < fim; o += 4800) { const n = Math.min(4800, fim - o), dt = new Float32Array(n * 2); dt.set(Lc.subarray(o, o + n), 0); dt.set(Rc.subarray(o, o + n), n);

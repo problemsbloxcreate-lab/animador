@@ -185,6 +185,37 @@ const Som = {
       let off = this.ini(a) + dq / P.fps; if (a.loop) off = this.ini(a) + (dq / P.fps) % Math.max(.05, b.duration - this.ini(a)); if (off >= b.duration) continue;
       const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; g.gain.value = this.ganho(a, q) * .9; src.connect(g).connect(this.saida(ac)); src.start(ac.currentTime, off, 1.2 / P.fps); }
   },
+  /* ---------- MASTER DA EXPORTAÇÃO (pedido da dona, 12/11/2026): só no vídeo/WAV exportado, nunca na prévia ao vivo.
+     1) NIVELAR (opcional, ligado por padrão): mede o volume integrado (BS.1770: filtro K + blocos de 400 ms com porta −70/−10) no trecho
+        exportado e leva para −14 LUFS (de −24 a +12 dB de ganho).
+     2) LIMITADOR de pico em −1 dBTP (sempre): teto de amostra −1,5 dBFS (folga para o pico entre amostras e para o AAC), olhar à frente de
+        1,5 ms (o ganho já está baixo quando o pico chega: ataque rápido sem estalo) e soltura suave de 120 ms (não "bombeia").
+     Mexe no AudioBuffer recebido e devolve { lufsAntes, lufs, ganhoDb }. ---------- */
+  async lufs(buf, ini = 0, fim = buf.length) {
+    const sr = buf.sampleRate, n = Math.max(1, fim - ini), nc = Math.min(2, buf.numberOfChannels), off = new OfflineAudioContext(nc, n, sr), src = off.createBufferSource();
+    const b = off.createBuffer(nc, n, sr); for (let c = 0; c < nc; c++) b.getChannelData(c).set(buf.getChannelData(c).subarray(ini, ini + n)); src.buffer = b;
+    const hs = off.createBiquadFilter(); hs.type = 'highshelf'; hs.frequency.value = 1681; hs.gain.value = 4; // filtro K (estágio 1)
+    const hp = off.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 38; hp.Q.value = .5; // filtro K (estágio 2)
+    src.connect(hs); hs.connect(hp); hp.connect(off.destination); src.start(); const k = await off.startRendering();
+    const ch = [...Array(nc)].map((_, c) => k.getChannelData(c)), bl = Math.round(sr * .4), pa = Math.round(sr * .1), ms = [];
+    for (let o = 0; o + bl <= n; o += pa) { let s = 0; for (const d of ch) for (let i = o; i < o + bl; i++) s += d[i] * d[i]; ms.push(s / bl); }
+    if (!ms.length) return -Infinity; const L = m => -0.691 + 10 * Math.log10(m || 1e-12);
+    let pass = ms.filter(m => L(m) > -70); if (!pass.length) return -Infinity;
+    const rel = L(pass.reduce((a, m) => a + m, 0) / pass.length) - 10; pass = pass.filter(m => L(m) > rel);
+    return pass.length ? L(pass.reduce((a, m) => a + m, 0) / pass.length) : -Infinity;
+  },
+  async masteriza(buf, { nivelar = true, alvo = -14, ini = 0, fim = buf.length } = {}) {
+    const sr = buf.sampleRate, nc = buf.numberOfChannels, ch = [...Array(nc)].map((_, c) => buf.getChannelData(c)), N = buf.length;
+    const lufsAntes = await this.lufs(buf, ini, fim); let ganhoDb = 0;
+    if (nivelar && Number.isFinite(lufsAntes)) { ganhoDb = clamp(alvo - lufsAntes, -24, 12); const k = Math.pow(10, ganhoDb / 20); if (Math.abs(ganhoDb) > .05) for (const d of ch) for (let i = 0; i < N; i++) d[i] *= k; }
+    const teto = Math.pow(10, -1.5 / 20), La = Math.max(1, Math.round(sr * .0015)), rel = 1 - Math.exp(-1 / (sr * .12));
+    const g = new Float32Array(N); for (let i = 0; i < N; i++) { let p = 0; for (const d of ch) { const v = Math.abs(d[i]); if (v > p) p = v; } g[i] = p > teto ? teto / p : 1; }
+    // mínimo do ganho na janela [i, i+La] (fila monótona, de trás para a frente), depois média de La amostras: a rampa termina no pico, sem atrasar o som
+    const h = new Float32Array(N), q = new Int32Array(N); let qa = 0, qz = 0;
+    for (let i = N - 1; i >= 0; i--) { while (qz > qa && g[q[qz - 1]] >= g[i]) qz--; q[qz++] = i; while (q[qa] > i + La) qa++; h[i] = g[q[qa]]; }
+    let soma = 0, out = 1; for (let i = 0; i < N; i++) { soma += h[i]; if (i >= La) soma -= h[i - La]; const s = soma / Math.min(i + 1, La); out = s < out ? s : out + (s - out) * rel; if (out < 1) for (const d of ch) d[i] *= out; }
+    return { lufsAntes, lufs: Number.isFinite(lufsAntes) ? lufsAntes + ganhoDb : lufsAntes, ganhoDb };
+  },
   // mistura tudo (para exportar)
   async mistura(P, sr = 48000) {
     const dur = P.duracao / P.fps, off = new OfflineAudioContext(2, Math.max(1, Math.ceil(dur * sr)), sr);
