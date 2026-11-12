@@ -115,7 +115,7 @@ const Blocos = {
       <label class="field">Velocidade (quadros por passo; menos = mais rápido)<input type="number" min="1" max="48" value="${b.fpp}" data-f></label>
       <label class="field">Passagem suave ao entrar (quadros; só quando encosta no bloco de antes)<input type="number" min="0" max="48" value="${b.pas ?? this.PAS}" data-p></label>
       <div style="color:var(--tx3);font-size:12px">${esc(a?.nome || b.nome)}: ${mai} passo${mai === 1 ? '' : 's'} por volta.</div></div>`);
-    const r = await UI.modal({ title: `Bloco "${b.nome}"`, icon: 'film', metro: true, body, buttons: [{ label: 'Cancelar', value: null }, { label: 'OK', kind: 'primary', collect: x => ({ r: +$('[data-r]', x.body).value, f: +$('[data-f]', x.body).value, p: +$('[data-p]', x.body).value }) }] });
+    const r = await UI.modal({ title: `Bloco "${b.nome}"`, icon: 'film', body, buttons: [{ label: 'Cancelar', value: null }, { label: 'OK', kind: 'primary', collect: x => ({ r: +$('[data-r]', x.body).value, f: +$('[data-f]', x.body).value, p: +$('[data-p]', x.body).value }) }] });
     if (!r) return; b.fpp = clamp(Math.round(r.f || b.fpp), 1, 48); b.reps = Math.max(1, Math.round(clamp(r.r || b.reps, .01, 200) * mai)) / mai; b.pas = clamp(Math.round(r.p || 0), 0, 48);
     this.empurra(P, n, b); const f = this.fim(P, n, b); if (P.duracao < f + 1) P.duracao = f + 1; App.commit('Controles do bloco');
   },

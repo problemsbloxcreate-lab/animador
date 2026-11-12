@@ -139,3 +139,84 @@ html.cel .pr-vbar,html.cel .pr-hbar,html.cel .pr-pe{background:var(--fundo-2);bo
 html.cel .pr-vbar i,html.cel .pr-hpol{background:var(--fundo-4)}html.cel .pr-vbar i:hover,html.cel .pr-hpol:hover{background:#4a4a52}
 html.cel .pr-hpol i{width:12px;height:12px;top:-1px;background:var(--texto-2);border-color:var(--fundo)}
 @media (prefers-reduced-motion:reduce){html.cel .btn:active,html.cel .ibtn:active{transform:none}}
+
+/* ===================== CONTROLES COMUNS DO CELESTE (12/11/2026, dona: "o design aqui dos sliders e tals são meio diferentes sabe? do resto") =====================
+   Nada nativo nem solto: slider de trilho fino com preenchimento celeste (--pct, posto por js/controles-cel.js) e bolinha com sombra,
+   caixinha de marcar no jeito dos outros botões, lista de escolha (select) com seta própria, número sem as setinhas do navegador. */
+html.cel input[type=range]{-webkit-appearance:none;appearance:none;height:16px;background:transparent;cursor:pointer;accent-color:auto;padding:0;margin:0}
+html.cel input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--acento) 0 var(--pct,50%),var(--fundo-4) var(--pct,50%) 100%)}
+html.cel input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--fundo-4)}
+html.cel input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--acento)}
+html.cel input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-5px;border-radius:50%;background:#f5f5f7;border:0;box-shadow:0 0 0 .5px rgba(0,0,0,.3),0 1px 3px rgba(0,0,0,.45);transition:transform var(--rapido)}
+html.cel input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#f5f5f7;border:0;box-shadow:0 1px 3px rgba(0,0,0,.45)}
+html.cel input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.12)}
+html.cel input[type=range]:focus-visible{outline:none}html.cel input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px var(--acento-suave),0 1px 3px rgba(0,0,0,.45)}
+html.cel input[type=checkbox]:not([role=switch]){-webkit-appearance:none;appearance:none;width:16px;height:16px;margin:0;border-radius:5px;border:1px solid var(--linha-forte);background:var(--fundo-3);display:inline-grid;place-items:center;cursor:pointer;flex:none}
+html.cel input[type=checkbox]:not([role=switch]):checked{background:var(--acento);border-color:var(--acento)}
+html.cel input[type=checkbox]:not([role=switch]):checked::after{content:"";width:8px;height:4px;border:2px solid #04223a;border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
+html.cel input[type=checkbox]:not([role=switch]):focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+html.cel select{-webkit-appearance:none;appearance:none;padding-right:24px!important;background-color:var(--fundo-3)!important;border:1px solid transparent!important;border-radius:var(--raio-p)!important;color:var(--texto);cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23ebebf5' stroke-opacity='.64' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 8px center!important}
+html.cel select:hover{background-color:var(--fundo-4)!important}
+html.cel input[type=number]{-moz-appearance:textfield;font-variant-numeric:tabular-nums}
+html.cel input[type=number]::-webkit-inner-spin-button,html.cel input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+/* volume da timeline: número com o % junto, sem caixa, editável ao clicar */
+html.cel .tl-barra .tl-volnum{gap:0;color:var(--texto-2);font:500 12px var(--fonte);font-variant-numeric:tabular-nums}
+html.cel .tl-barra .tl-vol input#tl-volv{width:3ch;height:22px;padding:0;border:0!important;background:none!important;text-align:right;font:500 12px var(--fonte);font-variant-numeric:tabular-nums;color:var(--texto);border-radius:4px}
+html.cel .tl-barra .tl-vol input#tl-volv:hover{background:var(--fundo-3)!important}
+html.cel .tl-barra .tl-vol input#tl-volv:focus{background:var(--fundo-3)!important;box-shadow:0 0 0 2px var(--acento-suave)}
+/* botões de ligar/desligar (Repetir, régua…): estado ligado discreto, como os outros botões de ícone */
+html.cel :is(#editor,#atelie) .ibtn.on{background:var(--acento-suave);color:var(--acento)}
+
+/* ===================== ATELIÊ: o mesmo visual do Animador (12/11/2026, dona: "mude o design do atelie tbm"). Sem Metro. ===================== */
+html.cel #atelie .at{background:#0e0e10;gap:4px;padding:4px}
+html.cel #atelie .at>:is(aside,main){border-radius:8px;overflow:hidden;border:0!important}
+html.cel #atelie .painel{background:var(--fundo-2)}
+html.cel #atelie .p-cab{height:30px;background:var(--elevado);border-bottom:1px solid var(--linha);border-top:0!important}
+html.cel #atelie .p-cab h3,html.cel #atelie .titulo-p{font:600 12px var(--fonte)!important;text-transform:none!important;letter-spacing:0!important;color:var(--texto)}
+html.cel #atelie .abas{gap:2px;padding:5px 6px;background:var(--elevado);border-bottom:1px solid var(--linha)}
+html.cel #atelie .abas button{height:26px;border-radius:var(--raio-p);font-weight:500;color:var(--texto-2);background:none}
+html.cel #atelie .abas button:hover{background:var(--fundo-3);color:var(--texto)}
+html.cel #atelie .abas button.on{background:var(--fundo-4);color:var(--texto);box-shadow:var(--sombra-1)}
+html.cel #atelie .ferr-at{background:var(--elevado);border:1px solid var(--linha);border-radius:10px;box-shadow:var(--sombra-2)}
+html.cel #atelie .ferr-at button{width:34px;height:32px;border-radius:var(--raio-p)}
+html.cel #atelie .ferr-at button.on{background:var(--acento);color:#04223a}
+html.cel #atelie .at-palco{background:#111113}
+html.cel #atelie #at-nome{border:1px solid transparent;background:none;border-radius:var(--raio-p);height:28px;font:600 14px var(--fonte)}
+html.cel #atelie #at-nome:hover{background:var(--fundo-3)}
+html.cel #atelie .dock-col{border-radius:8px;overflow:hidden;background:var(--fundo-2)}
+html.cel #atelie aside.dock-area{gap:4px;background:none}
+html.cel #atelie aside.dock-area>.dock-col+.dock-col{border-left:0}
+html.cel #atelie .dock+.dock{border-top:4px solid #0e0e10}
+html.cel #atelie .dock-pega{opacity:0}html.cel #atelie .dock:hover>.dock-pega{opacity:.7}
+html.cel #atelie .at-vistas{background:var(--elevado);border-bottom:1px solid var(--linha)}
+html.cel #atelie .av-cab{text-transform:none!important;letter-spacing:0!important;font:600 12px var(--fonte)!important;color:var(--texto)}
+html.cel #atelie .at-vistas .btn.sm{border-radius:var(--raio-p)}
+html.cel #atelie .at-palco{border-radius:8px}
+html.cel #atelie .at-tl{background:var(--elevado);border-top:1px solid var(--linha)}
+html.cel #atelie>.bar .btn:not(.primary){background:var(--fundo-3)}
+html.cel #atelie .at-estado{border-radius:var(--raio-p)}
+
+/* ===================== PAINEL LATERAL (Exportar e janelas compridas): Celeste em vez de Metro (2.2) ===================== */
+html.cel .modal-back.exp-metro{background:rgba(0,0,0,.45);backdrop-filter:blur(4px);--bg0:var(--fundo-3);--bg1:var(--fundo-3);--bd:var(--linha);--bd2:var(--linha-forte)}
+html.cel .exp-metro .modal{background:var(--elevado)!important;border-radius:14px 0 0 14px!important;box-shadow:var(--sombra-3);border:0!important}
+html.cel .exp-metro .modal-head{padding:0 16px 0 20px;height:52px;border-bottom:1px solid var(--linha)}
+html.cel .exp-metro .modal-head h3{font:600 17px var(--fonte)!important;letter-spacing:0}
+html.cel .exp-metro .modal-body{padding:16px 20px}
+html.cel .exp-metro .modal-foot{border-top:1px solid var(--linha)}
+html.cel .exp-metro .exp-l{font:600 12px var(--fonte)!important;letter-spacing:0!important;text-transform:none!important;color:var(--texto-2)!important}
+html.cel .exp-metro :is(input[type=text],input[type=number],select){height:32px;border-radius:var(--raio-controle)!important;border:1px solid transparent!important;background-color:var(--fundo-3)!important}
+html.cel .exp-metro :is(input,select):focus{outline:none;border-color:var(--acento)!important;box-shadow:0 0 0 3px var(--acento-suave)}
+html.cel .exp-metro :is(.exp-nome,button,.btn){border-radius:var(--raio-controle)!important}
+@media (prefers-reduced-transparency:reduce){html.cel .modal-back.exp-metro{backdrop-filter:none}}
+/* Exportar: escolhas como cartões e controle segmentado do Celeste (nada de bloco colorido chapado) */
+html.cel .exp-metro .exp-tipo{border-radius:var(--raio-cartao)!important;background:var(--fundo-3);border:1px solid transparent;color:var(--texto)}
+html.cel .exp-metro .exp-tipo:hover,html.cel .exp-metro .exp-tipo:focus-visible{outline:0;background:var(--fundo-4)}
+html.cel .exp-metro .exp-tipo.on[data-tipo]{background:var(--acento-suave);border-color:var(--acento);color:var(--texto)}
+html.cel .exp-metro .exp-tipo.on svg{color:var(--acento)}
+html.cel .exp-metro .exp-tipo b{color:var(--texto)}html.cel .exp-metro .exp-tipo small{color:var(--texto-2)}
+html.cel .exp-metro .exp-seg{background:var(--fundo-3);border-radius:var(--raio-controle)!important;padding:2px;gap:2px}
+html.cel .exp-metro .exp-seg button{height:28px;border-radius:var(--raio-p)!important;background:none;color:var(--texto-2);font-weight:500}
+html.cel .exp-metro .exp-seg button:hover:not(:disabled){outline:0;background:var(--fundo-4)}
+html.cel .exp-metro .exp-seg button.on{background:var(--fundo-4);color:var(--texto);box-shadow:var(--sombra-1)}
+html.cel .exp-metro .exp-quadros input{border-radius:var(--raio-p)}

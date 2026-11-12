@@ -201,7 +201,8 @@ const UI = {
         <div class="modal-body"></div><div class="modal-foot"></div></div></div>`);
       const body = $('.modal-body', back), foot = $('.modal-foot', back);
       // ATELIÊ EM METRO (10/11/2026): com o Ateliê na tela, as janelas pequenas abrem pela direita, iguais às da nuvem (css/atelie-metro.css)
-      { const at = document.getElementById('atelie'); if (at && !at.classList.contains('hidden') && (!o.width || o.width <= 620) && !o.semMetro || o.metro) back.classList.add('exp-metro', 'at-metro'); }
+      // 2.2 (12/11/2026, dona: nada de Metro): o Ateliê não força mais as janelas Metro pela direita; só quem pede o.metro
+      if (o.metro) back.classList.add('exp-metro', 'at-metro');
       if (typeof o.body === 'string') body.innerHTML = o.body; else if (o.body) body.appendChild(o.body);
       let done = false;
       const close = v => {
