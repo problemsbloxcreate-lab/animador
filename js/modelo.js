@@ -4,7 +4,7 @@
        efeitos:{ visual, tela:[{id,tipo,de,ate,forca}] }, audios:[{id,nome,arq,de,vol}], legendas:[{de,ate,texto}],
        personagens:{ id: definição (cópia da biblioteca usada no projeto) }, modificado }
    NÓ (camada da hierarquia)
-     { id, tipo:'pasta'|'personagem'|'imagem'|'texto', nome, vis, trava, aberto (pasta), filhos:[] (pasta),
+     { id, tipo:'pasta'|'personagem'|'imagem'|'texto'|'forma'|'efeito'|'video' (cenário em vídeo preso à câmera, js/cenvideo.js), nome, vis, trava, aberto (pasta), filhos:[] (pasta),
        ref (personagem: id da definição), arq (imagem: id do arquivo), texto/cor/tam/fonte (texto),
        de, ate (quadros em que aparece), interp:true|false (intercalar movimento entre chaves),
        chaves:{ q: { x,y,r,s,sx,op, sessoes:{ sessaoId: presetId }, partes:{ parteId:{ x,y,r,s,sx,img,vis } } } } }
@@ -29,7 +29,7 @@ const Modelo = {
   // a folha branca do tamanho da câmera vira uma camada de verdade (dá para mudar cor, tamanho, mover ou apagar)
   fundoPadrao(w, h, cor) { const n = Modelo.novoNo('forma', { nome: 'Fundo padrão', forma: 'ret', w, h, cor: cor || '#ffffff', x: w / 2, y: h / 2 }); n.fundoPadrao = true; return n; },
   novoNo(tipo, o = {}) {
-    const n = { id: uid('n'), tipo, nome: o.nome || { pasta: 'Pasta', personagem: 'Personagem', imagem: 'Imagem', texto: 'Texto', efeito: 'Efeito', forma: 'Forma' }[tipo], vis: true, trava: false,
+    const n = { id: uid('n'), tipo, nome: o.nome || { pasta: 'Pasta', personagem: 'Personagem', imagem: 'Imagem', texto: 'Texto', efeito: 'Efeito', forma: 'Forma', video: 'Vídeo de cenário' }[tipo], vis: true, trava: false,
       de: o.de ?? 0, ate: o.ate ?? null, interp: tipo !== 'personagem' ? true : true, chaves: { [o.de ?? 0]: { x: o.x ?? 0, y: o.y ?? 0, r: 0, s: o.s ?? 1, sx: 1, op: 1 } } };
     if (tipo === 'pasta') { n.filhos = []; n.aberto = true; }
     if (tipo === 'personagem') n.ref = o.ref;

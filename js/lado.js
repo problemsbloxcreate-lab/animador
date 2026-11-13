@@ -170,7 +170,7 @@ const Lado = {
   },
   propsCamada(el, P, q, n) {
     const t = Modelo.transf(n, q), muda = (k, v) => { Modelo.poeTransf(n, App.q, { [k]: v }); App.pinta(); }, sol = () => App.commit('Propriedade', { semArvore: true });
-    const nomeTipo = { pasta: 'Pasta', personagem: 'Personagem', imagem: n.vetor ? 'Imagem (vetor)' : 'Imagem', texto: 'Texto', forma: 'Forma', efeito: 'Efeito' }[n.tipo] || n.tipo;
+    const nomeTipo = { pasta: 'Pasta', personagem: 'Personagem', imagem: n.vetor ? 'Imagem (vetor)' : 'Imagem', texto: 'Texto', forma: 'Forma', efeito: 'Efeito', video: 'Vídeo de cenário (preso à câmera)' }[n.tipo] || n.tipo;
     const defP = n.tipo === 'personagem' ? P.personagens[n.ref] : null;
     const cab = this.cabecalho(defP ? Icone.html(defP, 26) : ic(TIPO_IC[n.tipo] || 'layers', 16), `<input class="pr-nome" value="${esc(n.nome)}" title="Nome da camada">`, `${nomeTipo}${defP ? ' · ' + esc(defP.nome) : ''}`,
       `<button class="ibtn ${n.vis === false ? 'off' : ''}" data-vis title="${n.vis === false ? 'Mostrar' : 'Esconder'}">${ic(n.vis === false ? 'eyeOff' : 'eye', 14)}</button><button class="ibtn ${n.trava ? 'on' : ''}" data-tr title="${n.trava ? 'Destravar' : 'Travar (não mexe no palco)'}">${ic(n.trava ? 'lock' : 'unlock', 14)}</button>`);
@@ -179,8 +179,8 @@ const Lado = {
     $('[data-vis]', cab).onclick = () => { n.vis = n.vis === false; App.commit(n.vis ? 'Mostrar' : 'Esconder'); };
     $('[data-tr]', cab).onclick = () => { n.trava = !n.trava; App.commit(n.trava ? 'Travar' : 'Destravar'); };
     const topo = h('<div class="pr-topo"></div>'); topo.append(cab, this.barraChave(!!n.chaves?.[q], Object.keys(n.chaves || {}).length, () => n.chaves)); el.appendChild(topo);
-    // TRANSFORMAR
-    el.appendChild(this.secao('p-transf', 'Transformar', `quadro ${q + 1}`, c => {
+    // TRANSFORMAR (o cenário em vídeo é preso à câmera: não tem posição/tamanho/giro)
+    if (n.tipo !== 'video') el.appendChild(this.secao('p-transf', 'Transformar', `quadro ${q + 1}`, c => {
       const g = h('<div class="pr-num-grade"></div>');
       const vv = k => () => Modelo.transf(n, App.q)[k] ?? (k === 'op' || k === 's' ? 1 : 0); // ao vivo: tocando, os números andam junto
       g.append(this.num('X', t.x, { passo: 1, dec: 1, unid: 'px', vivo: vv('x') }, v => muda('x', v), sol), this.num('Y', t.y, { passo: 1, dec: 1, unid: 'px', vivo: vv('y') }, v => muda('y', v), sol),
@@ -231,6 +231,9 @@ const Lado = {
       const est = h(`<div class="pr-acoes"><button class="btn sm ${n.negrito ? 'on' : ''}" data-n title="Negrito"><b>N</b> Negrito</button></div>`); $('[data-n]', est).onclick = () => { n.negrito = !n.negrito; st(); }; c.appendChild(est);
       const g = h('<div class="pr-num-grade"></div>'); g.append(this.num('Tamanho', n.tam, { passo: 1, min: 8, max: 1000, dec: 0, unid: 'px' }, v => { n.tam = v; App.pinta(); }, st), this.num('Borda', n.bordaL || 0, { passo: .5, min: 0, max: 100, dec: 1, unid: 'px' }, v => { n.bordaL = v; App.pinta(); }, st)); c.appendChild(g);
       c.append(this.cor('Cor', n.cor, v => { n.cor = v; App.pinta(); }, st), this.cor('Cor da borda', n.borda, v => { n.borda = v; App.pinta(); }, st));
+    }, true));
+    if (n.tipo === 'video') el.appendChild(this.secao('p-video', 'Vídeo de cenário', '', c => { // js/cenvideo.js
+      c.appendChild(h(`<div class="pr-info">Preso à câmera: cobre o quadro da câmera inteiro (sem pan/zoom/giro) e fica atrás das camadas de cima. ${n.vw || '?'}×${n.vh || '?'}, ${n.vquadros || '?'} quadros a ${n.vfps || P.fps} fps; o quadro 1 do vídeo cai no quadro ${(n.de || 0) + 1} da timeline (mude em Tempo › Começa).</div>`));
     }, true));
     if (n.tipo === 'imagem') el.appendChild(this.secao('p-img', 'Imagem', '', c => {
       const a = h(`<div class="pr-acoes"><button class="btn sm" data-tr>${ic('image', 13)} Trocar a imagem…</button>${PontosEd.pode(n) ? `<button class="btn sm" data-pe title="Mexe nos pontos e curvas do SVG aqui no palco (A)">${ic('edit', 13)} Editar os pontos</button>` : ''}</div>`); $('[data-tr]', a).onclick = () => App.trocarImagem(n); if ($('[data-pe]', a)) $('[data-pe]', a).onclick = () => PontosEd.alterna(n); c.appendChild(a);

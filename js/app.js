@@ -322,6 +322,7 @@ const App = {
       { label: 'Cenários em camadas (biblioteca)…', icon: 'layers', action: () => CenLib.abrir() },
       { label: 'Prontos (estilo da casa)…', icon: 'paisagem', action: () => Cenarios.abrir() },
       { label: 'Salvos na nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() },
+      { label: 'Adicionar vídeo de cenário (preso à câmera)…', icon: 'film', action: () => CenarioVideo.escolher() },
     ]);
   },
   async salvarNaNuvem(n) {
@@ -460,7 +461,7 @@ const App = {
       if (sob && sob.id !== App.sel) App.selecionar(sob.id);
       const s = App.noSel();
       UI.ctx(e.clientX, e.clientY, [
-        { label: 'Personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Imagem…', icon: 'image', action: () => App.addImagem() }, { label: 'Cenários (biblioteca em camadas)…', icon: 'layers', action: () => CenLib.abrir() }, { label: 'Cenário pronto…', icon: 'paisagem', action: () => Cenarios.abrir() }, { label: 'Cenário da nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() }, { label: 'Texto', icon: 'text', action: () => App.addTexto() }, '-',
+        { label: 'Personagem…', icon: 'plus', action: () => App.addPersonagem() }, { label: 'Imagem…', icon: 'image', action: () => App.addImagem() }, { label: 'Cenários (biblioteca em camadas)…', icon: 'layers', action: () => CenLib.abrir() }, { label: 'Cenário pronto…', icon: 'paisagem', action: () => Cenarios.abrir() }, { label: 'Cenário da nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() }, { label: 'Adicionar vídeo de cenário (preso à câmera)…', icon: 'film', action: () => CenarioVideo.escolher() }, { label: 'Texto', icon: 'text', action: () => App.addTexto() }, '-',
         s?.tipo === 'imagem' && { label: 'Trocar a imagem…', icon: 'image', action: () => App.trocarImagem(s) },
         (s?.tipo === 'imagem' || s?.cenaEd) && (s.nuvem ? { label: 'Já está na nuvem da equipe', icon: 'check', disabled: true } : { label: 'Salvar na nuvem', icon: 'cloud', action: () => App.salvarNaNuvem(s) }),
         s?.tipo === 'personagem' && { label: `Arrumar o quadro ${App.q + 1} aqui (Ateliê ao lado)`, icon: 'brush', action: () => QuadroEd.abrir(s) },
@@ -512,7 +513,7 @@ const App = {
     const V = pc.vista(), c = Modelo.camera(P, this.q), cw = P.w / (c.zoom || 1), ch = P.h / (c.zoom || 1);
     const camM = new DOMMatrix().translate(c.x, c.y).rotate(c.r || 0), cantosCam = [[-cw / 2, -ch / 2], [cw / 2, -ch / 2], [cw / 2, ch / 2], [-cw / 2, ch / 2]].map(([x, y]) => camM.transformPoint(new DOMPoint(x, y)));
     // casca de cebola: quadros vizinhos bem clarinhos
-    if (this.onion && !this.tocando) for (const [d, a] of [[-2, .1], [-1, .22], [1, .16]]) { const qq = this.q + d; if (qq < 0 || qq > Modelo.ultimoQuadro(P)) continue; ctx.save(); ctx.filter = d < 0 ? 'sepia(1) hue-rotate(160deg) saturate(3)' : 'sepia(1) hue-rotate(-40deg) saturate(3)'; Render.camadas(ctx, P, qq, V, a); ctx.restore(); }
+    if (this.onion && !this.tocando) for (const [d, a] of [[-2, .1], [-1, .22], [1, .16]]) { const qq = this.q + d; if (qq < 0 || qq > Modelo.ultimoQuadro(P)) continue; ctx.save(); ctx.filter = d < 0 ? 'sepia(1) hue-rotate(160deg) saturate(3)' : 'sepia(1) hue-rotate(-40deg) saturate(3)'; Render.camadas(ctx, P, qq, V, a, { semVideo: true }); ctx.restore(); }
     ctx.save(); ctx.filter = Efeitos.filtro(P, this.q); Render.camadas(ctx, P, this.q, V, 1, { fundo: true, sombra: pc.dpr }); ctx.restore(); // o fundo (quadriculado/liso) entra como a camada mais de baixo: os efeitos valem nele também
     // fora da câmera fica escurecido
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.beginPath(); ctx.rect(0, 0, W, H); const ct = cantosCam.map(p => V.transformPoint(p)); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();

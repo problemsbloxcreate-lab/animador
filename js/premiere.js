@@ -97,7 +97,7 @@ const TLP = {
   rolaV(d) { this.sy += d; this.limita(); this.desenha(); this.pintaCabsPos(); this.pintaBarras(); },
 
   /* ---------- trilhas ---------- */
-  tipoNo(n) { return n.tipo === 'efeito' ? 'efeito' : n.tipo === 'texto' ? 'texto' : n.tipo === 'imagem' || n.tipo === 'forma' ? 'still' : 'anim'; },
+  tipoNo(n) { return n.tipo === 'efeito' ? 'efeito' : n.tipo === 'texto' ? 'texto' : n.tipo === 'imagem' || n.tipo === 'forma' || n.tipo === 'video' ? 'still' : 'anim'; },
   corNo(n) { return n.corTL || { efeito: '#9b8bd9', texto: '#e889ad', still: '#c79be6', anim: '#7d8fe0' }[this.tipoNo(n)]; },
   corAudio(a) { return a.corTL || '#29b896'; },
   estT(k, t) { return App.P.trilhas?.[k]?.[t] || {}; },

@@ -69,6 +69,10 @@ const Render = {
   // desenha as camadas no ctx (que já está com a transformação do "mundo" aplicada em base)
   // o.fundo: desenha o fundo do canvas (quadriculado/liso) como a camada mais de baixo da raiz (assim as camadas de efeito valem nele)
   camadas(ctx, P, q, base, alfa = 1, o = {}) {
+    const sv = this._semVideo; this._semVideo = !!o.semVideo; // casca de cebola: sem o cenário em vídeo (js/cenvideo.js)
+    try { this._camadas(ctx, P, q, base, alfa, o); } finally { this._semVideo = sv; }
+  },
+  _camadas(ctx, P, q, base, alfa, o) {
     let fr; try { fr = base.multiply(this.matCamera(P, q, P.w, P.h).inverse()); } catch { fr = base; } // quadro da câmera (px do vídeo) → tela
     this.lista(ctx, P, q, base, P.raiz, new DOMMatrix(), alfa, fr, 0, o.fundo ? c => { this.fundo(c, P, base, c.canvas.width, c.canvas.height); if (o.sombra) this.sombraFundo(c, P, q, base, o.sombra); } : null);
   },
@@ -103,6 +107,10 @@ const Render = {
     if (!this.vivo(P, n, q) || n.tipo === 'efeito') return false;
     const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
     const fx = n.chaves && Modelo.filtroFx(Modelo.fxNo(n, q)), fxPai = this._fx || ''; // cor e luz (chave.fx): a da pasta vale para tudo dentro
+    if (n.tipo === 'video') { // CENÁRIO EM VÍDEO (js/cenvideo.js): preso à câmera, cobre o quadro da câmera inteiro (fr), sem pan/zoom/giro
+      if (this._semVideo || typeof CenarioVideo === 'undefined') return false;
+      ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a)); const filtro = ((fx || '') + ' ' + fxPai).trim(); if (filtro) ctx.filter = filtro;
+      try { return CenarioVideo.desenha(ctx, P, n, q, fr); } finally { ctx.restore(); } }
     if (n.filhos) { const rc = this.recorte(n); if (rc) { ctx.save(); ctx.setTransform(fr); ctx.beginPath(); ctx.rect(rc.x, rc.y, rc.w, rc.h); ctx.clip(); } // RECORTE DA PASTA: só aparece o que está dentro do retângulo (px do vídeo, fixo na tela)
       this._fx = (fxPai + ' ' + (fx || '')).trim(); try { this.lista(ctx, P, q, base, n.filhos, mm, a, fr, nivel + 1); } finally { this._fx = fxPai; if (rc) ctx.restore(); } return true; }
     ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a)); const filtro = ((fx || '') + ' ' + fxPai).trim(); if (filtro) ctx.filter = filtro;

@@ -234,7 +234,9 @@ const Exportar = {
   async wav(P, de, ate, pr, nivelar = true) { pr?.(.1, 'Misturando o som…'); const mix = await Som.mistura(P, 48000), a = Math.round(de / P.fps * 48000), z = Math.min(mix.length, Math.round((ate + 1) / P.fps * 48000));
     pr?.(.5, nivelar ? 'Nivelando o volume…' : 'Segurando os picos…'); await Som.masteriza(mix, { nivelar, ini: a, fim: z }); // −14 LUFS (opcional) e pico em −1 dBTP
     const ac = new OfflineAudioContext(2, Math.max(1, z - a), 48000), b = ac.createBuffer(2, Math.max(1, z - a), 48000); for (let c = 0; c < 2; c++) b.getChannelData(c).set(mix.getChannelData(Math.min(c, mix.numberOfChannels - 1)).subarray(a, z)); pr?.(1, 'Pronto'); return Som.wav(b); },
-  png(nome) { const P = App.P, c = document.createElement('canvas'); c.width = P.w; c.height = P.h; Render.quadro(c.getContext('2d'), P, App.q, P.w, P.h); return new Promise(ok => c.toBlob(b => { downloadBlob(b, nome || `${safeName(P.nome)} - quadro ${App.q + 1}.png`); ok(); }, 'image/png')); },
+  async png(nome) { const P = App.P, c = document.createElement('canvas'); c.width = P.w; c.height = P.h; const comVideo = CenarioVideo.tem(P);
+    if (comVideo) await CenarioVideo.prepara(P, App.q); CenarioVideo.emExport = comVideo; try { Render.quadro(c.getContext('2d'), P, App.q, P.w, P.h); } finally { CenarioVideo.emExport = false; CenarioVideo.solta('exp'); } // cenário em vídeo: o quadro exato
+    return new Promise(ok => c.toBlob(b => { downloadBlob(b, nome || `${safeName(P.nome)} - quadro ${App.q + 1}.png`); ok(); }, 'image/png')); },
   folga() { return new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); }); },
   async h264(w, h, fps, k = .12) {
     if (!window.VideoEncoder) return null; const px = w * h, lv = px <= 414720 ? ['1E', '1F', '28'] : px <= 921600 ? ['1F', '28', '2A'] : px <= 2228224 ? ['28', '2A', '32'] : ['33', '34'];
@@ -266,13 +268,16 @@ const Exportar = {
     }
     const cv = new OffscreenCanvas(W, H), ctx = cv.getContext('2d'), n = ate - de + 1, gop = fps * 4; // um quadro principal a cada 4 s
     const ve = new VideoEncoder({ output: (ch, meta) => { if (meta?.decoderConfig?.description) mux.setVideoConfig(bytes(meta.decoderConfig.description)); const d = new Uint8Array(ch.byteLength); ch.copyTo(d); mux.addVideo(d, ch.type === 'key'); }, error: e => erro = e });
-    ve.configure(vcfg);
+    ve.configure(vcfg); const comVideo = CenarioVideo.tem(P);
+    try {
     for (let i = 0; i < n; i++) {
-      if (erro) throw erro; Render.quadro(ctx, P, de + i, W, H, { semLegenda });
+      if (erro) throw erro; if (comVideo) await CenarioVideo.prepara(P, de + i); // cenário em vídeo: espera o quadro EXATO (seek) antes de desenhar
+      CenarioVideo.emExport = comVideo; try { Render.quadro(ctx, P, de + i, W, H, { semLegenda }); } finally { CenarioVideo.emExport = false; }
       const vf = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) }); ve.encode(vf, { keyFrame: i % gop === 0 }); vf.close();
       while (ve.encodeQueueSize > 4) await this.folga();
       if (i % 4 === 0) { pr?.((i + 1) / n * .98, `Quadro ${i + 1} de ${n} · ${this.tc((de + i) / fps)} de ${this.tc((ate + 1) / fps)}`); await this.folga(); }
     }
+    } finally { CenarioVideo.solta('exp'); } // os <video> do export saem da memória
     await ve.flush(); ve.close(); if (erro) throw erro;
     pr?.(.99, 'Montando o arquivo…'); const blob = mux.finish(); pr?.(1, 'Pronto'); return blob;
   },
