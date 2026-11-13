@@ -60,7 +60,22 @@ const Cena3D = {
   // ---------- câmera do quadro q: entre as chaves com .cam, com o easing da chave de chegada (o mesmo do Animador) ----------
   CAMPOS: ['px', 'py', 'pz', 'tx', 'ty', 'tz', 'fov'],
   chavesCam(n) { return Object.keys(n.chaves || {}).map(Number).filter(k => n.chaves[k]?.cam).sort((a, b) => a - b); },
+  // ---------- CÂMERA 3D QUE SEGUE A CÂMERA DO ANIMADOR (n.segue; Episódio 1 em 3D, 13/11/2026) ----------
+  // As mesmas contas do render pelo Blender (ajudante/render_cenario.py + cenarios.json), no three (y para cima; Blender (x,y,z) → (x, z, −y)):
+  //  trilho (ruas): andar para o lado vira andar pela rua: x = ax + (cx − c0)·k; altura = (pe − cy)·k; lente = 36·(D − Y)/((W/zoom)·k)
+  //  recorte (ginásio, quarto): câmera parada; andar = deslocar o quadro (shift da lente); zoom = lente × zoom
+  // A camada fica presa na tela (Modelo.transf, em liga): enquadramento e tempo são os da câmera 2D de cada cena.
+  lenteFov(lens, W, H) { const hf = 2 * Math.atan(18 / lens); return 2 * Math.atan(Math.tan(hf / 2) * H / W) * 180 / Math.PI; },
+  camSegue(n, q) {
+    const P = App.P, s = n.segue, W = n.w || P?.w || 1920, H = n.h || P?.h || 1080, c = P ? Modelo.camera(P, q) : { x: W / 2, y: H / 2, zoom: 1 }, z = c.zoom || 1;
+    if (s.modo === 'trilho') { const x = s.ax + (c.x - s.c0) * s.k, y = (s.pe - c.y) * s.k, lens = 36 * (s.D - s.Y) / ((W / z) * s.k);
+      return { px: x, py: y, pz: -s.Y, tx: x, ty: y, tz: -s.D, fov: this.lenteFov(lens, W, H), sx: 0, sy: 0 }; }
+    return { px: s.px, py: s.py, pz: s.pz, tx: s.px, ty: s.py, tz: s.pz - 10, fov: this.lenteFov(s.lente * z, W, H), sx: z * (c.x - W / 2) / W, sy: z * ((H / 2 - c.y) / W + (s.shift_y || 0)) };
+  },
+  // shift da lente (Blender: fração da largura): janela de visão deslocada
+  poeShift(cam, cm, W, H) { if (cm.sx || cm.sy) cam.setViewOffset(W, H, cm.sx * W, -cm.sy * W, W, H); else if (cam.view?.enabled) cam.clearViewOffset(); },
   camEm(n, q) {
+    if (n.segue) return this.camSegue(n, q);
     const ks = this.chavesCam(n), base = n.cam0 || { px: 0, py: 2, pz: 8, tx: 0, ty: 0, tz: 0, fov: 40 }; if (!ks.length) return { ...base };
     let a = null, b = null; for (const k of ks) { if (k <= q) a = k; else { b = k; break; } }
     if (a == null) return { ...base, ...n.chaves[b].cam }; if (b == null || a === q) return { ...base, ...n.chaves[a].cam };
@@ -73,7 +88,7 @@ const Cena3D = {
     if (!this.rend) { this.rend = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false }); this.rend.outputColorSpace = T.SRGBColorSpace; this.rend.toneMapping = T.AgXToneMapping; this.rend.shadowMap.enabled = true; this.rend.shadowMap.type = T.PCFSoftShadowMap; this.rend.setPixelRatio(1); }
     const w = Math.max(16, Math.min(4096, Math.round(wPx))), h = Math.max(16, Math.min(4096, Math.round(hPx))), k = `${n.arq}|${w}x${h}|${JSON.stringify(this.camEm(n, q))}|${n.ceu || ''}|${n.luz ?? 1}`;
     if (this._ult === k) return this.rend.domElement;
-    const cm = this.camEm(n, q), cam = c.cam; cam.aspect = (n.w || P.w) / (n.h || P.h); cam.fov = Math.max(5, Math.min(120, cm.fov)); cam.position.set(cm.px, cm.py, cm.pz); cam.lookAt(cm.tx, cm.ty, cm.tz); cam.updateProjectionMatrix();
+    const cm = this.camEm(n, q), cam = c.cam; cam.aspect = (n.w || P.w) / (n.h || P.h); cam.fov = Math.max(5, Math.min(120, cm.fov)); cam.position.set(cm.px, cm.py, cm.pz); cam.lookAt(cm.tx, cm.ty, cm.tz); cam.updateProjectionMatrix(); this.poeShift(cam, cm, n.w || P.w, n.h || P.h);
     c.sc.background = new T.Color(n.ceu || '#c9d3df'); const luz = n.luz ?? 1; if (c._luz !== luz) { c._luz = luz; c.sc.traverse(o => { if (o.isLight && o.userData.i0 != null) o.intensity = o.userData.i0 * luz; }); } if (this.rend.domElement.width !== w || this.rend.domElement.height !== h) this.rend.setSize(w, h, false);
     this.rend.render(c.sc, cam); this._ult = k; return this.rend.domElement;
   },
@@ -135,7 +150,7 @@ const Cena3D = {
   projeta(P, cena, q, cm, pt) {
     const T = this.T; if (!T) return null; const cam = this._pcam || (this._pcam = new T.PerspectiveCamera());
     cam.fov = Math.max(5, Math.min(120, cm.fov)); cam.aspect = (cena.w || P.w) / (cena.h || P.h); cam.near = .001; cam.far = 1e7;
-    cam.position.set(cm.px, cm.py, cm.pz); cam.lookAt(cm.tx, cm.ty, cm.tz); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
+    cam.position.set(cm.px, cm.py, cm.pz); cam.lookAt(cm.tx, cm.ty, cm.tz); cam.updateProjectionMatrix(); this.poeShift(cam, cm, cena.w || P.w, cena.h || P.h); cam.updateMatrixWorld(true);
     const v = new T.Vector3(pt.x, pt.y, pt.z), d = -v.clone().applyMatrix4(cam.matrixWorldInverse).z; if (!(d > 1e-4)) return null; v.project(cam);
     const w = cena.w || P.w, h = cena.h || P.h, M = Render.matNo(new DOMMatrix(), Modelo.transf(cena, q)), r = M.transformPoint(new DOMPoint(v.x * w / 2, -v.y * h / 2));
     return { x: r.x, y: r.y, d };
@@ -255,6 +270,8 @@ const Cena3D = {
     // abrir: já carrega o 3D; exportar: espera o 3D antes do primeiro quadro (o MP4 igual à prévia)
     const ab = App.abrir; App.abrir = async function (...x) { const r = await ab.apply(this, x); try { Cena3D.limpa(App.P); } catch (e) { console.warn(e); } if (Cena3D.arqs(App.P).length) await Cena3D.garante(App.P).catch(e => console.warn(e)); return r; };
     if (typeof Exportar !== 'undefined') for (const f of ['mp4', 'png', 'quadros']) if (typeof Exportar[f] === 'function') { const o = Exportar[f]; Exportar[f] = async function (...x) { await Cena3D.garante(App.P).catch(() => { }); return o.apply(this, x); }; }
+    // cenário 3D que segue a câmera do Animador: a camada fica presa na tela (a câmera 3D faz o enquadramento)
+    const tf = Modelo.transf; Modelo.transf = function (n, q) { const t = tf.call(this, n, q); if (n?.tipo === 'cena3d' && n.segue && App.P) { const c = Modelo.camera(App.P, q); t.x = c.x; t.y = c.y; t.s = 1.01 / (c.zoom || 1); t.r = c.r || 0; t.sx = 1; } return t; };
     if (typeof AoVivo !== 'undefined' && AoVivo.naNuvem) { const nn = AoVivo.naNuvem; AoVivo.naNuvem = function (k) { return Cena3D.ehCasa(k) || nn.call(this, k); }; }
     // Propriedades: a seção da câmera 3D
     if (typeof Lado !== 'undefined') { const pp = Lado.props; Lado.props = function (el, ...x) { const r = pp.call(this, el, ...x); try { const n = App.noSel?.(); if (n?.tipo === 'cena3d') Cena3D.painel(el, n); else if (n && ['personagem', 'imagem', 'pasta'].includes(n.tipo)) Cena3D.painelAncora(el, n); } catch (e) { console.warn('[cena 3D painel]', e); } return r; }; }
