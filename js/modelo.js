@@ -285,6 +285,7 @@ const Arq = {
     if (!this.carregando.has(id)) this.carregando.set(id, (async () => {
       let b = await this.pegaBlob(id);
       if (!b && /^personagens\//.test(id)) b = await Nuvem.baixar(id).catch(() => null); // imagem de personagem: da nuvem da equipe
+      if (!b && /^cenlib\//.test(id) && typeof CenNuvem !== 'undefined') { b = await CenNuvem.baixar(id).catch(() => null); if (b) this.blob.set(id, b); } // camada de um cenário da nuvem da equipe (js/cennuvem.js)
       if (!b && /^cenarios\/[a-z0-9-]+\/camadas\//.test(id)) { b = await fetch(id).then(r => r.ok ? r.blob() : null).catch(() => null); if (b) { await DB.put('arquivos', b, id).catch(() => { }); this.blob.set(id, b); } } // camada de um cenário da casa (js/cenlib.js): vem do site
       if (!b) return null;
       const bm = await this.deBlob(b, id); if (bm) this.img.set(id, bm); return bm;

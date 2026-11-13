@@ -35,9 +35,19 @@ const CenLib = {
     return { ...j, origem: 'casa', mini: j.miniatura ? `cenarios/${id}/${j.miniatura}` : null };
   },
   async meus() { try { return (await DB.get('arquivos', 'cenlib-meus')) || []; } catch { return []; } },
-  async gravaMeus(l) { await DB.put('arquivos', l, 'cenlib-meus'); },
+  // NUVEM (js/cennuvem.js, 13/11/2026): gravar a biblioteca manda sozinho para a nuvem da equipe o que mudou. A lista que a janela tem
+  // pode estar velha (a nuvem trouxe/subiu algo enquanto ela estava aberta): junta com a guardada antes de gravar
+  _base: new Map(), // id → versão da nuvem que a pessoa ABRIU na janela (base do conflito)
+  async gravaMeus(l, soAqui) {
+    if (typeof CenNuvem !== 'undefined') { const ant = new Map((await this.meus()).map(m => [m.id, m])), ids = new Set(l.map(x => x.id));
+      l.forEach((x, i) => { const s = ant.get(x.id); if (!s || !s._mod || s._mod === x._mod) return;
+        if (!x._mod || CenNuvem.sig(x) === x._sig) l[i] = (x._mod ? s : Object.assign(x, { _mod: s._mod, _sig: s._sig })); }); // sem mexer aqui: fica a de agora
+      for (const s of ant.values()) if (s._mod && !ids.has(s.id) && !this._tira?.has(s.id)) l.push(s); } // veio da nuvem com a janela aberta
+    await DB.put('arquivos', l, 'cenlib-meus'); if (!soAqui && typeof CenNuvem !== 'undefined') CenNuvem.agenda();
+  },
   async salvaMeu(def, mini) {
-    const l = await this.meus(), i = l.findIndex(x => x.id === def.id), it = { id: def.id, nome: def.nome, tags: def.tags || [], em: Date.now(), mini, def: this.limpa(def), cat: this.catDe(def), ...(def.roteiro ? { roteiro: def.roteiro } : {}), ...(def.aprovar ? { aprovar: true } : {}) };
+    const l = await this.meus(), i = l.findIndex(x => x.id === def.id), ant = i >= 0 ? l[i] : null, it = { id: def.id, nome: def.nome, tags: def.tags || [], em: Date.now(), mini, def: this.limpa(def), cat: this.catDe(def), ...(def.roteiro ? { roteiro: def.roteiro } : {}), ...(def.aprovar ? { aprovar: true } : {}) };
+    if (ant?._mod) { const base = this._base.has(def.id) ? this._base.get(def.id) : ant._mod; it._mod = base || undefined; if (base === ant._mod) it._sig = ant._sig; } // base velha = conflito ao subir
     if (i >= 0) l[i] = it; else l.unshift(it); await this.gravaMeus(l); return it;
   },
   limpa(def) { return { formato: 'cenario-camadas', v: 1, id: def.id, nome: def.nome, tags: def.tags || [], estilo: def.estilo, w: this.W, h: this.H, cena: { ...this.FX0, ...(def.cena || {}) },
@@ -317,6 +327,9 @@ Object.assign(CenLib, {
     const casa = await this.casa(); let meus = await this.meus();
     const comCat = l => { for (const m of l) if (m.cat == null) m.cat = this.catDe(m.def); return l; }; comCat(meus);
     const recarrega = async () => { meus = comCat(await this.meus()); };
+    // NUVEM: traz os cenários da equipe ao abrir (a lista aparece logo com o que já está aqui) e pergunta uma vez dos antigos
+    if (typeof CenNuvem !== 'undefined') { CenNuvem.aoMudar = async () => { if (!body.isConnected) return; await recarrega(); pintaBib(); };
+      Nuvem.souAdm().catch(() => { }); CenNuvem.sincroniza().then(r => { if (!r.ok && body.isConnected) UI.toast(`Não consegui abrir os cenários da nuvem: ${esc(r.erro)}. Mostrando os deste computador.`, { kind: 'err' }); return body.isConnected && CenNuvem.perguntaAntigos(); }).catch(e => console.warn('cenários da nuvem', e)); }
     const pintaBib = async () => {
       const bus = st.busca.trim().toLowerCase(), ok = (nome, tg = []) => (!bus || String(nome).toLowerCase().includes(bus) || tg.some(t => t.toLowerCase().includes(bus))) && (!st.tag || tg.includes(st.tag));
       const todasTags = [...new Set([...casa.flatMap(c => c.tags || []), ...meus.flatMap(m => m.tags || [])])].sort();
@@ -326,14 +339,17 @@ Object.assign(CenLib, {
       grupo('Nesta animação', this.pastasNaCena().filter(p => ok(p.nome)).map(p => { const c = cartao(p.nome.replace(/^Cenário: /, ''), null, `${p.filhos.length} camadas · ${this.keyframes(p).length} keyframe(s)`, st.pasta === p.id, () => escolheCena(p.id));
         this.compoe(this.defDaPasta(p, App.q), 168).then(cv => { const i = $('i', c); if (i) i.replaceWith(Object.assign(new Image(), { src: cv.toDataURL('image/jpeg', .8), alt: '' })); }).catch(() => { }); return c; }));
       const cartaoCasa = c => cartao(c.nome, `cenarios/${c.id}/${c.miniatura || 'miniatura.jpg'}`, 'da casa · ' + (c.tags || []).join(' · '), !naCena() && st.def?.origem === 'casa' && st.def.id === c.id, () => escolhe(() => this.pacote(c.id)), null, 'oficial');
-      const cartaoMeu = m => cartao(m.nome, m.mini, (m.aprovar ? 'para aprovar · ' : '') + fmtDate(m.em), !naCena() && st.def?.id === m.id, () => escolhe(async () => ({ ...clone(m.def), origem: 'meu' })), () => [
+      const nuvemDe = m => typeof CenNuvem === 'undefined' ? '' : m._mod ? (CenNuvem.pendente(m) ? 'subindo para a nuvem · ' : 'na nuvem · ') : 'só neste computador · ';
+      const cartaoMeu = m => cartao(m.nome, m.mini, (m.aprovar ? 'para aprovar · ' : '') + nuvemDe(m) + fmtDate(m.em), !naCena() && st.def?.id === m.id, () => escolhe(async () => { this._base.set(m.id, m._mod || 0); return { ...clone(m.def), origem: 'meu' }; }), () => [
         m.aprovar && { label: 'Aprovar este oficial', icon: 'check', action: () => aprova(m.id) },
         { label: 'Renomear…', icon: 'edit', action: async () => { const n = await UI.prompt({ title: 'Nome do cenário', value: m.nome }); if (!n?.trim()) return; m.nome = m.def.nome = n.trim().slice(0, 40); await this.gravaMeus(meus); if (st.def?.id === m.id) st.def.nome = m.nome; pintaBib(); pintaTopo(); } },
         { label: 'Duplicar', icon: 'dup', action: async () => { const d = { ...clone(m.def), id: uid('cen'), nome: m.nome + ' (cópia)' }; await this.salvaMeu(d, m.mini); await recarrega(); pintaBib(); } },
         { label: m.cat === 'oficial' ? 'Mover para De representação' : 'Mover para Oficiais', icon: 'folder', action: async () => { m.cat = m.def.cat = m.cat === 'oficial' ? 'rep' : 'oficial'; await this.gravaMeus(meus); if (st.def?.id === m.id) st.def.cat = m.cat; pintaBib(); pintaTopo(); } },
         E?.roteiro && (m.roteiro === E.roteiro ? { label: 'Tirar deste Short', icon: 'x', action: async () => { delete m.roteiro; delete m.def.roteiro; await this.gravaMeus(meus); pintaBib(); } } : { label: 'Pôr em Deste Short', icon: 'plus', action: async () => { m.roteiro = m.def.roteiro = E.roteiro; await this.gravaMeus(meus); pintaBib(); } }),
         { label: 'Exportar arquivo .cenario', icon: 'download', action: () => this.exportar(m.def).catch(e => UI.toast(esc(e.message), { kind: 'err' })) }, '-',
-        { label: 'Apagar deste computador', icon: 'trash', danger: true, action: async () => { if (!(await UI.confirm({ title: 'Apagar o cenário?', msg: `"<b>${esc(m.nome)}</b>" sai da sua biblioteca. As animações que já usam continuam com ele.`, ok: 'Apagar', danger: true }))) return; meus = meus.filter(x => x.id !== m.id); await this.gravaMeus(meus); pintaBib(); } },
+        typeof CenNuvem !== 'undefined' && !m._mod && { label: 'Mandar para a nuvem da equipe', icon: 'cloud', action: async () => { delete m.soLocal; await this.gravaMeus(meus); pintaBib(); } },
+        m._mod ? { label: Nuvem.adm ? 'Apagar da nuvem da equipe' : 'Apagar da nuvem (só ADM)', icon: Nuvem.adm ? 'trash' : 'lock', danger: true, action: async () => { try { if (await CenNuvem.apagar(m)) { await recarrega(); pintaBib(); } } catch (e) { UI.toast(esc(e.message), { kind: 'err' }); } } }
+          : { label: 'Apagar deste computador', icon: 'trash', danger: true, action: async () => { if (!(await UI.confirm({ title: 'Apagar o cenário?', msg: `"<b>${esc(m.nome)}</b>" sai da sua biblioteca. As animações que já usam continuam com ele.`, ok: 'Apagar', danger: true }))) return; meus = meus.filter(x => x.id !== m.id); (this._tira ||= new Set()).add(m.id); await this.gravaMeus(meus); pintaBib(); } },
       ].filter(Boolean), m.cat === 'oficial' ? 'oficial' : m.cat === 'rep' ? 'rep' : '', m.aprovar);
       const doShort = E?.roteiro ? meus.filter(m => m.roteiro === E.roteiro) : [], fora = m => !doShort.includes(m);
       grupo('Deste Short', doShort.filter(m => ok(m.nome, m.tags)).map(cartaoMeu));
@@ -341,7 +357,7 @@ Object.assign(CenLib, {
       grupo('De representação <span>(rabiscados)</span>', [...meus.filter(m => fora(m) && m.cat === 'rep' && ok(m.nome, m.tags)).map(cartaoMeu),
         ...Cenarios.PRONTOS.filter(p => ok(p.nome, ['rabiscado'])).map(p => cartao(p.nome, `cenarios/miniaturas/${p.id}.jpg`, 'pronto · rabiscado', st.def?.id === 'rab-' + p.id, () => escolhe(() => this.deRabiscado(p.id, p.nome)), null, 'rep'))]);
       grupo('Da casa', casa.filter(c => this.catDe(c) !== 'oficial' && ok(c.nome, c.tags)).map(cartaoCasa));
-      grupo('Meus <span>(outros, neste computador)</span>', meus.filter(m => fora(m) && !m.cat && ok(m.nome, m.tags)).map(cartaoMeu));
+      grupo('Meus <span>(outros)</span>', meus.filter(m => fora(m) && !m.cat && ok(m.nome, m.tags)).map(cartaoMeu));
       if (!lista.children.length) lista.appendChild(h('<div class="cl-nada">Nada encontrado.</div>'));
     };
     const ocupa = async (txt, fn) => { const av = $('.cl-aviso', body); av.textContent = txt; body.classList.add('cl-ocupado'); try { return await fn(); } catch (e) { UI.toast(esc(e?.message || e), { kind: 'err' }); console.warn('cenários', e); } finally { body.classList.remove('cl-ocupado'); } };
@@ -573,7 +589,7 @@ Object.assign(CenLib, {
     // ---- salvar / exportar / pôr na cena ----
     const salvar = async () => {
       if (!st.def) return; let def = clone(st.def), nome = def.nome;
-      if (naCena() || def.origem !== 'meu') { nome = await UI.prompt({ title: 'Salvar na biblioteca (neste computador)', value: def.origem === 'casa' ? def.nome + ' (variação)' : def.nome }); if (!nome?.trim()) return; def = { ...def, id: uid('cen'), nome: nome.trim().slice(0, 40), cat: this.catDe(def) || undefined, ...(E?.roteiro ? { roteiro: E.roteiro } : {}) }; }
+      if (naCena() || def.origem !== 'meu') { nome = await UI.prompt({ title: 'Salvar na biblioteca (vai para a nuvem da equipe)', value: def.origem === 'casa' ? def.nome + ' (variação)' : def.nome }); if (!nome?.trim()) return; def = { ...def, id: uid('cen'), nome: nome.trim().slice(0, 40), cat: this.catDe(def) || undefined, ...(E?.roteiro ? { roteiro: E.roteiro } : {}) }; }
       def.origem = 'meu'; def.camadas.forEach(c => { delete c.no; if (naCena()) c.id = slugCen(c.nome) + '-' + uid('c').slice(-4); });
       await ocupa('Salvando…', async () => { await this.salvaMeu(def, await this.miniDe(def)); await recarrega(); if (!naCena()) { st.def = { ...def }; st.mexido = false; } pintaBib(); pintaTopo(); UI.toast(`<b>${esc(def.nome)}</b> está em Meus cenários.`, { kind: 'ok' }); });
     };
