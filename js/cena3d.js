@@ -8,35 +8,50 @@
    - Uma tela WebGL só, fora da vista: cada desenho põe a câmera do quadro, renderiza e copia para o canvas 2D (Render). Mesmo código na prévia
      e na exportação, quadro a quadro, sem relógio: o MP4 sai igual à prévia. A exportação espera o .glb carregar antes (garante).
    - Luz: a do .glb (KHR_lights_punctual do Blender); sem luz no arquivo, entra uma luz padrão (céu + sol). Céu = n.ceu (cor), nunca vazio.
-   - Limite: 30 MB por .glb (aviso claro). .blend solto: "Exporte do Blender como .glb". */
+   - Limite: 24 MB por .glb (a nuvem das animações aceita 25 MB por arquivo). Geometria Draco e imagens WebP abrem (decodificador local).
+     .blend solto: "Exporte do Blender como .glb". */
 'use strict';
 const Cena3D = {
-  LIMITE: 30 * 1024 * 1024,
+  LIMITE: 24 * 1024 * 1024, // abaixo dos 25 MB por arquivo da nuvem das animações (turma-ia /animacoes)
   BASE: (() => { try { return new URL('vendor/three/', document.currentScript.src).href; } catch { return 'js/vendor/three/'; } })(),
   T: null, _carregaT: null, cenas: new Map(), _carregando: new Map(), rend: null,
   async three() {
     if (this.T) return this.T;
-    if (!this._carregaT) this._carregaT = (async () => { const [T, G] = await Promise.all([import(this.BASE + 'three.module.min.js'), import(this.BASE + 'GLTFLoader.js')]); this.T = T; this.GLTFLoader = G.GLTFLoader; return T; })();
+    if (!this._carregaT) this._carregaT = (async () => { const [T, G, D] = await Promise.all([import(this.BASE + 'three.module.min.js'), import(this.BASE + 'GLTFLoader.js'), import(this.BASE + 'DRACOLoader.js')]); this.T = T; this.GLTFLoader = G.GLTFLoader; this.DRACOLoader = D.DRACOLoader; return T; })();
     return this._carregaT;
   },
   // ---------- carregar o .glb (uma vez por arquivo) ----------
   cena(k) { if (!k) return null; if (this.cenas.has(k)) return this.cenas.get(k); if (!this._carregando.has(k)) this._carregando.set(k, this.carrega(k).then(c => { this._carregando.delete(k); if (c) { this.cenas.set(k, c); try { Render.aoChegarImagem?.(); } catch { } } return c; }, e => { this._carregando.delete(k); console.warn('[cena 3D]', e); return null; })); return null; },
   async carrega(k) {
     const b = await Arq.pegaBlob(k); if (!b) return null; const T = await this.three(), buf = await b.arrayBuffer();
-    const g = await new Promise((ok, no) => new this.GLTFLoader().parse(buf, '', ok, no));
+    // GEOMETRIA COMPRIMIDA (Draco, Blender › Exportar › glTF › Compressão): o decodificador também é local (js/vendor/three/draco, só baixa se o arquivo usar)
+    if (!this._draco) { this._draco = new this.DRACOLoader(); this._draco.setDecoderPath(this.BASE + 'draco/'); this._draco.setDecoderConfig({ type: 'wasm' }); }
+    const L = new this.GLTFLoader(); L.setDRACOLoader(this._draco); const g = await new Promise((ok, no) => L.parse(buf, '', ok, no));
     // LUZ DO BLENDER: o exportador grava em unidades físicas (sol em lux = W/m² × 683). Aqui volta para a escala do three (×2/683, as
     // proporções entre as luzes ficam iguais) e sempre entra um céu suave de preenchimento, porque o glTF não leva luz de área nem o World.
-    const sc = g.scene; let luzes = 0; sc.traverse(o => { if (o.isLight) { o.intensity = o.intensity * 2 / 683; o.userData.i0 = o.intensity; } });
+    // o glTF entrega um GRUPO: a cor do céu (scene.background) só vale numa cena de verdade, então o grupo vai dentro de uma
+    const sc = new T.Scene(); sc.add(g.scene); let luzes = 0; sc.traverse(o => { if (o.isLight) { o.intensity = o.intensity * 2 / 683; o.userData.i0 = o.intensity; } });
     { const ceu = new T.HemisphereLight(0xffffff, 0x5a5a66, .9); ceu.userData.i0 = .9; ceu.userData.preench = true; sc.add(ceu); }
     sc.traverse(o => { if (o.isLight && !o.userData.preench) { luzes++; o.castShadow = !!o.isDirectionalLight; if (o.shadow) { o.shadow.mapSize.set(2048, 2048); o.shadow.bias = -0.0005; } } if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    // MATERIAL SÓ DE EMISSÃO (cor preta + emissão, o jeito "sem luz" do Blender): vira material sem luz, e a transparência da imagem vale
+    // (chão, morros e nuvens em PNG com fundo transparente vinham opacos e pretos; o exportador não marca a transparência nesses casos)
+    sc.traverse(o => { if (!o.isMesh) return; const ms = Array.isArray(o.material) ? o.material : [o.material];
+      const nv = ms.map(m => { if (!m?.isMeshStandardMaterial || m.map || (m.color && m.color.getHex() !== 0) || !(m.emissiveMap || m.emissive?.getHex())) return m;
+        const b = new T.MeshBasicMaterial({ color: m.emissive.clone().multiplyScalar(m.emissiveIntensity ?? 1), map: m.emissiveMap || null, side: m.side, transparent: !!m.emissiveMap, alphaTest: m.emissiveMap ? .5 : 0, toneMapped: false }); b.name = m.name; m.dispose(); return b; });
+      o.material = Array.isArray(o.material) ? nv : nv[0]; });
     if (!luzes) { const s = new T.DirectionalLight(0xffffff, 2.4); s.userData.i0 = 2.4; s.position.set(5, 10, 7); s.castShadow = true; s.shadow.mapSize.set(2048, 2048); sc.add(s); }
     sc.updateMatrixWorld(true);
     // câmera que veio no arquivo (a do Blender) → câmera inicial; sem câmera: olha o cenário inteiro de frente e um pouco de cima
     let cam0 = null; const cg = g.cameras?.[0];
     if (cg) { cg.updateMatrixWorld(true); const p = new T.Vector3(), d = new T.Vector3(); cg.getWorldPosition(p); cg.getWorldDirection(d); const alvo = p.clone().add(d.multiplyScalar(10)); cam0 = { px: p.x, py: p.y, pz: p.z, tx: alvo.x, ty: alvo.y, tz: alvo.z, fov: cg.isPerspectiveCamera ? cg.fov : 50 }; }
-    else { const bx = new T.Box3().setFromObject(sc), c = bx.getCenter(new T.Vector3()), r = Math.max(1, bx.getSize(new T.Vector3()).length() / 2); cam0 = { px: c.x, py: c.y + r * .45, pz: c.z + r * 1.9, tx: c.x, ty: c.y, tz: c.z, fov: 40 }; }
+    else { // sem câmera no arquivo: enquadra o MIOLO do cenário (planos gigantes de céu/chão/fundo não contam), de frente, um pouco de cima
+      const tudo = new T.Box3().setFromObject(sc), maxT = Math.max(...tudo.getSize(new T.Vector3()).toArray()), miolo = new T.Box3();
+      sc.traverse(o => { if (!o.isMesh) return; const b = new T.Box3().setFromObject(o); if (Math.max(...b.getSize(new T.Vector3()).toArray()) < maxT * .2) miolo.union(b); });
+      const bx = miolo.isEmpty() ? tudo : miolo, c = bx.getCenter(new T.Vector3()), r = Math.max(1, bx.getSize(new T.Vector3()).length() / 2);
+      cam0 = { px: c.x, py: c.y + r * .35, pz: c.z + r * 1.6, tx: c.x, ty: c.y, tz: c.z, fov: 40 }; }
     for (const c of ['px', 'py', 'pz', 'tx', 'ty', 'tz', 'fov']) cam0[c] = round(cam0[c], 3);
-    return { sc, cam0, temLuz: luzes > 0, cam: new T.PerspectiveCamera(cam0.fov, 16 / 9, .05, 5000) };
+    const diag = Math.max(10, new T.Box3().setFromObject(sc).getSize(new T.Vector3()).length()); // a visão alcança o cenário inteiro, qualquer escala
+    return { sc, cam0, temLuz: luzes > 0, cam: new T.PerspectiveCamera(cam0.fov, 16 / 9, Math.max(.01, diag / 20000), diag * 3) };
   },
   async garante(P) { const ks = this.arqs(P); if (!ks.length) return; await this.three(); await Promise.all(ks.map(k => this.cenas.get(k) || this._carregando.get(k) || (this.cena(k), this._carregando.get(k)))); },
   arqs(P) { return P ? [...new Set(Modelo.todos(P).filter(n => n.tipo === 'cena3d' && n.arq).map(n => n.arq))] : []; },
@@ -65,7 +80,7 @@ const Cena3D = {
     const P = App.P; if (!P) return UI.toast('Abra uma animação para pôr o cenário 3D.', { kind: 'warn' });
     if (/\.blend\d?$/i.test(f.name)) return UI.toast('O navegador não abre arquivos .blend. <b>Exporte do Blender como .glb</b>: Arquivo › Exportar › glTF 2.0 (.glb), e solte o .glb aqui.', { kind: 'warn', time: 9000 });
     if (/\.gltf$/i.test(f.name)) { const t = await f.text().catch(() => ''); if (/"uri"\s*:\s*"(?!data:)/.test(t)) return UI.toast('Esse .gltf usa arquivos separados (.bin e texturas). <b>Exporte do Blender como .glb</b> (um arquivo só) e solte de novo.', { kind: 'warn', time: 9000 }); }
-    if (f.size > this.LIMITE) return UI.toast(`Esse cenário tem ${(f.size / 1048576).toFixed(1)} MB. O limite é ${this.LIMITE / 1048576} MB: no Blender, diminua as texturas ou use Exportar › glTF com compressão e tente de novo.`, { kind: 'warn', time: 9000 });
+    if (f.size > this.LIMITE) return UI.toast(`Esse cenário tem ${(f.size / 1048576).toFixed(1)} MB. O limite é ${this.LIMITE / 1048576} MB. No Blender, em Arquivo › Exportar › glTF, ligue <b>Compressão</b> (Draco) e escolha imagens em <b>WebP</b>: costuma cair para menos de um quarto.`, { kind: 'warn', time: 9000 });
     const t = UI.toast('<span class="spin-dot"></span> Abrindo o cenário 3D…', { time: 60000 });
     try {
       const id = await Arq.guardar(new Blob([await f.arrayBuffer()], { type: 'model/gltf-binary' }), 'c3d' + uid('').replace(/[^a-z0-9]/gi, '').toLowerCase() + '.glb');
@@ -74,6 +89,11 @@ const Cena3D = {
       const n = Modelo.novoNo('forma', { nome: ('Cenário 3D · ' + f.name.replace(/\.[^.]+$/, '')).slice(0, 48) }); n.tipo = 'cena3d'; delete n.forma; n.arq = id; n.w = P.w; n.h = P.h; n.cam0 = c.cam0; n.ceu = '#c9d3df';
       n.de = q; n.chaves = { [q]: { x: Math.round(cam.x), y: Math.round(cam.y), r: 0, s: round(1 / z * 1.01, 3), sx: 1, op: 1 } }; n.cenario = true;
       const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n);
+      // ANIMAÇÃO NA NUVEM: o .glb vai para a nuvem da animação ANTES do commit. Assim o ao vivo (sala em tempo real) vê que o arquivo
+      // já está na nuvem e não tenta mandá-lo pela sala, que não aguenta arquivos de MB e perdia a camada nova (teste da rua, 5,8 MB, 13/11).
+      if (typeof NuvemAnim !== 'undefined' && NuvemAnim.vai?.(P)) { t.remove();
+        const ok = await (typeof Ocupado !== 'undefined' && Ocupado.nuvem ? Ocupado.nuvem('Mandando o cenário 3D para a nuvem', () => NuvemAnim.salvar(P, x => Ocupado.anda?.(x))) : NuvemAnim.salvar(P)).catch(() => false);
+        if (!ok) { P.raiz.splice(P.raiz.indexOf(n), 1); return UI.toast('O cenário 3D não foi para a nuvem agora, então não entrou na animação. Tente de novo em instantes.', { kind: 'err', time: 8000 }); } }
       App.sel = n.id; App.commit('Cenário 3D'); t.remove();
       UI.toast(`Cenário 3D <b>${esc(n.nome)}</b> no fundo${c.temLuz ? ', com a luz do arquivo' : ', com uma luz padrão (o arquivo não tinha luz)'}. A câmera 3D fica em Propriedades.`, { kind: 'ok', time: 7000 });
     } catch (e) { t.remove(); UI.toast('Não abri o cenário 3D: ' + esc(e.message || String(e)) + '. <b>Exporte do Blender como .glb</b> e tente de novo.', { kind: 'err', time: 9000 }); }
@@ -101,19 +121,83 @@ const Cena3D = {
       c.appendChild(a);
       { const g4 = h('<div class="pr-num-grade"></div>'); g4.appendChild(Lado.num('Luz', Math.round((n.luz ?? 1) * 100), { passo: 5, min: 0, max: 400, dec: 0, unid: '%' }, v => { n.luz = v / 100; App.pinta(); }, () => st('Luz do cenário 3D'))); c.appendChild(g4); }
       const cor = Lado.cor ? Lado.cor('Céu', n.ceu || '#c9d3df', v => { n.ceu = v; App.pinta(); }, () => st('Céu do cenário 3D')) : null; if (cor) c.appendChild(cor);
-      c.appendChild(h(`<div class="pr-info c3d-dica">As chaves da câmera usam o mesmo jeito de chegar das outras chaves (botão direito na chave, na timeline).</div>`));
+      c.appendChild(h(`<div class="pr-info c3d-dica">No palco: <b>Alt + arrastar</b> gira, <b>Alt + Shift + arrastar</b> anda, <b>Alt + rodinha</b> aproxima. Cada mudança vira chave neste quadro, com o mesmo jeito de chegar das outras chaves.</div>`));
     }, true));
+  },
+  // ---------- PERSONAGEM PRESO NO CENÁRIO 3D (n.ancora3d = { cena, x, y, z, cam }) ----------
+  // O personagem continua 2D, mas fica plantado num ponto do chão do 3D: a cada quadro o ponto é projetado pela câmera daquele quadro
+  // e o personagem anda e muda de tamanho junto com o cenário (paralaxe). Com a câmera de quando foi preso, ele fica exatamente onde estava.
+  cenaDe(P, n) { const id = n.ancora3d?.cena; return id ? Modelo.achar(P, id)?.no : null; },
+  cenaNoQuadro(P, q) { const L = Modelo.todos(P).filter(x => x.tipo === 'cena3d'); return L.find(x => x.vis !== false && (x.de || 0) <= q && Modelo.fimNo(P, x) >= q) || L[0] || null; },
+  projeta(P, cena, q, cm, pt) {
+    const T = this.T; if (!T) return null; const cam = this._pcam || (this._pcam = new T.PerspectiveCamera());
+    cam.fov = Math.max(5, Math.min(120, cm.fov)); cam.aspect = (cena.w || P.w) / (cena.h || P.h); cam.near = .001; cam.far = 1e7;
+    cam.position.set(cm.px, cm.py, cm.pz); cam.lookAt(cm.tx, cm.ty, cm.tz); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
+    const v = new T.Vector3(pt.x, pt.y, pt.z), d = -v.clone().applyMatrix4(cam.matrixWorldInverse).z; if (!(d > 1e-4)) return null; v.project(cam);
+    const w = cena.w || P.w, h = cena.h || P.h, M = Render.matNo(new DOMMatrix(), Modelo.transf(cena, q)), r = M.transformPoint(new DOMPoint(v.x * w / 2, -v.y * h / 2));
+    return { x: r.x, y: r.y, d };
+  },
+  // matriz que leva o personagem da câmera de quando foi preso para a câmera do quadro q (null = não mexe)
+  ajuste(P, n, q) {
+    const a = n.ancora3d, cena = a && this.cenaDe(P, n); if (!cena || !this.T || !this.cenas.get(cena.arq)) return null;
+    const pq = this.projeta(P, cena, q, this.camEm(cena, q), a), pr = this.projeta(P, cena, q, a.cam, a); if (!pq || !pr) return null;
+    const k = Math.max(.02, Math.min(50, pr.d / pq.d)); return new DOMMatrix().translate(pq.x, pq.y).scale(k, k).translate(-pr.x, -pr.y);
+  },
+  // prende no chão do 3D: raio da câmera até os pés (meio de baixo da caixa) → primeiro ponto do cenário; sem nada, o plano do chão (y mais baixo)
+  prender(n) {
+    const P = App.P, q = App.q, cena = this.cenaNoQuadro(P, q), c = cena && this.cenas.get(cena.arq); if (!cena || !c || !this.T) return UI.toast('Ponha um cenário 3D na animação antes.', { kind: 'warn' });
+    if (n.ancora3d) { delete n.ancora3d; } // prender de novo: parte da posição de agora, sem o ajuste antigo
+    const cx = Render.caixas(P, q).find(x => x.no === n); if (!cx) return UI.toast('Escolha um personagem que aparece neste quadro.', { kind: 'warn' });
+    const b = cx.local, pe = cx.m.transformPoint(new DOMPoint(b.x + b.w / 2, b.y + b.h)), l = Render.matNo(new DOMMatrix(), Modelo.transf(cena, q)).inverse().transformPoint(pe);
+    const T = this.T, w = cena.w || P.w, h = cena.h || P.h, cm = this.camEm(cena, q), cam = new T.PerspectiveCamera(cm.fov, w / h, .001, 1e7);
+    cam.position.set(cm.px, cm.py, cm.pz); cam.lookAt(cm.tx, cm.ty, cm.tz); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
+    const rc = new T.Raycaster(); rc.setFromCamera(new T.Vector2(l.x / (w / 2), -l.y / (h / 2)), cam);
+    let pt = rc.intersectObject(c.sc, true).find(i => i.object.isMesh && i.object.visible)?.point;
+    if (!pt) { const y0 = new T.Box3().setFromObject(c.sc).min.y, pl = new T.Plane(new T.Vector3(0, 1, 0), -y0), o = new T.Vector3(); pt = rc.ray.intersectPlane(pl, o) ? o : null; }
+    if (!pt) return UI.toast('Não achei o chão do cenário nesse ponto. Ponha os pés do personagem em cima do chão e tente de novo.', { kind: 'warn', time: 7000 });
+    n.ancora3d = { cena: cena.id, x: round(pt.x, 3), y: round(pt.y, 3), z: round(pt.z, 3), cam: { ...cm } }; App.commit('Prender no cenário 3D');
+    UI.toast(`<b>${esc(n.nome)}</b> está preso no cenário 3D: anda e muda de tamanho junto com a câmera.`, { kind: 'ok' });
+  },
+  soltar(n) { if (!n.ancora3d) return; delete n.ancora3d; App.commit('Soltar do cenário 3D'); },
+  painelAncora(el, n) {
+    const P = App.P; if (!Modelo.todos(P).some(x => x.tipo === 'cena3d')) return; const preso = !!n.ancora3d;
+    el.appendChild(Lado.secao('p-anc3d', 'Cenário 3D', preso ? 'preso' : '', c => {
+      c.appendChild(h(`<div class="pr-info">${preso ? 'Preso num ponto do chão do cenário 3D: quando a câmera 3D anda, ele anda junto e muda de tamanho.' : 'Solto: fica parado na tela quando a câmera 3D anda. Prenda para ele ficar no lugar dentro do cenário (pés no chão).'}</div>`));
+      const a = h(`<div class="pr-acoes"><button class="btn sm ${preso ? '' : 'on'}" data-p>${ic('paisagem', 12)} ${preso ? 'Prender de novo aqui' : 'Prender no cenário 3D'}</button>${preso ? `<button class="btn sm" data-s>${ic('x', 12)} Soltar</button>` : ''}</div>`);
+      $('[data-p]', a).onclick = () => this.prender(n); $('[data-s]', a)?.addEventListener('click', () => this.soltar(n)); c.appendChild(a);
+    }, true));
+  },
+  // ---------- CÂMERA 3D COM O MOUSE NO PALCO (cenário 3D escolhido): Alt+arrastar gira, Alt+Shift+arrastar anda, Alt+rodinha aproxima ----------
+  ligaMouse() {
+    const cv = $('#palco-cv'); if (!cv || this._mouse) return; this._mouse = true;
+    const alvoNo = e => { const n = App.noSel?.(); return e.altKey && n?.tipo === 'cena3d' && this.T && this.cenas.get(n.arq) ? n : null; };
+    cv.addEventListener('pointerdown', e => {
+      const n = alvoNo(e); if (!n) return; e.preventDefault(); e.stopImmediatePropagation(); try { cv.setPointerCapture(e.pointerId); } catch { }
+      const q = App.q, c0 = this.camEm(n, q), x0 = e.clientX, y0 = e.clientY, anda = e.shiftKey, T = this.T;
+      const P0 = new T.Vector3(c0.px, c0.py, c0.pz), A0 = new T.Vector3(c0.tx, c0.ty, c0.tz), dist = P0.distanceTo(A0);
+      const mv = ev => { const dx = ev.clientX - x0, dy = ev.clientY - y0;
+        if (anda) { const fr = A0.clone().sub(P0).normalize(), dir = new T.Vector3().crossVectors(fr, new T.Vector3(0, 1, 0)).normalize(), cima = new T.Vector3().crossVectors(dir, fr).normalize(), k = dist * .0015;
+          const d = dir.multiplyScalar(-dx * k).add(cima.multiplyScalar(dy * k)); this.poeCam(n, q, { px: P0.x + d.x, py: P0.y + d.y, pz: P0.z + d.z, tx: A0.x + d.x, ty: A0.y + d.y, tz: A0.z + d.z }); }
+        else { const off = P0.clone().sub(A0), sp = new T.Spherical().setFromVector3(off); sp.theta -= dx * .006; sp.phi = Math.max(.05, Math.min(Math.PI - .05, sp.phi - dy * .006)); off.setFromSpherical(sp);
+          this.poeCam(n, q, { px: A0.x + off.x, py: A0.y + off.y, pz: A0.z + off.z }); }
+        App.pinta(); };
+      const up = () => { cv.removeEventListener('pointermove', mv, true); cv.removeEventListener('pointerup', up, true); App.commit(anda ? 'Andar com a câmera 3D' : 'Girar a câmera 3D', { semArvore: true }); };
+      cv.addEventListener('pointermove', mv, true); cv.addEventListener('pointerup', up, true);
+    }, true);
+    cv.addEventListener('wheel', e => { const n = alvoNo(e); if (!n) return; e.preventDefault(); e.stopImmediatePropagation(); const q = App.q, c = this.camEm(n, q), f = Math.exp(e.deltaY * .0012);
+      this.poeCam(n, q, { px: c.tx + (c.px - c.tx) * f, py: c.ty + (c.py - c.ty) * f, pz: c.tz + (c.pz - c.tz) * f }); App.pinta(); clearTimeout(this._rodaT); this._rodaT = setTimeout(() => App.commit('Aproximar a câmera 3D', { semArvore: true }), 400); }, { capture: true, passive: false });
   },
   liga() {
     if (this._ok || typeof App === 'undefined') return; this._ok = true;
     try { TIPO_IC.cena3d = 'paisagem'; } catch { }
     // os arquivos da animação (nuvem, .animador, tamanho) também levam o .glb
     if (typeof Toon !== 'undefined') { const ti = Toon.ids; Toon.ids = function (P) { return [...new Set([...ti.call(this, P), ...Cena3D.arqs(P)])]; }; }
+    this.ligaMouse(); setTimeout(() => this.ligaMouse(), 2000);
     // abrir: já carrega o 3D; exportar: espera o 3D antes do primeiro quadro (o MP4 igual à prévia)
     const ab = App.abrir; App.abrir = async function (...x) { const r = await ab.apply(this, x); if (Cena3D.arqs(App.P).length) await Cena3D.garante(App.P).catch(e => console.warn(e)); return r; };
     if (typeof Exportar !== 'undefined') for (const f of ['mp4', 'png', 'quadros']) if (typeof Exportar[f] === 'function') { const o = Exportar[f]; Exportar[f] = async function (...x) { await Cena3D.garante(App.P).catch(() => { }); return o.apply(this, x); }; }
     // Propriedades: a seção da câmera 3D
-    if (typeof Lado !== 'undefined') { const pp = Lado.props; Lado.props = function (el, ...x) { const r = pp.call(this, el, ...x); try { const n = App.noSel?.(); if (n?.tipo === 'cena3d') Cena3D.painel(el, n); } catch (e) { console.warn('[cena 3D painel]', e); } return r; }; }
+    if (typeof Lado !== 'undefined') { const pp = Lado.props; Lado.props = function (el, ...x) { const r = pp.call(this, el, ...x); try { const n = App.noSel?.(); if (n?.tipo === 'cena3d') Cena3D.painel(el, n); else if (n && ['personagem', 'imagem', 'pasta'].includes(n.tipo)) Cena3D.painelAncora(el, n); } catch (e) { console.warn('[cena 3D painel]', e); } return r; }; }
     // menu "Pôr um cenário": item novo
     const mc = App.menuCenario; App.menuCenario = function (x, y) { const ctx0 = UI.ctx; UI.ctx = (a, b, itens) => { UI.ctx = ctx0; return ctx0(a, b, [...itens, '-', { label: 'Cenário 3D do Blender (.glb)…', icon: 'paisagem', action: () => Cena3D.escolher() }]); }; try { return mc.call(this, x, y); } finally { UI.ctx = ctx0; } };
     // soltar .glb / .gltf / .blend no Animador

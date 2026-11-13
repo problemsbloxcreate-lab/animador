@@ -10,7 +10,7 @@ const Render = {
     const vai = (lista, m, alfa) => {
       for (let i = lista.length - 1; i >= 0; i--) {
         const n = lista[i]; if (n.vis === false || !Modelo.aparece(P, n, q)) continue;
-        const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
+        const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } if (n.ancora3d && typeof Cena3D !== 'undefined') { const a3 = Cena3D.ajuste(P, n, q); if (a3) mm = a3.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
         if (n.filhos) vai(n.filhos, mm, a); else fn(n, mm, a, t);
       }
     };
@@ -104,7 +104,7 @@ const Render = {
   recorte(n) { const r = n.recorte; return r && r.w > 0 && r.h > 0 ? r : null; },
   // matriz do nó na tela (sem a base): posição/giro/escala, trêmulo e grudada numa parte (controles). t = Modelo.transfVis(n, q)
   matVis(P, n, q, m, t = Modelo.transfVis(n, q)) {
-    let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
+    let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } if (n.ancora3d && typeof Cena3D !== 'undefined') { const a3 = Cena3D.ajuste(P, n, q); if (a3) mm = a3.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
     return mm;
   },
   // desenha um nó (pasta: os filhos). Devolve true se desenhou algo
