@@ -128,6 +128,9 @@ const Render = {
         ctx.setTransform(base.multiply(it.m)); const x = -px + (it.img.ajuste?.x || 0), y = -py + (it.img.ajuste?.y || 0);
         if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, this.nitido(bm, it.img.w, it.img.h, base.multiply(it.m)), x, y, it.img.w, it.img.h); else ctx.drawImage(bm, x, y, it.img.w, it.img.h);
       }
+    } else if (n.tipo === 'cena3d') { // CENÁRIO 3D (js/cena3d.js): renderizado no tamanho da tela (nítido) e posto como imagem
+      const M = base.multiply(mm), k = Math.hypot(M.a, M.b) || 1, w = n.w || P.w, hh = n.h || P.h, cv = typeof Cena3D !== 'undefined' ? Cena3D.quadro(P, n, q, w * k, hh * k) : null;
+      if (cv) { ctx.setTransform(M); ctx.drawImage(cv, -w / 2, -hh / 2, w, hh); }
     } else if (n.tipo === 'imagem') {
       const bm = this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(mm)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, this.nitido(bm, bm.width, bm.height, base.multiply(mm)), -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
     } else if (n.tipo === 'texto' || n.tipo === 'forma') {
@@ -295,6 +298,7 @@ const Render = {
       let b;
       if (n.tipo === 'personagem') { const def = P.personagens[n.ref]; if (!def) return; const est = Modelo.estadoPersonagem(n, q), dv = Modelo.naVista(def, est.vista); b = Modelo.caixaPersonagem(dv, Modelo.partesNoEstado(dv, est)); }
       else if (n.tipo === 'imagem') { const bm = this.bm(n.arq); const w = bm?.width || 200, h = bm?.height || 200; b = { x: -w / 2, y: -h / 2, w, h }; }
+      else if (n.tipo === 'cena3d') { const w = n.w || P.w, h = n.h || P.h; b = { x: -w / 2, y: -h / 2, w, h }; }
       else if (n.tipo === 'forma') b = { x: -(n.w || 100) / 2, y: -(n.h || 100) / 2, w: n.w || 100, h: n.h || 100 };
       else if (n.tipo === 'texto') { const c = this._med || (this._med = new OffscreenCanvas(4, 4).getContext('2d')); c.font = `${n.negrito ? '800 ' : ''}${n.tam || 72}px ${n.fonte || 'Segoe UI'}`; const ls = String(n.texto || '').split('\n'); const w = Math.max(...ls.map(l => c.measureText(l).width)) + 10, h = ls.length * (n.tam || 72) * 1.15; b = { x: -w / 2, y: -h / 2, w, h }; }
       if (!b) return;

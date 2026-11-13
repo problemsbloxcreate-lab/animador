@@ -146,7 +146,11 @@ const TLP = {
     const novosV = P.raiz.filter(n => !(+n.trilha)), novosA = aud.filter(a => !(+a.trilha)); if (!novosV.length && !novosA.length) return false;
     const encaixa = (todos, novos, fim) => { const oc = {}; for (const x of todos) if (+x.trilha) (oc[+x.trilha] ||= []).push([x.de || 0, fim(x)]);
       for (const x of novos.slice().reverse()) { const de = x.de || 0, f = fim(x); let t = 1; while ((oc[t] || []).some(([a, b]) => a <= f && b >= de)) t++; x.trilha = t; (oc[t] ||= []).push([de, f]); } };
-    encaixa(P.raiz, novosV, n => Modelo.fimNo(P, n)); encaixa(aud, novosA, a => Folha.fimAudio(P, a));
+    // CENÁRIO novo (imagem de cenário ou cenário 3D) vai para TRÁS: logo acima do fundo/cenários que ele cruza, e o resto sobe uma trilha
+    const fim = n => Modelo.fimNo(P, n), cruza = (a, b) => (a.de || 0) <= fim(b) && (b.de || 0) <= fim(a);
+    for (const n of novosV.filter(x => x.cenario)) { let t = 1; for (const x of P.raiz) if (x !== n && +x.trilha && (x.cenario || x.fundoPadrao) && cruza(x, n)) t = Math.max(t, +x.trilha + 1);
+      for (const x of P.raiz) if (x !== n && +x.trilha >= t) x.trilha = +x.trilha + 1; n.trilha = t; }
+    encaixa(P.raiz, novosV.filter(x => !x.cenario), fim); encaixa(aud, novosA, a => Folha.fimAudio(P, a));
     if (novosV.length) this.ordena(); return true;
   },
   // COMPACTAR TRILHAS (projetos que já existem): refaz as trilhas pela ordem do palco, no mínimo de trilhas que NÃO muda o que aparece

@@ -220,3 +220,8 @@ html.cel .exp-metro .exp-seg button{height:28px;border-radius:var(--raio-p)!impo
 html.cel .exp-metro .exp-seg button:hover:not(:disabled){outline:0;background:var(--fundo-4)}
 html.cel .exp-metro .exp-seg button.on{background:var(--fundo-4);color:var(--texto);box-shadow:var(--sombra-1)}
 html.cel .exp-metro .exp-quadros input{border-radius:var(--raio-p)}
+
+/* CENÁRIO 3D (js/cena3d.js): câmera 3D no painel, mesmo visual do resto */
+html.cel #editor .c3d-t{font:600 11px var(--fonte);color:var(--texto-2);margin:8px 0 4px}
+html.cel #editor .c3d-grade{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+html.cel #editor .c3d-dica{color:var(--texto-3);font-size:11px;margin-top:6px}
