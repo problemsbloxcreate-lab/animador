@@ -143,7 +143,7 @@ const Cena3D = {
   // matriz que leva o personagem da câmera de quando foi preso para a câmera do quadro q (null = não mexe)
   ajuste(P, n, q) {
     const a = n.ancora3d, cena = a && this.cenaDe(P, n); if (!cena || !this.T || !this.cenas.get(cena.arq) || !Modelo.aparece(P, cena, q)) return null; // trecho sem esse 3D: o personagem fica como está
-    const pq = this.projeta(P, cena, q, this.camEm(cena, q), a), pr = this.projeta(P, cena, q, a.cam, a); if (!pq || !pr) return null;
+    const pq = this.projeta(P, cena, q, this.camEm(cena, q), a), pr = this.projeta(P, cena, q, a.cam, a.ini || a); if (!pq || !pr) return null; // pr = onde estavam os pés quando foi preso (a.ini guarda esse ponto quando ele é movido no 3D): assim mover no 3D move também no vídeo
     const k = Math.max(.02, Math.min(50, pr.d / pq.d * (a.s || 1))), M = new DOMMatrix().translate(pq.x, pq.y); if (a.r) M.rotateSelf(a.r); return M.scale(k, k).translate(-pr.x, -pr.y); // r e s: G/R/S da vista 3D (giro no plano e tamanho)
   },
   // prende no chão do 3D: raio da câmera até os pés (meio de baixo da caixa) → primeiro ponto do cenário; sem nada, o plano do chão (y mais baixo)
@@ -167,7 +167,7 @@ const Cena3D = {
   limpa(P) { const usa = new Set(this.arqs(P)); for (const [k, c] of [...this.cenas]) { if (usa.has(k)) continue; c.sc.traverse(o => { o.geometry?.dispose?.(); for (const m of [].concat(o.material || [])) { for (const v of Object.values(m)) if (v?.isTexture) v.dispose(); m.dispose?.(); } }); this.cenas.delete(k); } this._ult = null; },
   soltar(n) { if (!n.ancora3d) return; delete n.ancora3d; App.commit('Soltar do cenário 3D'); },
   painelAncora(el, n) {
-    const P = App.P; if (!Modelo.todos(P).some(x => x.tipo === 'cena3d')) return; const preso = !!n.ancora3d;
+    const P = App.P; if (!Modelo.todos(P).some(x => x.tipo === 'cena3d') || n.cenario || n.tipo === 'cena3d' || n.fundoPadrao || Modelo.ancestrais(P, n.id).some(x => x.cenario)) return; // cenário não se prende em cenário const preso = !!n.ancora3d;
     el.appendChild(Lado.secao('p-anc3d', 'Cenário 3D', preso ? 'preso' : '', c => {
       c.appendChild(h(`<div class="pr-info">${preso ? 'Preso num ponto do chão do cenário 3D: quando a câmera 3D anda, ele anda junto e muda de tamanho.' : 'Solto: fica parado na tela quando a câmera 3D anda. Prenda para ele ficar no lugar dentro do cenário (pés no chão).'}</div>`));
       const a = h(`<div class="pr-acoes"><button class="btn sm ${preso ? '' : 'on'}" data-p>${ic('paisagem', 12)} ${preso ? 'Prender de novo aqui' : 'Prender no cenário 3D'}</button>${preso ? `<button class="btn sm" data-s>${ic('x', 12)} Soltar</button>` : ''}</div>`);
