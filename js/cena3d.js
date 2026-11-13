@@ -80,7 +80,7 @@ const Cena3D = {
   // ---------- pôr um cenário 3D na animação ----------
   async importar(f) {
     const P = App.P; if (!P) return UI.toast('Abra uma animação para pôr o cenário 3D.', { kind: 'warn' });
-    if (/\.blend\d?$/i.test(f.name)) return UI.toast('O navegador não abre arquivos .blend. <b>Exporte do Blender como .glb</b>: Arquivo › Exportar › glTF 2.0 (.glb), e solte o .glb aqui.', { kind: 'warn', time: 9000 });
+    if (/\.blend\d?$/i.test(f.name)) return this.converterNaPonte(f); // .blend: a ponte do Blender converte (sem ponte: explica como ligar)
     if (/\.gltf$/i.test(f.name)) { const t = await f.text().catch(() => ''); if (/"uri"\s*:\s*"(?!data:)/.test(t)) return UI.toast('Esse .gltf usa arquivos separados (.bin e texturas). <b>Exporte do Blender como .glb</b> (um arquivo só) e solte de novo.', { kind: 'warn', time: 9000 }); }
     if (f.size > this.LIMITE) return UI.toast(`Esse cenário tem ${(f.size / 1048576).toFixed(1)} MB. O limite é ${this.LIMITE / 1048576} MB. No Blender, em Arquivo › Exportar › glTF, ligue <b>Compressão</b> (Draco) e escolha imagens em <b>WebP</b>: costuma cair para menos de um quarto.`, { kind: 'warn', time: 9000 });
     const t = UI.toast('<span class="spin-dot"></span> Abrindo o cenário 3D…', { time: 60000 });
@@ -100,7 +100,7 @@ const Cena3D = {
       UI.toast(`Cenário 3D <b>${esc(n.nome)}</b> no fundo${c.temLuz ? ', com a luz do arquivo' : ', com uma luz padrão (o arquivo não tinha luz)'}. A câmera 3D fica em Propriedades.`, { kind: 'ok', time: 7000 });
     } catch (e) { t.remove(); UI.toast('Não abri o cenário 3D: ' + esc(e.message || String(e)) + '. <b>Exporte do Blender como .glb</b> e tente de novo.', { kind: 'err', time: 9000 }); }
   },
-  async escolher() { const [f] = await pickFiles('.glb,.gltf,.blend', false); if (f) this.importar(f); },
+  async escolher() { const [f] = await pickFiles('.glb,.gltf,.blend', false); if (f) this.importar(f); }, // .blend passa pela ponte
   // ---------- câmera 3D: chave no quadro de agora ----------
   poeCam(n, q, mud) { const atual = this.camEm(n, q); Modelo.poeTransf(n, q, {}); const k = Modelo.chave(n, q); k.cam = { ...atual, ...(k.cam || {}), ...mud }; for (const c of this.CAMPOS) k.cam[c] = round(k.cam[c], 3); },
   tiraCam(n, q) { const k = n.chaves?.[q]; if (!k?.cam) return false; delete k.cam; return true; },
@@ -213,6 +213,33 @@ const Cena3D = {
     n.de = q; n.chaves = { [q]: { x: Math.round(cam.x), y: Math.round(cam.y), r: 0, s: round(1 / z * 1.01, 3), sx: 1, op: 1 } }; n.cenario = true;
     const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); return n;
   },
+  // ---------- .blend SOLTO → a PONTE DO BLENDER (neste computador) converte em .glb e o cenário entra no fundo ----------
+  // A ponte (Documentos/Problems/cenarios-problems/LIGAR-PONTE.bat, http://127.0.0.1:8810, versão 2+) recebe o .blend, escolhe o conversor
+  // (ruas grandes: cor calculada; cenários pequenos: cor assada em imagem) e devolve o .glb. Sem a ponte ligada: explica como ligar.
+  PONTE: 'http://127.0.0.1:8810',
+  async pontePronta() { try { const r = await fetch(this.PONTE + '/estado', { cache: 'no-store' }); if (!r.ok) return null; const j = await r.json(); return j.versao >= 2 ? j : { velha: true }; } catch { return null; } },
+  async converterNaPonte(f) {
+    const est = await this.pontePronta();
+    if (!est) return UI.modal({ title: 'Ligar a ponte do Blender', width: 440, semMetro: true, buttons: [{ label: 'Entendi', kind: 'primary', value: true }],
+      body: `<div class="lg-txt"><p>Para usar um <b>.blend</b> direto, o Blender deste computador converte o cenário uma vez.</p><p>Dê dois cliques em <b>LIGAR-PONTE.bat</b> (pasta <b>Documentos › Problems › cenarios-problems</b>), deixe a janela aberta e solte o .blend de novo.</p><p>Sem a ponte, exporte do Blender como <b>.glb</b> (Arquivo › Exportar › glTF).</p></div>` });
+    if (est.velha) return UI.toast('A ponte do Blender está ligada, mas é a versão antiga, que não converte. Feche a janela da ponte e abra o LIGAR-PONTE.bat de novo.', { kind: 'warn', time: 9000 });
+    const nome = f.name.replace(/\.blend\d?$/i, '');
+    const fim = typeof NuvemTela !== 'undefined' && !NuvemTela.el ? (NuvemTela.inicio(nome, 'an', { titulo: 'Convertendo o cenário no Blender', vidro: true, indef: true }), true) : false;
+    const passo = t => { try { NuvemTela.passo?.(.5, t); } catch { } };
+    try {
+      passo('Mandando o .blend para o Blender…');
+      const r = await fetch(this.PONTE + '/converter?nome=' + encodeURIComponent(nome), { method: 'POST', body: f, headers: { 'Content-Type': 'application/octet-stream' } }); const j = await r.json();
+      if (!r.ok || !j.id) throw new Error(j.erro || 'a ponte não aceitou o arquivo');
+      let p = {}; const t0 = Date.now();
+      while (Date.now() - t0 < 20 * 60 * 1000) { await new Promise(ok => setTimeout(ok, 1500)); p = await fetch(this.PONTE + '/trabalho/' + j.id, { cache: 'no-store' }).then(x => x.json()).catch(() => ({}));
+        if (p.estado === 'pronto' || p.estado === 'erro') break;
+        passo(p.estado === 'fila' ? 'Esperando o Blender terminar outro pedido…' : `Convertendo no Blender${p.modo === 'assar' ? ' (assando as cores, ~1 min)' : ''}… ${Math.round((Date.now() - t0) / 1000)} s`); }
+      if (p.estado !== 'pronto') throw new Error(p.erro || 'demorou demais');
+      passo('Trazendo o cenário…'); const b = await fetch(`${this.PONTE}/arquivo/${j.id}/saida.glb`).then(x => { if (!x.ok) throw new Error('o .glb não voltou'); return x.blob(); });
+      if (fim) { NuvemTela.fim(true); }
+      await this.importar(new File([b], nome + '.glb', { type: 'model/gltf-binary' }));
+    } catch (e) { if (fim) NuvemTela.fim(false); UI.toast('Não converti o .blend: ' + esc(e.message || String(e)), { kind: 'err', time: 9000 }); }
+  },
   liga() {
     if (this._ok || typeof App === 'undefined') return; this._ok = true;
     try { TIPO_IC.cena3d = 'paisagem'; } catch { }
@@ -226,7 +253,7 @@ const Cena3D = {
     // Propriedades: a seção da câmera 3D
     if (typeof Lado !== 'undefined') { const pp = Lado.props; Lado.props = function (el, ...x) { const r = pp.call(this, el, ...x); try { const n = App.noSel?.(); if (n?.tipo === 'cena3d') Cena3D.painel(el, n); else if (n && ['personagem', 'imagem', 'pasta'].includes(n.tipo)) Cena3D.painelAncora(el, n); } catch (e) { console.warn('[cena 3D painel]', e); } return r; }; }
     // menu "Pôr um cenário": item novo
-    const mc = App.menuCenario; App.menuCenario = function (x, y) { const ctx0 = UI.ctx; UI.ctx = (a, b, itens) => { UI.ctx = ctx0; return ctx0(a, b, [...itens, '-', { label: 'Cenários 3D da casa…', icon: 'paisagem', action: () => Cena3D.menuCasa(a + 8, b + 8) }, { label: 'Cenário 3D do Blender (.glb)…', icon: 'paisagem', action: () => Cena3D.escolher() }]); }; try { return mc.call(this, x, y); } finally { UI.ctx = ctx0; } };
+    const mc = App.menuCenario; App.menuCenario = function (x, y) { const ctx0 = UI.ctx; UI.ctx = (a, b, itens) => { UI.ctx = ctx0; return ctx0(a, b, [...itens, '-', { label: 'Cenários 3D da casa…', icon: 'paisagem', action: () => Cena3D.menuCasa(a + 8, b + 8) }, { label: 'Cenário 3D do Blender (.blend ou .glb)…', icon: 'paisagem', action: () => Cena3D.escolher() }]); }; try { return mc.call(this, x, y); } finally { UI.ctx = ctx0; } };
     // soltar .glb / .gltf / .blend no Animador
     document.addEventListener('drop', e => { const f = [...(e.dataTransfer?.files || [])].find(x => /\.(glb|gltf|blend\d?)$/i.test(x.name)); if (!f) return; if ($('#editor')?.classList.contains('hidden')) return; e.preventDefault(); e.stopPropagation(); this.importar(f); }, true);
   },
