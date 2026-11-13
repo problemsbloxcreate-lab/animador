@@ -6,13 +6,15 @@
      2. manda para a ponte (POST /render), que renderiza um pedido por vez em segundo plano, direto em vídeo;
      3. acompanha o andamento (GET /trabalho/<id>) e, pronto, baixa fundo.mp4 (+ frente.webm com transparência, pólen da frente)
         e põe com CenarioVideo.adicionar: o fundo NA FRENTE dos cenários 2D que já existem (convenção de cenarios.js/cenlib.js)
-        e atrás do resto; a frente no topo. Nada é apagado: as camadas antigas continuam lá (dá para esconder ou apagar à mão).
+        e atrás do resto; a frente no topo. Opções (ligadas por padrão): visual A2 (Efeitos.usarVisual) e luz de borda do EP2 em todo
+        personagem que ainda não tem (LuzBorda.liga com LUZ_BORDA). Nada é apagado: as camadas antigas continuam lá (dá para esconder ou apagar à mão).
    A câmera é copiada NA HORA do pedido: mexeu na câmera ou no tempo do trecho, renderiza de novo.
    Por script: await PonteBlender.renderizar({ cenario: 'rua-escola', de: 0, ate: 704, ancora: 'Casa do Problems', escala: 100 })
    (com P: outro projeto, não aberto; salvar: false = não grava no banco; proxy: false = sem a cópia leve) */
 'use strict';
 const PonteBlender = {
   URL: 'http://127.0.0.1:8810',
+  LUZ_BORDA: { dir: 135, cor: [255, 238, 180], largura: 7, suave: 1.6, forca: 0.85, aquece: true }, // a do EP2 (sol de cima à esquerda, quente)
 
   async api(caminho, o = {}) {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), o.espera || 4000);
@@ -49,14 +51,14 @@ const PonteBlender = {
         <label style="flex:1">Até o quadro<br><input data-ate type="number" min="1" max="${fim + 1}" value="${fim + 1}" style="width:100%"></label></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" data-tudo>Animação toda</button><button class="btn" data-daqui>Daqui até o fim</button></div>
       <label>Qualidade<br><select data-e style="width:100%"><option value="100">Final (1920×1080)</option><option value="50">Rascunho (metade, 4× mais rápido)</option></select></label>
-      <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-a2> Ligar o visual "Rua 3D (A2)" na animação (cor + vinheta)</label>
+      <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-a2 checked> Ligar o visual "Rua 3D (A2)" na animação (cor + vinheta)</label>
+      <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-lb checked> Luz de borda nos personagens (igual ao EP2)</label>
       <div data-info style="opacity:.75;font-size:12px"></div></div>`);
     const $c = $('[data-c]', body), $a = $('[data-a]', body), $de = $('[data-de]', body), $ate = $('[data-ate]', body);
     const atualiza = () => {
       const c = est.cenarios.find(x => x.id === $c.value); $('[data-nota]', body).textContent = c?.nota || '';
       $('[data-anc-l]', body).hidden = !c?.ancoras?.length;
       $a.innerHTML = (c?.ancoras || []).map(a => `<option ${a === (ult.ancora || c.ancora_padrao) ? 'selected' : ''}>${esc(a)}</option>`).join('');
-      $('[data-a2]', body).checked = c?.modo === 'trilho';
       const n = clamp(+$ate.value, 1, fim + 1) - clamp(+$de.value, 1, fim + 1) + 1;
       $('[data-info]', body).textContent = n > 0 ? `${n} quadros (${(n / (P.fps || 24)).toFixed(1)} s). O fundo entra na frente dos cenários 2D que já existem; nada é apagado.` : 'O "até" precisa ser depois do "do".';
     };
@@ -66,7 +68,7 @@ const PonteBlender = {
     $('[data-daqui]', body).onclick = () => { $de.value = q + 1; $ate.value = fim + 1; atualiza(); };
     atualiza();
     const o = await UI.modal({ title: 'Renderizar cenário 3D (Blender)', icon: 'film', width: 480, body,
-      buttons: [{ label: 'Cancelar', value: null }, { label: 'Renderizar', kind: 'primary', collect: () => ({ cenario: $c.value, ancora: $a.value || null, de: clamp(+$de.value, 1, fim + 1) - 1, ate: clamp(+$ate.value, 1, fim + 1) - 1, escala: +$('[data-e]', body).value, a2: $('[data-a2]', body).checked }) }] });
+      buttons: [{ label: 'Cancelar', value: null }, { label: 'Renderizar', kind: 'primary', collect: () => ({ cenario: $c.value, ancora: $a.value || null, de: clamp(+$de.value, 1, fim + 1) - 1, ate: clamp(+$ate.value, 1, fim + 1) - 1, escala: +$('[data-e]', body).value, a2: $('[data-a2]', body).checked, luzBorda: $('[data-lb]', body).checked }) }] });
     if (!o) return;
     if (o.ate < o.de) return UI.toast('O "até" precisa ser depois do "do".', { kind: 'warn' });
     try { localStorage.setItem('ponteBlender', JSON.stringify({ cenario: o.cenario, ancora: o.ancora })); } catch {}
@@ -108,6 +110,7 @@ const PonteBlender = {
         nos.push(await CenarioVideo.adicionar(new File([fr], 'frente.webm', { type: 'video/webm' }), { nome: 'Cenário 3D (frente) · ' + rot, inicio: o.de, posicao: 'topo', P, salvar: false, proxy: o.proxy }));
       }
       if (o.a2 && typeof Efeitos !== 'undefined' && Efeitos.usarVisual) Efeitos.usarVisual('a2', P);
+      if (o.luzBorda && aberta && typeof LuzBorda !== 'undefined') Modelo.cada(P.raiz, x => { if (x.tipo === 'personagem' && !x.luzBorda?.on) LuzBorda.liga(x, this.LUZ_BORDA); }); // quem já tem luz de borda fica como está
       if (aberta) { App.sel = n.id; App.commit('Cenário 3D do Blender'); await App.salvarJa(); }
       else if (o.salvar !== false) { P.modificado = Date.now(); await DB.put('projetos', JSON.parse(JSON.stringify(P))); }
     } finally { t2.remove(); }
