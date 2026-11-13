@@ -5,7 +5,8 @@
    No quadro q da timeline desenha o quadro do vídeo do tempo (q - de) / P.fps cobrindo o QUADRO DA CÂMERA inteiro (Render.umNo passa
    `fr` = px do vídeo final → tela): não sofre pan/zoom/giro da câmera. Fora de [de, de + duração) não desenha nada.
    - Parado / scrub: busca o quadro (seek no <video>, espera 'seeked') e copia num canvas; enquanto não chega, mostra o último que chegou.
-   - Tocando: o <video> toca junto (mudo) e é corrigido quando escorrega mais de 3 quadros do relógio da timeline.
+   - Tocando: o <video> toca de verdade (play(), mudo; sem seek a cada quadro) e só é corrigido (seek) quando escorrega mais de 1 quadro
+     do relógio da timeline (e nunca no meio de outra busca).
    - Exportar (js/exportar.js): `await CenarioVideo.prepara(P, q)` antes de cada quadro = quadro EXATO (outro <video>, só do export,
      para o palco não brigar com ele), e o Render.quadro do export roda com `CenarioVideo.emExport = true`.
    Por script: `await CenarioVideo.adicionar(blobOuFile, { nome, inicio: 0, posicao: 'fundo' | 'topo' })`.
@@ -70,7 +71,7 @@ const CenarioVideo = {
     if (tocando) { // TOCANDO: o <video> anda sozinho e é corrigido se escorregar do relógio da timeline
       if (e.f === f) return e.cv; e.alvo = null; const t = (f + .5) / fpsV, v = e.v;
       if (v.paused) { if (!e.ocupado) { v.currentTime = t; v.play().catch(() => { }); } }
-      else if (Math.abs(v.currentTime - t) > 3 / fpsV) v.currentTime = t;
+      else if (!v.seeking && Math.abs(v.currentTime - t) > 1.5 / fpsV) v.currentTime = t; // tolerância de ±1 quadro (o meio do quadro ± 1,5 = até 1 quadro de diferença); só busca de novo se escorregar mais, e nunca no meio de outra busca
       clearTimeout(e.to); e.to = setTimeout(() => { if (!(App.tocando && App.P === P)) v.pause(); }, 300); // parou de tocar (ou o vídeo saiu do trecho): pausa
       return v.readyState >= 2 ? v : (e.f >= 0 ? e.cv : null);
     }

@@ -102,11 +102,16 @@ const Render = {
   // RECORTE DA PASTA (n.recorte = {x, y, w, h} em px do vídeo, preso na tela: a câmera não move a janela, só o que está dentro).
   // Usado na tela dividida do Short (metade de cima / de baixo, Short.LAYOUTS) e em janelas/telas de celular.
   recorte(n) { const r = n.recorte; return r && r.w > 0 && r.h > 0 ? r : null; },
+  // matriz do nó na tela (sem a base): posição/giro/escala, trêmulo e grudada numa parte (controles). t = Modelo.transfVis(n, q)
+  matVis(P, n, q, m, t = Modelo.transfVis(n, q)) {
+    let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
+    return mm;
+  },
   // desenha um nó (pasta: os filhos). Devolve true se desenhou algo
   umNo(ctx, P, q, base, n, m, alfa, fr, nivel) {
     if (!this.vivo(P, n, q) || n.tipo === 'efeito') return false;
     if (n.luzBorda?.on && this._luzEm !== n && (n.tipo === 'personagem' || n.tipo === 'imagem') && typeof LuzBorda !== 'undefined') return LuzBorda.desenha(ctx, P, q, base, n, m, alfa, fr, nivel); // LUZ DE BORDA (js/acabamento.js): desenha à parte e acende a borda
-    const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
+    const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1), mm = this.matVis(P, n, q, m, t);
     const fx = n.chaves && Modelo.filtroFx(Modelo.fxNo(n, q)), fxPai = this._fx || ''; // cor e luz (chave.fx): a da pasta vale para tudo dentro
     if (n.tipo === 'video') { // CENÁRIO EM VÍDEO (js/cenvideo.js): preso à câmera, cobre o quadro da câmera inteiro (fr), sem pan/zoom/giro
       if (this._semVideo || typeof CenarioVideo === 'undefined') return false;

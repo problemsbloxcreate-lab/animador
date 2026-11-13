@@ -24,6 +24,7 @@
   poe('t-ini', 'start', '', () => App.setQ(0)); poe('t-ant', 'prev', '', () => App.setQ(App.q - 1, { som: true })); poe('b-tocar', 'play', '', () => App.tocar());
   poe('t-prox', 'next', '', () => App.setQ(App.q + 1, { som: true })); poe('t-fim', 'end', '', () => App.setQ(Modelo.ultimoQuadro(App.P)));
   poe('t-loop', 'loop', '', () => { Folha.loop = !Folha.loop; $('#t-loop').classList.toggle('on', Folha.loop); });
+  poe('t-leve', 'bolt', 'Prévia leve', () => PreviaLeve.troca()); PreviaLeve.pintaBotao(); // PRÉVIA LEVE (js/acabamento.js)
   poe('t-chave', 'diamond', 'Chave', () => App.chaveAqui()); poe('t-tira', 'minus', 'Tirar', () => App.tiraChave());
   poe('at-backup', 'download', '', () => AtelieArq.baixar(Atelie.def));   poe('at-voltar', 'left', 'Voltar'); poe('at-undo', 'undo', ''); poe('at-redo', 'redo', '');
   $$('[data-ferr]').forEach(b => { b.innerHTML = ic({ mover: 'cursor', mao: 'move', camera: 'camera' }[b.dataset.ferr], 15); b.onclick = () => App.setFerr(b.dataset.ferr); });
