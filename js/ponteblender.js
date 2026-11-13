@@ -31,7 +31,7 @@ const PonteBlender = {
 
   async abrir() {
     const P = App.P; if (!P) return UI.toast('Abra uma animação antes.', { kind: 'warn' });
-    let est = await this.estado();
+    let est = typeof Ajudante !== 'undefined' ? await Ajudante.garante('renderizar o cenário 3D', 1) : await this.estado(); if (!est && typeof Ajudante !== 'undefined') return; // AJUDANTE DO BLENDER (js/ajudante.js)
     while (!est) {
       const r = await UI.modal({ title: 'Ligar o Blender', icon: 'film', width: 480, body: `<p>O Estúdio não achou a <b>ponte do Blender</b> neste computador.</p>
         <ol style="margin:8px 0 0 18px;line-height:1.6"><li>Abra a pasta <b>cenarios</b> (a que tem rua-escola.blend, ginasio.blend e quarto.blend).</li>

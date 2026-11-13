@@ -1,0 +1,51 @@
+{
+ "rua-escola": {
+  "nome": "Rua + Escola Prismática",
+  "arquivo": "rua-escola.blend",
+  "modo": "trilho",
+  "k": 0.0023986486486486484,
+  "D": 4.78,
+  "Y": 3.0,
+  "centro_x": 1100,
+  "pe_y": 820,
+  "ancora_padrao": "Casa do Problems",
+  "ancoras": {
+   "Casa do Stick": -26.4,
+   "Casa da Lume": -8.6,
+   "Casa do Problems": 8.6,
+   "Observatório": 20.2,
+   "Casa do Sam": 36.0,
+   "Escola Prismática": 71.0
+  },
+  "acabamento": {
+   "glow_forca": 0.28,
+   "glow_limiar": 0.88,
+   "particulas": 320,
+   "polen_y": [
+    3.3,
+    14.0
+   ],
+   "frente_d": 4.7,
+   "silhuetas": [],
+   "silhueta_d": 4.1
+  },
+  "frente": true,
+  "nota": "Câmera anda pela rua (paralaxe de verdade). A âncora diz qual casa fica no x=1100 do palco."
+ },
+ "ginasio": {
+  "nome": "Ginásio da Escola Mágica (EP3)",
+  "arquivo": "ginasio.blend",
+  "modo": "recorte",
+  "lente": 28.0,
+  "shift_y": -0.111,
+  "nota": "Câmera fixa: pan do Estúdio = deslocar o quadro, zoom = lente (igual ao EP3)."
+ },
+ "quarto": {
+  "nome": "Quarto azul (EP4)",
+  "arquivo": "quarto.blend",
+  "modo": "recorte",
+  "lente": 61.0,
+  "shift_y": 0.0,
+  "nota": "Câmera fixa na frente da cama: pan = deslocar o quadro, zoom = lente."
+ }
+}

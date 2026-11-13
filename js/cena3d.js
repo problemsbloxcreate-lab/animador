@@ -228,10 +228,7 @@ const Cena3D = {
   PONTE: 'http://127.0.0.1:8810',
   async pontePronta() { try { const r = await fetch(this.PONTE + '/estado', { cache: 'no-store' }); if (!r.ok) return null; const j = await r.json(); return j.versao >= 2 ? j : { velha: true }; } catch { return null; } },
   async converterNaPonte(f) {
-    const est = await this.pontePronta();
-    if (!est) return UI.modal({ title: 'Ligar a ponte do Blender', width: 440, semMetro: true, buttons: [{ label: 'Entendi', kind: 'primary', value: true }],
-      body: `<div class="lg-txt"><p>Para usar um <b>.blend</b> direto, o Blender deste computador converte o cenário uma vez.</p><p>Dê dois cliques em <b>LIGAR-PONTE.bat</b> (pasta <b>Documentos › Problems › cenarios-problems</b>), deixe a janela aberta e solte o .blend de novo.</p><p>Sem a ponte, exporte do Blender como <b>.glb</b> (Arquivo › Exportar › glTF).</p></div>` });
-    if (est.velha) return UI.toast('A ponte do Blender está ligada, mas é a versão antiga, que não converte. Feche a janela da ponte e abra o LIGAR-PONTE.bat de novo.', { kind: 'warn', time: 9000 });
+    const est = typeof Ajudante !== 'undefined' ? await Ajudante.garante('converter o cenário .blend') : await this.pontePronta(); if (!est) return; // AJUDANTE DO BLENDER (js/ajudante.js): liga sozinho ou ensina a instalar
     const nome = f.name.replace(/\.blend\d?$/i, '');
     const fim = typeof NuvemTela !== 'undefined' && !NuvemTela.el ? (NuvemTela.inicio(nome, 'an', { titulo: 'Convertendo o cenário no Blender', vidro: true, indef: true }), true) : false;
     const passo = t => { try { NuvemTela.passo?.(.5, t); } catch { } };

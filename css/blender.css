@@ -309,3 +309,9 @@ html.cel #editor .v3d-ajuda{max-height:calc(100% - 60px);overflow:auto;width:min
 html.cel #editor .v3d-at i{display:block;font-style:normal;font:600 12px var(--fonte);color:var(--acento);margin:10px 0 4px}
 html.cel #editor .v3d-at p{margin:3px 0;font-size:12px;line-height:1.6}
 html.cel #editor .v3d-at .v3d-obs{color:var(--texto-3);margin-top:8px}
+
+/* AJUDANTE DO BLENDER (js/ajudante.js): janela "Ligar o Blender" */
+html.cel .aj-j ol{margin:8px 0 8px 18px;padding:0;line-height:1.6}
+html.cel .aj-j li{margin-bottom:6px}
+html.cel .aj-j .aj-obs{color:var(--texto-3);font-size:12px}
+html.cel .aj-j .aj-st{padding:8px 10px;border-radius:var(--raio-controle);background:var(--fundo-3);color:var(--texto)}
