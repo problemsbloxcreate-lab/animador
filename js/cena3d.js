@@ -23,7 +23,7 @@ const Cena3D = {
   // ---------- carregar o .glb (uma vez por arquivo) ----------
   cena(k) { if (!k) return null; if (this.cenas.has(k)) return this.cenas.get(k); if (!this._carregando.has(k)) this._carregando.set(k, this.carrega(k).then(c => { this._carregando.delete(k); if (c) { this.cenas.set(k, c); try { Render.aoChegarImagem?.(); } catch { } } return c; }, e => { this._carregando.delete(k); console.warn('[cena 3D]', e); return null; })); return null; },
   async carrega(k) {
-    const b = await Arq.pegaBlob(k); if (!b) return null; const T = await this.three(), buf = await b.arrayBuffer();
+    const b = this.ehCasa(k) ? await this.blobCasa(k) : await Arq.pegaBlob(k); if (!b) return null; const T = await this.three(), buf = await b.arrayBuffer();
     // GEOMETRIA COMPRIMIDA (Draco, Blender › Exportar › glTF › Compressão): o decodificador também é local (js/vendor/three/draco, só baixa se o arquivo usar)
     if (!this._draco) { this._draco = new this.DRACOLoader(); this._draco.setDecoderPath(this.BASE + 'draco/'); this._draco.setDecoderConfig({ type: 'wasm' }); }
     const L = new this.GLTFLoader(); L.setDRACOLoader(this._draco); const g = await new Promise((ok, no) => L.parse(buf, '', ok, no));
@@ -39,6 +39,8 @@ const Cena3D = {
       const nv = ms.map(m => { if (!m?.isMeshStandardMaterial || m.map || (m.color && m.color.getHex() !== 0) || !(m.emissiveMap || m.emissive?.getHex())) return m;
         const b = new T.MeshBasicMaterial({ color: m.emissive.clone().multiplyScalar(m.emissiveIntensity ?? 1), map: m.emissiveMap || null, side: m.side, transparent: !!m.emissiveMap, alphaTest: m.emissiveMap ? .5 : 0, toneMapped: false }); b.name = m.name; m.dispose(); return b; });
       o.material = Array.isArray(o.material) ? nv : nv[0]; });
+    // LUZ DE EFEITO (raio de luar, halo, marcada 'aditivo' pelos scripts do Blender): a cor SOMA no que está atrás, como no Blender
+    sc.traverse(o => { if (!o.isMesh || !(o.userData?.aditivo || o.parent?.userData?.aditivo)) return; for (const m of (Array.isArray(o.material) ? o.material : [o.material])) { m.transparent = true; m.blending = T.AdditiveBlending; m.depthWrite = false; m.alphaTest = 0; m.toneMapped = false; m.needsUpdate = true; } });
     if (!luzes) { const s = new T.DirectionalLight(0xffffff, 2.4); s.userData.i0 = 2.4; s.position.set(5, 10, 7); s.castShadow = true; s.shadow.mapSize.set(2048, 2048); sc.add(s); }
     sc.updateMatrixWorld(true);
     // câmera que veio no arquivo (a do Blender) → câmera inicial; sem câmera: olha o cenário inteiro de frente e um pouco de cima
@@ -187,6 +189,30 @@ const Cena3D = {
     cv.addEventListener('wheel', e => { const n = alvoNo(e); if (!n) return; e.preventDefault(); e.stopImmediatePropagation(); const q = App.q, c = this.camEm(n, q), f = Math.exp(e.deltaY * .0012);
       this.poeCam(n, q, { px: c.tx + (c.px - c.tx) * f, py: c.ty + (c.py - c.ty) * f, pz: c.tz + (c.pz - c.tz) * f }); App.pinta(); clearTimeout(this._rodaT); this._rodaT = setTimeout(() => App.commit('Aproximar a câmera 3D', { semArvore: true }), 400); }, { capture: true, passive: false });
   },
+  // ---------- CENÁRIOS 3D DA CASA (cenarios/3d/lista.json no próprio site): prontos para a equipe toda, sem Blender ----------
+  // O arquivo fica no site (chave 'cenarios/3d/<arquivo>'): não sobe para a nuvem de cada animação (NuvemAnim pula 'cenarios/') nem passa
+  // pela sala do ao vivo; quem abre a animação baixa do site uma vez e guarda no navegador.
+  CASA: 'cenarios/3d/',
+  async listaCasa() { if (this._lista) return this._lista; try { const r = await fetch(this.CASA + 'lista.json', { cache: 'no-store' }); this._lista = (await r.json()).cenarios || []; } catch { this._lista = []; } return this._lista; },
+  ehCasa(k) { return typeof k === 'string' && k.startsWith(this.CASA); },
+  async blobCasa(k) { let b = await Arq.pegaBlob(k).catch(() => null); if (b) return b; const r = await fetch(k); if (!r.ok) return null; b = await r.blob(); try { await DB.put('arquivos', b, k); Arq.blob.set(k, b); } catch { } return b; },
+  async daCasa(it) {
+    const P = App.P; if (!P) return; const t = UI.toast('<span class="spin-dot"></span> Abrindo o cenário 3D…', { time: 60000 });
+    try { const k = this.CASA + it.arquivo; if (!(await this.blobCasa(k))) throw new Error('não achei o arquivo no site');
+      const c = this.cenas.get(k) || await this.carrega(k); if (!c) throw new Error('o arquivo não abriu'); this.cenas.set(k, c);
+      const n = this.poeNo(P, k, it.nome, c); if (it.cam) n.cam0 = { ...c.cam0, ...it.cam }; App.sel = n.id; App.commit('Cenário 3D'); t.remove();
+      UI.toast(`Cenário 3D <b>${esc(it.nome)}</b> no fundo. A câmera 3D fica em Propriedades; para o personagem andar junto, use "Prender no cenário 3D".`, { kind: 'ok', time: 7000 });
+    } catch (e) { t.remove(); UI.toast('Não abri o cenário 3D: ' + esc(e.message || String(e)), { kind: 'err' }); }
+  },
+  async menuCasa(x, y) { const L = await this.listaCasa(); if (!L.length) return UI.toast('Ainda não há cenários 3D da casa.', { kind: 'warn' });
+    UI.ctx(x, y, [{ head: 'Cenários 3D da casa' }, ...L.map(it => ({ label: it.nome, icon: 'paisagem', action: () => this.daCasa(it) }))]); },
+  // a camada nova (vale para o .glb solto e para os da casa)
+  poeNo(P, id, nome, c) {
+    const q = App.q, cam = Modelo.camera(P, q), z = cam.zoom || 1;
+    const n = Modelo.novoNo('forma', { nome: ('Cenário 3D · ' + nome).slice(0, 48) }); n.tipo = 'cena3d'; delete n.forma; n.arq = id; n.w = P.w; n.h = P.h; n.cam0 = c.cam0; n.ceu = '#c9d3df';
+    n.de = q; n.chaves = { [q]: { x: Math.round(cam.x), y: Math.round(cam.y), r: 0, s: round(1 / z * 1.01, 3), sx: 1, op: 1 } }; n.cenario = true;
+    const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); return n;
+  },
   liga() {
     if (this._ok || typeof App === 'undefined') return; this._ok = true;
     try { TIPO_IC.cena3d = 'paisagem'; } catch { }
@@ -196,10 +222,11 @@ const Cena3D = {
     // abrir: já carrega o 3D; exportar: espera o 3D antes do primeiro quadro (o MP4 igual à prévia)
     const ab = App.abrir; App.abrir = async function (...x) { const r = await ab.apply(this, x); if (Cena3D.arqs(App.P).length) await Cena3D.garante(App.P).catch(e => console.warn(e)); return r; };
     if (typeof Exportar !== 'undefined') for (const f of ['mp4', 'png', 'quadros']) if (typeof Exportar[f] === 'function') { const o = Exportar[f]; Exportar[f] = async function (...x) { await Cena3D.garante(App.P).catch(() => { }); return o.apply(this, x); }; }
+    if (typeof AoVivo !== 'undefined' && AoVivo.naNuvem) { const nn = AoVivo.naNuvem; AoVivo.naNuvem = function (k) { return Cena3D.ehCasa(k) || nn.call(this, k); }; }
     // Propriedades: a seção da câmera 3D
     if (typeof Lado !== 'undefined') { const pp = Lado.props; Lado.props = function (el, ...x) { const r = pp.call(this, el, ...x); try { const n = App.noSel?.(); if (n?.tipo === 'cena3d') Cena3D.painel(el, n); else if (n && ['personagem', 'imagem', 'pasta'].includes(n.tipo)) Cena3D.painelAncora(el, n); } catch (e) { console.warn('[cena 3D painel]', e); } return r; }; }
     // menu "Pôr um cenário": item novo
-    const mc = App.menuCenario; App.menuCenario = function (x, y) { const ctx0 = UI.ctx; UI.ctx = (a, b, itens) => { UI.ctx = ctx0; return ctx0(a, b, [...itens, '-', { label: 'Cenário 3D do Blender (.glb)…', icon: 'paisagem', action: () => Cena3D.escolher() }]); }; try { return mc.call(this, x, y); } finally { UI.ctx = ctx0; } };
+    const mc = App.menuCenario; App.menuCenario = function (x, y) { const ctx0 = UI.ctx; UI.ctx = (a, b, itens) => { UI.ctx = ctx0; return ctx0(a, b, [...itens, '-', { label: 'Cenários 3D da casa…', icon: 'paisagem', action: () => Cena3D.menuCasa(a + 8, b + 8) }, { label: 'Cenário 3D do Blender (.glb)…', icon: 'paisagem', action: () => Cena3D.escolher() }]); }; try { return mc.call(this, x, y); } finally { UI.ctx = ctx0; } };
     // soltar .glb / .gltf / .blend no Animador
     document.addEventListener('drop', e => { const f = [...(e.dataTransfer?.files || [])].find(x => /\.(glb|gltf|blend\d?)$/i.test(x.name)); if (!f) return; if ($('#editor')?.classList.contains('hidden')) return; e.preventDefault(); e.stopPropagation(); this.importar(f); }, true);
   },
