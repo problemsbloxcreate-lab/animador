@@ -322,7 +322,7 @@ const App = {
       { label: 'Cenários em camadas (biblioteca)…', icon: 'layers', action: () => CenLib.abrir() },
       { label: 'Prontos (estilo da casa)…', icon: 'paisagem', action: () => Cenarios.abrir() },
       { label: 'Salvos na nuvem da equipe…', icon: 'cloud', action: () => CenariosNuvem.escolher() },
-      { label: 'Adicionar vídeo de cenário (preso à câmera)…', icon: 'film', action: () => CenarioVideo.escolher() },
+      { label: 'Adicionar vídeo de cenário (preso à câmera)…', icon: 'film', action: () => CenarioVideo.escolher() }, { label: 'Adicionar vídeo na frente (WebM com transparência)…', icon: 'film', action: () => CenarioVideo.escolher({ posicao: 'topo' }) },
     ]);
   },
   async salvarNaNuvem(n) {
@@ -515,6 +515,7 @@ const App = {
     // casca de cebola: quadros vizinhos bem clarinhos
     if (this.onion && !this.tocando) for (const [d, a] of [[-2, .1], [-1, .22], [1, .16]]) { const qq = this.q + d; if (qq < 0 || qq > Modelo.ultimoQuadro(P)) continue; ctx.save(); ctx.filter = d < 0 ? 'sepia(1) hue-rotate(160deg) saturate(3)' : 'sepia(1) hue-rotate(-40deg) saturate(3)'; Render.camadas(ctx, P, qq, V, a, { semVideo: true }); ctx.restore(); }
     ctx.save(); ctx.filter = Efeitos.filtro(P, this.q); Render.camadas(ctx, P, this.q, V, 1, { fundo: true, sombra: pc.dpr }); ctx.restore(); // o fundo (quadriculado/liso) entra como a camada mais de baixo: os efeitos valem nele também
+    if (Efeitos.grade(P.efeitos?.visual) === 'a2' && typeof GradeA2 !== 'undefined') { let inv = null; try { inv = V.multiply(Render.matCamera(P, this.q, P.w, P.h).inverse()).inverse(); } catch { } if (inv) GradeA2.aplica(pc.cv, P.w, P.h, inv, this.q); } // visual antigo = Rua 3D (A2) (js/acabamento.js)
     // fora da câmera fica escurecido
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.beginPath(); ctx.rect(0, 0, W, H); const ct = cantosCam.map(p => V.transformPoint(p)); ct.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();
     ctx.fillStyle = 'rgba(21,21,21,.38)'; ctx.fill('evenodd');

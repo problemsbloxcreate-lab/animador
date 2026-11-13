@@ -15,7 +15,20 @@ const Efeitos = {
     { id: 'terror', nome: 'Terror', f: 'saturate(.55) contrast(1.35) brightness(.78)', tinta: 'rgba(90,0,0,.18)', cor: ['#3a0d0d', '#7a2a2a'] },
     { id: 'desbotado', nome: 'Desbotado', f: 'saturate(.65) contrast(.88) brightness(1.08)', cor: ['#8a95a3', '#d6d2c4'] },
     { id: 'neon', nome: 'Neon', f: 'saturate(1.8) contrast(1.2) hue-rotate(-12deg)', tinta: 'rgba(170,0,255,.10)', cor: ['#9b2cff', '#22e6ff'] },
+    // RUA 3D (A2): não é filtro CSS — é a cadeia do ffmpeg do vídeo aprovado, feita pixel a pixel pelo GradeA2 (js/acabamento.js)
+    { id: 'a2', nome: 'Rua 3D (A2)', f: '', grade: 'a2', cor: ['#3d5f8a', '#f0c27a'] },
   ],
+  // grade especial do visual (GradeA2), se houver
+  grade(id) { return this.visual(id).grade || null; },
+  /* por script: Efeitos.usarVisual('a2') = Cor "Rua 3D (A2)" na camada de efeito do topo (a que vale a animação toda; cria se não
+     houver). 'normal' tira. O jeito antigo P.efeitos.visual = 'a2' também vale (preview e export). */
+  usarVisual(id, P = App.P) {
+    if (!this.VISUAIS.some(v => v.id === id)) throw new Error('Visual desconhecido: ' + id);
+    const t = App.P === P ? App.efeitoTopo() : null; if (!t) { P.efeitos = { ...(P.efeitos || {}), visual: id }; return; }
+    t.efeitos = t.efeitos.filter(e => e.tipo !== 'cor'); if (id !== 'normal') t.efeitos.push({ id: uid('ef'), tipo: 'cor', visual: id });
+    if (!t.efeitos.length) P.raiz.splice(P.raiz.indexOf(t), 1); else App.nomeEfeito(t);
+    App.commit('Visual ' + this.visual(id).nome);
+  },
   TELA: [
     { id: 'vinheta', nome: 'Vinheta', ic: 'crop', forca: .6 },
     { id: 'granulado', nome: 'Granulado', ic: 'grid', forca: .35 },

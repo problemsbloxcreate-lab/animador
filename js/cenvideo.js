@@ -8,7 +8,11 @@
    - Tocando: o <video> toca junto (mudo) e é corrigido quando escorrega mais de 3 quadros do relógio da timeline.
    - Exportar (js/exportar.js): `await CenarioVideo.prepara(P, q)` antes de cada quadro = quadro EXATO (outro <video>, só do export,
      para o palco não brigar com ele), e o Render.quadro do export roda com `CenarioVideo.emExport = true`.
-   Por script: `await CenarioVideo.adicionar(blobOuFile, { nome, inicio: 0 })`. */
+   Por script: `await CenarioVideo.adicionar(blobOuFile, { nome, inicio: 0, posicao: 'fundo' | 'topo' })`.
+   TRANSPARÊNCIA (12/11/2026): aceita WebM VP9 com canal alfa (yuva420p): o Chrome decodifica o alfa e o drawImage do <video> o mantém;
+   o canvas de cada quadro é limpo antes de copiar (senão o quadro de antes aparecia nos buracos). posicao 'topo' = na FRENTE dos
+   personagens (topo da hierarquia, logo abaixo das camadas de efeito que valem a animação toda, para o visual valer nele também).
+   O export espera o quadro exato de TODOS os vídeos visíveis no quadro (um <video> de export para cada nó). */
 'use strict';
 const CenarioVideo = {
   els: new Map(), // 'ed:<id do nó>' (palco) / 'exp:<id do nó>' (export) → { arq, v, url, cv, f, alvo, ocupado, laco, pronto }
@@ -29,7 +33,7 @@ const CenarioVideo = {
     e = { arq: n.arq, v: null, url: null, cv: null, f: -1, alvo: null, ocupado: false, laco: null, falhou: 0 }; this.els.set(ch, e);
     e.pronto = (async () => {
       let b = await Arq.pegaBlob(n.arq).catch(() => null); if (!b) { e.falhou = Date.now(); return false; } // ainda não chegou (nuvem/ao vivo): tenta de novo depois
-      if (!b.type || b.type === 'application/octet-stream') b = new Blob([b], { type: 'video/mp4' }); // veio de um .animador (zip): sem o tipo
+      if (!b.type || b.type === 'application/octet-stream') b = new Blob([b], { type: await this.tipo(b) }); // veio de um .animador (zip): sem o tipo
       const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; e.url = URL.createObjectURL(b); v.src = e.url; this._caixa().appendChild(v);
       await new Promise(ok => { if (v.readyState >= 2) return ok(); const fim = () => { v.removeEventListener('loadeddata', fim); v.removeEventListener('error', fim); ok(); }; v.addEventListener('loadeddata', fim); v.addEventListener('error', fim); });
       if (v.error || !v.videoWidth) { e.falhou = Date.now(); console.warn('[cenário em vídeo] não abriu', n.arq, v.error); v.remove(); return false; }
@@ -45,7 +49,7 @@ const CenarioVideo = {
     const v = e.v; if (!v) return; if (!v.paused) v.pause();
     const t = (f + .5) / fpsV; // meio do quadro: o navegador mostra exatamente o quadro f
     await new Promise(ok => { let to = 0; const fim = () => { clearTimeout(to); v.removeEventListener('seeked', fim); ok(); }; to = setTimeout(fim, 5000); v.addEventListener('seeked', fim); v.currentTime = t; });
-    const g = e.cv.getContext('2d'); g.drawImage(v, 0, 0, e.cv.width, e.cv.height); e.f = f;
+    const g = e.cv.getContext('2d'); g.clearRect(0, 0, e.cv.width, e.cv.height); g.drawImage(v, 0, 0, e.cv.width, e.cv.height); e.f = f; // limpa antes: vídeo com transparência
   },
   // vai buscando até chegar no quadro pedido (o último pedido vale: no scrub os do meio são pulados)
   pede(e, f, fpsV, aoChegar) {
@@ -90,26 +94,31 @@ const CenarioVideo = {
   },
 
   /* ---------- criar ---------- */
+  // tipo pelo começo do arquivo: WebM/Matroska começa com 1A 45 DF A3 (o resto vai como mp4)
+  async tipo(b) { try { const u = new Uint8Array(await b.slice(0, 4).arrayBuffer()); if (u[0] === 0x1a && u[1] === 0x45 && u[2] === 0xdf && u[3] === 0xa3) return 'video/webm'; } catch { } return 'video/mp4'; },
   // lê duração e tamanho do vídeo
   async info(blob) {
     const u = URL.createObjectURL(blob), v = document.createElement('video'); v.muted = true; v.preload = 'metadata'; v.src = u;
-    try { await new Promise((ok, no) => { v.onloadedmetadata = ok; v.onerror = () => no(new Error('Não consegui abrir esse vídeo (use mp4 H.264).')); });
+    try { await new Promise((ok, no) => { v.onloadedmetadata = ok; v.onerror = () => no(new Error('Não consegui abrir esse vídeo (use mp4 H.264, ou WebM VP9 para transparência).')); });
       let d = v.duration; if (!isFinite(d)) { v.currentTime = 1e7; await new Promise(ok => { v.onseeked = ok; setTimeout(ok, 3000); }); d = v.duration; } // mp4 sem a duração no começo
       return { dur: isFinite(d) ? d : 0, w: v.videoWidth, h: v.videoHeight }; }
     finally { v.removeAttribute('src'); v.load(); URL.revokeObjectURL(u); }
   },
-  /* API por script: await CenarioVideo.adicionar(blobOuFile, { nome, inicio = 0, fps = 24, P = App.P, salvar = true })
-     Guarda o vídeo nos arquivos, põe o nó na camada MAIS DE BAIXO (logo acima do "Fundo padrão", que é uma folha branca do tamanho
-     da câmera e o esconderia) e salva o projeto. Devolve o nó. */
+  /* API por script: await CenarioVideo.adicionar(blobOuFile, { nome, inicio = 0, fps = 24, posicao = 'fundo', P = App.P, salvar = true })
+     Guarda o vídeo nos arquivos e salva o projeto. Devolve o nó. posicao 'fundo' = camada MAIS DE BAIXO (logo acima do "Fundo padrão",
+     que é uma folha branca do tamanho da câmera e o esconderia); 'topo' = na frente de tudo (WebM com alfa por cima dos personagens),
+     logo abaixo das camadas de efeito que estão no topo (o visual/efeitos do vídeo todo continuam valendo nele). */
   async adicionar(arquivo, o = {}) {
     const P = o.P || (typeof App !== 'undefined' ? App.P : null); if (!P) throw new Error('Abra uma animação antes.'); if (!(arquivo instanceof Blob)) throw new Error('Mande um Blob ou File de vídeo (mp4).');
-    let blob = arquivo; if (!blob.type || blob.type === 'application/octet-stream') blob = new Blob([blob], { type: 'video/mp4' });
+    let blob = arquivo; if (!blob.type || blob.type === 'application/octet-stream') blob = new Blob([blob], { type: await this.tipo(blob) });
+    const topo = o.posicao === 'topo'; if (o.posicao && !topo && o.posicao !== 'fundo') throw new Error("posicao: 'fundo' ou 'topo'.");
     const inf = await this.info(blob), vfps = +o.fps || 24, vquadros = Math.max(1, Math.round(inf.dur * vfps));
     const arq = await Arq.guardar(blob, uid('vid'));
     const nome = String(o.nome || arquivo.name?.replace(/\.[^.]+$/, '') || 'Cenário em vídeo').slice(0, 60), de = Math.max(0, Math.round(+o.inicio || 0));
-    const n = Modelo.novoNo('video', { nome, de }); Object.assign(n, { arq, vfps, vquadros, vw: inf.w, vh: inf.h, presoCamera: true, cenario: true });
+    const n = Modelo.novoNo('video', { nome, de }); Object.assign(n, { arq, vfps, vquadros, vw: inf.w, vh: inf.h, presoCamera: true }); if (topo) n.frente = true; else n.cenario = true;
     n.ate = de + this.duracaoQ(P, n) - 1;
-    const i = P.raiz.findIndex(x => x.fundoPadrao); if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); // o 1º da lista fica na frente: o fim é o fundo
+    if (topo) { let i = 0; while (P.raiz[i]?.tipo === 'efeito') i++; P.raiz.splice(i, 0, n); } // na frente: depois só das camadas de efeito do topo
+    else { const i = P.raiz.findIndex(x => x.fundoPadrao); if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); } // o 1º da lista fica na frente: o fim é o fundo
     if (inf.w !== P.w || inf.h !== P.h) UI?.toast?.(`O vídeo é ${inf.w}×${inf.h} e a animação ${P.w}×${P.h}: ele cobre o quadro da câmera e corta o que sobrar.`, { kind: 'warn', time: 6000 });
     if (o.salvar !== false) {
       if (typeof App !== 'undefined' && App.P === P) { App.sel = n.id; App.commit('Vídeo de cenário'); await App.salvarJa(); }
@@ -118,10 +127,10 @@ const CenarioVideo = {
     return n;
   },
   // botão/menu: escolhe o arquivo de vídeo e põe no quadro de agora
-  async escolher() {
-    if (!App.P) return; const [f] = await pickFiles('video/mp4,video/*', false); if (!f) return;
+  async escolher(o = {}) {
+    if (!App.P) return; const [f] = await pickFiles('video/mp4,video/webm,video/*', false); if (!f) return;
     const t = UI.toast('<span class="spin-dot"></span> Guardando o vídeo…', { time: 120000 });
-    try { const n = await this.adicionar(f, { nome: f.name.replace(/\.[^.]+$/, ''), inicio: App.q }); UI.toast(`<b>${esc(n.nome)}</b> entrou como cenário em vídeo (preso à câmera), do quadro ${n.de + 1} ao ${n.ate + 1}.`, { kind: 'ok' }); }
+    try { const n = await this.adicionar(f, { nome: f.name.replace(/\.[^.]+$/, ''), inicio: App.q, posicao: o.posicao }); UI.toast(`<b>${esc(n.nome)}</b> entrou como ${n.frente ? 'vídeo NA FRENTE' : 'cenário em vídeo'} (preso à câmera), do quadro ${n.de + 1} ao ${n.ate + 1}.`, { kind: 'ok' }); }
     catch (e) { UI.toast(esc(e.message || String(e)), { kind: 'err' }); } finally { t.remove(); }
   },
 };

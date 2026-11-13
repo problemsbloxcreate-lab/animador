@@ -233,7 +233,7 @@ const Lado = {
       c.append(this.cor('Cor', n.cor, v => { n.cor = v; App.pinta(); }, st), this.cor('Cor da borda', n.borda, v => { n.borda = v; App.pinta(); }, st));
     }, true));
     if (n.tipo === 'video') el.appendChild(this.secao('p-video', 'Vídeo de cenário', '', c => { // js/cenvideo.js
-      c.appendChild(h(`<div class="pr-info">Preso à câmera: cobre o quadro da câmera inteiro (sem pan/zoom/giro) e fica atrás das camadas de cima. ${n.vw || '?'}×${n.vh || '?'}, ${n.vquadros || '?'} quadros a ${n.vfps || P.fps} fps; o quadro 1 do vídeo cai no quadro ${(n.de || 0) + 1} da timeline (mude em Tempo › Começa).</div>`));
+      c.appendChild(h(`<div class="pr-info">Preso à câmera: cobre o quadro da câmera inteiro (sem pan/zoom/giro) e fica ${n.frente ? 'NA FRENTE (as partes transparentes do WebM mostram o que está atrás)' : 'atrás das camadas de cima'}. ${n.vw || '?'}×${n.vh || '?'}, ${n.vquadros || '?'} quadros a ${n.vfps || P.fps} fps; o quadro 1 do vídeo cai no quadro ${(n.de || 0) + 1} da timeline (mude em Tempo › Começa).</div>`));
     }, true));
     if (n.tipo === 'imagem') el.appendChild(this.secao('p-img', 'Imagem', '', c => {
       const a = h(`<div class="pr-acoes"><button class="btn sm" data-tr>${ic('image', 13)} Trocar a imagem…</button>${PontosEd.pode(n) ? `<button class="btn sm" data-pe title="Mexe nos pontos e curvas do SVG aqui no palco (A)">${ic('edit', 13)} Editar os pontos</button>` : ''}</div>`); $('[data-tr]', a).onclick = () => App.trocarImagem(n); if ($('[data-pe]', a)) $('[data-pe]', a).onclick = () => PontosEd.alterna(n); c.appendChild(a);
@@ -251,7 +251,7 @@ const Lado = {
       $('input', esq).onchange = ev => { App.esqueleto = ev.target.checked; try { localStorage.setItem('animador-esqueleto', App.esqueleto ? '1' : ''); } catch { } App.pinta(); }; c.appendChild(esq);
     }, true));
     { const cp = defP && Controles.painelNo(P, n); if (defP && cp) { const nC = Controles.todos(Controles.de(P.personagens[n.ref])).length; el.appendChild(this.secao('ctrl-p', 'Código do personagem', `${nC} controle${nC === 1 ? '' : 's'}`, c => c.appendChild(cp), true)); } } // CONTROLES do personagem (js/controles.js)
-    { const ef = h(`<button class="pr-ir-ef">${ic('sparkles', 13)}<span>Trêmulo e efeitos desta camada</span><small>${n.tremulo ? (n.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : ''}</small>${ic('right', 12)}</button>`); ef.onclick = () => this.aba('efeitos'); el.appendChild(ef); }
+    { const ef = h(`<button class="pr-ir-ef">${ic('sparkles', 13)}<span>Trêmulo e efeitos desta camada</span><small>${[n.tremulo ? (n.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : '', n.luzBorda?.on ? 'luz de borda' : ''].filter(Boolean).join(' · ')}</small>${ic('right', 12)}</button>`); ef.onclick = () => this.aba('efeitos'); el.appendChild(ef); }
   },
   propsCamera(el, P, q) {
     const muda = (k, v) => { const q2 = App.q; P.camera.chaves[q2] = { ...Modelo.camera(P, q2), ...(P.camera.chaves[q2] || {}), [k]: v }; App.pinta(); }, sol = () => App.commit('Câmera', { semArvore: true }), c = Modelo.camera(P, q);
@@ -313,6 +313,22 @@ const Lado = {
       c.appendChild(h(`<div style="color:var(--tx3);font-size:11.5px">Ritmo = quantos quadros até mudar (2 = 12 vezes por segundo num vídeo de 24). Toque o vídeo para ver.</div>`)); }
     return box;
   },
+  /* LUZ DE BORDA (js/acabamento.js): liga/desliga e os números (px do vídeo final, não mudam com o zoom) */
+  luzBorda(n) {
+    const L = n.luzBorda, on = !!L?.on, box = h(`<div><div class="presets"><button data-l="0" class="${on ? '' : 'on'}">Desligada</button><button data-l="1" class="${on ? 'on' : ''}">Ligada</button></div><div data-c></div></div>`);
+    $$('[data-l]', box).forEach(b => b.onclick = () => { if (b.dataset.l === '1') LuzBorda.liga(n); else LuzBorda.desliga(n); });
+    if (on) { const c = $('[data-c]', box), st = nm => () => App.commit(nm, { semArvore: true }), g = h('<div class="pr-num-grade"></div>');
+      g.append(this.num('Sol', L.dir, { passo: 1, min: -360, max: 360, dec: 0, unid: '°', dica: 'De onde vem a luz: 0 = direita, 90 = de cima, 135 = cima-esquerda, 180 = esquerda' }, v => { L.dir = v; App.pinta(); }, st('Direção do sol')),
+        this.num('Largura', L.largura, { passo: .5, min: 0, max: 80, dec: 1, unid: 'px', dica: 'Em px do vídeo final (1920×1080)' }, v => { L.largura = v; App.pinta(); }, st('Largura da luz')),
+        this.num('Suavidade', L.suave, { passo: .1, min: 0, max: 20, dec: 1, unid: 'px', dica: 'Desfoque da borda (px do vídeo)' }, v => { L.suave = v; App.pinta(); }, st('Suavidade da luz')),
+        this.num('Força', L.forca, { passo: .05, min: 0, max: 2, dec: 2 }, v => { L.forca = v; App.pinta(); }, st('Força da luz')));
+      c.appendChild(g);
+      c.appendChild(this.cor('Cor', LuzBorda.hex(L.cor), v => { L.cor = LuzBorda.cor(v); App.pinta(); }, st('Cor da luz')));
+      for (const [k, nm, dica] of [['aquece', 'Aquecer o personagem', 'Leve calor geral do sol (×1,03 vermelho, ×0,95 azul)'], ['sombraContato', 'Sombra de contato', 'Elipse escura e suave embaixo do pé']]) {
+        const ch = h(`<label class="chk" title="${dica}"><input type="checkbox" ${L[k] ? 'checked' : ''}> ${nm}</label>`); $('input', ch).onchange = ev => { L[k] = ev.target.checked; App.commit(nm, { semArvore: true }); }; c.appendChild(ch); }
+      const pad = h(`<div class="pr-acoes"><button class="btn sm">${ic('undo', 13)} Padrão</button></div>`); $('button', pad).onclick = () => { n.luzBorda = { ...LuzBorda.PADRAO, cor: LuzBorda.PADRAO.cor.slice(), on: true }; App.commit('Luz de borda padrão', { semArvore: true }); }; c.appendChild(pad); }
+    return box;
+  },
   editarTexto(n) { App.selecionar(n.id); this.aba('props'); setTimeout(() => $('#lado textarea')?.focus(), 30); },
 
   /* ---------- Efeitos (1 clique) ---------- */
@@ -342,6 +358,7 @@ const Lado = {
       const defP = s.tipo === 'personagem' ? P.personagens[s.ref] : null, cab = h('<div class="pr-topo"></div>');
       cab.appendChild(this.cabecalho(defP ? Icone.html(defP, 26) : ic(TIPO_IC[s.tipo] || 'layers', 16), esc(s.nome), 'efeitos só desta camada')); el.appendChild(cab);
       el.appendChild(this.secao('e-trem', 'Trêmulo', s.tremulo ? (s.tremulo.modo === 'ondular' ? 'ondulando' : 'tremendo') : 'a camada parada fica viva', c => c.appendChild(this.tremulo(s, true)), true));
+      if (LuzBorda.pode(s)) el.appendChild(this.secao('e-luz', 'Luz de borda', s.luzBorda?.on ? 'ligada' : 'o sol acende o contorno', c => c.appendChild(this.luzBorda(s)), true));
     }
     // 2) para onde vai o que for clicado
     const destino0 = alvo ? `Clique para pôr em <b>${esc(alvo.nome)}</b>.` : `Clique cria uma <b>camada de efeito</b> ${s ? `acima de <b>${esc(s.nome)}</b>` : 'no topo'}: vale para tudo o que está abaixo dela.`;

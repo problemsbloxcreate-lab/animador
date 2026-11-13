@@ -105,6 +105,7 @@ const Render = {
   // desenha um nó (pasta: os filhos). Devolve true se desenhou algo
   umNo(ctx, P, q, base, n, m, alfa, fr, nivel) {
     if (!this.vivo(P, n, q) || n.tipo === 'efeito') return false;
+    if (n.luzBorda?.on && this._luzEm !== n && (n.tipo === 'personagem' || n.tipo === 'imagem') && typeof LuzBorda !== 'undefined') return LuzBorda.desenha(ctx, P, q, base, n, m, alfa, fr, nivel); // LUZ DE BORDA (js/acabamento.js): desenha à parte e acende a borda
     const t = Modelo.transfVis(n, q), a = alfa * (t.op ?? 1); let mm = this.matNo(m, t); if (n.tremulo) mm = mm.multiply(this.tremor(n, q)); if (n.gruda && typeof Controles !== 'undefined') { const gd = Controles.deltaGruda(P, n, q); if (gd) mm = gd.multiply(mm); } /* GRUDADA numa parte de um personagem (controles) */
     const fx = n.chaves && Modelo.filtroFx(Modelo.fxNo(n, q)), fxPai = this._fx || ''; // cor e luz (chave.fx): a da pasta vale para tudo dentro
     if (n.tipo === 'video') { // CENÁRIO EM VÍDEO (js/cenvideo.js): preso à câmera, cobre o quadro da câmera inteiro (fr), sem pan/zoom/giro
@@ -141,6 +142,7 @@ const Render = {
     // 1) cor/desfoque no trecho  2) tinta, vinheta, granulado, VHS só onde o trecho tem desenho
     const pos = this.buf('p' + nivel, seg), pc = pos.getContext('2d'); pc.setTransform(1, 0, 0, 1, 0, 0); pc.clearRect(0, 0, pos.width, pos.height);
     const f = Efeitos.filtroDe(lista, k); pc.filter = f || 'none'; pc.drawImage(seg, 0, 0); pc.filter = 'none';
+    if (typeof GradeA2 !== 'undefined' && lista.some(e => e.tipo === 'cor' && Efeitos.grade(e.visual) === 'a2')) { let inv = null; try { inv = fr.inverse(); } catch { } GradeA2.aplica(pos, P.w, P.h, inv, q); } // RUA 3D (A2): a cadeia do ffmpeg, px do canvas → px do vídeo
     pc.save(); pc.setTransform(fr); for (const e of lista) if (!tela(e)) Efeitos.umPorCima(pc, e, q, P.w, P.h, e.de ?? de, e.ate ?? ate, true); pc.restore();
     // 3) tremor / trêmulo: o trecho inteiro mexe
     let mt = new DOMMatrix(), ond = null; const c = fr.transformPoint(new DOMPoint(P.w / 2, P.h / 2));
@@ -212,6 +214,7 @@ const Render = {
     const t = this._tmp.getContext('2d');
     t.setTransform(1, 0, 0, 1, 0, 0); t.clearRect(0, 0, W, H);
     this.camadas(t, P, q, this.matCamera(P, q, W, H), 1, { fundo: true }); // o mesmo fundo da Cena (quadriculado ou cor lisa), visto pela câmera
+    if (Efeitos.grade(P.efeitos?.visual) === 'a2' && typeof GradeA2 !== 'undefined') GradeA2.aplica(this._tmp, P.w, P.h, null, q); // visual antigo do projeto = Rua 3D (A2)
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.filter = Efeitos.filtro(P, q); ctx.drawImage(this._tmp, 0, 0); ctx.filter = 'none';
     Efeitos.porCima(ctx, P, q, W, H); if (!o.semLegenda) this.legenda(ctx, P, q, W, H); ctx.restore();
   },
