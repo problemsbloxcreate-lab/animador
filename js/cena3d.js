@@ -67,7 +67,7 @@ const Cena3D = {
   // A camada fica presa na tela (Modelo.transf, em liga): enquadramento e tempo são os da câmera 2D de cada cena.
   lenteFov(lens, W, H) { const hf = 2 * Math.atan(18 / lens); return 2 * Math.atan(Math.tan(hf / 2) * H / W) * 180 / Math.PI; },
   camSegue(n, q) {
-    const P = App.P, s = n.segue, W = n.w || P?.w || 1920, H = n.h || P?.h || 1080, c = P ? Modelo.camera(P, q) : { x: W / 2, y: H / 2, zoom: 1 }, z = c.zoom || 1;
+    const P = App.P, s = n.segue, W = n.w || P?.w || 1920, H = n.h || P?.h || 1080, c = s.fixo ? { x: W / 2, y: H / 2, zoom: 1, ...s.fixo } : P ? Modelo.camera(P, q) : { x: W / 2, y: H / 2, zoom: 1 }, z = c.zoom || 1; // fixo: enquadramento próprio (plano que não segue a câmera 2D, ex.: o palco atrás de uma imagem recortada)
     if (s.modo === 'trilho') { const x = s.ax + (c.x - s.c0) * s.k, y = (s.pe - c.y) * s.k, lens = 36 * (s.D - s.Y) / ((W / z) * s.k);
       return { px: x, py: y, pz: -s.Y, tx: x, ty: y, tz: -s.D, fov: this.lenteFov(lens, W, H), sx: 0, sy: 0 }; }
     return { px: s.px, py: s.py, pz: s.pz, tx: s.px, ty: s.py, tz: s.pz - 10, fov: this.lenteFov(s.lente * z, W, H), sx: z * (c.x - W / 2) / W, sy: z * ((H / 2 - c.y) / W + (s.shift_y || 0)) };

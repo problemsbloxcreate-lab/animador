@@ -4,7 +4,7 @@
     { "id": "rua-completa", "nome": "Rua completa (casa amarela, casa da árvore, casa de gelo)", "arquivo": "rua-completa.glb", "v": 2, "de": "rua-completa.blend",
       "cam": { "px": -9, "py": 1.1, "pz": 1.5, "tx": -9, "ty": 2.0, "tz": -12, "fov": 38 } },
     { "id": "rua-escola", "nome": "Rua da escola", "arquivo": "rua-escola.glb", "de": "cenarios-problems/rua-escola.blend" },
-    { "id": "quarto", "nome": "Quarto à noite", "arquivo": "quarto.glb", "de": "cenarios-problems/quarto.blend" },
+    { "id": "quarto", "nome": "Quarto à noite", "arquivo": "quarto.glb", "v": 2, "de": "cenarios-problems/quarto.blend" },
     { "id": "ginasio", "nome": "Ginásio (palco)", "arquivo": "ginasio.glb", "de": "cenarios-problems/ginasio.blend" }
   ]
 }
