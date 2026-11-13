@@ -299,3 +299,13 @@ html.cel .cl-camadas{background:var(--fundo-2);border-color:var(--linha)}
 html.cel .cl-palco{background:var(--fundo-2)}
 html.cel .cl-aviso{background:var(--fundo-2);border-radius:var(--raio-controle)}
 @media (max-width:980px){html.cel .cl{grid-template-columns:1fr}html.cel .cl-gal .cl-lista{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}}
+
+/* VISTA 3D 2.6: faixa do G/R/S (como o cabeçalho do Blender durante a ação) e lista de atalhos no "?" */
+html.cel #editor .v3d-modo{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);max-width:calc(100% - 24px);padding:8px 14px;border-radius:var(--raio-controle);background:rgba(21,21,23,.9);border:1px solid var(--linha-forte);color:var(--texto);font:500 13px var(--fonte);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;pointer-events:none;z-index:3}
+html.cel #editor .v3d-modo[hidden]{display:none}
+html.cel #editor .v3d-modo b{color:var(--acento);font-weight:600}
+html.cel #editor .v3d-modo span{color:var(--texto-3);font-size:12px}
+html.cel #editor .v3d-ajuda{max-height:calc(100% - 60px);overflow:auto;width:min(460px,calc(100% - 24px))}
+html.cel #editor .v3d-at i{display:block;font-style:normal;font:600 12px var(--fonte);color:var(--acento);margin:10px 0 4px}
+html.cel #editor .v3d-at p{margin:3px 0;font-size:12px;line-height:1.6}
+html.cel #editor .v3d-at .v3d-obs{color:var(--texto-3);margin-top:8px}

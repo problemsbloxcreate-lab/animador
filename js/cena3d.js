@@ -37,7 +37,7 @@ const Cena3D = {
     // (chão, morros e nuvens em PNG com fundo transparente vinham opacos e pretos; o exportador não marca a transparência nesses casos)
     sc.traverse(o => { if (!o.isMesh) return; const ms = Array.isArray(o.material) ? o.material : [o.material];
       const nv = ms.map(m => { if (!m?.isMeshStandardMaterial || m.map || (m.color && m.color.getHex() !== 0) || !(m.emissiveMap || m.emissive?.getHex())) return m;
-        const b = new T.MeshBasicMaterial({ color: m.emissive.clone().multiplyScalar(m.emissiveIntensity ?? 1), map: m.emissiveMap || null, side: m.side, transparent: !!m.emissiveMap, alphaTest: m.emissiveMap ? .5 : 0, toneMapped: false }); b.name = m.name; m.dispose(); return b; });
+        const b = new T.MeshBasicMaterial({ color: m.emissive.clone().multiplyScalar(m.emissiveIntensity ?? 1), map: m.emissiveMap || null, vertexColors: !!(m.userData?.cor_assada && o.geometry?.attributes?.color), /* cor assada nos vértices pelo converter_cenario.py (sombra pintada e ruído do Blender) */ side: m.side, transparent: !!m.emissiveMap, alphaTest: m.emissiveMap ? .5 : 0, toneMapped: false }); b.name = m.name; m.dispose(); return b; });
       o.material = Array.isArray(o.material) ? nv : nv[0]; });
     // LUZ DE EFEITO (raio de luar, halo, marcada 'aditivo' pelos scripts do Blender): a cor SOMA no que está atrás, como no Blender
     sc.traverse(o => { if (!o.isMesh || !(o.userData?.aditivo || o.parent?.userData?.aditivo)) return; for (const m of (Array.isArray(o.material) ? o.material : [o.material])) { m.transparent = true; m.blending = T.AdditiveBlending; m.depthWrite = false; m.alphaTest = 0; m.toneMapped = false; m.needsUpdate = true; } });
@@ -144,7 +144,7 @@ const Cena3D = {
   ajuste(P, n, q) {
     const a = n.ancora3d, cena = a && this.cenaDe(P, n); if (!cena || !this.T || !this.cenas.get(cena.arq) || !Modelo.aparece(P, cena, q)) return null; // trecho sem esse 3D: o personagem fica como está
     const pq = this.projeta(P, cena, q, this.camEm(cena, q), a), pr = this.projeta(P, cena, q, a.cam, a); if (!pq || !pr) return null;
-    const k = Math.max(.02, Math.min(50, pr.d / pq.d)); return new DOMMatrix().translate(pq.x, pq.y).scale(k, k).translate(-pr.x, -pr.y);
+    const k = Math.max(.02, Math.min(50, pr.d / pq.d * (a.s || 1))), M = new DOMMatrix().translate(pq.x, pq.y); if (a.r) M.rotateSelf(a.r); return M.scale(k, k).translate(-pr.x, -pr.y); // r e s: G/R/S da vista 3D (giro no plano e tamanho)
   },
   // prende no chão do 3D: raio da câmera até os pés (meio de baixo da caixa) → primeiro ponto do cenário; sem nada, o plano do chão (y mais baixo)
   prender(n) {
