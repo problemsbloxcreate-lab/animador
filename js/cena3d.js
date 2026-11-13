@@ -96,8 +96,9 @@ const Cena3D = {
       if (typeof NuvemAnim !== 'undefined' && NuvemAnim.vai?.(P)) { t.remove();
         const ok = await (typeof Ocupado !== 'undefined' && Ocupado.nuvem ? Ocupado.nuvem('Mandando o cenário 3D para a nuvem', () => NuvemAnim.salvar(P, x => Ocupado.anda?.(x))) : NuvemAnim.salvar(P)).catch(() => false);
         if (!ok) { P.raiz.splice(P.raiz.indexOf(n), 1); return UI.toast('O cenário 3D não foi para a nuvem agora, então não entrou na animação. Tente de novo em instantes.', { kind: 'err', time: 8000 }); } }
+      const troca = typeof CenLib !== 'undefined' && CenLib.trocaAqui ? CenLib.trocaAqui(P, n, q) : ''; // depois da nuvem: se falhar lá, nada foi cortado
       App.sel = n.id; App.commit('Cenário 3D'); t.remove();
-      UI.toast(`Cenário 3D <b>${esc(n.nome)}</b> no fundo${c.temLuz ? ', com a luz do arquivo' : ', com uma luz padrão (o arquivo não tinha luz)'}. A câmera 3D fica em Propriedades.`, { kind: 'ok', time: 7000 });
+      UI.toast(troca || `Cenário 3D <b>${esc(n.nome)}</b> no fundo${c.temLuz ? ', com a luz do arquivo' : ', com uma luz padrão (o arquivo não tinha luz)'}. A câmera 3D fica em Propriedades.`, { kind: 'ok', time: troca ? 9000 : 7000 });
     } catch (e) { t.remove(); UI.toast('Não abri o cenário 3D: ' + esc(e.message || String(e)) + '. <b>Exporte do Blender como .glb</b> e tente de novo.', { kind: 'err', time: 9000 }); }
   },
   async escolher() { const [f] = await pickFiles('.glb,.gltf,.blend', false); if (f) this.importar(f); }, // .blend passa pela ponte
@@ -130,7 +131,7 @@ const Cena3D = {
   // O personagem continua 2D, mas fica plantado num ponto do chão do 3D: a cada quadro o ponto é projetado pela câmera daquele quadro
   // e o personagem anda e muda de tamanho junto com o cenário (paralaxe). Com a câmera de quando foi preso, ele fica exatamente onde estava.
   cenaDe(P, n) { const id = n.ancora3d?.cena; return id ? Modelo.achar(P, id)?.no : null; },
-  cenaNoQuadro(P, q) { const L = Modelo.todos(P).filter(x => x.tipo === 'cena3d'); return L.find(x => x.vis !== false && (x.de || 0) <= q && Modelo.fimNo(P, x) >= q) || L[0] || null; },
+  cenaNoQuadro(P, q) { const L = Modelo.todos(P).filter(x => x.tipo === 'cena3d'); return L.find(x => x.vis !== false && (x.de || 0) <= q && Modelo.fimNo(P, x) >= q) || null; }, // só o que aparece agora (num trecho 2D não há cenário 3D)
   projeta(P, cena, q, cm, pt) {
     const T = this.T; if (!T) return null; const cam = this._pcam || (this._pcam = new T.PerspectiveCamera());
     cam.fov = Math.max(5, Math.min(120, cm.fov)); cam.aspect = (cena.w || P.w) / (cena.h || P.h); cam.near = .001; cam.far = 1e7;
@@ -141,7 +142,7 @@ const Cena3D = {
   },
   // matriz que leva o personagem da câmera de quando foi preso para a câmera do quadro q (null = não mexe)
   ajuste(P, n, q) {
-    const a = n.ancora3d, cena = a && this.cenaDe(P, n); if (!cena || !this.T || !this.cenas.get(cena.arq)) return null;
+    const a = n.ancora3d, cena = a && this.cenaDe(P, n); if (!cena || !this.T || !this.cenas.get(cena.arq) || !Modelo.aparece(P, cena, q)) return null; // trecho sem esse 3D: o personagem fica como está
     const pq = this.projeta(P, cena, q, this.camEm(cena, q), a), pr = this.projeta(P, cena, q, a.cam, a); if (!pq || !pr) return null;
     const k = Math.max(.02, Math.min(50, pr.d / pq.d)); return new DOMMatrix().translate(pq.x, pq.y).scale(k, k).translate(-pr.x, -pr.y);
   },
@@ -154,12 +155,16 @@ const Cena3D = {
     const T = this.T, w = cena.w || P.w, h = cena.h || P.h, cm = this.camEm(cena, q), cam = new T.PerspectiveCamera(cm.fov, w / h, .001, 1e7);
     cam.position.set(cm.px, cm.py, cm.pz); cam.lookAt(cm.tx, cm.ty, cm.tz); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
     const rc = new T.Raycaster(); rc.setFromCamera(new T.Vector2(l.x / (w / 2), -l.y / (h / 2)), cam);
-    let pt = rc.intersectObject(c.sc, true).find(i => i.object.isMesh && i.object.visible)?.point;
+    let pt = rc.intersectObject(c.sc, true).find(i => i.object.isMesh && i.object.visible && this.piso(i))?.point; // só onde dá para pisar (face virada para cima)
     if (!pt) { const y0 = new T.Box3().setFromObject(c.sc).min.y, pl = new T.Plane(new T.Vector3(0, 1, 0), -y0), o = new T.Vector3(); pt = rc.ray.intersectPlane(pl, o) ? o : null; }
     if (!pt) return UI.toast('Não achei o chão do cenário nesse ponto. Ponha os pés do personagem em cima do chão e tente de novo.', { kind: 'warn', time: 7000 });
     n.ancora3d = { cena: cena.id, x: round(pt.x, 3), y: round(pt.y, 3), z: round(pt.z, 3), cam: { ...cm } }; App.commit('Prender no cenário 3D');
     UI.toast(`<b>${esc(n.nome)}</b> está preso no cenário 3D: anda e muda de tamanho junto com a câmera.`, { kind: 'ok' });
   },
+  // superfície de PISAR: a face que o raio acertou está virada para cima (chão, calçada, gramado); cerca, parede e telhado não contam
+  piso(hit) { const T = this.T; if (!hit?.face) return true; const nm = hit.face.normal.clone().transformDirection(hit.object.matrixWorld); return Math.abs(nm.y) > .7; }, // abs: plano de dois lados pode vir com a normal para baixo
+  // MEMÓRIA: solta os cenários 3D que a animação aberta não usa (cada um pode ocupar centenas de MB na placa de vídeo)
+  limpa(P) { const usa = new Set(this.arqs(P)); for (const [k, c] of [...this.cenas]) { if (usa.has(k)) continue; c.sc.traverse(o => { o.geometry?.dispose?.(); for (const m of [].concat(o.material || [])) { for (const v of Object.values(m)) if (v?.isTexture) v.dispose(); m.dispose?.(); } }); this.cenas.delete(k); } this._ult = null; },
   soltar(n) { if (!n.ancora3d) return; delete n.ancora3d; App.commit('Soltar do cenário 3D'); },
   painelAncora(el, n) {
     const P = App.P; if (!Modelo.todos(P).some(x => x.tipo === 'cena3d')) return; const preso = !!n.ancora3d;
@@ -201,7 +206,7 @@ const Cena3D = {
     try { const k = this.CASA + it.arquivo; if (!(await this.blobCasa(k))) throw new Error('não achei o arquivo no site');
       const c = this.cenas.get(k) || await this.carrega(k); if (!c) throw new Error('o arquivo não abriu'); this.cenas.set(k, c);
       const n = this.poeNo(P, k, it.nome, c); if (it.cam) n.cam0 = { ...c.cam0, ...it.cam }; App.sel = n.id; App.commit('Cenário 3D'); t.remove();
-      UI.toast(`Cenário 3D <b>${esc(it.nome)}</b> no fundo. A câmera 3D fica em Propriedades; para o personagem andar junto, use "Prender no cenário 3D".`, { kind: 'ok', time: 7000 });
+      UI.toast(this._troca || `Cenário 3D <b>${esc(it.nome)}</b> no fundo. A câmera 3D fica em Propriedades; para o personagem andar junto, use "Prender no cenário 3D".`, { kind: 'ok', time: this._troca ? 9000 : 7000 }); this._troca = '';
     } catch (e) { t.remove(); UI.toast('Não abri o cenário 3D: ' + esc(e.message || String(e)), { kind: 'err' }); }
   },
   async menuCasa(x, y) { const L = await this.listaCasa(); if (!L.length) return UI.toast('Ainda não há cenários 3D da casa.', { kind: 'warn' });
@@ -211,7 +216,7 @@ const Cena3D = {
     const q = App.q, cam = Modelo.camera(P, q), z = cam.zoom || 1;
     const n = Modelo.novoNo('forma', { nome: ('Cenário 3D · ' + nome).slice(0, 48) }); n.tipo = 'cena3d'; delete n.forma; n.arq = id; n.w = P.w; n.h = P.h; n.cam0 = c.cam0; n.ceu = '#c9d3df';
     n.de = q; n.chaves = { [q]: { x: Math.round(cam.x), y: Math.round(cam.y), r: 0, s: round(1 / z * 1.01, 3), sx: 1, op: 1 } }; n.cenario = true;
-    const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); return n;
+    const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); this._troca = typeof CenLib !== 'undefined' && CenLib.trocaAqui ? CenLib.trocaAqui(P, n, q) : ''; return n;
   },
   // ---------- .blend SOLTO → a PONTE DO BLENDER (neste computador) converte em .glb e o cenário entra no fundo ----------
   // A ponte (Documentos/Problems/cenarios-problems/LIGAR-PONTE.bat, http://127.0.0.1:8810, versão 2+) recebe o .blend, escolhe o conversor
@@ -247,7 +252,7 @@ const Cena3D = {
     if (typeof Toon !== 'undefined') { const ti = Toon.ids; Toon.ids = function (P) { return [...new Set([...ti.call(this, P), ...Cena3D.arqs(P)])]; }; }
     this.ligaMouse(); setTimeout(() => this.ligaMouse(), 2000);
     // abrir: já carrega o 3D; exportar: espera o 3D antes do primeiro quadro (o MP4 igual à prévia)
-    const ab = App.abrir; App.abrir = async function (...x) { const r = await ab.apply(this, x); if (Cena3D.arqs(App.P).length) await Cena3D.garante(App.P).catch(e => console.warn(e)); return r; };
+    const ab = App.abrir; App.abrir = async function (...x) { const r = await ab.apply(this, x); try { Cena3D.limpa(App.P); } catch (e) { console.warn(e); } if (Cena3D.arqs(App.P).length) await Cena3D.garante(App.P).catch(e => console.warn(e)); return r; };
     if (typeof Exportar !== 'undefined') for (const f of ['mp4', 'png', 'quadros']) if (typeof Exportar[f] === 'function') { const o = Exportar[f]; Exportar[f] = async function (...x) { await Cena3D.garante(App.P).catch(() => { }); return o.apply(this, x); }; }
     if (typeof AoVivo !== 'undefined' && AoVivo.naNuvem) { const nn = AoVivo.naNuvem; AoVivo.naNuvem = function (k) { return Cena3D.ehCasa(k) || nn.call(this, k); }; }
     // Propriedades: a seção da câmera 3D

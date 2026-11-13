@@ -120,7 +120,19 @@ const CenLib = {
       pasta.filhos.push(n);
     }
     const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); if (i >= 0) P.raiz.splice(i, 0, pasta); else P.raiz.push(pasta);
-    App.sel = pasta.id; App.commit('Cenário em camadas'); return pasta;
+    const av = this.trocaAqui(P, pasta, q); App.sel = pasta.id; App.commit('Cenário em camadas'); if (av) setTimeout(() => UI.toast(av, { kind: 'ok', time: 8000 }), 300); return pasta;
+  },
+  // TROCA DE CENÁRIO NO TEMPO (pedido da dona, 13/11/2026: "alterar no mesmo projeto entre cenas 3D e 2D", sem complicação):
+  // o cenário novo (2D em camadas ou 3D) começa no quadro de agora; o que estava aparecendo termina no quadro antes; se já houver um
+  // cenário que começa mais para frente, o novo termina antes dele. No quadro 0 não corta nada (o novo fica na frente, como antes).
+  // Devolve o texto do aviso (ou '' quando não trocou nada). Ctrl+Z desfaz tudo junto (vai no mesmo commit de quem chamou).
+  trocaAqui(P, novo, q) {
+    const outros = P.raiz.filter(x => x !== novo && (x.cenario || x.tipo === 'cena3d') && !x.fundoPadrao), cortados = [];
+    if (q > 0) for (const x of outros) if ((x.de || 0) < q && Modelo.fimNo(P, x) >= q) { x.ate = q - 1; cortados.push(x); }
+    const prox = outros.map(x => x.de || 0).filter(d => d > q).sort((a, b) => a - b)[0];
+    if (prox != null) novo.ate = prox - 1;
+    const nm = x => esc(String(x.nome || '').replace(/^Cenário( 3D)?(: | · )/, ''));
+    return cortados.length ? `Troca de cenário no quadro <b>${q}</b>: <b>${cortados.map(nm).join(', ')}</b> vai até o ${q - 1}${prox != null ? `, e este vai até o ${prox - 1}` : ''}. Para mudar o ponto da troca, arraste a ponta da barra na linha do tempo. Ctrl+Z desfaz.` : '';
   },
   // s da camada na cena: o bitmap pode ter outro tamanho que o w×h do pacote (SVG = o mesmo; PNG grande = menor)
   escalaNo(L) { const bm = Arq.img.get(L.k), bw = bm?.width || L.w; return round((L.s ?? 1) * L.w / bw, 4); },
@@ -216,13 +228,18 @@ Object.assign(CenLib, {
   async abrir(o = {}) {
     const E = o.escolher || null;
     if (!App?.P && !E) return UI.toast('Abra uma animação primeiro.', { kind: 'err' });
-    const st = { def: null, orig: null, sel: null, modo: 'padrao', pasta: o.no || null, desf: [], ref: [], busca: '', tag: '', vez: 0, multi: false, escolhido: null,
+    const st = { def: null, orig: null, sel: null, modo: 'padrao', pasta: o.no || null, desf: [], ref: [], busca: '', tag: '', cat: '', gal: !(o.no || o.def || E?.atual), vez: 0, multi: false, escolhido: null,
       guia: !!E || (App?.P ? App.P.h > App.P.w : false),
       claro: (() => { try { return localStorage.getItem('cenlib-tudo-claro') !== '0'; } catch { return true; } })() }; // fora do quadro sem escurecer (cenários longos)
     const body = h(`<div class="cl">
+      <section class="cl-gal" aria-label="Biblioteca de cenários"><div class="cl-gal-topo"></div></section>
       <aside class="cl-bib">
-        <input type="search" class="cl-busca" placeholder="Buscar cenário…" aria-label="Buscar cenário">
-        <div class="cl-tags"></div>
+        <button class="btn sm cl-volta" data-volta title="Ver todos os cenários em tamanho grande">${ic('left', 13)} Biblioteca</button>
+        <div class="cl-filtros">
+          <div class="cl-busca-l"><input type="search" class="cl-busca" placeholder="Buscar cenário…" aria-label="Buscar cenário"><button class="btn sm cl-novo-bt" data-novo title="Cenário novo: com imagens, de arquivo, da nuvem ou 3D do Blender">${ic('plus', 13)} <span>Novo</span></button></div>
+          <div class="cl-cats" role="tablist" aria-label="Mostrar"></div>
+          <div class="cl-tags"></div>
+        </div>
         <div class="cl-lista"></div>
         <div class="cl-novo">
           <div class="cl-ger" style="display:none">Gerar com a IA · estilo</div>
@@ -320,24 +337,55 @@ Object.assign(CenLib, {
     // ---- biblioteca ----
     const lista = $('.cl-lista', body), tags = $('.cl-tags', body);
     const cartao = (nome, mini, info, ativo, fn, menu, cat = '', aprovar = false) => {
-      const b = h(`<div class="cl-card ${ativo ? 'sel' : ''} ${cat ? 'cl-c-' + cat : ''} ${aprovar ? 'cl-c-aprovar' : ''}" tabindex="0" title="${esc(nome)}">${mini ? `<img src="${mini}" alt="">` : '<i></i>'}<div><b>${esc(nome)}</b><small>${info || ''}</small></div></div>`);
+      const b = h(`<div class="cl-card ${ativo ? 'sel' : ''} ${cat ? cat.split(' ').map(x => 'cl-c-' + x).join(' ') : ''} ${aprovar ? 'cl-c-aprovar' : ''}" tabindex="0" title="${esc(nome)}">${mini ? `<img src="${mini}" alt="">` : '<i></i>'}<div><b>${esc(nome)}</b><small>${info || ''}</small></div></div>`);
       const im = $('img', b); if (im) im.onerror = () => im.replaceWith(h('<i></i>'));
-      b.onclick = () => fn(); b.onkeydown = e => { if (e.key === 'Enter') fn(); }; if (menu) b.oncontextmenu = e => { e.preventDefault(); UI.ctx(e.clientX, e.clientY, menu()); }; return b;
+      if (cat.startsWith('3d')) $('b', b).insertAdjacentHTML('afterbegin', '<em class="cl-3d">3D</em>');
+      const vai = () => ativo && st.def && st.gal ? modoGal(false) : fn(); b.onclick = vai; b.onkeydown = e => { if (e.key === 'Enter') vai(); }; if (menu) b.oncontextmenu = e => { e.preventDefault(); UI.ctx(e.clientX, e.clientY, menu()); }; return b;
     };
     const casa = await this.casa(); let meus = await this.meus();
+    const casa3d = App?.P && !E && typeof Cena3D !== 'undefined' ? await Cena3D.listaCasa().catch(() => []) : [];
+    // CATEGORIAS (chips): filtram os grupos da biblioteca
+    const pintaCats = () => { const box = $('.cl-cats', body); box.innerHTML = '';
+      for (const [k, n] of [['', 'Todos'], App?.P && ['cena', 'Nesta animação'], casa3d.length && ['3d', '3D (Blender)'], ['oficial', 'Oficiais'], ['rep', 'Rabiscados'], ['meus', 'Meus e da casa']].filter(Boolean)) {
+        const b = h(`<button class="cl-cat-b ${st.cat === k ? 'on' : ''}" role="tab" aria-selected="${st.cat === k}">${n}</button>`); b.onclick = () => { st.cat = k; pintaBib(); }; box.appendChild(b); } };
+    // GALERIA × EDITOR (repaginação de 13/11/2026): abre na galeria grande; escolher um cenário em camadas abre o editor de 3 colunas
+    const modoGal = on => { st.gal = on; body.classList.toggle('cl-modo-gal', on); const f = $('.cl-filtros', body), L = $('.cl-lista', body);
+      if (on) $('.cl-gal', body).append(f, L); else $('.cl-volta', body).after(f, L);
+      api?.el.querySelector('.modal')?.classList.toggle('cl-gal-on', on); for (const b of [btSalvar, btExp, btPor]) if (b) b.hidden = on;
+      if (!on) requestAnimationFrame(() => desenha()); };
+    $('[data-volta]', body).onclick = () => { modoGal(true); pintaBib(); };
+    $('[data-novo]', body).onclick = e => { const r = e.currentTarget.getBoundingClientRect(); UI.ctx(r.left, r.bottom + 4, [{ head: 'Cenário novo' },
+      { label: 'Com imagens ou SVG…', icon: 'image', action: () => novoComImagens() },
+      st.def && !st.gal && { label: 'Pôr um item neste cenário…', icon: 'package', action: () => $('[data-n="itens"]', body).click() },
+      App?.P && { label: 'Da nuvem da equipe…', icon: 'cloud', action: () => $('[data-n="nuvem"]', body)?.click() },
+      { label: 'Abrir arquivo .cenario…', icon: 'upload', action: () => $('[data-n="arq"]', body).click() },
+      App?.P && !E && typeof Cena3D !== 'undefined' && '-', App?.P && !E && typeof Cena3D !== 'undefined' && { label: 'Cenário 3D: .blend ou .glb…', icon: 'paisagem', action: () => { api?.close(); setTimeout(() => Cena3D.escolher(), 60); } },
+    ].filter(Boolean)); };
     const comCat = l => { for (const m of l) if (m.cat == null) m.cat = this.catDe(m.def); return l; }; comCat(meus);
     const recarrega = async () => { meus = comCat(await this.meus()); };
     // NUVEM: traz os cenários da equipe ao abrir (a lista aparece logo com o que já está aqui) e pergunta uma vez dos antigos
     if (typeof CenNuvem !== 'undefined') { CenNuvem.aoMudar = async () => { if (!body.isConnected) return; await recarrega(); pintaBib(); };
       Nuvem.souAdm().catch(() => { }); CenNuvem.sincroniza().then(r => { if (!r.ok && body.isConnected) UI.toast(`Não consegui abrir os cenários da nuvem: ${esc(r.erro)}. Mostrando os deste computador.`, { kind: 'err' }); return body.isConnected && CenNuvem.perguntaAntigos(); }).catch(e => console.warn('cenários da nuvem', e)); }
+    // TIRAR DA ANIMAÇÃO (botão direito no cartão de "Nesta animação"): vale para o 2D em camadas e para o 3D; Ctrl+Z desfaz
+    const tiraMenu = n => [{ head: String(n.nome || '').replace(/^Cenário( 3D)?(: | · )/, '') }, { label: 'Tirar da animação', icon: 'trash', danger: true, action: () => {
+      const i = App.P.raiz.indexOf(n); if (i < 0) return; App.P.raiz.splice(i, 1); /* o cenário de antes cobre o trecho que ficou vazio */ for (const x of App.P.raiz) if ((x.cenario || x.tipo === 'cena3d') && x.ate != null && x.ate === (n.de || 0) - 1) { if (n.ate == null) delete x.ate; else x.ate = n.ate; } for (const x of Modelo.todos(App.P)) if (x.ancora3d?.cena === n.id) delete x.ancora3d;
+      if (st.pasta === n.id) { st.pasta = null; st.def = null; } App.commit('Tirar cenário'); pintaBib(); UI.toast('Cenário tirado da animação. Ctrl+Z desfaz.', { kind: 'ok' }); } }];
     const pintaBib = async () => {
-      const bus = st.busca.trim().toLowerCase(), ok = (nome, tg = []) => (!bus || String(nome).toLowerCase().includes(bus) || tg.some(t => t.toLowerCase().includes(bus))) && (!st.tag || tg.includes(st.tag));
+      const bus = st.busca.trim().toLowerCase(), tagF = st.gal ? st.tag : '', catF = st.gal ? st.cat : '', ok = (nome, tg = []) => (!bus || String(nome).toLowerCase().includes(bus) || tg.some(t => t.toLowerCase().includes(bus))) && (!tagF || tg.includes(tagF)); /* categoria e etiqueta valem só na galeria (no editor ficam escondidas) */
       const todasTags = [...new Set([...casa.flatMap(c => c.tags || []), ...meus.flatMap(m => m.tags || [])])].sort();
-      tags.innerHTML = ''; if (todasTags.length) for (const t of ['', ...todasTags]) { const b = h(`<button class="cl-tag ${st.tag === t ? 'on' : ''}">${esc(t || 'Todos')}</button>`); b.onclick = () => { st.tag = t; pintaBib(); }; tags.appendChild(b); }
+      tags.innerHTML = ''; if (todasTags.length) for (const t of todasTags) { const b = h(`<button class="cl-tag ${st.tag === t ? 'on' : ''}" aria-pressed="${st.tag === t}" title="${st.tag === t ? 'Tirar o filtro' : 'Só os com esta etiqueta'}">${esc(t)}</button>`); b.onclick = () => { st.tag = st.tag === t ? '' : t; pintaBib(); }; tags.appendChild(b); }
       lista.innerHTML = '';
-      const grupo = (titulo, itens) => { if (!itens.length) return; lista.appendChild(h(`<div class="cl-g">${titulo}</div>`)); itens.forEach(x => lista.appendChild(x)); };
-      grupo('Nesta animação', this.pastasNaCena().filter(p => ok(p.nome)).map(p => { const c = cartao(p.nome.replace(/^Cenário: /, ''), null, `${p.filhos.length} camadas · ${this.keyframes(p).length} keyframe(s)`, st.pasta === p.id, () => escolheCena(p.id));
-        this.compoe(this.defDaPasta(p, App.q), 168).then(cv => { const i = $('i', c); if (i) i.replaceWith(Object.assign(new Image(), { src: cv.toDataURL('image/jpeg', .8), alt: '' })); }).catch(() => { }); return c; }));
+      pintaCats();
+      const grupo = (titulo, itens, chave) => { if (!itens.length || (catF && chave !== catF) || (!st.gal && /3d/.test(chave || ''))) return; /* no editor, a lista da esquerda é só a troca rápida entre cenários em camadas */ lista.appendChild(h(`<div class="cl-g">${titulo}</div>`)); itens.forEach(x => lista.appendChild(x)); };
+      // CENÁRIOS 3D (js/cena3d.js): os da casa (cenarios/3d, com foto tirada no Blender) entram direto na animação, com a câmera 3D
+      const tres = App?.P && !E && typeof Cena3D !== 'undefined';
+      const nesta3d = !tres ? [] : Modelo.todos(App.P).filter(n => n.tipo === 'cena3d' && ok(n.nome)).map(n => [n.de || 0, cartao(n.nome.replace(/^Cenário 3D · /, ''), Cena3D.ehCasa(n.arq) ? n.arq.replace(/\.glb$/i, '.jpg') : null, `3D · quadros ${n.de || 0}–${Modelo.fimNo(App.P, n)}`,
+        false, () => { App.sel = n.id; api?.close(); App.pinta(); try { Lado.pinta(); Arvore.pinta(); } catch { } }, () => tiraMenu(n), '3d')]);
+      grupo('Nesta animação', [...(st.gal ? nesta3d : []), ...this.pastasNaCena().filter(p => ok(p.nome)).map(p => { const c = cartao(p.nome.replace(/^Cenário: /, ''), null, `quadros ${p.de || 0}–${Modelo.fimNo(App.P, p)} · ${p.filhos.length} camadas · ${this.keyframes(p).length} keyframe(s)`, st.pasta === p.id, () => escolheCena(p.id), () => tiraMenu(p));
+        this.compoe(this.defDaPasta(p, App.q), 320).then(cv => { const i = $('i', c); if (i) i.replaceWith(Object.assign(new Image(), { src: cv.toDataURL('image/jpeg', .8), alt: '' })); }).catch(() => { }); return [p.de || 0, c]; })].sort((a, b) => a[0] - b[0]).map(x => x[1]), 'cena'); /* na ordem do tempo */
+      grupo('Cenários 3D <span>(Blender, com câmera 3D)</span>', !tres ? [] : [...casa3d.filter(it => ok(it.nome, ['3d'])).map(it => cartao(it.nome, `cenarios/3d/${it.id}.jpg`, '3D · da casa · pronto para usar', false,
+        () => { api?.close(); setTimeout(() => Cena3D.daCasa(it), 60); }, null, '3d')),
+        ...(bus || tagF ? [] : [cartao('.blend ou .glb do computador…', null, '3D · o Blender converte (ponte ligada)', false, () => { api?.close(); setTimeout(() => Cena3D.escolher(), 60); }, null, '3d mais')])], '3d');
       const cartaoCasa = c => cartao(c.nome, `cenarios/${c.id}/${c.miniatura || 'miniatura.jpg'}`, 'da casa · ' + (c.tags || []).join(' · '), !naCena() && st.def?.origem === 'casa' && st.def.id === c.id, () => escolhe(() => this.pacote(c.id)), null, 'oficial');
       const nuvemDe = m => typeof CenNuvem === 'undefined' ? '' : m._mod ? (CenNuvem.pendente(m) ? 'subindo para a nuvem · ' : 'na nuvem · ') : 'só neste computador · ';
       const cartaoMeu = m => cartao(m.nome, m.mini, (m.aprovar ? 'para aprovar · ' : '') + nuvemDe(m) + fmtDate(m.em), !naCena() && st.def?.id === m.id, () => escolhe(async () => { this._base.set(m.id, m._mod || 0); return { ...clone(m.def), origem: 'meu' }; }), () => [
@@ -352,17 +400,18 @@ Object.assign(CenLib, {
           : { label: 'Apagar deste computador', icon: 'trash', danger: true, action: async () => { if (!(await UI.confirm({ title: 'Apagar o cenário?', msg: `"<b>${esc(m.nome)}</b>" sai da sua biblioteca. As animações que já usam continuam com ele.`, ok: 'Apagar', danger: true }))) return; meus = meus.filter(x => x.id !== m.id); (this._tira ||= new Set()).add(m.id); await this.gravaMeus(meus); pintaBib(); } },
       ].filter(Boolean), m.cat === 'oficial' ? 'oficial' : m.cat === 'rep' ? 'rep' : '', m.aprovar);
       const doShort = E?.roteiro ? meus.filter(m => m.roteiro === E.roteiro) : [], fora = m => !doShort.includes(m);
-      grupo('Deste Short', doShort.filter(m => ok(m.nome, m.tags)).map(cartaoMeu));
-      grupo('Oficiais <span>(pintado azul)</span>', [...casa.filter(c => this.catDe(c) === 'oficial' && ok(c.nome, c.tags)).map(cartaoCasa), ...meus.filter(m => fora(m) && m.cat === 'oficial' && ok(m.nome, m.tags)).map(cartaoMeu)]);
+      grupo('Deste Short', doShort.filter(m => ok(m.nome, m.tags)).map(cartaoMeu), catF);
+      grupo('Oficiais <span>(pintado azul)</span>', [...casa.filter(c => this.catDe(c) === 'oficial' && ok(c.nome, c.tags)).map(cartaoCasa), ...meus.filter(m => fora(m) && m.cat === 'oficial' && ok(m.nome, m.tags)).map(cartaoMeu)], 'oficial');
       grupo('De representação <span>(rabiscados)</span>', [...meus.filter(m => fora(m) && m.cat === 'rep' && ok(m.nome, m.tags)).map(cartaoMeu),
-        ...Cenarios.PRONTOS.filter(p => ok(p.nome, ['rabiscado'])).map(p => cartao(p.nome, `cenarios/miniaturas/${p.id}.jpg`, 'pronto · rabiscado', st.def?.id === 'rab-' + p.id, () => escolhe(() => this.deRabiscado(p.id, p.nome)), null, 'rep'))]);
-      grupo('Da casa', casa.filter(c => this.catDe(c) !== 'oficial' && ok(c.nome, c.tags)).map(cartaoCasa));
-      grupo('Meus <span>(outros)</span>', meus.filter(m => fora(m) && !m.cat && ok(m.nome, m.tags)).map(cartaoMeu));
-      if (!lista.children.length) lista.appendChild(h('<div class="cl-nada">Nada encontrado.</div>'));
+        ...Cenarios.PRONTOS.filter(p => ok(p.nome, ['rabiscado'])).map(p => cartao(p.nome, `cenarios/miniaturas/${p.id}.jpg`, 'pronto · rabiscado', st.def?.id === 'rab-' + p.id, () => escolhe(() => this.deRabiscado(p.id, p.nome)), null, 'rep'))], 'rep');
+      grupo('Da casa', casa.filter(c => this.catDe(c) !== 'oficial' && ok(c.nome, c.tags)).map(cartaoCasa), 'meus');
+      grupo('Meus <span>(outros)</span>', meus.filter(m => fora(m) && !m.cat && ok(m.nome, m.tags)).map(cartaoMeu), 'meus');
+      if (!lista.children.length) { const q0 = st.busca.trim() || tagF, v = h(`<div class="cl-nada">${ic('search', 22)}<b>${q0 ? `Nenhum cenário com “${esc(q0)}”` : 'Nenhum cenário aqui ainda'}</b><button class="btn sm">Mostrar todos</button></div>`);
+        $('button', v).onclick = () => { st.busca = ''; st.tag = ''; st.cat = ''; $('.cl-busca', body).value = ''; pintaBib(); }; lista.appendChild(v); }
     };
     const ocupa = async (txt, fn) => { const av = $('.cl-aviso', body); av.textContent = txt; body.classList.add('cl-ocupado'); try { return await fn(); } catch (e) { UI.toast(esc(e?.message || e), { kind: 'err' }); console.warn('cenários', e); } finally { body.classList.remove('cl-ocupado'); } };
-    const escolhe = fn => ocupa('Abrindo o cenário…', async () => { const d = await fn(); if (!d) return; await Arq.garantir(d.camadas.map(c => c.k)); st.pasta = null; st.def = d; st.orig = clone(d); st.sel = null; st.desf = []; st.ref = []; st.mexido = false; pintaBib(); pinta(); });
-    const escolheCena = id => ocupa('Abrindo o cenário da cena…', async () => { st.pasta = id; const p = pasta(); await Arq.garantir(p.filhos.map(n => n.arq)); relê(); st.orig = null; st.sel = null; pintaBib(); pinta(); });
+    const escolhe = fn => ocupa('Abrindo o cenário…', async () => { const d = await fn(); if (!d) return; await Arq.garantir(d.camadas.map(c => c.k)); st.pasta = null; st.def = d; st.orig = clone(d); st.sel = null; st.desf = []; st.ref = []; st.mexido = false; modoGal(false); pintaBib(); pinta(); });
+    const escolheCena = id => ocupa('Abrindo o cenário da cena…', async () => { st.pasta = id; const p = pasta(); await Arq.garantir(p.filhos.map(n => n.arq)); relê(); st.orig = null; st.sel = null; modoGal(false); pintaBib(); pinta(); });
     $('.cl-busca', body).oninput = e => { st.busca = e.target.value; pintaBib(); };
     // ---- topo, keyframes e aviso ----
     const pintaTopo = () => {
@@ -549,7 +598,7 @@ Object.assign(CenLib, {
       for (const c of d.camadas) { c.s = Math.min(1, 700 / Math.max(c.w, c.h)); c.cx = x; c.cy = y; st.def.camadas.push(c); } st.sel = d.camadas.at(-1).id; pinta(); });
     // ---- novos ----
     const novoComImagens = async fs => { fs = fs || await pickFiles('image/*,.svg', true); if (!fs?.length) return;
-      await ocupa('Montando as camadas…', async () => { const d = await this.deArquivos(fs, 'Cenário novo'); if (!d) return; st.pasta = null; st.def = d; st.orig = clone(d); st.sel = null; st.desf = []; st.ref = []; pintaBib(); pinta(); UI.toast('Cada imagem virou uma camada. Arrume e use <b>Salvar na biblioteca</b>.', { kind: 'ok', time: 5000 }); }); };
+      await ocupa('Montando as camadas…', async () => { const d = await this.deArquivos(fs, 'Cenário novo'); if (!d) return; st.pasta = null; st.def = d; st.orig = clone(d); st.sel = null; st.desf = []; st.ref = []; modoGal(false); pintaBib(); pinta(); UI.toast('Cada imagem virou uma camada. Arrume e use <b>Salvar na biblioteca</b>.', { kind: 'ok', time: 5000 }); }); };
     $('[data-n="imgs"]', body).onclick = () => novoComImagens();
     // ---- GERADORES (oficial = pintado, js/cenoficial.js; de representação = rabiscado, js/cenarios.js) ----
     const gerar = async tipo => {
@@ -605,7 +654,7 @@ Object.assign(CenLib, {
       return true;
     };
     await UI.modal({ title: E ? `Cenário para: ${E.lugar || 'este lugar'}` : 'Cenários', icon: 'paisagem', iconHtml: '<span class="ic-ep ic-cn" data-estudio-icone="cn" aria-label="Cenários"></span>', width: 1240, body, sticky: true, noFocus: true,
-      onOpen: a => { api = a; a.el.querySelector('.modal').classList.add('cl-modal'); [btSalvar, btExp, , btPor] = a.foot.querySelectorAll('.btn');
+      onOpen: a => { api = a; a.el.querySelector('.modal').classList.add('cl-modal'); [btSalvar, btExp, , btPor] = a.foot.querySelectorAll('.btn'); modoGal(st.gal);
         if (st.pasta) escolheCena(st.pasta); else if (o.def) escolhe(async () => o.def); else if (E?.atual) escolhe(() => this.resolve(E.atual)); else pintaBib(); pinta(); },
       buttons: [
         { label: 'Salvar na biblioteca', icon: 'save', left: true, onClick: () => { salvar(); return false; } },

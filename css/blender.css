@@ -225,3 +225,77 @@ html.cel .exp-metro .exp-quadros input{border-radius:var(--raio-p)}
 html.cel #editor .c3d-t{font:600 11px var(--fonte);color:var(--texto-2);margin:8px 0 4px}
 html.cel #editor .c3d-grade{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 html.cel #editor .c3d-dica{color:var(--texto-3);font-size:11px;margin-top:6px}
+
+/* VISTA 3D DO PALCO (js/vista3d.js): por cima do palco, abaixo da barra do palco */
+html.cel #editor .v3d{position:absolute;left:0;right:0;top:36px;bottom:0;z-index:2;background:#111113}
+html.cel #editor .v3d[hidden]{display:none!important}
+html.cel #editor .v3d canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;top:0!important}
+html.cel #editor .v3d canvas:active{cursor:grabbing}
+html.cel #editor .v3d-dica{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);padding:6px 12px;border-radius:var(--raio-p);background:var(--vidro);color:var(--texto-2);font:500 12px var(--fonte);pointer-events:none;white-space:nowrap;max-width:calc(100% - 20px);overflow:hidden;text-overflow:ellipsis}
+
+html.cel #editor .v3d .v3d-cv{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;top:0!important}
+html.cel #editor .v3d .v3d-cv:active{cursor:grabbing}
+html.cel #editor .v3d-pip{position:absolute;top:10px;right:10px;padding:0;border:1px solid var(--linha-forte);border-radius:var(--raio-controle);overflow:hidden;background:#000;box-shadow:var(--sombra-2);cursor:pointer;z-index:3}
+html.cel #editor .v3d-pip canvas{display:block;position:static!important}
+html.cel #editor .v3d-pip span{position:absolute;left:6px;top:6px;padding:2px 7px;border-radius:5px;background:rgba(21,21,23,.78);color:var(--texto);font:600 11px var(--fonte)}
+html.cel #editor .v3d-pip:hover{border-color:var(--acento)}
+html.cel #editor .v3d-ajuda-bt{position:absolute;top:10px;left:10px;z-index:3;width:30px;height:30px;border-radius:50%;background:var(--elevado);color:var(--texto);font:700 14px var(--fonte);box-shadow:var(--sombra-2)}
+html.cel #editor .v3d-ajuda{position:absolute;top:48px;left:10px;z-index:3;width:min(420px,calc(100% - 20px));max-height:calc(100% - 60px);overflow:auto;padding:12px 14px;border-radius:var(--raio-cartao);background:var(--elevado);box-shadow:var(--sombra-3);color:var(--texto-2);font:400 12px/1.5 var(--fonte)}
+html.cel #editor .v3d-ajuda b{display:block;color:var(--texto);font-size:13px;margin-bottom:6px}
+html.cel #editor .v3d-ajuda p{margin:0 0 6px}
+html.cel #editor .v3d-ajuda kbd{display:inline-block;padding:0 5px;border-radius:4px;background:var(--fundo-3);color:var(--texto);font:600 11px var(--fonte)}
+html.cel #editor .v3d-ajuda[hidden]{display:none!important}
+
+/* JANELA CENÁRIOS repaginada (js/cenlib.js, 13/11/2026): abre na GALERIA grande; escolher um cenário em camadas abre o EDITOR de 3 colunas */
+html.cel .modal.cl-modal{width:min(1560px,calc(100vw - 32px))!important;height:calc(100vh - 32px)}
+html.cel .cl{grid-template-columns:220px minmax(0,1fr) 300px;gap:12px}
+html.cel .cl-gal{display:none}
+html.cel .cl.cl-modo-gal{display:flex;flex-direction:column}
+html.cel .cl.cl-modo-gal>.cl-bib,html.cel .cl.cl-modo-gal>.cl-meio,html.cel .cl.cl-modo-gal>.cl-lado{display:none}
+html.cel .cl.cl-modo-gal>.cl-gal{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
+html.cel .cl-gal-topo:empty{display:none}
+html.cel .cl-filtros{display:flex;flex-direction:column;gap:8px}
+html.cel .cl-busca-l{display:flex;gap:6px;align-items:center}
+html.cel .cl-busca{flex:1;min-width:0;height:32px;border-radius:var(--raio-controle);background:var(--fundo-3);border:1px solid var(--linha);color:var(--texto);padding:0 10px}
+html.cel .cl-busca:focus{outline:none;border-color:var(--acento);box-shadow:0 0 0 3px var(--acento-suave)}
+html.cel .cl-novo-bt{height:32px;flex:none}
+html.cel .cl-novo{display:none}
+html.cel .cl-cats{display:flex;gap:4px;flex-wrap:wrap}
+html.cel .cl-cat-b{height:28px;padding:0 12px;border-radius:var(--raio-controle);border:0;background:var(--fundo-3);color:var(--texto-2);font:500 12px var(--fonte);cursor:pointer}
+html.cel .cl-cat-b:hover{background:var(--fundo-4);color:var(--texto)}
+html.cel .cl-cat-b.on{background:var(--acento-suave);color:var(--acento)}
+html.cel .cl-cat-b:focus-visible,html.cel .cl-card:focus-visible,html.cel .cl-tag:focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+html.cel .cl-tags{gap:4px}
+html.cel .cl-tag{height:24px;padding:0 10px;border-radius:12px;border:0;background:none;color:var(--texto-3);font-size:12px}
+html.cel .cl-tag:hover{color:var(--texto);background:var(--fundo-3)}html.cel .cl-tag.on{background:var(--fundo-4);color:var(--texto)}
+html.cel .cl-g{font:600 12px var(--fonte);text-transform:none;letter-spacing:0;color:var(--texto);margin:14px 2px 2px}
+html.cel .cl-g span{color:var(--texto-3);font-weight:400}
+html.cel .cl-card{border-radius:var(--raio-controle);border:1px solid var(--linha);background:var(--fundo-2)}
+html.cel .cl-card:hover{border-color:var(--linha-forte);background:var(--fundo-3)}
+html.cel .cl-card.sel{border-color:var(--acento);background:var(--acento-suave)}
+html.cel .cl-card.cl-c-oficial,html.cel .cl-card.cl-c-rep{border-left-width:1px}
+html.cel .cl-card b{display:block;min-width:0}
+html.cel .cl-3d{display:inline-block;margin-right:6px;vertical-align:1px;font:700 11px/1 var(--fonte);padding:3px 5px;border-radius:4px;background:var(--acento-suave);color:var(--acento);font-style:normal}
+html.cel .cl-card.cl-c-mais i{display:grid!important;place-items:center;background:var(--fundo-3)!important;border:1px dashed var(--linha-forte)}
+html.cel .cl-card.cl-c-mais i::before{content:'+';font:300 28px var(--fonte);color:var(--acento)}
+html.cel .cl-nada{display:flex;flex-direction:column;align-items:center;gap:6px;padding:40px 10px;color:var(--texto-3);grid-column:1/-1}
+html.cel .cl-nada b{color:var(--texto);font-weight:600}
+html.cel .cl-nada .btn{margin-top:4px}
+/* galeria: cartões grandes em grade */
+html.cel .cl-gal .cl-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));grid-auto-rows:max-content;gap:12px;align-content:start;overflow:auto;padding:6px 6px 12px 6px}
+html.cel .cl-gal .cl-g{grid-column:1/-1}
+html.cel .cl-gal .cl-g:first-child{margin-top:2px}
+html.cel .cl-gal .cl-card{display:block;padding:0;overflow:hidden}
+html.cel .cl-gal .cl-card img,html.cel .cl-gal .cl-card i{width:100%;height:auto;border-radius:0;aspect-ratio:16/9}
+html.cel .cl-gal .cl-card>div{padding:8px 10px 10px;gap:2px}
+html.cel .cl-gal .cl-card b{font-size:13px}
+html.cel .cl-gal .cl-card small{font-size:12px}
+html.cel .cl-gal .cl-busca-l{max-width:720px}
+/* editor: a coluna da esquerda vira só a troca rápida (sem categorias nem etiquetas) */
+html.cel .cl-volta{align-self:flex-start}
+html.cel .cl-bib .cl-cats,html.cel .cl-bib .cl-tags{display:none}
+html.cel .cl-bib .cl-card img,html.cel .cl-bib .cl-card i{width:72px}
+html.cel .cl-camadas{background:var(--fundo-2);border-color:var(--linha)}
+html.cel .cl-palco{background:var(--fundo-2)}
+html.cel .cl-aviso{background:var(--fundo-2);border-radius:var(--raio-controle)}
+@media (max-width:980px){html.cel .cl{grid-template-columns:1fr}html.cel .cl-gal .cl-lista{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}}
