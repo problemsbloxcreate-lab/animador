@@ -19,6 +19,7 @@ const App = {
     if (!P.autor && !P.anterior) Autores.eu().then(eu => { if (this.P === P && !P.autor && eu?.id) { P.autor = { ...eu, em: P.criado || P.modificado || Date.now() }; this.salvarJa(); this.pintaNuvem(); } }).catch(() => { });
     AtualizaProj.lista = []; AtualizaProj.pinta(); AtualizaProj.confere(true); // botão "Atualizar projeto" só se este projeto estiver atrás da versão atual (js/atualizar.js)
     NuvemAnim.aoAbrir(P); // vai sozinha para a nuvem da equipe e entra no ao vivo (js/nuvemanim.js)
+    CenarioVideo.aoAbrir(P); // vídeo de cenário sem a cópia leve (proxy) do play: faz em segundo plano (js/cenvideo.js)
     if (typeof NuvemTela !== 'undefined' && NuvemTela.el) await this.esperaImagens(P); // a tela de carregando só sai com a cena pronta
   },
   /* SEM "POP IN" (pedido da dona, 05/11/2026): a tela "Carregando da nuvem" saía assim que o editor abria e as imagens da cena
