@@ -1,7 +1,7 @@
 {
-  "sobre": "Cenários 3D da casa (Estúdio Problems). Feitos no Blender e convertidos pelos scripts de Documentos/Estúdio Problems/Blender/scripts (converter_cenario.py para ruas grandes, assar_cenario.py para cenários pequenos). 'cam' = câmera inicial (x, y, z do three: y para cima).",
+  "sobre": "Cenários 3D da casa (Estúdio Problems). Feitos no Blender e convertidos pelos scripts de Documentos/Estúdio Problems/Blender/scripts (converter_cenario.py para ruas grandes, assar_cenario.py para cenários pequenos). 'cam' = câmera inicial (x, y, z do three: y para cima). 'v' = versão do arquivo: suba quando refizer o .glb, para os navegadores baixarem de novo.",
   "cenarios": [
-    { "id": "rua-completa", "nome": "Rua completa (casa amarela, casa da árvore, casa de gelo)", "arquivo": "rua-completa.glb", "de": "rua-completa.blend",
+    { "id": "rua-completa", "nome": "Rua completa (casa amarela, casa da árvore, casa de gelo)", "arquivo": "rua-completa.glb", "v": 2, "de": "rua-completa.blend",
       "cam": { "px": -9, "py": 1.1, "pz": 1.5, "tx": -9, "ty": 2.0, "tz": -12, "fov": 38 } },
     { "id": "rua-escola", "nome": "Rua da escola", "arquivo": "rua-escola.glb", "de": "cenarios-problems/rua-escola.blend" },
     { "id": "quarto", "nome": "Quarto à noite", "arquivo": "quarto.glb", "de": "cenarios-problems/quarto.blend" },

@@ -200,7 +200,11 @@ const Cena3D = {
   CASA: 'cenarios/3d/',
   async listaCasa() { if (this._lista) return this._lista; try { const r = await fetch(this.CASA + 'lista.json', { cache: 'no-store' }); this._lista = (await r.json()).cenarios || []; } catch { this._lista = []; } return this._lista; },
   ehCasa(k) { return typeof k === 'string' && k.startsWith(this.CASA); },
-  async blobCasa(k) { let b = await Arq.pegaBlob(k).catch(() => null); if (b) return b; const r = await fetch(k); if (!r.ok) return null; b = await r.blob(); try { await DB.put('arquivos', b, k); Arq.blob.set(k, b); } catch { } return b; },
+  // VERSÃO do arquivo da casa (lista.json "v"): o navegador guarda o .glb; quando a versão muda (cenário refeito no Blender), baixa de novo
+  async blobCasa(k) { const it = (await this.listaCasa()).find(x => this.CASA + x.arquivo === k), v = String(it?.v || 1), ch = 'c3d-versao:' + k; let tem = '1'; try { tem = localStorage.getItem(ch) || '1'; } catch { }
+    let b = tem === v ? await Arq.pegaBlob(k).catch(() => null) : null; if (b) return b;
+    const r = await fetch(k, { cache: tem === v ? 'default' : 'reload' }); if (!r.ok) return null; b = await r.blob();
+    try { await DB.put('arquivos', b, k); Arq.blob.set(k, b); localStorage.setItem(ch, v); } catch { } this.cenas.delete(k); return b; },
   async daCasa(it) {
     const P = App.P; if (!P) return; const t = UI.toast('<span class="spin-dot"></span> Abrindo o cenário 3D…', { time: 60000 });
     try { const k = this.CASA + it.arquivo; if (!(await this.blobCasa(k))) throw new Error('não achei o arquivo no site');
