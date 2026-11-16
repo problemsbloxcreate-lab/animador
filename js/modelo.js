@@ -275,8 +275,10 @@ const DB = (() => {
 /* ---------- arquivos (imagens e áudios) : guardados no navegador; imagens viram ImageBitmap na memória ---------- */
 const Arq = {
   img: new Map(), blob: new Map(), carregando: new Map(), avisar: new Map(),
-  async guardar(blob, id = uid('a')) { await DB.put('arquivos', blob, id); this.blob.set(id, blob); if (typeof Som !== 'undefined') Som.chegou?.(id); return id; }, // som da animação aberta que chegou agora: abre na hora
-  async pegaBlob(id) { if (this.blob.has(id)) return this.blob.get(id); const b = await DB.get('arquivos', id); if (b) this.blob.set(id, b); return b || null; },
+  // a nuvem das animações devolve TUDO como application/octet-stream (de propósito, por segurança): PNG/JPG abrem assim, SVG NÃO. Corrige o tipo pela extensão ao guardar e ao ler (conserta também o que já foi guardado errado neste computador). 16/11/2026
+  tipo(id, b) { if (!b || (b.type && b.type !== 'application/octet-stream')) return b; const t = { svg: 'image/svg+xml', png: 'image/png', webp: 'image/webp', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif' }[(/\.([a-z0-9]+)$/i.exec(String(id)) || [])[1]?.toLowerCase()]; return t ? new Blob([b], { type: t }) : b; },
+  async guardar(blob, id = uid('a')) { blob = this.tipo(id, blob); await DB.put('arquivos', blob, id); this.blob.set(id, blob); if (typeof Som !== 'undefined') Som.chegou?.(id); return id; }, // som da animação aberta que chegou agora: abre na hora
+  async pegaBlob(id) { if (this.blob.has(id)) return this.blob.get(id); const b = this.tipo(id, await DB.get('arquivos', id)); if (b) this.blob.set(id, b); return b || null; },
   // imagem pronta para desenhar (null enquanto carrega; avisa TODO MUNDO que pediu quando chegar —
   // antes só o primeiro que pediu era avisado, e a tela ficava sem a imagem até alguém clicar)
   bitmap(id, aoChegar) {
