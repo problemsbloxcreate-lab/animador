@@ -58,10 +58,16 @@ const Nuvem = {
   // versão atual, sem baixar o personagem (o Ateliê confere ao voltar para a aba)
   async modAtual(id) { try { const j = await (await this.pede('/personagens/arquivo?so=mod&k=' + encodeURIComponent(`personagens/${id}/personagem.json`))).json(); return +j.mod || 0; } catch { return 0; } },
   async baixar(k) {
-    let r; try { r = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k)); }
-    catch (e) { // imagem que já foi convertida para WEBP na nuvem (animação antiga ainda com o nome .png): pega a versão webp
-      if (!/\.(png|jpe?g)$/i.test(k)) throw e; r = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k.replace(/\.(png|jpe?g)$/i, '.webp'))); }
-    const b = await r.blob(); await DB.put('arquivos', b, k); return b;
+    // arquivo criado só para uma ANIMAÇÃO (ex.: "-esc", "-semrisco", "-emenda"): está na pasta dela, não na biblioteca de personagens. Antes o Animador pedia só à biblioteca (404) e a peça sumia em quem não tinha a cópia local (16/11/2026)
+    const daPasta = async () => { const id = typeof App !== 'undefined' && App.P?.id; if (!id || typeof NuvemAnim === 'undefined' || !NuvemAnim.vai?.(App.P)) return null; try { return await this.pede('/animacoes/arquivo?k=' + encodeURIComponent(NuvemAnim.chaveArq(id, k))); } catch { return null; } };
+    const conhecida = () => { const id = typeof App !== 'undefined' && App.P?.id; return !!(id && typeof NuvemAnim !== 'undefined' && NuvemAnim._ks?.get(id)?.has(NuvemAnim.chaveArq(id, k))); }; // já se sabe que ela está na pasta da animação: vai direto (sem 404 no console)
+    let r = conhecida() ? await daPasta() : null;
+    if (!r) { try { r = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k)); }
+      catch (e) { // imagem que já foi convertida para WEBP na nuvem (animação antiga ainda com o nome .png): pega a versão webp
+        if (/\.(png|jpe?g)$/i.test(k)) { try { r = await this.pede('/personagens/arquivo?k=' + encodeURIComponent(k.replace(/\.(png|jpe?g)$/i, '.webp'))); } catch { } }
+        if (!r) r = await daPasta();
+        if (!r) throw e; } }
+    let b = await r.blob(); if (typeof Arq !== 'undefined' && Arq.tipo) b = Arq.tipo(k, b); await DB.put('arquivos', b, k); return b;
   },
   // salva: manda as imagens que ainda não estão na nuvem e depois o personagem.json
   // quem é ADM pode apagar da nuvem; os outros recebem o aviso para pedir a um ADM (o servidor também confere)
