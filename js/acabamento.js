@@ -28,7 +28,9 @@ const GradeA2 = {
   _gl: null, _semGpu: false,
   /* aplica no canvas cv (2D, no lugar). Wv×Hv = tamanho do vídeo (P.w×P.h); inv = matriz px do canvas → px do vídeo (null = o canvas
      é o próprio vídeo, esticado); q = quadro da timeline (posição do dither do vignette). O alfa de cada pixel fica como está. */
-  aplica(cv, Wv, Hv, inv, q = 0) {
+  aplica(cv, Wv, Hv, inv, q = 0, o = {}) {
+    // o.vinheta === false: sem o escuro nas beiras (16/11/2026, pedido da dona); a cor e o contraste do A2 continuam iguais
+    if (o.vinheta === false) { const a0 = this.ANGULO; this.ANGULO = 0; try { return this.aplica(cv, Wv, Hv, inv, q); } finally { this.ANGULO = a0; } }
     const W = cv.width, H = cv.height; if (!W || !H) return;
     inv = inv || new DOMMatrix().scale(Wv / W, Hv / H);
     if (PreviaLeve.ativa) { const s = PreviaLeve.escala(1 / (Math.hypot(inv.a, inv.b) || 1)); if (s < 1) return this.reduzido(cv, W, H, Wv, Hv, inv, q, s); // PRÉVIA LEVE (só no palco tocando)
@@ -246,7 +248,9 @@ const LuzBorda = {
     const x0 = Math.max(0, xt0 - mg), y0 = Math.max(0, yt0 - mg), x1 = Math.min(W, xt1 + 1 + mg), y1 = Math.min(H, yt1 + 1 + mg), w = x1 - x0, h = y1 - y0, N = w * h;
     const al = new Float32Array(N); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) al[y * w + x] = p[((y + y0) * W + x + x0) * 4 + 3] / 255;
     // alfa do pixel que fica na direção do sol (fora da caixa = vazio); deslocamento fracionário = bilinear
-    const amostra = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, at = (a, b) => a < 0 || b < 0 || a >= w || b >= h ? 0 : al[b * w + a];
+    // BEIRA DA TELA (16/11/2026, pedido da dona): o que passa da beira do canvas conta como o personagem continuando (repete o alfa
+    // da beira). Antes contava como vazio e o corte do personagem na beira (ex.: capa do Problems) acendia uma linha clara reta.
+    const amostra = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, at = (a, b) => { if (a + x0 < 0 || b + y0 < 0 || a + x0 >= W || b + y0 >= H) return al[Math.min(h - 1, Math.max(0, b)) * w + Math.min(w - 1, Math.max(0, a))]; return a < 0 || b < 0 || a >= w || b >= h ? 0 : al[b * w + a]; };
       if (!fx && !fy) return at(xi, yi); return at(xi, yi) * (1 - fx) * (1 - fy) + at(xi + 1, yi) * fx * (1 - fy) + at(xi, yi + 1) * (1 - fx) * fy + at(xi + 1, yi + 1) * fx * fy; };
     const f = Math.fround, b8 = new Uint8Array(N);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x, a = al[i]; if (!a) continue; const des = amostra(x + sx, y + sy); b8[i] = Math.floor(f(f(Math.min(1, Math.max(0, f(a - des)))) * a) * 255); }
@@ -300,7 +304,7 @@ const PreviaLeve = {
     let c = this._cv; if (!c) c = this._cv = new OffscreenCanvas(w, h); if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.filter = 'none'; g.globalCompositeOperation = 'source-over'; g.fillStyle = '#151515'; g.fillRect(0, 0, w, h);
     g.save(); g.filter = Efeitos.filtro(P, q); Render.camadas(g, P, q, Vs, 1, { fundo: true, sombra: dpr * w / W }); g.restore();
-    let inv = null; try { inv = Vs.multiply(Render.matCamera(P, q, P.w, P.h).inverse()).inverse(); } catch { } if (inv) GradeA2.aplica(c, P.w, P.h, inv, q);
+    let inv = null; try { inv = Vs.multiply(Render.matCamera(P, q, P.w, P.h).inverse()).inverse(); } catch { } if (inv) GradeA2.aplica(c, P.w, P.h, inv, q, { vinheta: P.efeitos?.vinheta !== false });
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.filter = 'none'; ctx.globalCompositeOperation = 'copy'; ctx.imageSmoothingEnabled = true; ctx.drawImage(c, 0, 0, w, h, 0, 0, W, H); ctx.restore();
     return true;
   },
