@@ -314,6 +314,8 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
     } catch (e) { l.innerHTML = `<div class="vazio">Não consegui abrir a biblioteca: ${esc(e.message)}</div>`; }
   },
 };
+// SELO "No Publicações · 22/11" nas animações da lista (17/11/2026): depois de pintar a grade, uma leitura só do /publicacoes
+{ const g0 = Home.grade; Home.grade = async function (c) { const r = await g0.call(this, c); Exportar.selosPub?.(c); return r; }; }
 
 /* ---------- arquivo .animador (antes se chamava .toon; os dois abrem): a animação com tudo dentro (personagens, imagens e áudios) ---------- */
 const Toon = {

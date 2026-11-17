@@ -103,17 +103,46 @@ const Exportar = {
   /* BOTÃO Pu MOSTRA O ESTADO (pedido da dona, 10/11/2026: só o aviso embaixo ninguém via, o olho está no botão): "Enviando…" enquanto
      anda; depois fica verde com "No Publicações" (P.publicacoes.id) em toda abertura desta animação; e ao terminar o botão pisca e abre um
      BALÃO logo embaixo dele (pubBalao) com o resultado e "Abrir o Publicações". Erros e avisos do Pu também saem no balão. */
+  /* LIGAÇÃO NOS DOIS LADOS (pedido da dona, 17/11/2026): o Animador sabe que a animação está no Publicações por DOIS caminhos: o P.publicacoes.id (gravado quando se clica no Pu aqui)
+     OU o cartão do Publicações que aponta para esta animação (proj.id ou abrir = /animador/?nuvem=<id>), que é o que fica quando se liga ou marca pelo lado de lá. A DATA é uma só: a do cartão
+     no Publicações; o Animador só LÊ e mostra (nunca guarda cópia). Clicar no Pu de uma animação já ligada atualiza o cartão que existe, nunca cria outro. */
+  _pubItens: null, _pubEm: 0, _pubP: null,
+  pubCarrega(forca) {
+    const pode = k => window.EstudioPerm?.pode?.(k) ?? true; if (!pode('publicacoes')) return Promise.resolve(this._pubItens || []);
+    if (!forca && this._pubP && Date.now() - this._pubEm < 30000) return this._pubP;
+    this._pubEm = Date.now(); const p = this._pubP = Nuvem.pede('/publicacoes').then(r => r.json()).then(j => (this._pubItens = j.itens || [])).catch(() => { if (this._pubP === p) this._pubP = null; return this._pubItens || []; });
+    return p;
+  },
+  // o cartão do Publicações ligado a esta animação: pelo id gravado (P.publicacoes.id) ou pelo projeto (proj.id / abrir)
+  pubDe(P, L = this._pubItens) {
+    if (!P || !Array.isArray(L)) return null; const id = P.publicacoes?.id;
+    return (id && L.find(x => x.id === id)) || L.find(x => x.proj?.id === P.id || x.abrir === '/animador/?nuvem=' + P.id) || null;
+  },
+  pubItem(P) { return this.pubDe(P, this._pubItens); },
+  pubU(P) { if (P?.publicacoes?.id) return P.publicacoes; const it = this.pubItem(P); if (!it) return null; const t = it.editadoEm || it.enviadoEm || 0; return { id: it.id, em: t, mod: t, deles: true }; },
+  // a data do cartão (de um episódio em partes: a do episódio) como "22/11"; vazio = sem data
+  pubDia(it) { let t = it?.publicaEm; if (!t && it?.ep?.n) t = (this._pubItens || []).find(x => x.ep?.n === it.ep.n && x.publicaEm)?.publicaEm; return t ? new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : ''; },
   pintaPub() {
-    const b = document.getElementById('b-pub'); if (!b) return; const P = App.P, an = !!this._prontoAndando, ok = !!P?.publicacoes?.id && !P.publicacoes.saiu, ds = ok && this.pubDesat(P);
-    const k = an ? 'a' : ds ? 'd' + P.publicacoes.em : ok ? 'o' + P.publicacoes.em : 'n'; if (b.dataset.st === k) return; b.dataset.st = k;
+    const b = document.getElementById('b-pub'); if (!b) return; const P = App.P, an = !!this._prontoAndando;
+    if (P?.id && this._pubVista !== P.id) { this._pubVista = P.id; this.pubCarrega().then(() => { const bb = document.getElementById('b-pub'); if (bb && App.P?.id === P.id) { bb.dataset.st = ''; this.pintaPub(); } }); }
+    if (!this._pubFoco) { this._pubFoco = 1; addEventListener('focus', () => { if (App.P?.id) this.pubCarrega(true).then(() => { const bb = document.getElementById('b-pub'); if (bb) { bb.dataset.st = ''; this.pintaPub(); } }); }); } // a data mudou lá? volta e vê
+    const u = this.pubU(P), ok = !!u?.id && !u.saiu, ds = ok && this.pubDesat(P), it = ok ? this.pubItem(P) : null, dia = it ? this.pubDia(it) : '';
+    const k = an ? 'a' : ds ? 'd' + u.em : ok ? 'o' + u.em + '|' + dia : 'n'; if (b.dataset.st === k) return; b.dataset.st = k;
     b.classList.toggle('pub-andando', an); b.classList.toggle('pub-ok', ok && !an && !ds); b.classList.toggle('pub-desat', ds && !an);
     let tx = b.querySelector('.pub-tx'); if (!tx) { tx = document.createElement('span'); tx.className = 'pub-tx'; b.appendChild(tx); }
-    tx.innerHTML = an ? '<span class="spin-dot"></span> Enviando…' : ds ? ic('alert', 13) + ' Desatualizado' : ok ? ic('check', 13) + ' No Publicações' : '';
-    b.title = an ? 'Pondo no Publicações…' : ds ? `A animação mudou depois de ir para o Publicações (lá está a de ${fmtDate(P.publicacoes.em)}). Ela se atualiza sozinha lá quando salvar na nuvem; clique para atualizar agora.`
-      : ok ? `Já está no Publicações, em "Não publicados" (atualizado ${fmtDate(P.publicacoes.em)}). Cada vez que salvar na nuvem, atualiza lá também.` : 'Pronto: pôr no Publicações (sem exportar). Lá dá para gerar o vídeo depois.';
+    tx.innerHTML = an ? '<span class="spin-dot"></span> Enviando…' : ds ? ic('alert', 13) + ' Desatualizado' : ok ? ic('check', 13) + ' No Publicações' + (dia ? ' · ' + dia : '') : '';
+    b.title = an ? 'Pondo no Publicações…' : ds ? `A animação mudou depois de ir para o Publicações (lá está a de ${fmtDate(u.em)}). Ela se atualiza sozinha lá quando salvar na nuvem; clique para atualizar agora.`
+      : ok ? `Já está no Publicações${dia ? ' (dia marcado lá: ' + dia + ')' : ' (sem dia marcado)'}. Clicar aqui atualiza o cartão que já existe, nunca cria outro.` : 'Pronto: pôr no Publicações (sem exportar). Lá dá para gerar o vídeo depois.';
   },
-  // DESATUALIZADO (pedido da dona, 10/11/2026): a animação mudou (P.modificado) depois da versão que está no Publicações (P.publicacoes.mod)
-  pubDesat(P) { const u = P?.publicacoes; return !!(u?.id && !u.saiu && (P.modificado || 0) > (u.mod || u.em || 0) + 1000); },
+  // DESATUALIZADO (pedido da dona, 10/11/2026): a animação mudou (P.modificado) depois da versão que está no Publicações. Cartão que já saiu de "Não publicados" (agendado sem link etc.) não conta.
+  pubDesat(P) { const u = this.pubU(P), it = this.pubItem(P); return !!(u?.id && !u.saiu && !(it && !it.concluido) && (P.modificado || 0) > (u.mod || u.em || 0) + 1000); },
+  // selo "Pu · 22/11" nas animações da lista que já estão no Publicações (um pedido só ao /publicacoes para a lista toda)
+  async selosPub(c) {
+    try { const L = await this.pubCarrega(); if (!c?.isConnected) return;
+      for (const k of $$('.pc[data-anid]', c)) { k.querySelector('.an-pub')?.remove(); const it = this.pubDe({ id: k.dataset.anid }, L); if (!it) continue; const dia = this.pubDia(it);
+        const s = h(`<span class="an-pub" title="${dia ? 'No Publicações, dia marcado: ' + dia : 'No Publicações, ainda sem dia marcado'}">${ic('check', 10)} Pu${dia ? ' · ' + dia : ''}</span>`); ($('.th', k) || k).appendChild(s); }
+    } catch { }
+  },
   // o item do Não publicados com o nome, o formato e a miniatura de agora (o resto — canal, data, modo — fica como a equipe deixou lá)
   itemPub(P, ant, id, q) {
     const base = ant ? (({ meu, por, editadoPor, editadoEm, ...x }) => x)(ant) : { canal: this.CANAL_TURMA, enviadoEm: Date.now(), modo: 'naoListado', privacidade: 'unlisted' };
@@ -127,7 +156,7 @@ const Exportar = {
     const pode = k => window.EstudioPerm?.pode?.(k) ?? true; if (!pode('animador.exportar') || !pode('publicacoes')) return false;
     const L = await (await Nuvem.pede('/publicacoes')).json(), ant = (L.itens || []).find(x => x.id === u.id);
     if (!ant) { P.publicacoes = { ...u, saiu: true }; this.pintaPub(); return true; }
-    if (ant.pedido) return false;
+    if (ant.pedido || !ant.concluido) return false;
     await Nuvem.pede('/publicacoes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ item: this.itemPub(snap, ant, u.id, u.q) }) });
     if (P.publicacoes?.id === u.id) P.publicacoes = { ...P.publicacoes, em: Date.now(), mod: snap.modificado || Date.now() }; this.pintaPub(); return true;
   },
@@ -143,7 +172,7 @@ const Exportar = {
   },
   /* TIRAR DO PUBLICAÇÕES (pedido da dona, 10/11/2026): botão direito no Pu, menu ⋯ e o botão "Tirar de lá" no balão.
      DELETE /publicacoes?id=<item> (o servidor só deixa quem pôs lá ou um ADM). Tira P.publicacoes: o Pu volta ao normal. */
-  temPub(P = App.P) { return !!(P?.publicacoes?.id && !P.publicacoes.saiu); },
+  temPub(P = App.P) { const u = this.pubU(P); return !!(u?.id && !u.saiu); },
   async tirarPub() {
     const P = App.P, u = P?.publicacoes; if (!u?.id || this._prontoAndando) return;
     if (!await UI.confirm({ title: 'Tirar do Publicações?', msg: `"${esc(P.nome || 'Animação')}" sai de "Não publicados" no Publicações. A animação continua aqui, e dá para pôr de novo depois pelo botão Pu.`, ok: 'Tirar de lá', danger: true, icon: 'trash' })) return;
@@ -173,7 +202,8 @@ const Exportar = {
         if (!NuvemAnim.vai(P)) return this.pubBalao('A animação não foi para a nuvem.', 'err');
       } else if (NuvemAnim.sujo(P)) { try { await NuvemAnim.salvar(P); } catch { } } // a versão da nuvem é a que o Publicações abre
       let L; try { L = await (await Nuvem.pede('/publicacoes')).json(); } catch (e) { return this.pubBalao('Não consegui falar com o Publicações: ' + esc(e.message), 'err'); }
-      const ant = P.publicacoes?.id ? (L.itens || []).find(x => x.id === P.publicacoes.id) : null;
+      this._pubItens = L.itens || []; const ant = this.pubDe(P, L.itens || []);
+      if (ant && !ant.concluido && !ant.pedido) { this.pintaPub(); return this.pubBalao(`<b>Já está no Publicações</b><small>${esc(P.nome || 'Animação')}${this.pubDia(ant) ? ' · dia marcado: ' + this.pubDia(ant) : ' · sem dia marcado'}. O cartão já saiu de Não publicados; mexa nele lá.</small><span class="pub-balao-acoes"><a class="btn sm" href="/publicacoes/" target="_blank" rel="noopener">Abrir o Publicações</a></span>`, 'info'); }
       if (ant?.pedido) return this.pubBalao('Esta animação já está na fila do Publicações. <a href="/publicacoes/" target="_blank" rel="noopener">Abrir o Publicações</a>', 'warn');
       if (P.publicacoes?.id && !ant && !await UI.confirm({ title: 'Pôr no Publicações de novo?', msg: 'Esta animação já foi para o Publicações e saiu de "Não publicados" (foi postada ou tirada de lá). Pôr de novo?', ok: 'Pôr de novo' })) return;
       const id = ant ? ant.id : 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
