@@ -37,8 +37,8 @@ document.documentElement.classList.add('turma-locked');
 /* (a mesma tela de carregamento do resto do Estúdio, 12/11/2026) */
 /* ===== CARREGAMENTO C (escolha da dona, 12/11/2026): fundo liso; o ícone com um ANEL de progresso em volta e um BRILHO
    suave na cor do programa atrás; embaixo o nome e uma linha "54% · o que está acontecendo". Sem foto, sem barra, sem lista de passos. ===== */
-#turma-login{background:#141416!important;--pt-tx:#f5f5f7!important;--pt-tx2:rgba(235,235,245,.66)!important}
-html[data-tema="claro"] #turma-login{background:#f2f2f5!important;--pt-tx:#1d1d1f!important;--pt-tx2:rgba(60,60,67,.66)!important}
+#turma-login{background:#000!important;--pt-tx:#f5f5f7!important;--pt-tx2:rgba(235,235,245,.66)!important}
+html[data-tema="claro"] #turma-login{background:#000!important;--pt-tx:#f5f5f7!important;--pt-tx2:rgba(235,235,245,.66)!important} /* fundo PRETO nos dois temas (pedido da dona, 17/11/2026) */
 #turma-login::before{content:""!important;position:absolute;inset:0;z-index:0;pointer-events:none;filter:none!important;animation:epBrilho 1.8s ease-in-out infinite alternate!important;background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#5cc4ff) 30%,transparent),transparent 72%)!important}
 html[data-tema="claro"] #turma-login::before{background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#5cc4ff) 22%,transparent),transparent 72%)!important}
 #turma-login::after{display:none!important}

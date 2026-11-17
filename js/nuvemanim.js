@@ -48,9 +48,9 @@ const NuvemTela = {
 /* CARREGAMENTO ÚNICO (pedido da dona, 12/11/2026): esta tela é a MESMA do carregamento C (a da entrada, #turma-login):
    fundo liso, ícone do programa dentro do anel parado, brilho na cor do programa piscando leve, título e UMA linha "54% · frase".
    Do começo ao fim só o texto muda (nada de nuvem desenhada, barra ou fundo preto). */
-#nuvem-tela{--pt-tx:#f5f5f7;--pt-tx2:rgba(235,235,245,.66);background:#141416;font-family:"Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
-html[data-tema="claro"] #nuvem-tela{--pt-tx:#1d1d1f;--pt-tx2:rgba(60,60,67,.66);background:#f2f2f5}
-#nuvem-tela.nt-vidro{background:color-mix(in srgb,#141416 84%,transparent)}html[data-tema="claro"] #nuvem-tela.nt-vidro{background:color-mix(in srgb,#f2f2f5 84%,transparent)}
+#nuvem-tela{--pt-tx:#f5f5f7;--pt-tx2:rgba(235,235,245,.66);background:#000;font-family:"Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+html[data-tema="claro"] #nuvem-tela{--pt-tx:#f5f5f7;--pt-tx2:rgba(235,235,245,.66);background:#000} /* fundo PRETO nos dois temas (pedido da dona, 17/11/2026) */
+#nuvem-tela.nt-vidro,html[data-tema="claro"] #nuvem-tela.nt-vidro{background:color-mix(in srgb,#000 84%,transparent)}
 #nuvem-tela::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#3fd6f2) 30%,transparent),transparent 72%);animation:epBrilho 1.8s ease-in-out infinite alternate}
 html[data-tema="claro"] #nuvem-tela::before{background:radial-gradient(260px 260px at 50% calc(50% - 64px),color-mix(in srgb,var(--ep-cor,#3fd6f2) 22%,transparent),transparent 72%)}
 #nuvem-tela .nt-c{position:relative;z-index:1;width:auto;height:auto;transform:translateY(-4vh);display:flex;flex-direction:column;align-items:center;justify-content:center}
