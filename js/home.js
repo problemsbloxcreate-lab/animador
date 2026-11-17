@@ -315,7 +315,7 @@ Regras: w e h entre 64 e 4096 (pares); fps entre 1 e 60 (desenho animado costuma
   },
 };
 // SELO "No Publicações · 22/11" nas animações da lista (17/11/2026): depois de pintar a grade, uma leitura só do /publicacoes
-{ const g0 = Home.grade; Home.grade = async function (c) { const r = await g0.call(this, c); Exportar.selosPub?.(c); return r; }; }
+{ const g0 = Home.grade; Home.grade = async function (c) { const r = await g0.call(this, c); Exportar.selosPub?.(c); [1500, 5000].forEach(t => setTimeout(() => Exportar.selosPub?.(c), t)); return r; }; } // repete depois: a nuvem pode chegar tarde ou a lista ser repintada
 
 /* ---------- arquivo .animador (antes se chamava .toon; os dois abrem): a animação com tudo dentro (personagens, imagens e áudios) ---------- */
 const Toon = {
