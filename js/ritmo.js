@@ -27,7 +27,7 @@ const Ritmo = {
   // ---------- leitura do projeto ----------
   ehAuto: x => x && x.auto === 'ritmo',
   limpaPal: w => String(w || '').replace(/^[^0-9A-Za-zÀ-ÿ]+|[^0-9A-Za-zÀ-ÿ]+$/g, ''),
-  caps(w) { const l = String(w).replace(/[^A-Za-zÀ-ÿ]/g, ''); return l.length >= 3 && l === l.toLocaleUpperCase('pt-BR') && l !== l.toLocaleLowerCase('pt-BR'); },
+  caps(w) { const l = String(w).replace(/[^A-Za-zÀ-ÿ]/g, ''); return l.length >= 2 && /* 2+ letras: "MENOS EU" (23/11) */ l === l.toLocaleUpperCase('pt-BR') && l !== l.toLocaleLowerCase('pt-BR'); },
   // palavras de uma legenda com o quadro em que começam: [{ t, q0, q1, chave, bloco (1ª do bloco) }]
   palavras(P, l) {
     const fps = P.fps || 24, out = [], marcadas = new Set((l.chaves || []).flatMap(c => String(c).split(/\s+/)).map(w => this.limpaPal(w).toLocaleLowerCase('pt-BR')).filter(Boolean));
