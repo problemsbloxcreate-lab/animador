@@ -144,6 +144,29 @@ const Prep = {
     escolha.fmt = fmts.find(f => f.id === $('[data-fmt]', body).value) || fmt0; escolha.comPers = $('[data-pers]', body).checked;
     return this.monta(it, P, escolha);
   },
+  /* MONTAR PELO LINK (Preparativos simples, 23/11/2026): o botão "Montar no Animador" do Preparativos abre /animador/?montar=<id do prep>&ritmo=1.
+     Aqui: baixa o prep.json, monta SEM a janela de formato/partes (o formato do Preparativos: legenda.quadro, padrão 1080×1920, 24 fps; TODAS as
+     partes numa animação só; personagens do elenco, comPers) e, com ritmo=1, roda o Ritmo automático (js/ritmo.js) e deixa a animação aberta.
+     Já existe animação montada deste roteiro (P.prep.id neste computador ou usadoPor no prep.json)? Pergunta UMA vez: abrir a que existe ou montar outra. */
+  async deLink(id, ritmo) {
+    let P; try { P = await this.prep({ id }, true); } catch (e) { UI.toast('Não consegui abrir o roteiro do Preparativos: ' + esc(e.message || e), { kind: 'err', time: 9000 }); return; }
+    if (!P) return; const partes = (P.partes || []).filter(p => (p.falas || []).length);
+    if (!partes.length) return UI.toast('Este roteiro não tem falas.', { kind: 'warn' });
+    const locais = await DB.all('projetos').catch(() => []), usos = (P.usadoPor || []).filter(u => u.programa === 'animador').sort((a, b) => String(b.quando).localeCompare(String(a.quando)));
+    const daqui = locais.filter(x => x?.prep?.id === P.id), local = usos.map(u => daqui.find(x => x.id === u.projeto)).find(Boolean) || daqui[0] || null, nuvemId = !local && usos[0] ? usos[0].projeto : null;
+    if (local || nuvemId) {
+      const r = await UI.modal({ title: 'Este roteiro já tem uma animação', iconHtml: '<span class="hm-gic" data-estudio-icone="pr"></span>', width: 460, cancelValue: null,
+        body: `<p><b>${esc(P.nome || 'Roteiro')}</b> já foi montado${local?.nome ? ` na animação <b>${esc(local.nome)}</b>` : ''}. Abrir a que existe ou montar outra (a que existe continua como está)?</p>`,
+        buttons: [{ label: 'Montar outra', value: 'nova' }, { label: 'Abrir a que existe', kind: 'primary', value: 'abrir' }] });
+      if (!r) return;
+      if (r === 'abrir') { if (local) return NuvemAnim.abrir(local.id, local);
+        NuvemTela.inicio(P.nome || '', 'an'); let ok = false; try { await NuvemAnim.abrir(nuvemId, null, { tela: true }); ok = true; } catch (e) { UI.toast('Não abriu a animação: ' + esc(e.message || e), { kind: 'err', time: 7000 }); } finally { NuvemTela.fim(ok); } return; }
+    }
+    const Q = { w: +P.legenda?.quadro?.w || 1080, h: +P.legenda?.quadro?.h || 1920 }, fmt = FORMATOS.find(f => f.w === Q.w && f.h === Q.h && f.fps === 24) || { id: 'prep', nome: 'O do Preparativos', w: Q.w, h: Q.h, fps: 24 };
+    await this.monta({ id: P.id, nome: P.nome }, P, { grupos: [partes], fmt, comPers: true });
+    if (!ritmo || App.P?.prep?.id !== P.id) return;
+    try { await Ritmo.rodar(); } catch (e) { UI.toast('O ritmo automático não entrou: ' + esc(e.message || e), { kind: 'warn', time: 7000 }); }
+  },
   /* f.fonte = { audio (o áudio inteiro), ini, dur, de } — gravado pelo "Pôr o áudio inteiro" do Preparativos. Só vale enquanto o áudio da fala
      ainda é o trecho que saiu dele (fonte.de === f.audio): regravou ou aceitou dublagem = f.audio mudou e volta o caso antigo (um arquivo por fala). */
   fonteAudio(f) { const x = f && f.fonte; if (!x || !x.audio || !f.audio || x.de !== f.audio) return null; const ini = +x.ini, dur = +x.dur; return Number.isFinite(ini) && Number.isFinite(dur) && ini >= 0 && dur > 0 ? { audio: x.audio, ini, dur } : null; },
