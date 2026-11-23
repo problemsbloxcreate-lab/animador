@@ -96,6 +96,12 @@ const Lado = {
         $('[data-f]', box).appendChild(this.campo('Força', o.forca, 0, 2, .05, v => { f.atuacao = { ...Atuacao.opcoes(f), forca: v }; App.pinta(); }, () => App.commit('Força da atuação', { semArvore: true })));
         $$('[data-k]', box).forEach(c => c.onchange = () => { f.atuacao = { ...Atuacao.opcoes(f), [c.dataset.k]: c.checked }; App.commit('Atuação automática', { semArvore: true }); });
       })); }
+    // VIDA AUTOMÁTICA (js/vida.js, 23/11/2026): respirar, piscar e boca sem travar o corpo — só em animação nova (P.rive)
+    if (App.P?.rive && typeof Vida !== "undefined") { const vl = Vida.ligada(App.P, f);
+      el.appendChild(this.secao("vida", "Vida automática", vl ? "ligada" : "desligada", box => {
+        box.appendChild(h(`<div class="campo2"><span style="color:var(--tx3);font-size:11.5px;flex:1">Respira, pisca e a boca não trava o corpo. Cachecol e cabelo seguem o tronco. As chaves não mudam.</span><button class="btn sm ${vl ? "primary" : ""}" data-vida>${vl ? "Ligada" : "Desligada"}</button></div>`));
+        $("[data-vida]", box).onclick = () => { f.vida = !vl; App.commit(vl ? "Vida automática desligada" : "Vida automática ligada", { semArvore: true }); };
+      })); }
   },
   escolhe(n, sessao, preset) {
     const k = Modelo.chave(n, App.q); k.sessoes = { ...(k.sessoes || {}), [sessao]: preset };

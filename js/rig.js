@@ -141,9 +141,12 @@ const Rig = {
   },
 
   /* ---------- MOVIMENTO SUAVE das partes entre as chaves do nó (n.suaveP) ---------- */
-  chavesPose(n) { return Modelo.quadrosChave(n).filter(k => { const c = n.chaves[k]; return c.sessoes || c.partes || c.vista !== undefined; }); },
+  // VIDA (23/11/2026, js/vida.js): com a vida ligada, chave que só mexe no rosto (boca, olhos) NÃO é pose do corpo — antes cada sílaba
+  // da boca virava uma chave do corpo e o corpo freava nela (medido no EP1: "dura, só mexe em estalos")
+  chavesPose(n, defRosto) { return Modelo.quadrosChave(n).filter(k => { const c = n.chaves[k]; return (c.sessoes || c.partes || c.vista !== undefined) && !(defRosto && Vida.soRosto(defRosto, c)); }); },
   tween(P, n, q, dv, ep) {
-    const ks = this.chavesPose(n); let qa = null, qb = null; for (const k of ks) { if (k <= q) qa = k; else { qb = k; break; } }
+    const vida = typeof Vida !== 'undefined' && Vida.ligada(P, n);
+    const ks = this.chavesPose(n, vida ? P.personagens[n.ref] : null); let qa = null, qb = null; for (const k of ks) { if (k <= q) qa = k; else { qb = k; break; } }
     if (qa == null || qb == null || q === qa) return ep;
     const def = P.personagens[n.ref], eb = Modelo.estadoPersonagem(n, qb), ea = Modelo.estadoPersonagem(n, qa); if ((eb.vista || null) !== (ea.vista || null)) return ep;
     const ch = n.chaves[qb]; if (ch?.ir === 'corte') return ep;
@@ -152,7 +155,9 @@ const Rig = {
     const fps = P.fps || 24, gap = qb - qa, dur = Math.max(1, Math.min(gap, Math.round(+ch.dur > 0 ? +ch.dur : gap <= fps * 1.25 ? gap : Math.max(fps * .75, gap * .45)))), q0 = qb - dur; if (q <= q0) return ep;
     const dv0 = Modelo.naVista(def, eb.vista), epB = Modelo.partesNoEstado(dv0, eb), ease = Ease.daChave(ch), out = {}, prof = this.profundidades(dv0);
     // SOBREPOSIÇÃO (follow-through): cada nível da hierarquia sai ~1 quadro depois da mãe e chega junto (mão atrasa do antebraço, que atrasa do braço)
-    const lag = dur >= 8 ? Math.min(1.2, dur / 10) : 0, tDe = pid => { const atr = Math.min(3, (prof[pid] || 0)) * lag; return ease(clamp((q - q0 - atr) / Math.max(1, dur - atr), 0, 1)); };
+    // VIDA (23/11/2026, regra da dona de 19/11): cachecol, capa, capuz e cabelo preso NÃO atrasam — seguem o tronco (atrasados, mexiam "sozinhos")
+    const fixo = vida ? new Set(dv0.partes.filter(p => Vida.ehAcessorio(p)).map(p => p.id)) : null;
+    const lag = dur >= 8 ? Math.min(1.2, dur / 10) : 0, tDe = pid => { const atr = fixo?.has(pid) ? 0 : Math.min(3, (prof[pid] || 0)) * lag; return ease(clamp((q - q0 - atr) / Math.max(1, dur - atr), 0, 1)); };
     // REFORMA RIVE (10/11/2026, "o joelho saindo da perna"), SÓ EM ANIMAÇÃO NOVA (P.rive; as antigas ficam exatamente como eram): parte que
     // troca de desenho e cuja posição/tamanho (ou das presas nela) muda troca desenho, posição e tamanho JUNTO com as presas, no meio do
     // movimento; só o giro continua suave (ex.: coxa "Reta" → "Vindo p/ câmera" com a canela subindo: antes abria um vão no joelho).

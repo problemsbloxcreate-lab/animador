@@ -56,6 +56,7 @@ const Render = {
     if (n.suaveP && typeof Rig !== 'undefined') { try { ep = Rig.tween(P, n, q, dv, ep); } catch (e) { console.warn('[Rig]', e); } } // partes mudam aos poucos até a próxima chave (js/rig.js)
     if (P.rive && typeof Rig !== 'undefined') { try { ep = Rig.trava(dv, ep, { vistas: true }); } catch (e) { console.warn('[Rig trava]', e); } } // TRAVA DAS JUNTAS em todo quadro de animação nova, em todas as vistas (as antigas ficam como eram)
     if (typeof Atuacao !== 'undefined' && Atuacao.ligada(n)) { try { ep = Atuacao.aplica(P, n, q, dv, ep); } catch (e) { console.warn('[Atuação]', e); } } // atuação automática (js/atuacao.js)
+    if (typeof Vida !== 'undefined' && Vida.ligada(P, n)) { try { ep = Vida.aplica(P, n, q, dv, ep, est); } catch (e) { console.warn('[Vida]', e); } } // VIDA automática: respirar e piscar (js/vida.js, 23/11/2026)
     let ctl = null; if (def.controles && typeof Controles !== 'undefined') { const r = Controles.aplica(P, n, q, def, dv, est, ep); ep = r.ep; ctl = r.pecas; } // CONTROLES do personagem (js/controles.js): bolsa, cor do cabelo… só na animação
     return { def, dv, ep, est, ctl };
   },
