@@ -156,6 +156,7 @@ const Rig = {
     const dv0 = Modelo.naVista(def, eb.vista), epB = Modelo.partesNoEstado(dv0, eb), ease = Ease.daChave(ch), out = {}, prof = this.profundidades(dv0);
     // SOBREPOSIÇÃO (follow-through): cada nível da hierarquia sai ~1 quadro depois da mãe e chega junto (mão atrasa do antebraço, que atrasa do braço)
     // VIDA (23/11/2026, regra da dona de 19/11): cachecol, capa, capuz e cabelo preso NÃO atrasam — seguem o tronco (atrasados, mexiam "sozinhos")
+    const pai = vida ? Object.fromEntries(dv0.partes.map(p => [p.id, p.pai])) : {}; // mãe de cada parte (mão no braço que gira, 23/11)
     const fixo = vida ? new Set(dv0.partes.filter(p => Vida.ehAcessorio(p)).map(p => p.id)) : null;
     const lag = dur >= 8 ? Math.min(1.2, dur / 10) : 0, tDe = pid => { const atr = fixo?.has(pid) ? 0 : Math.min(3, (prof[pid] || 0)) * lag; return ease(clamp((q - q0 - atr) / Math.max(1, dur - atr), 0, 1)); };
     // REFORMA RIVE (10/11/2026, "o joelho saindo da perna"), SÓ EM ANIMAÇÃO NOVA (P.rive; as antigas ficam exatamente como eram): parte que
@@ -182,12 +183,19 @@ const Rig = {
         const mb = depois ? this.tanMono(dab / gap, (rot ? this.norm(vn - vb) : vn - vb) / (depois.k - qb)) * gap : 0;
         return va + h10 * ma + h01 * dab + h11 * mb; };
     }
+    // DESENHO DO GESTO DURANTE O MOVIMENTO (walt-disney, 23/11, medido no Problems): no braço, o antebraço trocava de desenho no meio do
+    // caminho e a mão só na chave — trocas em momentos diferentes deixavam o antebraço sem mão (~9 q) e um "dente". Com a vida ligada,
+    // toda peça que troca de desenho usa, DURANTE o movimento, o desenho do lado mais girado (o do gesto); a pose de repouso só volta na chave.
+    const rosto = vida ? new Set(dv0.partes.filter(p => this.ROSTO.test(p.nome || '')).map(p => p.id)) : null; // boca/olhos NUNCA: o lip sync e o piscar trocam desenho sozinhos
+    const ladoGesto = vida ? pid => { if (rosto.has(pid)) return null; let da = 0, db = 0, k = pid, g = 0; while (k && g++ < 6) { da += Math.abs(this.norm(ep[k]?.r || 0)); db += Math.abs(this.norm(epB[k]?.r || 0)); k = pai[k]; } return Math.abs(db - da) >= 6 ? (db > da ? epB[pid] : ep[pid]) : null; } : () => null;
     for (const [pid, a] of Object.entries(ep)) { const t = tDe(pid);
       const b = epB[pid]; if (!a || !b || (a.vis === false) !== (b.vis === false)) { out[pid] = a; continue; }
-      if (junto.has(pid)) { const x = { ...(virou ? b : a) }; x.r = (a.r || 0) + this.norm((b.r || 0) - (a.r || 0)) * t; if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0); out[pid] = x; continue; }
+      if (junto.has(pid)) { const lg = t > 0 && (a.img || null) !== (b.img || null) ? ladoGesto(pid) : null; const x = { ...(lg || (virou ? b : a)) }; x.r = (a.r || 0) + this.norm((b.r || 0) - (a.r || 0)) * t; if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0); out[pid] = x; continue; }
       let x = { ...a }; if ((a.img || null) !== (b.img || null)) { // troca de desenho: só a troca (boca, olhos) fica para a chave; se a parte também gira/anda bastante, o desenho troca no meio do caminho
-        const dr = Math.abs(this.norm((b.r || 0) - (a.r || 0))), dp = Math.hypot((b.x || 0) - (a.x || 0), (b.y || 0) - (a.y || 0)); if (dr < 8 && dp < 4) { out[pid] = a; continue; }
-        if (t >= .5) x = { ...b, x: a.x, y: a.y, r: a.r, s: a.s }; }
+        const dr = Math.abs(this.norm((b.r || 0) - (a.r || 0))), dp = Math.hypot((b.x || 0) - (a.x || 0), (b.y || 0) - (a.y || 0));
+        const lg = t > 0 ? ladoGesto(pid) : null; if (lg) x = { ...a, img: lg.img, vis: lg.vis }; else {
+        if (dr < 8 && dp < 4) { out[pid] = a; continue; }
+        if (t >= .5) x = { ...b, x: a.x, y: a.y, r: a.r, s: a.s }; } }
       for (const c of ['x', 'y', 'r', 's']) { const va = a[c] ?? (c === 's' ? 1 : 0), vb = b[c] ?? (c === 's' ? 1 : 0); if (liso) { x[c] = liso(pid, c, va, vb); continue; } if (va === vb) continue; let d = vb - va; if (c === 'r') d = this.norm(d); x[c] = va + d * t; }
       // CAMADA no meio do movimento: vale a da frente (ex.: mão que vai para o peito já passa POR FORA do colete, não por dentro)
       if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0);

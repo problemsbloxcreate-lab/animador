@@ -26,8 +26,8 @@
 const Gestos = {
   MIN: 14,        // quadros mínimos entre duas trocas do mesmo personagem
   MIN_BRACO: 24,  // quadros mínimos entre duas trocas do MESMO braço (o gesto fica no ar pelo menos isso)
-  DUR_MIN: 8, DUR_MAX: 16, DUR: 10, // duração da transição: 8–10 gesto pequeno, 14–16 grande (DUR: a da âncora)
-  PULO: 45,       // maior passo da mão por quadro (px do vídeo)
+  DUR_MIN: 8, DUR_MAX: 20, DUR: 10, // duração da transição: 8–10 gesto pequeno, 14–16 grande, até 20 se a mão passaria de 45 px/q (medido 23/11: Apontar e Gesticular 2 do Problems pediam mais de 16)
+  PULO: 60,       // maior passo da mão por quadro, px do mundo/projeto SEM o zoom da câmera (walt-disney 23/11: 56–66 é nervoso mas legível; 45 zerava os gestos reais do Problems)
   GIRO: 35,       // giro máximo do antebraço em relação ao repouso (graus)
   VIZINHO: 40,    // distância mínima da mão até outro personagem (px do vídeo)
   BORDA: 36,      // distância mínima da mão até a borda do vídeo (px)
@@ -106,7 +106,7 @@ const Gestos = {
     const st = this.estado(P, n, q); if (!st) return null; const cad = this.cadeiaDe(st.dv, sid); if (!cad) return null;
     const vis = Rig.visivel(st.dv, st.ep, cad.fim), J = Rig.juntas(st.dv, st.ep); let c = null; if (vis) try { c = Rig.centroTinta(st.dv, st.ep, cad.fim); } catch { c = null; }
     const pt = c || J[cad.fim]; if (!pt) return null; const w = this.matNo(P, n, q).transformPoint(new DOMPoint(pt.x, pt.y));
-    return { vis, p: this.tela(P, q, w), r: +(st.ep[cad.meio]?.r || 0) };
+    return { vis, p: this.tela(P, q, w), w: { x: w.x, y: w.y }, r: +(st.ep[cad.meio]?.r || 0), imgs: [st.ep[cad.meio]?.img || '', st.ep[cad.fim]?.img || ''].join('|') };
   },
   // caixa (tela) dos outros personagens visíveis no quadro q
   vizinhos(P, n, q) {
@@ -136,13 +136,16 @@ const Gestos = {
     const a = M[0], g = M.find(m => m.q === ep.sobe) || M[M.length - 1]; let pulo = 0;
     // 1) a mão existe em TODO quadro (se existe no repouso ou no gesto)
     if (M.some(m => m.vis) && M.some(m => !m.vis)) return { ok: false, motivo: `a mão some no quadro ${M.find(m => !m.vis).q}` };
-    // 2) punho solto: antebraço girando mais de 35° do repouso
-    const giro = Math.abs(((g.r - a.r + 540) % 360) - 180); if (giro > this.GIRO) return { ok: false, motivo: `antebraço gira ${Math.round(giro)}°` };
+    // 2) punho solto / mão sumindo (walt-disney 23/11): vem do desenho do antebraço ou da mão TROCANDO no meio do movimento
+    //    (o Problems não tem peça de punho: é a troca de imagem a meio caminho). Medido nos personagens reais: o giro sozinho não
+    //    solta nada — o Gesticular aprovado gira 100° — então a regra é "o desenho do antebraço e da mão não muda durante a troca".
+    { const ini = ep.sobe - ep.durSobe, fimD = ep.desce; // com a vida, o motor troca o desenho da mão no 1º quadro da subida e volta no fim da descida (rig.js, 23/11)
+      for (let i = 1; i < M.length; i++) if (M[i].imgs !== M[i - 1].imgs && !(M[i].q <= ini + 5 || M[i].q >= fimD - 1) /* +5: cada junta sai ~1 q depois da mãe (sobreposição do tween) */) return { ok: false, motivo: `o desenho do antebraço/mão troca no meio do gesto (q ${M[i].q})` }; }
     for (let i = 0; i < M.length; i++) { const m = M[i];
       // 3) borda do vídeo (com a câmera e o zoom deste quadro)
       if (m.p.x < this.BORDA || m.p.x > P.w - this.BORDA || m.p.y < this.BORDA || m.p.y > P.h - this.BORDA) return { ok: false, motivo: `mão a menos de ${this.BORDA} px da borda (q ${m.q})` };
       // 4) pulo da mão (num corte de câmera não mede: o pulo é da câmera, não da mão)
-      if (i) { const b = M[i - 1], d = b.p.z === m.p.z ? Math.hypot(m.p.x - b.p.x, m.p.y - b.p.y) : 0; pulo = Math.max(pulo, d); if (d > this.PULO) return { ok: false, motivo: `mão anda ${Math.round(d)} px num quadro (q ${m.q})`, pulo: d }; } }
+      if (i) { const b = M[i - 1], d = Math.hypot(m.w.x - b.w.x, m.w.y - b.w.y); /* pulo da MÃO no mundo (sem o zoom do close), como o walt-disney mede (23/11) */ pulo = Math.max(pulo, d); if (d > this.PULO) return { ok: false, motivo: `mão anda ${Math.round(d)} px num quadro (q ${m.q})`, pulo: d }; } }
     // 5) vizinho: a mão não chega a menos de 40 px de outro personagem (mais perto que no repouso) nem vai para o lado dele
     for (const qv of [...new Set([a.q, g.q, M[M.length - 1].q])]) { const V = this.vizinhos(P, n, qv); if (!V.length) continue;
       for (const m of M) for (const b of V) { if (m === a) continue; const d = this.dist(m.p, b); if (d < this.VIZINHO && d < this.dist(a.p, b) - 1) return { ok: false, motivo: `mão a ${Math.round(d)} px de outro personagem (q ${m.q})` }; }
@@ -213,12 +216,12 @@ const Gestos = {
             let sobe = Math.max(m.q0 + this.ATRASO, livreDesde + durS, ult + this.MIN, (ultB[b.lado] ?? -Infinity) + this.MIN_BRACO, (n.de || 0) + durS + 1);
             if (sobe > Math.max(m.q1, m.q0 + 6) + 6 || sobe > s.ate - 4) break; // longe demais da palavra: este momento fica sem gesto
             sobe = livre(sobe, durS); if (sobe == null || !mesmaVista(sobe)) break;
-            const durD = this.duracao(P, n, dv, est0, Bv, base, b.id) ?? this.DUR_MAX;
+            const durD = Math.max(12, durS, this.duracao(P, n, dv, est0, Bv, base, b.id) ?? this.DUR_MAX); // descida nunca mais rápida que a subida e com 12+ q (walt-disney 23/11: pulo de 57 px na descida)
             let desce = Math.max(sobe + this.MIN_BRACO, sobe + this.sorte(chave + ':s', ...this.SEGURA) + durD); if (desce > s.ate + this.FIM) desce = Math.max(sobe + this.MIN_BRACO, s.ate + this.FIM);
             desce = desce <= fim ? livre(desce, durD) : null; if (desce == null || !mesmaVista(desce)) break;
             const E = [{ q: sobe, sessao: b.id, preset: alvo, braco: b.lado, dur: durS, ep: nEp }, { q: desce, sessao: b.id, preset: b.rep, braco: b.lado, dur: durD, ep: nEp }];
             if (o.teste) { const r = o.teste(n, [...out, ...E], { sessao: b.id, sobe, durSobe: durS, desce, durDesce: durD }); if (!r.ok) { (o.rejeitados ||= []).push({ no: n.nome, q: sobe, preset: b.nomes[alvo], motivo: r.motivo }); continue; } }
-            out.push(...E); nEp++; ocupado.add(sobe); ocupado.add(desce); feito = true; ultG[b.id] = alvo;
+            out.push(...E); nEp++; ocupado.add(sobe); ocupado.add(desce); feito = true; ultG[b.id] = alvo; vez++; // o próximo gesto começa pelo OUTRO braço (3 gestos iguais liam como relógio)
             ult = desce; ultB[b.lado] = desce; if (b.lado === 'A') ultB.D = ultB.E = desce;
             // repouso até o próximo: pausa de 6–30 q, e pelo menos 0,8 do episódio (repouso em ~45% do tempo)
             livreDesde = desce + Math.max(this.sorte(chave + ':p', ...this.PAUSA), Math.round((desce - sobe + durS) * this.REPOUSO_MIN));
