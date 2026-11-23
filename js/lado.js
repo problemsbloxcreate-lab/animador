@@ -457,6 +457,12 @@ const Lado = {
       <div class="pr-acoes" style="margin:9px 0 0"><button class="btn sm" data-gravar>${ic('mic', 13)} Gravar</button><button class="btn sm" data-add>${ic('upload', 13)} Pôr áudio</button><button class="btn sm" data-bib title="Sons e músicas da equipe: ouvir e pôr no quadro atual">${ic('music', 13)} Sons da equipe</button>${P.audios.length ? `<button class="btn sm ia" data-tr>${ic('text', 13)} Transcrever</button>` : ''}</div></div>`);
     $('[data-add]', top).onclick = () => Som.importar(); $('[data-bib]', top).onclick = () => SonsBib.abrir(); $('[data-gravar]', top).onclick = () => Som.gravar(); if ($('[data-tr]', top)) $('[data-tr]', top).onclick = () => Som.transcrever();
     el.appendChild(top);
+    // RITMO AUTOMÁTICO dos Shorts (js/ritmo.js): cortes médio⇄close, letreiros com som nas palavras-chave e fechamento no fim
+    if (P.rive && typeof Ritmo !== 'undefined' && ((P.legendas || []).length || P.audios.some(a => a.tipo === 'voz'))) {
+      const tem = Ritmo.tem(P), rt = h(`<div class="pr-acoes" style="margin:0 0 10px;flex-wrap:wrap"><button class="btn primary" data-ritmo style="min-height:44px" title="Cortes de câmera médio e close na troca de fala, letreiro com som em cada palavra-chave e a câmera fechando na última fala. Tudo num passo só do desfazer.">${ic('wand', 14)} ${tem ? 'Refazer o ritmo automático' : 'Pôr o ritmo automático'}</button>${tem ? `<button class="btn" data-sem-ritmo style="min-height:44px" title="Tira só os cortes, letreiros e sons que o ritmo automático pôs">${ic('x', 14)} Tirar o ritmo automático</button>` : ''}</div>`);
+      $('[data-ritmo]', rt).onclick = () => Ritmo.rodar(); if ($('[data-sem-ritmo]', rt)) $('[data-sem-ritmo]', rt).onclick = () => Ritmo.tirar();
+      el.appendChild(rt);
+    }
     if (!P.audios.length) el.appendChild(h(`<div class="pr-vazio">${ic('music', 22)}Grave a voz, ponha uma música ou solte um arquivo de áudio na timeline.</div>`));
     // MIXAGEM do projeto: VOLUME GERAL (P.mix.geral, prévia + vídeo exportado) e a música abaixa sozinha enquanto alguém fala (P.mix)
     const temMus = P.audios.some(a => Som.tipo(a) === 'musica');
