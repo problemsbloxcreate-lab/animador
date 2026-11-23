@@ -192,7 +192,7 @@ const Gestos = {
       const semVida = !(typeof Vida !== 'undefined' ? Vida.ligada(P, n) : (n.vida !== false && (n.vida === true || P.vida))), todas = Object.keys(n.chaves || {}).map(Number);
       const janela = (q, d) => !semVida || !todas.some(k => k >= q - d && k < q);
       const livre = (q, d) => { for (let x = 0; x <= 3; x++) if (q + x <= fim && !ocupado.has(q + x) && janela(q + x, d)) return q + x; return null; };
-      const out = []; let ult = -Infinity, livreDesde = (n.de || 0) + 1, nEp = 0; const ultB = {}, ultG = {};
+      const out = []; let ult = -Infinity, livreDesde = (n.de || 0) + 1, nEp = 0; const ultB = {}, ultG = {}; let ultPose = null; // a última POSE feita (qualquer braço): nunca a mesma duas vezes seguidas (walt-disney 23/11)
       for (const s of seg) {
         if (maoBraco.some(q => q >= s.de - this.MIN && q <= s.ate + this.FIM + 2 * this.MIN_BRACO)) continue; // chave de braço feita à mão: pula o trecho
         const est0 = Modelo.estadoPersonagem(n, s.de), dv = Modelo.naVista(def, est0.vista);
@@ -208,7 +208,8 @@ const Gestos = {
         for (const m of momentos) for (let bi = 0; bi < B.length; bi++) { // o braço da vez; se nenhum gesto dele serve, o outro
           const b = B[(vez + bi) % B.length], chave = n.id + ':' + m.q0;
           // gestos deste braço, em rodízio, nunca o mesmo da última vez
-          const G0 = b.gestos.filter(x => x !== ultG[b.id]), Gs = G0.length ? G0 : b.gestos, i0 = this.hash(chave) % Gs.length;
+          const G0 = b.gestos.filter(x => x !== ultG[b.id] && (b.nomes[x] || x) !== ultPose), Gs = G0; if (!Gs.length) continue; // sem outro gesto válido: repouso, nunca repetir (3 gestos iguais liam como relógio)
+          const i0 = this.hash(chave) % Gs.length;
           let feito = false;
           for (let gi = 0; gi < Gs.length && !feito; gi++) {
             const alvo = Gs[(i0 + gi) % Gs.length], Bv = { ...base, [b.id]: alvo };
@@ -221,7 +222,7 @@ const Gestos = {
             desce = desce <= fim ? livre(desce, durD) : null; if (desce == null || !mesmaVista(desce)) break;
             const E = [{ q: sobe, sessao: b.id, preset: alvo, braco: b.lado, dur: durS, ep: nEp }, { q: desce, sessao: b.id, preset: b.rep, braco: b.lado, dur: durD, ep: nEp }];
             if (o.teste) { const r = o.teste(n, [...out, ...E], { sessao: b.id, sobe, durSobe: durS, desce, durDesce: durD }); if (!r.ok) { (o.rejeitados ||= []).push({ no: n.nome, q: sobe, preset: b.nomes[alvo], motivo: r.motivo }); continue; } }
-            out.push(...E); nEp++; ocupado.add(sobe); ocupado.add(desce); feito = true; ultG[b.id] = alvo; vez++; // o próximo gesto começa pelo OUTRO braço (3 gestos iguais liam como relógio)
+            out.push(...E); nEp++; ocupado.add(sobe); ocupado.add(desce); feito = true; ultG[b.id] = alvo; ultPose = b.nomes[alvo] || alvo; vez++; // o próximo gesto começa pelo OUTRO braço (3 gestos iguais liam como relógio)
             ult = desce; ultB[b.lado] = desce; if (b.lado === 'A') ultB.D = ultB.E = desce;
             // repouso até o próximo: pausa de 6–30 q, e pelo menos 0,8 do episódio (repouso em ~45% do tempo)
             livreDesde = desce + Math.max(this.sorte(chave + ':p', ...this.PAUSA), Math.round((desce - sobe + durS) * this.REPOUSO_MIN));

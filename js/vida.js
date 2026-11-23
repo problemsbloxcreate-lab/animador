@@ -87,6 +87,10 @@ const Vida = {
     }
     const cab = dv.partes.find(p => /^cabe[çc]a/i.test(p.nome || ''));
     if (cab && out[cab.id] && out[cab.id].vis !== false) out[cab.id].r = (out[cab.id].r || 0) + Math.sin(t * Math.PI * 2 / 4 + s1) * 1.5;
+    // POSE VIVA nos braços (walt-disney 23/11: no gesto segurado a mão ficava 16–17 q parada, "congelada"): ±1° no braço de cima,
+    // ciclo de 2,6 s, fase diferente em cada braço. Pequeno de propósito (o repouso aprovado quase não muda).
+    for (const p of dv.partes) { if (!/^bra[cç]o\b/i.test(p.nome || '') || /antebra/i.test(p.nome) || !out[p.id] || out[p.id].vis === false) continue;
+      out[p.id].r = (out[p.id].r || 0) + Math.sin(t * Math.PI * 2 / 2.6 + this.sem(n.id, p.id) * Math.PI * 2) * 1.0; }
     // piscar
     const pi = this.piscarEm(P, n, q, def, dv, est);
     if (pi) { const e2 = Modelo.partesNoEstado(dv, { ...est, sessoes: { ...(est.sessoes || {}), [pi.s.id]: pi.preset } });
