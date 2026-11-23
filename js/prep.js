@@ -144,17 +144,23 @@ const Prep = {
     escolha.fmt = fmts.find(f => f.id === $('[data-fmt]', body).value) || fmt0; escolha.comPers = $('[data-pers]', body).checked;
     return this.monta(it, P, escolha);
   },
+  /* f.fonte = { audio (o áudio inteiro), ini, dur, de } — gravado pelo "Pôr o áudio inteiro" do Preparativos. Só vale enquanto o áudio da fala
+     ainda é o trecho que saiu dele (fonte.de === f.audio): regravou ou aceitou dublagem = f.audio mudou e volta o caso antigo (um arquivo por fala). */
+  fonteAudio(f) { const x = f && f.fonte; if (!x || !x.audio || !f.audio || x.de !== f.audio) return null; const ini = +x.ini, dur = +x.dur; return Number.isFinite(ini) && Number.isFinite(dur) && ini >= 0 && dur > 0 ? { audio: x.audio, ini, dur } : null; },
   async monta(it, prep, o) {
-    const nomeBase = prep.nome || it.nome || 'Roteiro', grupos = o.grupos, todas = grupos.flat(), falas = todas.flatMap(p => p.falas), comAud = falas.flatMap(f => { const s = this.separados(f); return s ? s.map(x => ({ id: f.id + '|' + this.chave(x.n), audio: x.a.audio })) : f.audio ? [{ id: f.id, audio: f.audio }] : []; });
+    const nomeBase = prep.nome || it.nome || 'Roteiro', grupos = o.grupos, todas = grupos.flat(), falas = todas.flatMap(p => p.falas), comAud = falas.flatMap(f => { const s = this.separados(f); if (s) return s.map(x => ({ id: f.id + '|' + this.chave(x.n), audio: x.a.audio })); const fo = this.fonteAudio(f); return fo ? [{ id: f.id, audio: fo.audio, ini: fo.ini, dur: fo.dur }] : f.audio ? [{ id: f.id, audio: f.audio }] : []; });
     NuvemTela.inicio(nomeBase, 'pr', { titulo: 'Montando pelo Preparativos' }); let ok = false, primeiro = null; const feitos = [];
     try {
       // 1) áudios: baixa cada um uma vez só (guardado no banco do navegador pela chave da nuvem; regravação = chave nova)
-      const aud = {}; let i = 0;
+      // fala cortada do áudio inteiro (f.fonte): o arquivo inteiro entra uma vez só e cada fala leva o seu começo e duração (corte não destrutivo)
+      const aud = {}, bufs = {}; let i = 0;
       for (const f of comAud) {
         NuvemTela.passo(.05 + .55 * i / Math.max(1, comAud.length), `Baixando o áudio ${++i} de ${comAud.length}…`);
-        const k = 'prep/' + f.audio; let b = await Arq.pegaBlob(k).catch(() => null);
-        if (!b) { b = await (await Nuvem.pede('/preparativos/arquivo?k=' + encodeURIComponent(f.audio))).blob(); await Arq.guardar(b, k); }
-        aud[f.id] = { k, buf: await Som.decod(k).catch(() => null) };
+        const k = 'prep/' + f.audio;
+        if (!(k in bufs)) { let b = await Arq.pegaBlob(k).catch(() => null);
+          if (!b) { b = await (await Nuvem.pede('/preparativos/arquivo?k=' + encodeURIComponent(f.audio))).blob(); await Arq.guardar(b, k); }
+          bufs[k] = await Som.decod(k).catch(() => null); }
+        aud[f.id] = { k, buf: bufs[k], ...(f.ini != null ? { ini: f.ini, dur: f.dur } : {}) };
       }
       // 2) cores e personagens da equipe com o mesmo nome
       NuvemTela.passo(.62, 'Pegando as cores e os personagens…');
@@ -202,9 +208,9 @@ const Prep = {
       const quem = f._quem || String(f.personagem || '').trim(), todos = f._todos || [quem], varios = todos.length > 1;
       // fala de vários: a versão de cada um (se todos tiverem) numa trilha de cada; senão a gravação de todos juntos, que mexe a boca de todos
       const sep = varios && todos.map(n => ({ n, a: aud[f.id + '|' + this.chave(n)] })).every(x => x.a) ? todos.map(n => ({ n, a: aud[f.id + '|' + this.chave(n)] })) : null;
-      const a = aud[f.id], d = (sep ? Math.max(...sep.map(x => x.a.buf?.duration || 0)) : a?.buf?.duration) || +f.duracao || Math.max(1.2, String(f.texto || '').length * .07), nq = Math.max(1, Math.ceil(d * fps));
+      const a = aud[f.id], d = (sep ? Math.max(...sep.map(x => x.a.buf?.duration || 0)) : a?.dur != null ? a.dur : a?.buf?.duration) || +f.duracao || Math.max(1.2, String(f.texto || '').length * .07), nq = Math.max(1, Math.ceil(d * fps));
       if (sep) for (const x of sep) P.audios.push({ id: uid('au'), nome: `${i + 1}. ${x.n}`, arq: x.a.k, de: q, vol: 1, tipo: 'voz', trilha: tr(x.n), _quem: x.n, prep: { fala: f.id } });
-      else if (a) P.audios.push({ id: uid('au'), nome: `${i + 1}. ${quem || 'Fala'}`, arq: a.k, de: q, vol: 1, tipo: 'voz', trilha: tr(quem), _quem: quem, ...(varios ? { _quens: todos } : {}), prep: { fala: f.id } });
+      else if (a) P.audios.push({ id: uid('au'), nome: `${i + 1}. ${quem || 'Fala'}`, arq: a.k, de: q, vol: 1, tipo: 'voz', trilha: tr(quem), _quem: quem, ...(varios ? { _quens: todos } : {}), ...(a.ini != null ? { ini: a.ini, dur: a.dur } : {}), prep: { fala: f.id } });
       // cor: a escolhida só para esta fala (f.cor) › vários = neutra (branco) › a de quem fala
       if (comLeg && f.texto) P.legendas.push({ de: q, ate: q + nq - 1, texto: (leg.mostrarNome && quem ? quem + ': ' : '') + f.texto, cor: /^#[0-9a-f]{6}$/i.test(f.cor || '') ? f.cor : varios ? '#ffffff' : qcor[quem], quem });
       for (const n of todos) pos.push({ quem: n, de: q, ate: q + nq - 1 });

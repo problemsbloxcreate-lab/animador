@@ -44,14 +44,14 @@ const Short = {
       Ocupado.passo('Procurando as falas e as pausas…'); await cede();
       const mp = E.voz.mapa(buf), dec = E.voz.decupar(buf, falas);
       if (!mp.blobs.length) throw new Error('não achei voz nesses áudios');
-      let al = null, modo = 'pausas';
-      try { const ouv = await E.whisper.transcrever(buf, pg => { const t = E.whisper.frase(pg); if (t) Ocupado.passo(t); if (pg.st === 'dl') Ocupado.parte(pg.d, pg.total); else if (pg.st === 'asr') Ocupado.parte(pg.i, pg.n); });
+      let al = null, modo = 'pausas', ouv = null;
+      try { ouv = await E.whisper.transcrever(buf, pg => { const t = E.whisper.frase(pg); if (t) Ocupado.passo(t); if (pg.st === 'dl') Ocupado.parte(pg.d, pg.total); else if (pg.st === 'asr') Ocupado.parte(pg.i, pg.n); });
         if (ouv.length) { al = E.voz.alinhar(ouv, mp.blobs, falas); modo = 'whisper'; } }
       catch (e) { UI.toast(`O reconhecedor de fala não rodou (${esc(e.message || e)}). Cortei pelas pausas e pelo tamanho do texto: confira cada fala.`, { kind: 'warn', time: 9000 }); }
       // cada fala: o corte do Whisper; se ele não achou a fala, o das pausas
       let cortes = F.map((f, i) => (al?.cortes[i]) || (dec?.cortes[i]) || null);
-      cortes = E.voz.apara(cortes, buf);
-      const conf = E.voz.confere(buf, cortes, F.map(f => f.texto), dec?.aviso), av = {}; conf.forEach(x => (av[x.i] ||= []).push(x.aviso));
+      cortes = E.voz.apara(cortes, buf, null, al?.viz); // viz = onde procurar a pausa de cada ponta (sem ela, os cortes do lado)
+      const conf = E.voz.confere(buf, cortes, F.map(f => f.texto), dec?.aviso, ouv), av = {}; conf.forEach(x => (av[x.i] ||= []).push(x.aviso));
       F.forEach((f, i) => { if (al && !al.cortes[i] && cortes[i]) (av[i] ||= []).push('o reconhecedor não ouviu esta fala (cortei pelas pausas)'); });
       Ocupado.passo('Cortando uma fala de cada vez…'); let achadas = 0;
       for (let i = 0; i < F.length; i++) { const c = cortes[i], f = F[i]; if (!c) { (av[i] ||= []); continue; }
