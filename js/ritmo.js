@@ -217,12 +217,15 @@ const Ritmo = {
     let somArq = null; try { somArq = await this.som(); } catch (e) { console.warn('ritmo: som', e); }
     const tinha = this.tem(P); this.tira(P);
     const o = { somArq, durDe: a => a.dur ?? Som.buf?.get(a.arq)?.duration };
-    // GESTOS NA FALA (js/gestos.js) entram junto, no mesmo passo do desfazer; o arquivo pode não ter vindo (cache do site): segue sem eles
-    let g = null; if (this.G()) try { g = Gestos.aplica(P, Gestos.planeja(P, o)); } catch (e) { console.warn('gestos', e); }
-    const gtxt = g?.gestos ? ` · gestos de braço na fala` : '';
     const plano = this.planeja(P, o);
     if (plano.motivo) { App.commit('Ritmo automático'); return UI.toast(plano.motivo, { kind: 'warn' }); }
-    const r = this.aplica(P, plano); App.commit('Ritmo automático');
+    const r = this.aplica(P, plano);
+    // GESTOS NA FALA (js/gestos.js) entram junto, no mesmo passo do desfazer, DEPOIS da câmera (a borda do vídeo é medida com o zoom do ritmo).
+    // Cada episódio é simulado com o desenho real (Gestos.testador ao escolher, Gestos.valida no fim). Sem o arquivo (cache do site), segue sem eles.
+    let g = null; if (this.G()) try { const og = { ...o, teste: Gestos.testador(P), rejeitados: [] }, v = Gestos.valida(P, Gestos.planeja(P, og)); g = Gestos.aplica(P, v.plano);
+      const rej = [...og.rejeitados, ...v.rejeitados]; if (rej.length) console.info('[gestos] gestos que não entraram:', rej); } catch (e) { console.warn('gestos', e); }
+    const gtxt = g?.gestos ? ` · gestos de braço na fala` : '';
+    App.commit('Ritmo automático');
     UI.toast(`Ritmo automático${tinha ? ' refeito' : ''}: ${r.cortes} corte${r.cortes === 1 ? '' : 's'} de câmera, ${r.letreiros} letreiro${r.letreiros === 1 ? '' : 's'}${r.sons ? ` com som` : somArq ? '' : ' (sem som: a biblioteca não respondeu)'}${gtxt}${plano.pulados.length ? ` · ${plano.pulados.length} palavra${plano.pulados.length === 1 ? '' : 's'}-chave sem letreiro (menos de 3 s da anterior)` : ''}.`, { kind: 'ok', time: 7000 });
   },
   tirar() { const P = App.P; if (!P || !this.tem(P)) return; this.tira(P); App.commit('Tirar o ritmo automático'); UI.toast('Ritmo automático tirado (cortes, letreiros, sons e gestos). O resto da animação ficou como estava.', { kind: 'ok' }); },
