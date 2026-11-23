@@ -8,7 +8,7 @@
       vira um texto grande no terço de cima (fonte da legenda, cor de quem fala, contorno escuro), entrada pop de 4 quadros no quadro em
       que a palavra é dita, até o fim da fala (máx. 2 s); no MESMO quadro, um som curto da biblioteca (SonsBib) ~3 dB abaixo da voz.
       No máximo 1 letreiro a cada 3 s (as outras palavras-chave ficam sem, e o plano diz quais).
-   3. FINAL: na última fala a câmera fecha em passos secos a cada palavra (até zoom ~1,4), respeitando os 24 quadros entre cortes.
+   3. FINAL: na última fala a câmera fecha em passos secos a cada palavra (até zoom ~1,4), com 12 quadros ou mais entre os passos (referência: ~0,6 s).
    Tudo criado leva a marca auto:'ritmo' (chave da câmera, camada de texto, áudio). Ritmo.tira tira só isso; rodar de novo = tira e refaz.
    Chaves feitas à mão e a pose dos personagens nunca mudam: só entra corte onde o zoom feito à mão está parado (entre chaves de zoom
    iguais ou depois da última) e nunca num quadro que já tem chave da câmera. Só animação nova (P.rive) e com legendas/vozes.
@@ -17,6 +17,7 @@
 'use strict';
 const Ritmo = {
   MIN: 24,               // quadros mínimos entre dois cortes
+  MIN_FINAL: 12,         // no fechamento da última fala, entre um passo e o outro (referência da dona, 23/11: a câmera fecha a cada palavra, ~0,6 s)
   CLOSE: [1.6, 1.35],    // zoom do close: do maior para o menor
   FINAL: 1.4,            // zoom no fim da última fala
   TERCO: .2,             // altura do letreiro (meio dele) na tela
@@ -142,8 +143,8 @@ const Ritmo = {
       if (estado !== 'medio') { const q = [f.de, ...f.pal.map(p => p.q0)].find(b => b >= f.de && pode(b)); if (q != null) corta(q, medio(q), 'medio'); }
       let alvo = null; for (let z = this.FINAL; z >= md + .1 - 1e-9; z = Math.round((z - .05) * 100) / 100) if (this.serve(P, Pb, f, z, f.de, Math.max(f.de, f.ate))) { alvo = z; break; }
       if (alvo != null && estado === 'medio') {
-        const qs = []; let u = ult; for (const p of f.pal) { const q = p.q0; if (q > f.de - 1 && q <= Math.min(f.ate, fim) && q - u >= this.MIN && !kMao.has(q) && parado(q).ok && parado(q).ate === Infinity) { qs.push(q); u = q; } }
-        if (!f.pal.length) for (let q = Math.max(f.de, ult + this.MIN); q <= f.ate; q += this.MIN) if (!kMao.has(q) && parado(q).ok && parado(q).ate === Infinity) qs.push(q);
+        const qs = []; let u = ult; for (const p of f.pal) { const q = p.q0; if (q > f.de - 1 && q <= Math.min(f.ate, fim) && q - u >= (qs.length ? this.MIN_FINAL : this.MIN) && !kMao.has(q) && parado(q).ok && parado(q).ate === Infinity) { qs.push(q); u = q; } }
+        if (!f.pal.length) for (let q = Math.max(f.de, ult + this.MIN); q <= f.ate; q += this.MIN_FINAL) if (!kMao.has(q) && parado(q).ok && parado(q).ate === Infinity) qs.push(q);
         // o 1º passo não pode ser no próprio começo se a fala começou com um corte para o médio
         const z0 = medio(qs[0] ?? f.de); qs.forEach((q, i) => corta(q, z0 + (alvo - z0) * (i + 1) / qs.length, 'final'));
       }
