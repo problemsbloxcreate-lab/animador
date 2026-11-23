@@ -236,20 +236,26 @@ const Prep = {
       else if (a) P.audios.push({ id: uid('au'), nome: `${i + 1}. ${quem || 'Fala'}`, arq: a.k, de: q, vol: 1, tipo: 'voz', trilha: tr(quem), _quem: quem, ...(varios ? { _quens: todos } : {}), ...(a.ini != null ? { ini: a.ini, dur: a.dur } : {}), prep: { fala: f.id } });
       // cor: a escolhida só para esta fala (f.cor) › vários = neutra (branco) › a de quem fala
       if (comLeg && f.texto) P.legendas.push({ de: q, ate: q + nq - 1, texto: (leg.mostrarNome && quem ? quem + ': ' : '') + f.texto, cor: /^#[0-9a-f]{6}$/i.test(f.cor || '') ? f.cor : varios ? '#ffffff' : qcor[quem], quem });
-      for (const n of todos) pos.push({ quem: n, de: q, ate: q + nq - 1 });
+      for (const n of todos) pos.push({ quem: n, de: q, ate: q + nq - 1, fora: this.deFora(f) });
       const nx = falas[i + 1]; q += nq + (nx ? Math.round(Short.pausa({ personagem: quem, texto: f.texto, acao: f.nota }, { personagem: nx._quem || nx.personagem, texto: nx.texto }) * fps) : 0);
     });
     P.duracao = q + Math.round(fps * .5);
     if (comLeg) { P.legEstilo = { pos: 'baixo', pop: false, prep: this.estilo(prep) }; P.prep.leg = this.estilo(prep); } // desenhada como no Preparativos (Render.legPrep); muda na aba Voz › Estilo das legendas (Lado.estiloPrep); P.prep.leg = o de lá, para voltar
     // personagens da equipe: cada um do começo ao fim, espalhados na largura (os de quem fala na ordem em que aparecem)
-    const ord = [...new Set(pos.map(x => x.quem))].filter(n => defs[n]), W = P.w, H = P.h;
+    // VOZ DE FORA (23/11/2026): fala com nota "de fora"/"voz de fora"/"fora do quadro" = esse personagem NÃO entra no palco nela. Quem só fala
+    // de fora nem é colocado; quem também fala no quadro fica escondido (chaves de opacidade 0 em corte seco) nas falas de fora seguidas dele
+    const ord = [...new Set(pos.filter(x => !x.fora).map(x => x.quem))].filter(n => defs[n]), W = P.w, H = P.h;
     ord.forEach((n, i) => { const def = defs[n]; P.personagens[def.id] = def;
       const b = Modelo.caixaPersonagem(def, Modelo.partesNoEstado(def, {})), s = b.h > 0 ? clamp(H * (H > W ? .42 : .6) / b.h, .05, 4) : 1;
       const no = Modelo.novoNo('personagem', { ref: def.id, nome: def.nome, s: round(s, 3) }); no.atuacao = { ...Atuacao.PADRAO }; no.interp = true; no.suaveP = true; no._prepQuem = n;
       no.chaves = { 0: { x: Math.round(W * (i + 1) / (ord.length + 1)), y: Math.round(H * (H > W ? .86 : .93) - (b.y + b.h) * s), /* os pés perto do chão do quadro */ r: 0, s: round(s, 3), sx: i >= ord.length / 2 && ord.length > 1 ? -1 : 1, op: 1 } };
+      const meus = pos.filter(x => x.quem === n); let ini = null;
+      meus.forEach((x, j) => { if (!x.fora) return; if (ini == null) ini = x.de; if (meus[j + 1]?.fora) return;
+        no.chaves[ini] = { ...(no.chaves[ini] || {}), op: 0, ir: 'corte' }; no.chaves[x.ate + 1] = { op: 1, ir: 'corte' }; ini = null; });
       P.raiz.unshift(no); }); // o 1º de P.raiz fica NA FRENTE (o fundo padrão fica atrás)
     return P;
   },
+  deFora(f) { return /de fora|fora do quadro|fora de quadro/.test(String([f?.acao, f?.nota].filter(Boolean).join(' ')).normalize('NFC').toLocaleLowerCase('pt-BR')); },
   estilo(prep) { const e = prep?.legenda?.estilo || {}, D = this.LEG; return { ...D, ...e, contorno: { ...D.contorno, ...(e.contorno || {}) }, sombra: { ...D.sombra, ...(e.sombra || {}) }, fundo: { ...D.fundo, ...(e.fundo || {}) } }; },
   // boca pela voz de cada fala, no personagem de quem fala (na animação aberta)
   bocas() {

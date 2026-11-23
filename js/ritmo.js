@@ -9,7 +9,8 @@
       que a palavra é dita, até o fim da fala (máx. 2 s); no MESMO quadro, um som curto da biblioteca (SonsBib) ~3 dB abaixo da voz.
       No máximo 1 letreiro a cada 3 s (as outras palavras-chave ficam sem, e o plano diz quais).
    3. FINAL: na última fala a câmera fecha em passos secos a cada palavra (até zoom ~1,4), com 12 quadros ou mais entre os passos (referência: ~0,6 s).
-   Tudo criado leva a marca auto:'ritmo' (chave da câmera, camada de texto, áudio). Ritmo.tira tira só isso; rodar de novo = tira e refaz.
+   4. GESTOS NA FALA (js/gestos.js, 23/11): quem fala troca de gesto de braço a cada 1–2 palavras; entram e saem junto com o ritmo.
+   Tudo criado leva a marca auto:'ritmo' (chave da câmera, camada de texto, áudio; os gestos ficam anotados em P.gestosAuto). Ritmo.tira tira só isso; rodar de novo = tira e refaz.
    Chaves feitas à mão e a pose dos personagens nunca mudam: só entra corte onde o zoom feito à mão está parado (entre chaves de zoom
    iguais ou depois da última) e nunca num quadro que já tem chave da câmera. Só animação nova (P.rive) e com legendas/vozes.
    Ritmo.planeja(P, o) é PURO (sem DOM): devolve { camera:[{q,zoom,corte,tipo}], letreiros:[{de,ate,texto,cor,quem}], sons:[{q,arq,vol}], pulados, motivo }.
@@ -79,7 +80,7 @@ const Ritmo = {
     const m = P.w * .03, topo = this.topoLeg(P) - P.h * .01;
     for (const q of [...new Set([de, Math.round((de + ate) / 2), ate])]) {
       const c = Modelo.camera(Pb, q);
-      for (const n of nos) { if (!Modelo.aparece(P, n, q) || n.vis === false) return false; const h = this.cabeca(P, n, q); if (!h) return false;
+      for (const n of nos) { if (!Modelo.aparece(P, n, q) || n.vis === false || (Modelo.transf(n, q).op ?? 1) < .05 /* voz de fora (js/prep.js): escondido */) return false; const h = this.cabeca(P, n, q); if (!h) return false;
         const a = this.naTela(P, c, z, h.x0, h.y0), b = this.naTela(P, c, z, h.x1, h.y1), bo = this.naTela(P, c, z, h.bx, h.boca);
         if (Math.min(a.x, b.x) < m || Math.max(a.x, b.x) > P.w - m || Math.min(a.y, b.y) < m || bo.y > topo) return false; }
     }
@@ -195,9 +196,11 @@ const Ritmo = {
     const limpa = L => { for (let i = L.length - 1; i >= 0; i--) { if (this.ehAuto(L[i])) { L.splice(i, 1); n++; } else if (L[i].filhos) limpa(L[i].filhos); } };
     limpa(P.raiz || []);
     if (P.audios) { const a = P.audios.length; P.audios = P.audios.filter(x => !this.ehAuto(x)); n += a - P.audios.length; }
+    if (this.G()) n += Gestos.tira(P); // os gestos na fala saem junto (js/gestos.js)
     return n;
   },
-  tem(P) { return !!P && (Object.values(P.camera?.chaves || {}).some(k => this.ehAuto(k)) || Modelo.todos(P).some(n => this.ehAuto(n)) || (P.audios || []).some(a => this.ehAuto(a))); },
+  G: () => typeof Gestos !== 'undefined', // gestos.js veio? (o index.html do site fica até 10 min em cache: pode não ter vindo)
+  tem(P) { return !!P && (Object.values(P.camera?.chaves || {}).some(k => this.ehAuto(k)) || Modelo.todos(P).some(n => this.ehAuto(n)) || (P.audios || []).some(a => this.ehAuto(a)) || (this.G() && Gestos.tem(P))); },
 
   // ---------- no navegador ----------
   // o som curto da biblioteca: 1º efeito (não música) com "pop", senão "impacto"…; guardado no projeto uma vez só
@@ -213,11 +216,15 @@ const Ritmo = {
     if (!(P.legendas || []).length && !(P.audios || []).some(a => a.tipo === 'voz')) return UI.toast('Ponha as vozes e as legendas primeiro (Preparativos › Montar animação).', { kind: 'warn' });
     let somArq = null; try { somArq = await this.som(); } catch (e) { console.warn('ritmo: som', e); }
     const tinha = this.tem(P); this.tira(P);
-    const plano = this.planeja(P, { somArq, durDe: a => a.dur ?? Som.buf?.get(a.arq)?.duration });
+    const o = { somArq, durDe: a => a.dur ?? Som.buf?.get(a.arq)?.duration };
+    // GESTOS NA FALA (js/gestos.js) entram junto, no mesmo passo do desfazer; o arquivo pode não ter vindo (cache do site): segue sem eles
+    let g = null; if (this.G()) try { g = Gestos.aplica(P, Gestos.planeja(P, o)); } catch (e) { console.warn('gestos', e); }
+    const gtxt = g?.gestos ? ` · gestos de braço na fala` : '';
+    const plano = this.planeja(P, o);
     if (plano.motivo) { App.commit('Ritmo automático'); return UI.toast(plano.motivo, { kind: 'warn' }); }
     const r = this.aplica(P, plano); App.commit('Ritmo automático');
-    UI.toast(`Ritmo automático${tinha ? ' refeito' : ''}: ${r.cortes} corte${r.cortes === 1 ? '' : 's'} de câmera, ${r.letreiros} letreiro${r.letreiros === 1 ? '' : 's'}${r.sons ? ` com som` : somArq ? '' : ' (sem som: a biblioteca não respondeu)'}${plano.pulados.length ? ` · ${plano.pulados.length} palavra${plano.pulados.length === 1 ? '' : 's'}-chave sem letreiro (menos de 3 s da anterior)` : ''}.`, { kind: 'ok', time: 7000 });
+    UI.toast(`Ritmo automático${tinha ? ' refeito' : ''}: ${r.cortes} corte${r.cortes === 1 ? '' : 's'} de câmera, ${r.letreiros} letreiro${r.letreiros === 1 ? '' : 's'}${r.sons ? ` com som` : somArq ? '' : ' (sem som: a biblioteca não respondeu)'}${gtxt}${plano.pulados.length ? ` · ${plano.pulados.length} palavra${plano.pulados.length === 1 ? '' : 's'}-chave sem letreiro (menos de 3 s da anterior)` : ''}.`, { kind: 'ok', time: 7000 });
   },
-  tirar() { const P = App.P; if (!P || !this.tem(P)) return; this.tira(P); App.commit('Tirar o ritmo automático'); UI.toast('Ritmo automático tirado. O resto da animação ficou como estava.', { kind: 'ok' }); },
+  tirar() { const P = App.P; if (!P || !this.tem(P)) return; this.tira(P); App.commit('Tirar o ritmo automático'); UI.toast('Ritmo automático tirado (cortes, letreiros, sons e gestos). O resto da animação ficou como estava.', { kind: 'ok' }); },
 };
 if (typeof module !== 'undefined') module.exports = Ritmo;

@@ -459,7 +459,7 @@ const Lado = {
     el.appendChild(top);
     // RITMO AUTOMÁTICO dos Shorts (js/ritmo.js): cortes médio⇄close, letreiros com som nas palavras-chave e fechamento no fim
     if (P.rive && typeof Ritmo !== 'undefined' && ((P.legendas || []).length || P.audios.some(a => a.tipo === 'voz'))) {
-      const tem = Ritmo.tem(P), rt = h(`<div class="pr-acoes" style="margin:0 0 10px;flex-wrap:wrap"><button class="btn primary" data-ritmo style="min-height:44px" title="Cortes de câmera médio e close na troca de fala, letreiro com som em cada palavra-chave e a câmera fechando na última fala. Tudo num passo só do desfazer.">${ic('wand', 14)} ${tem ? 'Refazer o ritmo automático' : 'Pôr o ritmo automático'}</button>${tem ? `<button class="btn" data-sem-ritmo style="min-height:44px" title="Tira só os cortes, letreiros e sons que o ritmo automático pôs">${ic('x', 14)} Tirar o ritmo automático</button>` : ''}</div>`);
+      const tem = Ritmo.tem(P), rt = h(`<div class="pr-acoes" style="margin:0 0 10px;flex-wrap:wrap"><button class="btn primary" data-ritmo style="min-height:44px" title="Cortes de câmera médio e close na troca de fala, letreiro com som em cada palavra-chave, a câmera fechando na última fala e gestos de braço em quem fala. Tudo num passo só do desfazer.">${ic('wand', 14)} ${tem ? 'Refazer o ritmo automático' : 'Pôr o ritmo automático'}</button>${tem ? `<button class="btn" data-sem-ritmo style="min-height:44px" title="Tira só os cortes, letreiros, sons e gestos que o ritmo automático pôs">${ic('x', 14)} Tirar o ritmo automático</button>` : ''}</div>`);
       $('[data-ritmo]', rt).onclick = () => Ritmo.rodar(); if ($('[data-sem-ritmo]', rt)) $('[data-sem-ritmo]', rt).onclick = () => Ritmo.tirar();
       el.appendChild(rt);
     }
