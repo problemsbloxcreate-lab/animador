@@ -151,8 +151,11 @@ const Ritmo = {
     }
     // 4) LETREIROS + SOM: palavra-chave, no máximo 1 a cada 3 s
     const letreiros = [], sons = [], pulados = [], gap = Math.round(3 * fps); let ul = -Infinity;
-    for (const f of falas) for (const p of f.pal) {
-      if (!p.chave) continue; const txt = this.limpaPal(p.t).toLocaleUpperCase('pt-BR'); if (!txt) continue;
+    for (const f of falas) for (let j = 0; j < f.pal.length; j++) { const p = f.pal[j];
+      if (!p.chave) continue;
+      // palavras-chave SEGUIDAS viram um letreiro só ("Menos eu" → MENOS EU, teste de 23/11)
+      let k = j; while (k + 1 < f.pal.length && f.pal[k + 1].chave) k++;
+      const txt = f.pal.slice(j, k + 1).map(x => this.limpaPal(x.t)).filter(Boolean).join(' ').toLocaleUpperCase('pt-BR'); j = k; if (!txt) continue;
       if (p.q0 - ul < gap || p.q0 > fim) { pulados.push({ q: p.q0, texto: txt }); continue; }
       const ate = Math.min(f.ate, p.q0 + Math.round(2 * fps) - 1, fim);
       letreiros.push({ de: p.q0, ate: Math.max(p.q0 + 4, ate), texto: txt, cor: f.cor || '#ffffff', quem: f.quem });
