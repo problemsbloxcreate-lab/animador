@@ -45,9 +45,28 @@ def blend_de(v):
     return next((os.path.join(d, v["arquivo"]) for d in PASTAS_BLEND if os.path.exists(os.path.join(d, v["arquivo"]))), None)
 
 
+def baixa_blend(v):
+    """Cenário que não está no computador: baixa do site uma vez (SITE/cenarios/<arquivo>) e guarda na pasta do ajudante.
+    Assim qualquer computador renderiza os cenários da casa sem precisar de pasta local (desde 24/11)."""
+    achado = blend_de(v)
+    if achado:
+        return achado
+    import urllib.request
+    destino = os.path.join(AQUI, v["arquivo"]); tmp = destino + ".baixando"
+    print(f"[ajudante] baixando o cenário {v['arquivo']} do site (só na primeira vez)...", flush=True)
+    with urllib.request.urlopen(SITE + "/cenarios/" + urllib.request.quote(v["arquivo"]), timeout=120) as r, open(tmp, "wb") as fh:
+        shutil.copyfileobj(r, fh)
+    with open(tmp, "rb") as fh:
+        ini = fh.read(7)
+    if ini[:7] != b"BLENDER" and ini[:4] != bytes([0x28, 0xB5, 0x2F, 0xFD]) and ini[:2] != bytes([0x1F, 0x8B]):
+        os.remove(tmp); raise RuntimeError("o arquivo baixado não é um .blend")
+    os.replace(tmp, destino)
+    return destino
+
+
 def cenarios():
-    c = json.load(open(os.path.join(AQUI, "cenarios.json"), encoding="utf-8"))
-    return {k: v for k, v in c.items() if blend_de(v)}
+    # todos os cenários da lista: o que não estiver no computador é baixado do site na hora do render (baixa_blend)
+    return json.load(open(os.path.join(AQUI, "cenarios.json"), encoding="utf-8"))
 
 
 def progresso(j):
@@ -75,8 +94,14 @@ def trabalhador():
             continue
         j["estado"] = "renderizando"
         cfg = cenarios()[j["cenario"]]
+        try:
+            arq_blend = baixa_blend(cfg)
+        except Exception as e:
+            j["estado"] = "erro"; j["erro"] = f"não consegui baixar o cenário do site ({e}). Confira a internet e tente de novo."
+            print(f"[ponte] ERRO {jid}: {j['erro']}", flush=True)
+            continue
         log = open(os.path.join(j["pasta"], "blender.log"), "w", encoding="utf-8", errors="replace")
-        j["proc"] = subprocess.Popen([BLENDER, "-b", blend_de(cfg), "-P", os.path.join(AQUI, "render_cenario.py"),
+        j["proc"] = subprocess.Popen([BLENDER, "-b", arq_blend, "-P", os.path.join(AQUI, "render_cenario.py"),
                                       "--", os.path.join(j["pasta"], "pedido.json")], stdout=log, stderr=subprocess.STDOUT, cwd=AQUI)
         print(f"[ponte] renderizando {jid} ({j['cenario']}, {j['total']} quadros)", flush=True)
         j["proc"].wait(); log.close()
