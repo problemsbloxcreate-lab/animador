@@ -238,7 +238,7 @@ const Cena3D = {
     const i = P.raiz.findIndex(x => x.cenario || x.fundoPadrao); if (i >= 0) P.raiz.splice(i, 0, n); else P.raiz.push(n); this._troca = typeof CenLib !== 'undefined' && CenLib.trocaAqui ? CenLib.trocaAqui(P, n, q) : ''; return n;
   },
   // ---------- .blend SOLTO → a PONTE DO BLENDER (neste computador) converte em .glb e o cenário entra no fundo ----------
-  // A ponte (Documentos/Problems/cenarios-problems/LIGAR-PONTE.bat, http://127.0.0.1:8810, versão 2+) recebe o .blend, escolhe o conversor
+  // A ponte (Documentos/Trabalho/Turma do Problems/Cenários e 3D/cenarios-problems/LIGAR-PONTE.bat, http://127.0.0.1:8810, versão 2+) recebe o .blend, escolhe o conversor
   // (ruas grandes: cor calculada; cenários pequenos: cor assada em imagem) e devolve o .glb. Sem a ponte ligada: explica como ligar.
   PONTE: 'http://127.0.0.1:8810',
   async pontePronta() { try { const r = await fetch(this.PONTE + '/estado', { cache: 'no-store' }); if (!r.ok) return null; const j = await r.json(); return j.versao >= 2 ? j : { velha: true }; } catch { return null; } },

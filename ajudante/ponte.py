@@ -37,11 +37,11 @@ BLENDER = bpy.app.binary_path
 fila, jobs, trava = [], {}, threading.Lock()
 
 
-PASTAS_BLEND = [AQUI, os.path.join(os.path.expanduser("~"), "Documents", "Problems", "cenarios-problems")]  # o ajudante também usa a pasta antiga dos cenários
+PASTAS_BLEND = [AQUI, os.path.join(os.path.expanduser("~"), "Documents", "Trabalho", "Turma do Problems", "Cenários e 3D", "cenarios-problems"), os.path.join(os.path.expanduser("~"), "Documents", "Problems", "cenarios-problems")]  # o ajudante também usa a pasta dos cenários (lugar novo desde 24/11 e o antigo)
 
 
 def blend_de(v):
-    """Caminho do .blend de um cenário: na pasta do ajudante ou na pasta antiga (Documentos/Problems/cenarios-problems)."""
+    """Caminho do .blend de um cenário: na pasta do ajudante ou na pasta dos cenários (Documentos/Trabalho/Turma do Problems/Cenários e 3D/cenarios-problems ou a antiga Documentos/Problems/cenarios-problems)."""
     return next((os.path.join(d, v["arquivo"]) for d in PASTAS_BLEND if os.path.exists(os.path.join(d, v["arquivo"]))), None)
 
 
