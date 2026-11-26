@@ -43,7 +43,8 @@ const Revisor = {
     textoLeg: ['final', 'Texto ou letreiro em cima da legenda', 'aviso', true],
     areaSegura: ['final', 'Texto, letreiro ou legenda fora da área segura', 'aviso', true, [
       { nome: 'Em cima', v: 8, min: 0, max: 30, passo: 1, un: '%' }, { nome: 'Direita', v: 14, min: 0, max: 30, passo: 1, un: '%' },
-      { nome: 'Embaixo', v: 22, min: 0, max: 40, passo: 1, un: '%' }, { nome: 'Esquerda', v: 5, min: 0, max: 30, passo: 1, un: '%' }]],
+      { nome: 'Embaixo', v: 22, min: 0, max: 40, passo: 1, un: '%' }, { nome: 'Esquerda', v: 5, min: 0, max: 30, passo: 1, un: '%' },
+      { nome: 'Legenda embaixo', v: 15, min: 0, max: 40, passo: 1, un: '%' }]], // decisão da dona (26/11/2026): a legenda tem margem própria de baixo (a padrão fica a 80–82% da altura)
     silencio: ['final', 'Silêncio no meio do vídeo', 'aviso', true, { nome: 'Mais que', v: .7, min: .2, max: 5, passo: .1, un: 's' }],
     buraco: ['final', 'Buraco no som (silêncio digital curto entre sons)', 'aviso', true],
     volume: ['final', 'Volume final longe de −14 LUFS', 'aviso', true, { nome: 'Folga', v: 1, min: .5, max: 4, passo: .5, un: 'LU' }],
@@ -162,7 +163,7 @@ const Revisor = {
     // letreiros = camadas de texto, e qualquer camada numa pasta "Letreiros" (ou com "letreiro" no nome)
     const letr = new Set();
     const marcaL = (L, dentro) => L.forEach(n => { const e = dentro || /letreiro/i.test(n.nome || ''); if (n.tipo === 'texto' || (e && n.tipo !== 'pasta' && n.tipo !== 'efeito')) letr.add(n.id); if (n.filhos) marcaL(n.filhos, e); }); marcaL(P.raiz, false);
-    const [mT, mD, mB, mE] = vert ? this.num('areaSegura').map(v => v / 100) : [.05, .05, .05, .05], seg = { x0: mE * W, y0: mT * H, x1: W - mD * W, y1: H - mB * H };
+    const [mT, mD, mB, mE, mL] = vert ? this.num('areaSegura').map(v => v / 100) : [.05, .05, .05, .05, .05], seg = { x0: mE * W, y0: mT * H, x1: W - mD * W, y1: H - mB * H }, segL = { ...seg, y1: H - mL * H };
     const fd = Render.fundoDe(P), fc = [1, 3, 5].map(i => parseInt(fd.cor.slice(i, i + 2), 16)), lumF = fc[0] * .299 + fc[1] * .587 + fc[2] * .114;
     const cv = new OffscreenCanvas(W, H), ctx = cv.getContext('2d', { willReadFrequently: true }), lc = new OffscreenCanvas(W, H), lx = lc.getContext('2d', { willReadFrequently: true });
     const Q = new Array(N), lum = new Float32Array(npx), ant = new Float32Array(npx), escuro = 10, limPreto = this.num('preto') / 100;
@@ -194,7 +195,7 @@ const Revisor = {
             if (b.x1 > 0 && b.y1 > 0 && b.x0 < W && b.y0 < H) cxs.push(b); } }
         const cobre = [], fora = [], folga = 2;
         for (const b of cxs) if (cxL && b.x0 < cxL.x1 - folga && b.x1 > cxL.x0 + folga && b.y0 < cxL.y1 - folga && b.y1 > cxL.y0 + folga) cobre.push(b.nome);
-        for (const b of cxL ? [cxL, ...cxs] : cxs) if (b.x0 < seg.x0 - folga || b.y0 < seg.y0 - folga || b.x1 > seg.x1 + folga || b.y1 > seg.y1 + folga) fora.push(b.nome);
+        for (const b of cxL ? [cxL, ...cxs] : cxs) { const s = b === cxL ? segL : seg; if (b.x0 < s.x0 - folga || b.y0 < s.y0 - folga || b.x1 > s.x1 + folga || b.y1 > s.y1 + folga) fora.push(b.nome); }
         Q[q] = { preto: esc0 / npx >= limPreto, vazio: vaz / npx > .002, xad: xad >= 4, mud, md: q ? soma / npx : 0, cobre, fora };
         if (q % 4 === 0) { pr(q / N * .85, `Quadro ${q + 1} de ${N}`); await Exportar.folga(); }
       }
