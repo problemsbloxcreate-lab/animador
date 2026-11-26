@@ -105,6 +105,7 @@ const Blocos = {
   empurra(P, n, c) { let fimC = this.fim(P, n, c); for (const o of this.ordena(n)) { if (o === c || o.q < c.q) continue; if (o.q < fimC) { o.q = fimC; } fimC = Math.max(fimC, this.fim(P, n, o)); } },
   // TRANSFORMAR EM CHAVES: o bloco vira as chaves de antes (para mexer quadro a quadro); a chave de verdade que já existia ganha
   emChaves(n, b) {
+    if (App.P?.rive) return; // quadro a quadro: só no LEGACY (26/11/2026)
     const P = App.P, V = this.virtuais(P, n), f = this.fim(P, n, b); n.chaves ||= {};
     for (const [k, v] of Object.entries(V)) { const q = +k; if (q < b.q || q > f) continue; n.chaves[q] = this.junta(v, n.chaves[q]); }
     n.blocos = n.blocos.filter(x => x !== b); if (!n.blocos.length) delete n.blocos; this.sel = null; App.commit('Transformar o bloco em chaves');
@@ -122,7 +123,7 @@ const Blocos = {
 
   /* ---------- timeline do modo Vídeo (js/premiere.js) ---------- */
   // onde os blocos ficam dentro do clipe do personagem (embaixo da faixa do nome)
-  area(r) { const top = TLP.RG + r.y - TLP.sy + 1, hh = r.h - 3, faixa = hh >= 26 ? 14 : 0; return { y0: top + faixa, y1: top + hh, top }; },
+  area(r) { const top = TLP.yr(r) + 1, hh = r.h - 3, faixa = hh >= 26 ? 14 : 0; return { y0: top + faixa, y1: top + hh, top }; },
   pega(p) {
     const cl = p.clip; if (!cl || cl.k !== 'n' || !this.ativo(cl.n) || !p.row) return null; const P = App.P, n = cl.n, A = this.area(p.row); if (p.y < A.y0 || p.y > A.y1) return null;
     const L = this.ordena(n);
@@ -169,13 +170,14 @@ const Blocos = {
       return B.arrasta(e, p, z);
     };
     const du0 = T.duplo; T.duplo = function (e) { const p = this.ponto(e), z = !p.regua && B.pega(p); if (!z || z.zona === 'pas') return du0.call(this, e);
+      if (App.P.rive) { App.setQ(z.b.q); App.selecionar(z.n.id); return B.controles(z.n, z.b); } // animação nova: sem quadro a quadro (LEGACY); abre os controles do bloco
       App.setQ(z.b.q); Folha.setModo('anim'); App.selecionar(z.n.id); UI.toast(`Dentro do bloco "${esc(z.b.nome)}": o que mudar aqui vira chave de ajuste por cima do bloco. "Voltar ao vídeo" sai.`, { time: 5000 }); };
     const me0 = T.menu; T.menu = function (e) { const p = this.ponto(e), z = !p.regua && B.pega(p); if (!z) return me0.call(this, e); const { n, b } = z;
       UI.ctx(e.clientX, e.clientY, [{ head: `${b.nome} · ${this.tc(b.q)}` },
         { label: 'Controles do bloco…', icon: 'edit', action: () => B.controles(n, b) },
         { label: 'Duplicar logo depois', icon: 'copy', action: () => B.duplica(n, b) },
-        { label: 'Abrir quadro a quadro', icon: 'film', action: () => { App.setQ(b.q); Folha.setModo('anim'); App.selecionar(n.id); } },
-        { label: 'Transformar em chaves', icon: 'split', action: () => B.emChaves(n, b) },
+        !App.P.rive && { label: 'Abrir quadro a quadro', icon: 'film', action: () => { App.setQ(b.q); Folha.setModo('anim'); App.selecionar(n.id); } }, // estes dois só no LEGACY
+        !App.P.rive && { label: 'Transformar em chaves', icon: 'split', action: () => B.emChaves(n, b) },
         { label: 'Apagar', icon: 'trash', key: 'Delete', action: () => B.apaga(n, b) }]); };
     const te0 = T.tecla; T.tecla = function (e) {
       if (e.type === 'keydown' && Folha.modo === 'video' && this.el && App.P && this.foco && !e.target.closest?.('input,textarea,select,[contenteditable]') && !$('#modal-root')?.children.length && !e.ctrlKey && !e.metaKey && !e.altKey) {

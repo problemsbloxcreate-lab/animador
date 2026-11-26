@@ -13,6 +13,11 @@
    muda nada. Na primeira edição no modo Vídeo as trilhas são gravadas (`congela`). Trilha mais alta = mais na frente: mudar
    um bloco de trilha reordena P.raiz (`ordena`, estável), como no Premiere (V2 cobre V1). Dois blocos nunca ficam na mesma
    trilha no mesmo tempo (soltar em cima de outro = volta, com aviso; o Premiere sobrescreveria).
+   REGRAS NOVAS (26/11/2026, dona: "no máximo ~5 de vídeo e ~4 de áudio"): bloco com trilha gravada FICA nela (só sobe se bater no
+   tempo com outro da MESMA trilha; não sobe mais por cima de tudo o que está atrás, que fazia a "escada" de centenas de trilhas).
+   `compactar` junta ao máximo sem mudar quem cobre quem; roda sozinho ao abrir um projeto com mais de 8 V ou 6 A (uma vez, Ctrl+Z).
+   TELA COMO O DAVINCI: divisor fixo no meio; o vídeo sobe a partir dele (V1 colado no divisor) e o áudio desce (A1 colado), cada
+   metade com a sua rolagem (`syV`, `syA`) e o seu pegador na barra da direita. Legendas, FX e Câmera ficam no topo da parte de vídeo.
    Estado das trilhas no projeto: `P.trilhas = { v: { '1': { trava, nome } }, a: {...} }`. Olho/M/S não guardam nada novo:
    mexem em n.vis / a.mudo / a.solo de todos os blocos da trilha (aceso = todos assim).
    MARCADORES: `P.marcadores = [{ id, q, nome, cor }]`. ENTRADA/SAÍDA (I/O) = `Folha.trecho` (o mesmo "Marcado na régua"
@@ -25,7 +30,7 @@
 'use strict';
 const TLP = {
   RG: 44, CABW: 210, HV: 48, HA: 48, HC: 28, HCAM: 20, HDIV: 7, ROLA: 10,
-  pxq: 0, sx: 0, sy: 0, ferr: 'sel', sel: new Set(), foco: false, semAlvo: new Set(), vel: 0, copia: null, lacuna: null,
+  pxq: 0, sx: 0, syV: 0, syA: 0, ferr: 'sel', sel: new Set(), foco: false, semAlvo: new Set(), vel: 0, copia: null, lacuna: null,
   ROT: [['#9b8bd9', 'Violeta'], ['#7d8fe0', 'Íris'], ['#29b896', 'Caribe'], ['#c79be6', 'Lavanda'], ['#3aa0d8', 'Cerúleo'], ['#5c9b3f', 'Floresta'], ['#e889ad', 'Rosa'], ['#e8a040', 'Manga'],
     ['#a35cc9', 'Roxo'], ['#4a68d8', 'Azul'], ['#2e8f91', 'Azul-petróleo'], ['#d14fa3', 'Magenta'], ['#c9a77a', 'Bronzeado'], ['#4ca34c', 'Verde'], ['#8f5f3a', 'Marrom'], ['#d9cc45', 'Amarelo']],
   MARC: [['#3fbf61', 'Verde'], ['#e5534b', 'Vermelho'], ['#e46fbd', 'Rosa'], ['#f0883e', 'Laranja'], ['#e3c341', 'Amarelo'], ['#e8e8e8', 'Branco'], ['#4a7fe0', 'Azul'], ['#3cc6d6', 'Ciano']],
@@ -42,7 +47,7 @@ const TLP = {
         <div class="pr-bts"><button class="pr-b" data-ima title="Encaixar na timeline (S)">${ic('magnet', 13)}</button><button class="pr-b" data-marca title="Adicionar marcador (M)">${ic('marker', 13)}</button><button class="pr-b" data-cfg title="Configurações de exibição da timeline">${ic('gear', 13)}</button><button class="pr-b" data-atalhos title="Atalhos (iguais aos do Premiere)">${ic('keyboard', 13)}</button></div></div>
       <div class="pr-cabs"><div class="pr-cabs-in"></div></div>
       <div class="pr-area"><canvas class="pr-cv"></canvas></div>
-      <div class="pr-vbar"><i></i></div>
+      <div class="pr-vbar"><i data-z="v"></i><i data-z="a"></i></div>
       <div class="pr-pe"></div>
       <div class="pr-hbar" title="Arraste para andar na timeline · puxe as bolinhas das pontas para dar zoom"><div class="pr-hpol"><i class="e"></i><i class="d"></i></div></div>
     </div>`);
@@ -60,7 +65,7 @@ const TLP = {
     this.cv.addEventListener('dblclick', e => this.duplo(e));
     this.cv.addEventListener('contextmenu', e => { e.preventDefault(); this.menu(e); });
     this.cv.addEventListener('wheel', e => this.roda(e), { passive: false });
-    $('.pr-cabs', this.el).addEventListener('wheel', e => { e.preventDefault(); this.rolaV(e.deltaY); }, { passive: false });
+    $('.pr-cabs', this.el).addEventListener('wheel', e => { e.preventDefault(); this.rolaV(e.deltaY, e.clientY - $('.pr-cabs', this.el).getBoundingClientRect().top + this.RG); }, { passive: false });
     this.ligaCabs(); this.ligaBarras();
     // arrastar efeitos/entradas/fades da aba Efeitos (a mesma lógica do modo Vídeo antigo: Folha.alvoDrop/aplicaDrop)
     this.area.addEventListener('dragover', e => { const d = Folha.arrasto; if (!d) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; Folha.drop = Folha.alvoDrop(this.pontoDrop(e), d); this.desenha(); Folha.rotuloDrop(e); });
@@ -89,12 +94,13 @@ const TLP = {
   q2x(q) { return q * this.pxq - this.sx; }, x2q(x) { return (x + this.sx) / this.pxq; },
   encaixaTudo() { const W = this.W(); if (W < 40 || !App.P) return; this.pxq = clamp((W - 30) / (this.fimSeq() + 1), .02, 60); this.sx = 0; this.pinta(); },
   zoomEm(px, ax) { const W = this.W(); if (ax == null) { const xp = this.q2x(App.q); ax = xp >= 0 && xp <= W ? xp : W / 2; } const q = this.x2q(ax); this.pxq = clamp(px, Math.min(.02, (W - 30) / (this.fimSeq() + 1)), 60); this.sx = q * this.pxq - ax; this.limita(); this.pinta(); },
-  limita() { const W = this.W(), tot = (this.fimSeq() + 1) * this.pxq + W * .5; this.sx = clamp(this.sx, 0, Math.max(0, tot - W)); this.sy = clamp(this.sy, 0, Math.max(0, this.altTotal - (this.H() - this.RG))); },
+  limita() { const W = this.W(), tot = (this.fimSeq() + 1) * this.pxq + W * .5; this.sx = clamp(this.sx, 0, Math.max(0, tot - W)); const [v0, v1] = this.faixaY('v'), [a0, a1] = this.faixaY('a'); this.syV = clamp(this.syV || 0, 0, Math.max(0, (this.totV || 0) - (v1 - v0))); this.syA = clamp(this.syA || 0, 0, Math.max(0, (this.totA || 0) - (a1 - a0))); },
   roda(e) {
     e.preventDefault(); if (e.altKey || e.ctrlKey) { const r = this.cv.getBoundingClientRect(); return this.zoomEm(this.pxq * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX - r.left); }
-    if (e.shiftKey) return this.rolaV(e.deltaY); this.sx += (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY); this.limita(); this.desenha(); this.pintaBarras();
+    if (e.shiftKey) return this.rolaV(e.deltaY, e.clientY - this.cv.getBoundingClientRect().top); this.sx += (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY); this.limita(); this.desenha(); this.pintaBarras();
   },
-  rolaV(d) { this.sy += d; this.limita(); this.desenha(); this.pintaCabsPos(); this.pintaBarras(); },
+  // rolar na vertical: cada parte rola sozinha (y = onde está o mouse no canvas; rodinha para baixo = vai para perto do divisor no vídeo)
+  rolaV(d, y) { if ((y == null ? 'v' : this.secEm(y)) === 'v') this.syV = (this.syV || 0) - d; else this.syA = (this.syA || 0) + d; this.limita(); this.desenha(); this.pintaCabsPos(); this.pintaBarras(); },
 
   /* ---------- trilhas ---------- */
   tipoNo(n) { return n.tipo === 'efeito' ? 'efeito' : n.tipo === 'texto' ? 'texto' : n.tipo === 'imagem' || n.tipo === 'forma' || n.tipo === 'video' ? 'still' : 'anim'; },
@@ -103,14 +109,16 @@ const TLP = {
   estT(k, t) { return App.P.trilhas?.[k]?.[t] || {}; },
   poeEstT(k, t, m) { const P = App.P; P.trilhas ||= { v: {}, a: {} }; P.trilhas[k] ||= {}; const o = { ...(P.trilhas[k][t] || {}), ...m }; for (const x in o) if (o[x] == null || o[x] === false || o[x] === '') delete o[x]; if (Object.keys(o).length) P.trilhas[k][t] = o; else delete P.trilhas[k][t]; },
   travada(c) { return !!this.estT(c.lado, c.tr).trava; },
-  // quem fica em qual trilha (ver o cabeçalho). o.semZ: só as trilhas gravadas (durante um arrasto); o.movendo: esses vão por último
+  // quem fica em qual trilha (ver o cabeçalho). o.movendo: esses vão por último (o.semZ, do arrasto, não muda mais nada: a trilha gravada já manda)
   layout(o = {}) {
-    const P = App.P, semZ = o.semZ, mov = o.movendo || new Set(), v = [], ocV = {}, ocA = {};
+    const P = App.P, mov = o.movendo || new Set(), v = [], ocV = {}, ocA = {};
     const livre = (oc, t, de, fim) => !(oc[t] || []).some(([a, b]) => a <= fim && b >= de), poe = (oc, t, de, fim) => (oc[t] ||= []).push([de, fim]);
     const ordem = []; for (let i = P.raiz.length - 1; i >= 0; i--) if (!mov.has(P.raiz[i])) ordem.push(P.raiz[i]); for (let i = P.raiz.length - 1; i >= 0; i--) if (mov.has(P.raiz[i])) ordem.push(P.raiz[i]);
     for (const n of ordem) {
       const de = n.de || 0, fim = Modelo.fimNo(P, n); let t = +n.trilha || 0;
-      if (!semZ || !t) { let lim = 1; for (const c of v) if (c.de <= fim && c.fim >= de) lim = Math.max(lim, c.tr + 1); t = Math.max(t, lim); }
+      // trilha gravada manda (26/11/2026): só sobe se bater no tempo com outro da MESMA trilha (o while abaixo). Sem trilha gravada
+      // (projeto antigo, ou bloco novo antes do commit) a trilha sai da ordem do palco: acima de tudo o que está atrás no mesmo tempo
+      if (!t) { let lim = 1; for (const c of v) if (c.de <= fim && c.fim >= de) lim = Math.max(lim, c.tr + 1); t = lim; }
       while (!livre(ocV, t, de, fim)) t++; poe(ocV, t, de, fim);
       v.push({ k: 'n', lado: 'v', n, id: 'n:' + n.id, de, fim, tr: t });
     }
@@ -119,19 +127,27 @@ const TLP = {
     const c = (P.legendas || []).map((g, i) => ({ k: 'g', lado: 'c', g, id: 'g:' + i, de: g.de, fim: g.ate ?? g.de, tr: 1 }));
     const te = (P.efeitos?.tela || []).map((ef, i) => ({ k: 't', lado: 't', ef, id: 't:' + i, de: ef.de ?? 0, fim: ef.ate ?? P.duracao - 1, tr: 1 }));
     const maxV = Math.max(0, ...v.map(x => x.tr)), maxA = Math.max(0, ...a.map(x => x.tr));
-    return { v, a, c, te, nV: Math.max(3, maxV + 1), nA: Math.max(3, maxA + 1), todos: [...v, ...a, ...c, ...te] };
+    return { v, a, c, te, maxV, maxA, nV: Math.max(3, maxV + 1), nA: Math.max(3, maxA + 1), todos: [...v, ...a, ...c, ...te] };
   },
   alt(k) { return this.pref.alt?.[k] || (k[0] === 'v' ? this.HV : this.HA); },
+  // r.sec = parte da tela ('v' vídeo, 'div' divisor, 'a' áudio); r.y = topo da linha DENTRO da sua parte (a posição na tela é yr(r))
   linhasPR(L) {
-    const P = App.P, rows = []; let y = 0; const add = r => { r.y = y; y += r.h; rows.push(r); };
-    if (L.c.length) add({ tipo: 'c', lado: 'c', tr: 1, h: this.HC + 4, lbl: 'C1', nome: 'Legendas' });
-    if (L.te.length) add({ tipo: 't', lado: 't', tr: 1, h: this.HC + 4, lbl: 'FX', nome: 'Efeitos de tela' });
-    add({ tipo: 'cam', lado: 'cam', h: this.HCAM, nome: 'Câmera' });
-    for (let t = L.nV; t >= 1; t--) add({ tipo: 'v', lado: 'v', tr: t, h: this.alt('v' + t), lbl: 'V' + t, nome: this.estT('v', t).nome || 'Vídeo ' + t });
-    add({ tipo: 'div', h: this.HDIV });
-    for (let t = 1; t <= L.nA; t++) add({ tipo: 'a', lado: 'a', tr: t, h: this.alt('a' + t), lbl: 'A' + t, nome: this.estT('a', t).nome || 'Áudio ' + t });
-    this.altTotal = y + 30; return rows;
+    const rows = []; let y = 0; const add = (r, sec) => { r.sec = sec; r.y = y; y += r.h; rows.push(r); };
+    if (L.c.length) add({ tipo: 'c', lado: 'c', tr: 1, h: this.HC + 4, lbl: 'C1', nome: 'Legendas' }, 'v');
+    if (L.te.length) add({ tipo: 't', lado: 't', tr: 1, h: this.HC + 4, lbl: 'FX', nome: 'Efeitos de tela' }, 'v');
+    add({ tipo: 'cam', lado: 'cam', h: this.HCAM, nome: 'Câmera' }, 'v');
+    for (let t = L.nV; t >= 1; t--) add({ tipo: 'v', lado: 'v', tr: t, h: this.alt('v' + t), lbl: 'V' + t, nome: this.estT('v', t).nome || 'Vídeo ' + t }, 'v');
+    this.totV = y; y = 0; add({ tipo: 'div', h: this.HDIV }, 'div'); y = 0;
+    for (let t = 1; t <= L.nA; t++) add({ tipo: 'a', lado: 'a', tr: t, h: this.alt('a' + t), lbl: 'A' + t, nome: this.estT('a', t).nome || 'Áudio ' + t }, 'a');
+    this.totA = y + 30; this.altTotal = this.totV + this.HDIV + this.totA; return rows;
   },
+  // DIVISOR FIXO NO MEIO (como o DaVinci): [y0, y1) de cada parte, em pixels do canvas (o RG de cima é a régua)
+  faixaY(sec) { const RG = this.RG, H = Math.max(RG + this.HDIV + 2, this.H()), d = RG + Math.floor((H - RG - this.HDIV) / 2);
+    return sec === 'v' ? [RG, d] : sec === 'div' ? [d, d + this.HDIV] : [d + this.HDIV, H]; },
+  // topo da linha r no canvas: o vídeo cresce PARA CIMA a partir do divisor (V1 colado nele) e o áudio PARA BAIXO (A1 colado)
+  yr(r) { if (r.sec === 'div') return this.faixaY('div')[0]; if (r.sec === 'a') return this.faixaY('a')[0] + r.y - (this.syA || 0);
+    return this.faixaY('v')[1] - (this.totV || 0) + r.y + (this.syV || 0); },
+  secEm(y) { return y < this.faixaY('div')[0] ? 'v' : 'a'; },
   linhaDe(c) { return this.rows.find(r => r.lado === c.lado && (r.tr === c.tr || r.lado === 'c' || r.lado === 't')); },
   // grava a trilha de cada bloco (na 1ª edição do modo Vídeo; depois só confirma)
   congela() { const L = this.layout(); for (const c of L.v) c.n.trilha = c.tr; for (const c of L.a) c.a.trilha = c.tr; },
@@ -153,21 +169,42 @@ const TLP = {
     encaixa(P.raiz, novosV.filter(x => !x.cenario), fim); encaixa(aud, novosA, a => Folha.fimAudio(P, a));
     if (novosV.length) this.ordena(); return true;
   },
-  // COMPACTAR TRILHAS (projetos que já existem): refaz as trilhas pela ordem do palco, no mínimo de trilhas que NÃO muda o que aparece
-  // na tela (quem está na frente continua na frente) e tira trilhas vazias. Ctrl+Z desfaz.
-  compactar() { const P = App.P; if (!P) return; const antes = this.layout(), nV = antes.nV, nA = antes.nA;
-    for (const n of P.raiz) delete n.trilha; for (const a of P.audios || []) delete a.trilha;
-    const L = this.layout(); for (const c of L.v) c.n.trilha = c.tr;
-    const oc = {}; for (const c of L.a.slice().sort((x, y) => x.de - y.de)) { let t = 1; while ((oc[t] || []).some(([a, b]) => a <= c.fim && b >= c.de)) t++; c.a.trilha = t; (oc[t] ||= []).push([c.de, c.fim]); }
-    const depois = this.layout(); App.commit('Compactar trilhas');
-    UI.toast(`Trilhas: vídeo ${nV} → ${depois.nV}, áudio ${nA} → ${depois.nA} (Ctrl+Z desfaz)`); },
+  // COMPACTAR TRILHAS (26/11/2026, dona: "o que não se sobrepõe no tempo divide a mesma trilha"): junta ao máximo SEM mudar quem cobre
+  // quem. Vídeo: de trás para a frente (P.raiz é a ordem do palco), cada bloco vai para a trilha mais baixa acima de todos os de trás
+  // que cruzam com ele no tempo; quem não cruza com ninguém desce até V1. Isso é o mínimo possível: blocos que se cruzam TODOS (ex.: 36
+  // desenhos de um GIF, cada um do começo ao fim do insert) continuam precisando de uma trilha cada, porque um cobre o outro.
+  // Áudio: por papel quando dá (A1 vozes, A2 efeitos, A3 música, A4 o resto); se a do papel estiver ocupada naquele tempo, a primeira
+  // livre de baixo para cima. Mexe só nos dados (n.trilha / a.trilha) e na ordem do palco (estável); quem chama faz o commit (Ctrl+Z).
+  compacta(P) {
+    if (!P || !Array.isArray(P.raiz)) return false; const fimN = new Map(P.raiz.map(n => [n, Modelo.fimNo(P, n)])), postos = [];
+    for (let i = P.raiz.length - 1; i >= 0; i--) { const n = P.raiz[i], de = n.de || 0, f = fimN.get(n); let t = 1;
+      for (const [m, tm] of postos) if ((m.de || 0) <= f && fimN.get(m) >= de) t = Math.max(t, tm + 1);
+      n.trilha = t; postos.push([n, t]); }
+    const PAPEL = { voz: 1, efeito: 2, musica: 3 }, VEZ = { voz: 0, musica: 1, efeito: 2 }, oc = {}, papel = a => Som.tipo(a);
+    const livre = (t, de, f) => !(oc[t] || []).some(([a, b]) => a <= f && b >= de);
+    const aud = (P.audios || []).slice().sort((x, y) => (VEZ[papel(x)] ?? 3) - (VEZ[papel(y)] ?? 3) || (x.de || 0) - (y.de || 0));
+    for (const a of aud) { const de = a.de || 0, f = Folha.fimAudio(P, a); let t = PAPEL[papel(a)] || 4; if (!livre(t, de, f)) { t = 1; while (!livre(t, de, f)) t++; } a.trilha = t; (oc[t] ||= []).push([de, f]); }
+    if (P === App.P) this.ordena(); return true;
+  },
+  compactar(auto) { const P = App.P; if (!P) return; const antes = this.layout();
+    if (!this.compacta(P)) return; const depois = this.layout(); App.commit('Compactar trilhas');
+    UI.toast(`${auto ? 'Trilhas compactadas ao abrir' : 'Trilhas compactadas'}: vídeo ${antes.maxV} → ${depois.maxV}, áudio ${antes.maxA} → ${depois.maxA}. Quem fica na frente não mudou (Ctrl+Z desfaz)`, { time: auto ? 8000 : 5000 }); },
+  // ao abrir um projeto do modo Vídeo com trilhas demais (mais de 8 V ou 6 A): compacta sozinho, uma vez por projeto nesta aba
+  autoCompacta() { const P = App.P; if (!P || P.anterior || P.legacyDe) return; this._autoFeito ||= new Set(); if (this._autoFeito.has(P.id)) return; this._autoFeito.add(P.id);
+    const gravadas = P.raiz.some(n => +n.trilha) || (P.audios || []).some(a => +a.trilha); if (!P.rive && !gravadas) return; // projeto antigo sem trilhas: abrir não muda nada
+    const L = this.layout(); if (L.maxV > 8 || L.maxA > 6) this.compactar(true); },
+  // aviso discreto (canto de baixo, embaixo dos nomes das trilhas) quando passa de 6 trilhas de vídeo
+  pintaAviso() { const pe = $('.pr-pe', this.el); if (!pe || !this.L) return; const n = this.L.maxV, k = n > 6 ? String(n) : '';
+    if (pe.dataset.k === k) return; pe.dataset.k = k;
+    pe.innerHTML = k ? `<button class="pr-aviso" title="Há ${n} trilhas de vídeo. Compactar junta os blocos que não se cruzam no tempo, sem mudar quem fica na frente (Ctrl+Z desfaz)">${n} V · Compactar trilhas</button>` : '';
+    const b = $('.pr-aviso', pe); if (b) b.onclick = () => this.compactar(); },
   // trilha mais alta = desenhada na frente (P.raiz[0] é a da frente)
   ordena() { const P = App.P, idx = new Map(P.raiz.map((n, i) => [n, i])); P.raiz.sort((x, y) => (+y.trilha || 0) - (+x.trilha || 0) || idx.get(x) - idx.get(y)); },
 
   /* ---------- pintar ---------- */
   pinta() {
     if (!this.el || !App.P || Folha.modo !== 'video') return;
-    if (App.P.id !== this._pid) { this._pid = App.P.id; this.pxq = 0; this.sx = this.sy = 0; this.sel.clear(); this.lacuna = null; this.selMarca = null; this._sigCabs = ''; } // outro projeto: zoom para ver tudo
+    if (App.P.id !== this._pid) { this._pid = App.P.id; this.pxq = 0; this.sx = this.syV = this.syA = 0; this.sel.clear(); this.lacuna = null; this.selMarca = null; this._sigCabs = ''; const id = App.P.id; setTimeout(() => { if (App.P?.id === id && Folha.modo === 'video') this.autoCompacta(); }, 0); } // outro projeto: zoom para ver tudo (e compacta sozinho se tiver trilhas demais)
     Folha.barra(); Short.pinta?.();
     const d = devicePixelRatio || 1, r = this.area.getBoundingClientRect();
     if (r.width > 2 && (this.cv.width !== Math.round(r.width * d) || this.cv.height !== Math.round(r.height * d))) { this.cv.width = Math.round(r.width * d); this.cv.height = Math.round(r.height * d); this.cv.style.width = r.width + 'px'; this.cv.style.height = r.height + 'px'; }
@@ -180,7 +217,7 @@ const TLP = {
     const W = this.W(), xp = this.q2x(App.q);
     if (this._qVisto !== App.q && !this.arr && (xp < 0 || xp > W - 20)) { this.sx = App.tocando || this.vel ? Math.max(0, App.q * this.pxq - 20) : Math.max(0, App.q * this.pxq - W / 3); }
     this._qVisto = App.q; this.limita();
-    this.pintaCabs(); this.desenha(); this.pintaBarras();
+    this.pintaCabs(); this.desenha(); this.pintaBarras(); this.pintaAviso();
     $('.pr-tc', this.el).textContent = this.tc(App.q);
   },
   // cabeçalhos (DOM): só refaz quando muda algo
@@ -190,7 +227,7 @@ const TLP = {
       return { n: cl.length, oculta: r.lado === 'v' && cl.length && cl.every(c => c.n.vis === false), mudo: r.lado === 'a' && cl.length && cl.every(c => c.a.mudo), solo: r.lado === 'a' && cl.length && cl.every(c => c.a.solo), trava: !!this.estT(r.lado, r.tr).trava, alvo: !this.semAlvo.has(r.lado + r.tr) }; };
     const sig = rows.map(r => `${r.tipo}${r.tr}|${r.h}|${r.nome}|${JSON.stringify(est(r))}`).join(';');
     if (sig === this._sigCabs) return this.pintaCabsPos(); this._sigCabs = sig;
-    this.cabs.innerHTML = rows.map((r, i) => {
+    const um = (r, i) => {
       const s = est(r), st = `height:${r.h}px`;
       if (r.tipo === 'div') return `<div class="pr-cab div" style="${st}"></div>`;
       if (r.tipo === 'cam') return `<div class="pr-cab cam" style="${st}" title="Chaves da câmera (mudar no modo Animação ou no palco)">${ic('camera', 11)}<span class="nm">Câmera</span></div>`;
@@ -202,10 +239,16 @@ const TLP = {
         ${v ? `<button class="pr-ic ${s.oculta ? 'off' : ''}" data-olho title="Ativar/desativar a saída da trilha (esconde os blocos dela)" ${s.n ? '' : 'disabled'}>${ic(s.oculta ? 'eyeOff' : 'eye', 13)}</button>`
         : `<button class="pr-ms m ${s.mudo ? 'on' : ''}" data-mudo title="Silenciar a trilha" ${s.n ? '' : 'disabled'}>M</button><button class="pr-ms s ${s.solo ? 'on' : ''}" data-solo title="Trilha solo" ${s.n ? '' : 'disabled'}>S</button>`}
         <span class="nm" title="Dois cliques: renomear a trilha">${esc(r.nome)}</span><i class="pr-alt" data-alt title="Arraste para mudar a altura da trilha"></i></div>`;
-    }).join('') + '<div style="height:30px"></div>';
+    }, parte = sec => rows.map((r, i) => r.sec === sec ? um(r, i) : '').join('');
+    // três caixas: vídeo (rola sozinha, colada embaixo no divisor), divisor fixo e áudio (rola sozinha, colada em cima no divisor)
+    this.cabs.innerHTML = `<div class="pr-cz" data-z="v"><div class="pr-cz-in">${parte('v')}</div></div><div class="pr-cz" data-z="div">${parte('div')}</div><div class="pr-cz" data-z="a"><div class="pr-cz-in">${parte('a')}<div style="height:30px"></div></div></div>`;
     this.pintaCabsPos();
   },
-  pintaCabsPos() { this.cabs.style.transform = `translateY(${-this.sy}px)`; },
+  pintaCabsPos() {
+    const RG = this.RG, [v0, v1] = this.faixaY('v'), [d0, d1] = this.faixaY('div'), [a0, a1] = this.faixaY('a'), z = k => $(`.pr-cz[data-z="${k}"]`, this.cabs), zv = z('v'), zd = z('div'), za = z('a'); if (!zv || !zd || !za) return;
+    zv.style.top = '0px'; zv.style.height = (v1 - v0) + 'px'; zd.style.top = (d0 - RG) + 'px'; zd.style.height = (d1 - d0) + 'px'; za.style.top = (a0 - RG) + 'px'; za.style.height = Math.max(0, a1 - a0) + 'px';
+    zv.firstChild.style.transform = `translateY(${(v1 - v0) - (this.totV || 0) + (this.syV || 0)}px)`; za.firstChild.style.transform = `translateY(${-(this.syA || 0)}px)`;
+  },
   ligaCabs() {
     const box = this.cabs;
     box.addEventListener('click', e => {
@@ -237,26 +280,31 @@ const TLP = {
   /* ---------- desenho ---------- */
   desenha() {
     if (!this.el || !App.P || !this.rows || Folha.modo !== 'video') return;
-    const P = App.P, c = this.cv.getContext('2d'), d = devicePixelRatio || 1, W = this.W(), H = this.H(), RG = this.RG, sy = this.sy, fps = P.fps;
+    const P = App.P, c = this.cv.getContext('2d'), d = devicePixelRatio || 1, W = this.W(), H = this.H(), RG = this.RG, fps = P.fps;
     c.setTransform(d, 0, 0, d, 0, 0); c.fillStyle = '#1e1e21'; c.fillRect(0, 0, W, H); this._miniN = 0;
     c.save(); c.beginPath(); c.rect(0, RG, W, H - RG); c.clip();
-    const xFim = this.q2x(P.duracao);
-    for (const r of this.rows) { const y = RG + r.y - sy; if (y > H || y + r.h < RG) continue;
-      if (r.tipo === 'div') { c.fillStyle = '#151517'; c.fillRect(0, y, W, r.h); c.fillStyle = '#333338'; c.fillRect(0, y + 3, W, 1); continue; }
-      c.fillStyle = r.tipo === 'cam' ? '#242428' : '#202024'; c.fillRect(0, y, W, r.h); c.fillStyle = '#151517'; c.fillRect(0, y + r.h - 1, W, 1);
-      if (xFim < W) { c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(Math.max(0, xFim), y, W, r.h - 1); } } // depois do fim da animação
-    // entrada/saída: faixa clara nas trilhas
-    const tr = Folha.trecho; if (tr) { c.fillStyle = 'rgba(255,255,255,.035)'; c.fillRect(this.q2x(tr.de), RG, (tr.ate - tr.de + 1) * this.pxq, H); }
-    // lacuna escolhida
-    if (this.lacuna) { const r = this.rows.find(x => x.lado === this.lacuna.lado && x.tr === this.lacuna.tr); if (r) { c.fillStyle = 'rgba(255,255,255,.16)'; c.fillRect(this.q2x(this.lacuna.de), RG + r.y - sy + 1, (this.lacuna.fim - this.lacuna.de + 1) * this.pxq, r.h - 2); } }
-    for (const cl of this.L.todos) { const r = this.linhaDe(cl); if (!r) continue; const y = RG + r.y - sy; if (y > H || y + r.h < RG) continue; const x0 = this.q2x(cl.de), x1 = this.q2x(cl.fim + 1); if (x1 < 0 || x0 > W) continue;
-      this.bloco(c, cl, x0, x1, y, r.h, W); }
-    // câmera: só as chaves
-    const rc = this.rows.find(r => r.tipo === 'cam'); if (rc) { const y = RG + rc.y - sy + rc.h / 2; c.fillStyle = '#8fb4e8'; for (const k of Object.keys(P.camera?.chaves || {}).map(Number)) { const x = this.q2x(k + .5); if (x < -5 || x > W + 5) continue; c.beginPath(); c.moveTo(x, y - 4); c.lineTo(x + 4, y); c.lineTo(x, y + 4); c.lineTo(x - 4, y); c.fill(); } }
-    // trilhas bloqueadas: listras por cima
-    for (const r of this.rows) if ((r.lado === 'v' || r.lado === 'a') && this.estT(r.lado, r.tr).trava) { const y = RG + r.y - sy; c.save(); c.beginPath(); c.rect(0, y, W, r.h - 1); c.clip(); c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 3; c.beginPath(); for (let x = -r.h - (this.sx % 12); x < W + r.h; x += 12) { c.moveTo(x, y + r.h); c.lineTo(x + r.h, y); } c.stroke(); c.restore(); }
-    // arrasto da aba Efeitos
-    const dr = Folha.drop; if (dr?.i != null && this.rows[dr.i]) { const r = this.rows[dr.i], y = RG + r.y - sy; c.fillStyle = dr.ok ? 'rgba(90,169,232,.22)' : 'rgba(255,107,107,.15)'; c.strokeStyle = dr.ok ? '#5aa9e8' : '#ff8a8a'; c.lineWidth = 2; c.beginPath(); c.roundRect(this.q2x(dr.de) + 1, y + 2, Math.max(4, (dr.ate - dr.de + 1) * this.pxq - 2), r.h - 4, 3); c.fill(); c.stroke(); }
+    const xFim = this.q2x(P.duracao), tr = Folha.trecho, rc = this.rows.find(r => r.tipo === 'cam'), dr = Folha.drop;
+    // DUAS PARTES (vídeo em cima, áudio embaixo), cada uma recortada na sua faixa e com a sua rolagem
+    for (const sec of ['v', 'a']) { const [z0, z1] = this.faixaY(sec), fora = (y, h) => y > z1 || y + h < z0;
+      c.save(); c.beginPath(); c.rect(0, z0, W, z1 - z0); c.clip();
+      for (const r of this.rows) { if (r.sec !== sec) continue; const y = this.yr(r); if (fora(y, r.h)) continue;
+        c.fillStyle = r.tipo === 'cam' ? '#242428' : '#202024'; c.fillRect(0, y, W, r.h); c.fillStyle = '#151517'; c.fillRect(0, y + r.h - 1, W, 1);
+        if (xFim < W) { c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(Math.max(0, xFim), y, W, r.h - 1); } } // depois do fim da animação
+      // entrada/saída: faixa clara nas trilhas
+      if (tr) { c.fillStyle = 'rgba(255,255,255,.035)'; c.fillRect(this.q2x(tr.de), z0, (tr.ate - tr.de + 1) * this.pxq, z1 - z0); }
+      // lacuna escolhida
+      if (this.lacuna) { const r = this.rows.find(x => x.lado === this.lacuna.lado && x.tr === this.lacuna.tr); if (r && r.sec === sec) { c.fillStyle = 'rgba(255,255,255,.16)'; c.fillRect(this.q2x(this.lacuna.de), this.yr(r) + 1, (this.lacuna.fim - this.lacuna.de + 1) * this.pxq, r.h - 2); } }
+      for (const cl of this.L.todos) { const r = this.linhaDe(cl); if (!r || r.sec !== sec) continue; const y = this.yr(r); if (fora(y, r.h)) continue; const x0 = this.q2x(cl.de), x1 = this.q2x(cl.fim + 1); if (x1 < 0 || x0 > W) continue;
+        this.bloco(c, cl, x0, x1, y, r.h, W); }
+      // câmera: só as chaves
+      if (rc && rc.sec === sec) { const y = this.yr(rc) + rc.h / 2; c.fillStyle = '#8fb4e8'; for (const k of Object.keys(P.camera?.chaves || {}).map(Number)) { const x = this.q2x(k + .5); if (x < -5 || x > W + 5) continue; c.beginPath(); c.moveTo(x, y - 4); c.lineTo(x + 4, y); c.lineTo(x, y + 4); c.lineTo(x - 4, y); c.fill(); } }
+      // trilhas bloqueadas: listras por cima
+      for (const r of this.rows) if (r.sec === sec && (r.lado === 'v' || r.lado === 'a') && this.estT(r.lado, r.tr).trava) { const y = this.yr(r); c.save(); c.beginPath(); c.rect(0, y, W, r.h - 1); c.clip(); c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 3; c.beginPath(); for (let x = -r.h - (this.sx % 12); x < W + r.h; x += 12) { c.moveTo(x, y + r.h); c.lineTo(x + r.h, y); } c.stroke(); c.restore(); }
+      // arrasto da aba Efeitos
+      if (dr?.i != null && this.rows[dr.i]?.sec === sec) { const r = this.rows[dr.i], y = this.yr(r); c.fillStyle = dr.ok ? 'rgba(90,169,232,.22)' : 'rgba(255,107,107,.15)'; c.strokeStyle = dr.ok ? '#5aa9e8' : '#ff8a8a'; c.lineWidth = 2; c.beginPath(); c.roundRect(this.q2x(dr.de) + 1, y + 2, Math.max(4, (dr.ate - dr.de + 1) * this.pxq - 2), r.h - 4, 3); c.fill(); c.stroke(); }
+      c.restore(); }
+    // o divisor (fixo no meio)
+    { const [d0, d1] = this.faixaY('div'); c.fillStyle = '#151517'; c.fillRect(0, d0, W, d1 - d0); c.fillStyle = '#333338'; c.fillRect(0, d0 + 3, W, 1); }
     // laço (seleção por retângulo)
     const m = this.laco; if (m) { const x = Math.min(m.x0, m.x1), y = Math.min(m.y0, m.y1); c.fillStyle = 'rgba(255,255,255,.08)'; c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 1; c.fillRect(x, y, Math.abs(m.x1 - m.x0), Math.abs(m.y1 - m.y0)); c.strokeRect(x + .5, y + .5, Math.abs(m.x1 - m.x0), Math.abs(m.y1 - m.y0)); }
     // encaixe: linha + triângulos
@@ -353,23 +401,27 @@ const TLP = {
       const up = () => { pol.removeEventListener('pointermove', mov); pol.removeEventListener('pointerup', up); }; pol.addEventListener('pointermove', mov); pol.addEventListener('pointerup', up); });
     hb.addEventListener('pointerdown', e => { if (e.target !== hb) return; const r = hb.getBoundingClientRect(); this.sx = (e.clientX - r.left) / r.width * this.totalPx() - this.W() / 2; this.limita(); this.desenha(); this.pintaBarras(); });
     hb.addEventListener('dblclick', () => this.encaixaTudo());
-    vt.addEventListener('pointerdown', e => { e.preventDefault(); vt.setPointerCapture(e.pointerId); const y0 = e.clientY, sy0 = this.sy, BH = vb.clientHeight, tot = this.altTotal;
-      const mov = ev => { this.sy = sy0 + (ev.clientY - y0) * tot / BH; this.limita(); this.desenha(); this.pintaCabsPos(); this.pintaBarras(); };
-      const up = () => { vt.removeEventListener('pointermove', mov); vt.removeEventListener('pointerup', up); }; vt.addEventListener('pointermove', mov); vt.addEventListener('pointerup', up); });
+    // um pegador para o vídeo (metade de cima) e outro para o áudio (metade de baixo)
+    $$('i[data-z]', vb).forEach(vt => vt.addEventListener('pointerdown', e => { e.preventDefault(); vt.setPointerCapture(e.pointerId); const sec = vt.dataset.z, y0 = e.clientY, s0 = sec === 'v' ? this.syV : this.syA, k = this._kBarra?.[sec] || 1;
+      const mov = ev => { const dy = (ev.clientY - y0) * k; if (sec === 'v') this.syV = s0 - dy; else this.syA = s0 + dy; this.limita(); this.desenha(); this.pintaCabsPos(); this.pintaBarras(); };
+      const up = () => { vt.removeEventListener('pointermove', mov); vt.removeEventListener('pointerup', up); }; vt.addEventListener('pointermove', mov); vt.addEventListener('pointerup', up); }));
   },
   totalPx() { return Math.max(this.W(), (this.fimSeq() + 1) * this.pxq + this.W() * .5); },
   pintaBarras() {
     const hb = $('.pr-hbar', this.el), pol = $('.pr-hpol', hb), BW = hb.clientWidth, tot = this.totalPx(), W = this.W();
     const w = Math.max(28, W / tot * BW), x = Math.min(BW - w, this.sx / tot * BW); pol.style.left = x + 'px'; pol.style.width = w + 'px';
-    const vb = $('.pr-vbar', this.el), vt = $('i', vb), BH = vb.clientHeight, vis = this.H() - this.RG, totV = this.altTotal || 1;
-    if (totV <= vis + 2) vt.style.display = 'none'; else { vt.style.display = ''; const hh = Math.max(20, vis / totV * BH); vt.style.height = hh + 'px'; vt.style.top = Math.min(BH - hh, this.sy / totV * BH) + 'px'; }
+    const vb = $('.pr-vbar', this.el), RG = this.RG; this._kBarra = {};
+    for (const sec of ['v', 'a']) { const vt = $(`i[data-z="${sec}"]`, vb), [z0, z1] = this.faixaY(sec), hz = z1 - z0, tot = sec === 'v' ? this.totV || 0 : this.totA || 0, max = tot - hz;
+      if (!vt) continue; if (max <= 2 || hz < 10) { vt.style.display = 'none'; continue; }
+      const hh = Math.max(20, hz * hz / tot), corre = Math.max(1, hz - hh), s = sec === 'v' ? this.syV || 0 : this.syA || 0; this._kBarra[sec] = max / corre;
+      vt.style.display = ''; vt.style.height = hh + 'px'; vt.style.top = (z0 - RG + (sec === 'v' ? corre * (1 - s / max) : corre * s / max)) + 'px'; } // vídeo: rolagem 0 = pegador embaixo (V1 à vista)
   },
 
   /* ---------- mouse ---------- */
   ponto(e) {
     const r = this.cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, q = this.x2q(x), p = { x, y, q, qi: Math.floor(q), qr: Math.round(q) };
     if (y < this.RG) { p.regua = true; return p; }
-    const yy = y - this.RG + this.sy; p.ri = this.rows.findIndex(r => yy >= r.y && yy < r.y + r.h); p.row = this.rows[p.ri];
+    p.ri = this.rows.findIndex(r => { const [z0, z1] = this.faixaY(r.sec), y0 = this.yr(r); return y >= z0 && y < z1 && y >= y0 && y < y0 + r.h; }); p.row = this.rows[p.ri];
     if (p.row && p.row.tipo !== 'div' && p.row.tipo !== 'cam') {
       const cls = this.L.todos.filter(c => c.lado === p.row.lado && (c.tr === p.row.tr || c.lado === 'c' || c.lado === 't') && x >= this.q2x(c.de) - 3 && x <= this.q2x(c.fim + 1) + 3);
       p.clip = cls.find(c => q >= c.de && q < c.fim + 1) || cls[0] || null;
@@ -379,7 +431,7 @@ const TLP = {
   // o mesmo formato do Folha.ponto (para Folha.alvoDrop): i = linha, l = "linha" do bloco embaixo
   pontoDrop(e) { const p = this.ponto(e), c = p.clip; return { q: p.qi, x: p.x, y: p.y, i: p.ri ?? -1, l: c?.k === 'n' ? { tipo: 'no', no: c.n, video: true } : c?.k === 'a' ? { tipo: 'audio', a: c.a } : null }; },
   zona(p) {
-    const c = p.clip; if (!c) return null; const x0 = this.q2x(c.de), x1 = this.q2x(c.fim + 1), w = x1 - x0, b = Math.min(7, w / 4), P = App.P, r = p.row, top = this.RG + r.y - this.sy + 1, faixa = r.h - 3 >= 26 ? 14 : 0;
+    const c = p.clip; if (!c) return null; const x0 = this.q2x(c.de), x1 = this.q2x(c.fim + 1), w = x1 - x0, b = Math.min(7, w / 4), P = App.P, r = p.row, top = this.yr(r) + 1, faixa = r.h - 3 >= 26 ? 14 : 0;
     const tq = c.k === 'n' ? [c.n.entra?.q, c.n.sai?.q] : c.k === 'a' ? [(+c.a.fi || 0) * P.fps, (+c.a.fo || 0) * P.fps] : [0, 0];
     if (p.y > top + faixa) { if (tq[0] && p.x >= x0 + b && p.x <= x0 + tq[0] * this.pxq) return 'tr-entra'; if (tq[1] && p.x <= x1 - b && p.x >= x1 - tq[1] * this.pxq) return 'tr-sai'; }
     if (p.x - x0 < b) return 'ini'; if (x1 - p.x < b) return 'fim'; return 'meio';
@@ -392,8 +444,8 @@ const TLP = {
   arrastar(e, mov, up) { const id = e.pointerId; this.cv.setPointerCapture(id); const m = ev => mov(this.ponto(ev), ev); const u = ev => { this.cv.removeEventListener('pointermove', m); this.cv.removeEventListener('pointerup', u); this.cv.removeEventListener('pointercancel', u); up?.(this.ponto(ev), ev); }; this.cv.addEventListener('pointermove', m); this.cv.addEventListener('pointerup', u); this.cv.addEventListener('pointercancel', u); },
   desce(e) {
     if (!App.P) return; this.foco = true; this.pintaFoco(); const p = this.ponto(e);
-    if (e.button === 1 || (e.button === 0 && this.ferr === 'mao')) { e.preventDefault(); const x0 = e.clientX, y0 = e.clientY, sx0 = this.sx, sy0 = this.sy; this.cv.style.cursor = 'grabbing';
-      return this.arrastar(e, (pp, ev) => { this.sx = sx0 - (ev.clientX - x0); this.sy = sy0 - (ev.clientY - y0); this.limita(); this.desenha(); this.pintaCabsPos(); this.pintaBarras(); }, () => { this.cv.style.cursor = this.ferr === 'mao' ? 'grab' : ''; }); }
+    if (e.button === 1 || (e.button === 0 && this.ferr === 'mao')) { e.preventDefault(); const x0 = e.clientX, y0 = e.clientY, sx0 = this.sx, sec = this.secEm(p.y), sy0 = sec === 'v' ? this.syV : this.syA; this.cv.style.cursor = 'grabbing';
+      return this.arrastar(e, (pp, ev) => { this.sx = sx0 - (ev.clientX - x0); if (sec === 'v') this.syV = sy0 + (ev.clientY - y0); else this.syA = sy0 - (ev.clientY - y0); this.limita(); this.desenha(); this.pintaCabsPos(); this.pintaBarras(); }, () => { this.cv.style.cursor = this.ferr === 'mao' ? 'grab' : ''; }); }
     if (e.button !== 0) { if (p.clip && !this.sel.has(p.clip.id) && !this.travada(p.clip)) this.escolhe([p.clip.id]); return; }
     if (p.regua) { // marcador ou agulha
       const mk = (App.P.marcadores || []).find(m => Math.abs(this.q2x(m.q) - p.x) < 6 && p.y >= 14 && p.y <= 33);
@@ -426,7 +478,7 @@ const TLP = {
     else this.desenha();
   },
   dentroLaco() { const m = this.laco, xa = Math.min(m.x0, m.x1), xb = Math.max(m.x0, m.x1), ya = Math.min(m.y0, m.y1), yb = Math.max(m.y0, m.y1), out = [];
-    for (const c of this.L.todos) { const r = this.linhaDe(c); if (!r || this.travada(c)) continue; const y0 = this.RG + r.y - this.sy, y1 = y0 + r.h; if (this.q2x(c.fim + 1) >= xa && this.q2x(c.de) <= xb && y1 >= ya && y0 <= yb) out.push(c.id); } return out; },
+    for (const c of this.L.todos) { const r = this.linhaDe(c); if (!r || this.travada(c)) continue; const y0 = this.yr(r), y1 = y0 + r.h; if (this.q2x(c.fim + 1) >= xa && this.q2x(c.de) <= xb && y1 >= ya && y0 <= yb) out.push(c.id); } return out; },
   clipe(id) { return this.L?.todos.find(c => c.id === id); },
   escolhidos() { return [...this.sel].map(id => this.clipe(id)).filter(Boolean); },
   // ---------- encaixe (S): agulha, pontas dos blocos, marcadores, entrada/saída ----------
@@ -462,7 +514,7 @@ const TLP = {
       nd = this.encaixaGrupo(nd, pontas, ids); nd = Math.max(nd, -minDe); if (maxFimN >= 0) nd = Math.min(nd, P.duracao - 1 - maxFimN);
       // trilha: quantas linhas do mesmo lado o mouse andou
       let ndt = 0; const rr = pp.row; if (rr && r0 && rr.lado === r0.lado && (rr.lado === 'v' || rr.lado === 'a')) ndt = rr.tr - r0.tr;
-      else if (pp.y < this.RG + (this.rows.find(r => r.lado === 'v')?.y ?? 0) - this.sy && r0?.lado === 'v') ndt = this.L.nV - r0.tr; // acima da trilha de cima = trilha nova
+      else if (this.rows.some(r => r.lado === 'v') && pp.y < this.yr(this.rows.find(r => r.lado === 'v')) && r0?.lado === 'v') ndt = this.L.nV - r0.tr; // acima da trilha de cima = trilha nova
       const doLado = cls.filter(c => c.lado === r0?.lado).map(c => tr0.get(c.id)); ndt = clamp(ndt, 1 - Math.min(...doLado, 99), (r0?.lado === 'a' ? nA0 : nV0) - Math.max(...doLado, 1));
       if (nd === dq && ndt === dt) return; dq = nd; dt = ndt;
       for (const f of fotos) { this.volta(f); this.anda(f, dq); const c = f.c; if (c.k === 'n' && c.lado === r0?.lado) c.n.trilha = tr0.get(c.id) + dt; if (c.k === 'a' && c.lado === r0?.lado) c.a.trilha = tr0.get(c.id) + dt;
@@ -715,7 +767,9 @@ const TLP = {
     const c = p.clip; if (!c) return;
     if (c.k === 'a') return CorteVoz.abrir(c.a); // como abrir no Monitor de origem
     if (c.k === 'g') return Lado.aba?.('som');
-    if (c.k === 'n') { // como abrir uma sequência aninhada: vai para o modo Animação com a camada aberta
+    if (c.k === 'n' && App.P.rive) { // animação nova: o quadro a quadro é só do LEGACY; dois cliques escolhem o bloco e levam a agulha ao começo dele
+      if (this.travada(c)) return; this.escolhe([c.id]); App.selecionar(c.n.id); App.setQ(c.de); return; }
+    if (c.k === 'n') { // LEGACY: como abrir uma sequência aninhada, vai para o modo Animação com a camada aberta
       const n = c.n; if (n.filhos) n.aberto = true; App.setQ(clamp(Math.max(App.q, c.de), c.de, c.fim)); Folha.setModo('anim'); App.selecionar(n.id); UI.toast('Modo Animação: as camadas e chaves de "' + n.nome + '"'); }
   },
   menu(e) {
@@ -747,7 +801,7 @@ const TLP = {
         !varios && n.tipo !== 'efeito' && { label: 'Entrada', icon: 'start', sub: [{ label: 'Nenhuma', icon: !n.entra ? 'check' : null, action: () => { delete n.entra; App.commit('Sem entrada'); } }, ...Object.entries(Modelo.ANIMS).map(([id, nmA]) => ({ label: nmA === 'Aparecer' ? 'Dissolução cruzada (aparecer)' : nmA, icon: n.entra?.tipo === id ? 'check' : null, action: () => { this.congela(); n.entra = { tipo: id, q: n.entra?.q || Math.round(P.fps * .5) }; App.commit('Entrada: ' + nmA); } }))] },
         !varios && n.tipo !== 'efeito' && { label: 'Saída', icon: 'end', sub: [{ label: 'Nenhuma', icon: !n.sai ? 'check' : null, action: () => { delete n.sai; App.commit('Sem saída'); } }, ...Object.entries(Modelo.ANIMS).map(([id, nmA]) => ({ label: nmA === 'Aparecer' ? 'Dissolução cruzada (sumir)' : nmA, icon: n.sai?.tipo === id ? 'check' : null, action: () => { this.congela(); if (n.ate == null) n.ate = c.fim; n.sai = { tipo: id, q: n.sai?.q || Math.round(P.fps * .5) }; App.commit('Saída: ' + nmA); } }))] },
         '-', rotulo, !varios && { label: 'Renomear…', icon: 'edit', action: async () => { const v = await UI.prompt({ title: 'Renomear o bloco', value: n.nome, ok: 'Renomear' }); if (v?.trim()) { n.nome = v.trim().slice(0, 80); App.commit('Renomear'); } } },
-        !varios && { label: 'Abrir no modo Animação', icon: 'diamond', key: 'dois cliques', action: () => this.duplo(e) },
+        !varios && !P.rive && { label: 'Abrir no modo Animação', icon: 'diamond', key: 'dois cliques', action: () => this.duplo(e) }, // só no LEGACY
         '-', !varios && { label: `Citar na IA: ${nm}`, icon: 'sparkles', ai: true, action: () => Assistente.citar({ tipo: 'camada', id: n.id, nome: n.nome, q }) }].filter(Boolean));
     }
     if (c.k === 'a') { const a = c.a;

@@ -45,7 +45,7 @@ const Legacy = {
     try { if (typeof Ocupado !== 'undefined' && Ocupado.nuvem) await Ocupado.nuvem('Guardando a cópia LEGACY', roda); else await roda(); }
     catch (e) { await DB.del('projetos', copia.id).catch(() => { }); return UI.toast('Não atualizei nada: ' + esc(e.message || String(e)), { kind: 'err', time: 7000 }); } // sem a cópia na nuvem, nada muda (nem fica cópia pela metade aqui)
     P.rive = 1; const tirou = this.enxuga(P);
-    let trilhas = ''; try { const a = TLP.layout(); for (const n of P.raiz) delete n.trilha; for (const x of P.audios || []) delete x.trilha; TLP.congela(); TLP.ordena(); const d = TLP.layout(); trilhas = `trilhas ${a.nV} → ${d.nV}`; } catch (e) { console.warn(e); }
+    let trilhas = ''; try { const a = TLP.layout(); TLP.compacta(P); const d = TLP.layout(); trilhas = `trilhas de vídeo ${a.maxV} → ${d.maxV}`; } catch (e) { console.warn(e); }
     App.commit('Atualizar para a versão nova'); try { SoVideo.aplica(); } catch { } this.pinta(); await App.salvarJa?.();
     UI.toast(`Atualizada. Cópia <b>${esc(copia.nome)}</b> guardada na nuvem. ${tirou} chaves repetidas a menos${trilhas ? ', ' + trilhas : ''}. Ctrl+Z desfaz.`, { kind: 'ok', time: 8000 });
   },

@@ -474,7 +474,7 @@ const App = {
         s?.tipo === 'personagem' && { label: (Modelo.transf(s, App.q).sx || 1) < 0 ? 'Desespelhar (voltar para o lado de antes)' : 'Espelhar (virar para o outro lado)', icon: 'transition', action: () => Animacoes.espelhar(s) },
         Deformar.pode(s) && { label: Deformar.ativo ? 'Parar de deformar' : 'Deformar (cantos ou malha)…', icon: 'transition', key: 'T', action: () => Deformar.alterna(s) },
         PontosEd.pode(s) && { label: PontosEd.ativo ? 'Parar de editar os pontos' : 'Editar os pontos do SVG (aqui mesmo)', icon: 'edit', key: 'A', action: () => PontosEd.alterna(s) },
-        s && { label: 'Chave neste quadro', icon: 'diamond', key: 'K', action: () => App.chaveAqui() },
+        s && !App.P?.rive && { label: 'Chave neste quadro', icon: 'diamond', key: 'K', action: () => App.chaveAqui() }, // animação nova: sem atalhos de quadro a quadro (LEGACY)
         s && { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
         s && { label: 'Pôr numa pasta', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },
         s && s.tipo !== 'efeito' && App.menuTremulo(s),
@@ -520,7 +520,7 @@ const App = {
     const V = pc.vista(), c = Modelo.camera(P, this.q), cw = P.w / (c.zoom || 1), ch = P.h / (c.zoom || 1);
     const camM = new DOMMatrix().translate(c.x, c.y).rotate(c.r || 0), cantosCam = [[-cw / 2, -ch / 2], [cw / 2, -ch / 2], [cw / 2, ch / 2], [-cw / 2, ch / 2]].map(([x, y]) => camM.transformPoint(new DOMPoint(x, y)));
     // casca de cebola: quadros vizinhos bem clarinhos
-    if (this.onion && !this.tocando) for (const [d, a] of [[-2, .1], [-1, .22], [1, .16]]) { const qq = this.q + d; if (qq < 0 || qq > Modelo.ultimoQuadro(P)) continue; ctx.save(); ctx.filter = d < 0 ? 'sepia(1) hue-rotate(160deg) saturate(3)' : 'sepia(1) hue-rotate(-40deg) saturate(3)'; Render.camadas(ctx, P, qq, V, a, { semVideo: true }); ctx.restore(); }
+    if (this.onion && !this.P.rive && !this.tocando) for (const [d, a] of [[-2, .1], [-1, .22], [1, .16]]) { const qq = this.q + d; if (qq < 0 || qq > Modelo.ultimoQuadro(P)) continue; ctx.save(); ctx.filter = d < 0 ? 'sepia(1) hue-rotate(160deg) saturate(3)' : 'sepia(1) hue-rotate(-40deg) saturate(3)'; Render.camadas(ctx, P, qq, V, a, { semVideo: true }); ctx.restore(); }
     if (typeof PreviaLeve !== 'undefined' && PreviaLeve.palcoA2(ctx, P, this.q, V, pc.dpr)) { } // PRÉVIA LEVE com o visual A2 (o quadro inteiro passa por ele): o palco todo em resolução reduzida, esticado
     else { ctx.save(); ctx.filter = Efeitos.filtro(P, this.q); Render.camadas(ctx, P, this.q, V, 1, { fundo: true, sombra: pc.dpr }); ctx.restore(); // o fundo (quadriculado/liso) entra como a camada mais de baixo: os efeitos valem nele também
     if (Efeitos.grade(P.efeitos?.visual) === 'a2' && typeof GradeA2 !== 'undefined') { let inv = null; try { inv = V.multiply(Render.matCamera(P, this.q, P.w, P.h).inverse()).inverse(); } catch { } if (inv) GradeA2.aplica(pc.cv, P.w, P.h, inv, this.q, { vinheta: P.efeitos?.vinheta !== false }); } } // visual antigo = Rua 3D (A2) (js/acabamento.js)
@@ -598,9 +598,9 @@ const App = {
     if (kk === 't') return Deformar.alterna(s); // deformar (o Ctrl+T o navegador não deixa)
     if (kk === 'a' && PontosEd.pode(s)) return PontosEd.alterna(s); // pontos do SVG direto no palco
     if (Deformar.ativo && (k === 'Enter' || k === 'Escape')) { e.preventDefault(); return Deformar.sair(); }
-    if (kk === 'k') return e.shiftKey ? this.tiraChave() : this.chaveAqui();
+    if (kk === 'k' && !this.P?.rive) return e.shiftKey ? this.tiraChave() : this.chaveAqui(); // K/Shift+K e O (casca de cebola) só no LEGACY (26/11/2026)
     if (kk === 'r') return this.trocaRegua();
-    if (kk === 'o') { this.onion = !this.onion; $('#b-onion').classList.toggle('on', this.onion); return this.pinta(); }
+    if (kk === 'o' && !this.P?.rive) { this.onion = !this.onion; $('#b-onion').classList.toggle('on', this.onion); return this.pinta(); }
     if (kk === 'v') return this.setFerr('mover'); if (kk === 'h') return this.setFerr('mao'); if (kk === 'c') return this.setFerr('camera');
     if (kk === 'f') return this.enquadrar();
     if (k === 'Tab') { e.preventDefault(); return this.setVista(this.modoVista === 'mundo' ? 'camera' : 'mundo'); }

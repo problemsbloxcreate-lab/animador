@@ -1845,6 +1845,10 @@ body.arrastando-ef #tl-grade{outline:2px dashed rgba(90,169,232,.6);outline-offs
 .pr-vbar i{position:absolute;left:2px;right:2px;border-radius:4px;background:#4a4a4a;cursor:pointer}.pr-vbar i:hover{background:#5d5d5d}
 .pr-pe{grid-row:3;grid-column:2;background:#232323;border-right:1px solid #111;border-top:1px solid #111}
 .pr-hbar{grid-row:3;grid-column:3 / span 2;position:relative;background:#1f1f1f;border-top:1px solid #111}
+/* timeline estilo DaVinci (26/11/2026): vídeo em cima e áudio embaixo, divisor fixo no meio, cada metade rola sozinha (js/premiere.js) */
+.pr-cabs-in{position:absolute;inset:0}.pr-cz{position:absolute;left:0;right:0;overflow:hidden}.pr-cz-in{position:absolute;left:0;right:0;top:0}
+.pr-pe{display:flex;align-items:center;overflow:hidden;min-width:0}
+.pr-aviso{flex:1;min-width:0;height:100%;border:0;background:none;color:#e3b341;font:10px 'Segoe UI',system-ui,sans-serif;text-align:left;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}.pr-aviso:hover{color:#ffd36b;text-decoration:underline}
 .pr-hpol{position:absolute;top:2px;bottom:2px;border-radius:5px;background:#4a4a4a;cursor:grab;min-width:28px}
 .pr-hpol:hover{background:#585858}
 .pr-hpol i{position:absolute;top:-1px;width:10px;height:10px;border-radius:50%;background:#bdbdbd;border:1px solid #222;cursor:ew-resize}
@@ -1958,3 +1962,5 @@ a.btn,a.btn:hover,a.btn:visited,a.btn:focus,a.ibtn,a.ibtn:hover,a.ibtn:visited{t
 
 /* blocos de animação (js/blocos.js): a ferramenta Alongamento de taxa (R) só aparece em animação nova */
 body:not(.proj-rive) .pr-f-taxa { display: none; }
+/* quadro a quadro só no LEGACY (26/11/2026): na animação nova somem a casca de cebola, os botões de chave (K/Shift+K) e a legenda das chaves */
+body.proj-rive #b-onion,body.proj-rive #t-chave,body.proj-rive #t-tira,body.proj-rive .tl-leg{display:none!important}

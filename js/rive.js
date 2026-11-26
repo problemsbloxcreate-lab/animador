@@ -97,12 +97,15 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 
 /* ANIMAÇÃO NOVA = SÓ O EDITOR DE VÍDEO (pedido da dona, 10/11/2026): na animação nova (`P.rive`) o padrão é o modo Vídeo (trilhas e blocos,
    js/premiere.js) e os botões "Animação | Vídeo" somem. O modo Animação (o quadro a quadro, js/folha.js) virou LEGACY: nas animações antigas
-   continua como sempre; nas novas só aparece ao entrar num bloco (dois cliques, como abrir uma sequência no Premiere), com o botão
-   "Voltar ao vídeo". Não muda o modo guardado das animações antigas (localStorage `animador-tl-modo`). */
+   continua como sempre. Não muda o modo guardado das animações antigas (localStorage `animador-tl-modo`).
+   QUADRO A QUADRO SÓ NO LEGACY (decisão da dona, 26/11/2026): na animação nova NÃO há mais entrada para o modo Animação. O
+   Folha.setModo abaixo recusa 'anim' quando P.rive (pega qualquer caminho, até os que ainda não conhecemos); os dois cliques no bloco
+   só escolhem e levam a agulha ao começo (premiere.js/blocos.js) e K, Shift+K, O, "Quadro a quadro" e "Transformar em chaves" somem. */
 const SoVideo = {
   liga() {
     if (this._ok || typeof App === 'undefined' || typeof Folha === 'undefined' || !Folha.setModo) return; this._ok = true;
     const ab = App.abrir; App.abrir = async function (...x) { const r = await ab.apply(this, x); try { SoVideo.aplica(); } catch (e) { console.warn(e); } return r; };
+    const sm = Folha.setModo; Folha.setModo = function (m, ...x) { if (m !== 'video' && SoVideo.novo()) { if (this.modo !== 'video') return sm.call(this, 'video', ...x); return; } return sm.call(this, m, ...x); };
     const pm = Folha.pintaModo; if (pm) Folha.pintaModo = function (...x) { const r = pm.apply(this, x); SoVideo.pinta(); return r; };
     const fe = App.fechar; if (fe) App.fechar = function (...x) { const r = fe.apply(this, x); SoVideo.pinta(); return r; };
   },

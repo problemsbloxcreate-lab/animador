@@ -12,7 +12,7 @@
     UI.ctx(r.right - 260, r.bottom + 4, [
       { label: 'Animar com a IA…', icon: 'sparkles', ai: true, action: () => IA.abrir(Lado.foco()) },
       { label: 'Ateliê de personagens…', iconHtml: '<span class="ic-atelie ic-ep ctx-ic-at" data-estudio-icone="at" aria-hidden="true"></span>', action: () => App.abrirAtelie() }, '-',
-      { label: 'Casca de cebola', key: 'O', checked: !!App.onion, action: () => $('#b-onion').click() },
+      !App.P?.rive && { label: 'Casca de cebola', key: 'O', checked: !!App.onion, action: () => $('#b-onion').click() }, // só no LEGACY
       '-',
       { label: 'Pronto: pôr no Publicações', iconHtml: '<span class="ic-ep ctx-ic-at" data-estudio-icone="x-publicacoes" aria-hidden="true"></span>', action: () => Exportar.pronto() }, App.P?.publicacoes?.id && { label: 'Tirar do Publicações', icon: 'trash', danger: true, action: () => Exportar.tirarPub() },
       { label: 'Baixar .animador', icon: 'file', action: () => Toon.baixar(App.P) },

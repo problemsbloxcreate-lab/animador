@@ -157,7 +157,7 @@ const Lado = {
   // chave neste quadro: botão de pôr/tirar + pular para a anterior/próxima
   barraChave(temChave, total, ch) {
     const b = h(`<div class="pr-chave ${temChave ? 'on' : ''}"><button class="ibtn" data-ant title="Chave anterior ( [ )">${ic('prev', 13)}</button>
-      <button class="pr-k" data-k title="${temChave ? 'Tirar a chave deste quadro (Shift+K)' : 'Pôr uma chave neste quadro (K)'}">${ic('diamond', 13)}<span>${temChave ? 'Chave neste quadro' : 'Sem chave aqui'}</span></button>
+      <button class="pr-k" data-k title="${temChave ? 'Tirar a chave deste quadro' : 'Pôr uma chave neste quadro'}${App.P?.rive ? '' : temChave ? ' (Shift+K)' : ' (K)'}">${ic('diamond', 13)}<span>${temChave ? 'Chave neste quadro' : 'Sem chave aqui'}</span></button>
       <button class="ibtn" data-prox title="Próxima chave ( ] )">${ic('next', 13)}</button><small>${total} chave${total === 1 ? '' : 's'}</small></div>`);
     $('[data-ant]', b).onclick = () => App.pulaChave(-1); $('[data-prox]', b).onclick = () => App.pulaChave(1);
     $('[data-k]', b).onclick = () => (ch ? !!ch()?.[App.q] : temChave) ? App.tiraChave() : App.chaveAqui();
@@ -197,6 +197,8 @@ const Lado = {
       $('[data-cen]', at).onclick = () => { const c0 = Modelo.camera(P, q); Modelo.poeTransf(n, q, { x: round(c0.x, 1), y: round(c0.y, 1) }); App.commit('No meio da câmera'); };
       $('[data-zero]', at).onclick = () => { Modelo.poeTransf(n, q, { r: 0, s: 1, op: 1 }); App.commit('Zerar'); };
       c.appendChild(at);
+      // animação nova: sem "Quadro a quadro" (só no LEGACY, 26/11/2026). Se a camada já segura até a próxima chave, fica só o "Deixar suave"
+      if (P.rive) { if (!n.interp) { const sv = h(`<div class="pr-seg" title="Hoje esta camada fica parada até a próxima chave"><span>Movimento</span><div><button data-i="1" title="Anda sozinho entre as chaves">Deixar suave</button></div></div>`); $('[data-i]', sv).onclick = () => { n.interp = true; App.commit('Movimento suave'); }; c.appendChild(sv); } return; }
       const mv = h(`<div class="pr-seg" title="Como a camada vai de uma chave para a outra"><span>Movimento</span><div><button data-i="1" class="${n.interp ? 'on' : ''}" title="Anda sozinho entre as chaves">Suave</button><button data-i="0" class="${n.interp ? '' : 'on'}" title="Segura até a próxima chave">Quadro a quadro</button></div></div>`);
       $$('[data-i]', mv).forEach(b => b.onclick = () => { n.interp = b.dataset.i === '1'; App.commit('Movimento'); }); c.appendChild(mv);
     }, true));
@@ -251,8 +253,11 @@ const Lado = {
       $('[data-nq]', a).onclick = () => this.aba('quadro'); $('[data-at]', a).onclick = () => App.abrirAtelie(); c.appendChild(a);
       if (PontosEd.pode(n)) { const pe = h(`<div class="pr-acoes"><button class="btn sm" data-pe title="Mexe nos pontos e curvas das peças SVG aqui no palco, sem abrir o Ateliê (A)">${ic('edit', 13)} Editar os pontos do SVG</button></div>`); $('[data-pe]', pe).onclick = () => PontosEd.alterna(n); c.appendChild(pe); }
       // RIG (js/rig.js): partes mudam aos poucos entre as chaves de pose (como no Toon Boom) e o esqueleto por cima
+      if (P.rive && n.suaveP) { /* animação nova: partes sempre suaves, sem "Quadro a quadro" (só no LEGACY, 26/11/2026) */ }
+      else if (P.rive) { const sv = h(`<div class="pr-seg" title="Hoje as partes ficam paradas até a próxima chave"><span>Partes</span><div><button data-sp="1" title="Giram e andam aos poucos até a pose da próxima chave">Deixar suave</button></div></div>`); $('[data-sp]', sv).onclick = () => { n.suaveP = true; App.commit('Partes suaves', { semArvore: true }); }; c.appendChild(sv); }
+      else {
       const mv = h(`<div class="pr-seg" title="Como as partes (braço, cabeça…) vão de uma pose para a outra"><span>Partes</span><div><button data-sp="1" class="${n.suaveP ? 'on' : ''}" title="Giram e andam aos poucos até a pose da próxima chave (a troca de desenho acontece na chave)">Suave</button><button data-sp="0" class="${n.suaveP ? '' : 'on'}" title="A pose fica parada até a próxima chave">Quadro a quadro</button></div></div>`);
-      $$('[data-sp]', mv).forEach(b => b.onclick = () => { n.suaveP = b.dataset.sp === '1'; App.commit(n.suaveP ? 'Partes suaves' : 'Partes quadro a quadro', { semArvore: true }); }); c.appendChild(mv);
+      $$('[data-sp]', mv).forEach(b => b.onclick = () => { n.suaveP = b.dataset.sp === '1'; App.commit(n.suaveP ? 'Partes suaves' : 'Partes quadro a quadro', { semArvore: true }); }); c.appendChild(mv); }
       const cads = Rig.cadeias(Modelo.naVista(defP, est.vista)), esq = h(`<label class="chk" style="margin-top:6px" title="Mostra os ossos e as juntas deste personagem no palco. Arraste a bolinha de uma mão ou pé para dobrar o braço/perna inteiro (IK)."><input type="checkbox" ${App.esqueleto ? 'checked' : ''}> Mostrar o esqueleto${cads.length ? ` <small style="color:var(--tx3)">· ${cads.length} membro${cads.length > 1 ? 's' : ''} com IK</small>` : ''}</label>`);
       $('input', esq).onchange = ev => { App.esqueleto = ev.target.checked; try { localStorage.setItem('animador-esqueleto', App.esqueleto ? '1' : ''); } catch { } App.pinta(); }; c.appendChild(esq);
     }, true));
