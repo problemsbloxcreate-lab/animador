@@ -152,13 +152,28 @@ const Rig = {
     const ch = n.chaves[qb]; if (ch?.ir === 'corte') return ep;
     // o movimento ocupa os últimos "dur" quadros antes da chave (chave.dur; padrão até 0,75 s) — antes disso a pose fica parada (hold)
     // padrão: até 1,25 s o movimento ocupa o intervalo inteiro (fluido); intervalo maior = segura a pose e o movimento leva ~45% dele
-    const fps = P.fps || 24, gap = qb - qa, dur = Math.max(1, Math.min(gap, Math.round(+ch.dur > 0 ? +ch.dur : gap <= fps * 1.25 ? gap : Math.max(fps * .75, gap * .45)))), q0 = qb - dur; if (q <= q0) return ep;
+    const fps = P.fps || 24, gap = qb - qa, dur = Math.max(1, Math.min(gap, Math.round(+ch.dur > 0 ? +ch.dur : gap <= fps * 1.25 ? gap : Math.max(fps * .75, gap * .45)))), q0 = qb - dur; if (q <= q0 - (vida && P.rive && ch.ant && !ch.ir ? 4 : 0)) return ep; // gesto forte: a antecipação começa até 4 q antes
     const dv0 = Modelo.naVista(def, eb.vista), epB = Modelo.partesNoEstado(dv0, eb), ease = Ease.daChave(ch), out = {}, prof = this.profundidades(dv0);
     // SOBREPOSIÇÃO (follow-through): cada nível da hierarquia sai ~1 quadro depois da mãe e chega junto (mão atrasa do antebraço, que atrasa do braço)
     // VIDA (23/11/2026, regra da dona de 19/11): cachecol, capa, capuz e cabelo preso NÃO atrasam — seguem o tronco (atrasados, mexiam "sozinhos")
     const pai = vida ? Object.fromEntries(dv0.partes.map(p => [p.id, p.pai])) : {}; // mãe de cada parte (mão no braço que gira, 23/11)
     const fixo = vida ? new Set(dv0.partes.filter(p => Vida.ehAcessorio(p)).map(p => p.id)) : null;
-    const lag = dur >= 8 ? Math.min(1.2, dur / 10) : 0, tDe = pid => { const atr = fixo?.has(pid) ? 0 : Math.min(3, (prof[pid] || 0)) * lag; return ease(clamp((q - q0 - atr) / Math.max(1, dur - atr), 0, 1)); };
+    // CURVA POR TIPO DE GESTO (Fase 2, decisão da dona de 26/11/2026; só com a vida ligada em animação nova e sem curva escolhida na chave):
+    // o braço sai rápido e chega passando um pouquinho do ponto, antebraço/mão sem passar, cabeça mais lenta (+2 q), a volta ao repouso
+    // mais lenta; cada gesto sorteia entre 3 curvas parecidas; gesto forte (chave.ant, js/gestos.js) recua o braço 3–4 q antes de ir
+    const viva = vida && P.rive && !ch.ir, tipos = viva ? this.tiposCurva(dv0) : null, vv = viva ? Vida.sem(n.id, 'cv' + qb) : 0;
+    const lag = dur >= 8 ? Math.min(1.2, dur / 10) : 0, tDe = pid => { let atr = fixo?.has(pid) ? 0 : Math.min(3, (prof[pid] || 0)) * lag;
+      if (!viva) return ease(clamp((q - q0 - atr) / Math.max(1, dur - atr), 0, 1));
+      const tp = tipos[pid] || 'outro'; if (tp === 'cabeca' && dur >= 8) atr += 2;
+      const k = q - q0 - atr, D = Math.max(1, dur - atr), ra = this.norm(ep[pid]?.r || 0), rb = this.norm(epB[pid]?.r || 0), dr = Math.abs(this.norm(rb - ra));
+      const vai = Math.abs(rb) > Math.abs(ra) + 3;
+      return this.curvaViva(tp, vai, vv, k, D, 0); };
+    // ANTECIPAÇÃO do gesto forte: o braço (nunca antebraço/mão) recua 3–4° contra o giro do membro (braço + o que está preso nele) nos
+    // 3–4 q antes do movimento e volta em outros 3–4, somado ao movimento (no gesto em que quase só o antebraço gira, quem recua é o braço)
+    const antDe = !(viva && ch.ant) ? () => 0 : pid => { if (tipos[pid] !== 'braco') return 0; let d = this.norm((epB[pid]?.r || 0) - (ep[pid]?.r || 0));
+      for (const p of dv0.partes) if (p.pai === pid && tipos[p.id] === 'ponta') d += this.norm((epB[p.id]?.r || 0) - (ep[p.id]?.r || 0));
+      if (Math.abs(d) < 10 || dur < 8) return 0; const a = Math.min(4, Math.abs(d) * .12) * -Math.sign(d), A = vv < .5 ? 3 : 4, k = q - q0 + A; // recua nos A quadros ANTES do movimento e volta enquanto ele sai
+      return k <= 0 ? 0 : k < A ? a * Math.sin(Math.PI / 2 * k / A) : k < 2 * A ? a * Math.cos(Math.PI / 2 * (k - A) / A) : 0; };
     // REFORMA RIVE (10/11/2026, "o joelho saindo da perna"), SÓ EM ANIMAÇÃO NOVA (P.rive; as antigas ficam exatamente como eram): parte que
     // troca de desenho e cuja posição/tamanho (ou das presas nela) muda troca desenho, posição e tamanho JUNTO com as presas, no meio do
     // movimento; só o giro continua suave (ex.: coxa "Reta" → "Vindo p/ câmera" com a canela subindo: antes abria um vão no joelho).
@@ -199,9 +214,27 @@ const Rig = {
       for (const c of ['x', 'y', 'r', 's']) { const va = a[c] ?? (c === 's' ? 1 : 0), vb = b[c] ?? (c === 's' ? 1 : 0); if (liso) { x[c] = liso(pid, c, va, vb); continue; } if (va === vb) continue; let d = vb - va; if (c === 'r') d = this.norm(d); x[c] = va + d * t; }
       // CAMADA no meio do movimento: vale a da frente (ex.: mão que vai para o peito já passa POR FORA do colete, não por dentro)
       if (t > 0 && (a.z ?? 0) !== (b.z ?? 0)) x.z = Math.max(a.z ?? 0, b.z ?? 0);
+      const an = antDe(pid); if (an) x.r = (x.r || 0) + an;
       out[pid] = x;
     }
     return out; // a trava das juntas agora vale em TODO quadro de animação nova, chave ou não (js/desenho.js → Rig.trava)
+  },
+  // tipo de cada parte para a curva do movimento: braco | ponta (antebraço, mão) | cabeca | perna | corpo (raiz) | outro
+  _tipos: new WeakMap(),
+  tiposCurva(dv) { let m = this._tipos.get(dv); if (m && m.n === dv.partes.length) return m.m; const o = {}, raiz = dv.raiz || dv.partes.find(p => !p.pai)?.id;
+    for (const p of dv.partes) { const nm = String(p.nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+      o[p.id] = p.id === raiz ? 'corpo' : /antebra|\bmao\b|maos|punho|dedo|hand/.test(nm) ? 'ponta' : /^braco|\bbraco\b|ombro|\barm/.test(nm) ? 'braco' : /cabeca|pescoco|head|neck/.test(nm) ? 'cabeca' : /perna|coxa|canela|\bpe\b|leg|foot/.test(nm) ? 'perna' : 'outro'; }
+    this._tipos.set(dv, { n: dv.partes.length, m: o }); return o; },
+  CURVAS: { vai: [[.3, 0, .15, 1.1], [.35, 0, .2, 1.06], [.28, 0, .22, 1.13]], ponta: [[.3, 0, .2, 1], [.34, 0, .24, 1], [.26, 0, .18, 1]], cabeca: [[.42, 0, .3, 1], [.45, 0, .32, 1], [.4, 0, .28, 1]], volta: [[.45, 0, .35, 1], [.5, 0, .38, 1], [.42, 0, .3, 1]] },
+  _cz: new Map(),
+  curva(nome, v) { const L = this.CURVAS[nome], c = L[Math.min(L.length - 1, Math.floor(v * L.length))], id = c.join(','); let f = this._cz.get(id); if (!f) this._cz.set(id, f = Ease.bez(...c)); return f; },
+  // k = quadros desde o começo do movimento desta parte, D = quantos quadros ele dura, aF = antecipação (fração do giro, para trás)
+  curvaViva(tp, vai, v, k, D, aF) {
+    if (k <= 0) return 0; if (k >= D) return 1;
+    const nome = !vai ? (tp === 'cabeca' ? 'cabeca' : 'volta') : tp === 'braco' || tp === 'corpo' ? 'vai' : tp === 'cabeca' ? 'cabeca' : 'ponta', f = this.curva(nome, v);
+    if (!aF) return f(k / D);
+    const A = v < .5 ? 3 : 4; if (k < A) return -aF * Math.sin(Math.PI / 2 * k / A); // recua um pouco antes de ir
+    return -aF + (1 + aF) * f((k - A) / Math.max(1, D - A));
   },
   _prof: new WeakMap(),
   profundidades(def) { let r = this._prof.get(def); if (r && r.n === def.partes.length) return r.m; const porId = Object.fromEntries(def.partes.map(p => [p.id, p])), m = {};

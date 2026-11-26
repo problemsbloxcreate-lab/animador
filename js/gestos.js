@@ -121,7 +121,7 @@ const Gestos = {
   // o nó com as chaves já aceitas + as do episódio (sem mexer no nó de verdade)
   comChaves(n, L) {
     const ch = {}; for (const [q, k] of Object.entries(n.chaves || {})) ch[q] = k;
-    for (const e of L) { const k0 = ch[e.q] || {}; ch[e.q] = { ...k0, sessoes: { ...(k0.sessoes || {}), [e.sessao]: e.preset }, ...(k0.dur == null ? { dur: e.dur || 10 } : {}) }; }
+    for (const e of L) { const k0 = ch[e.q] || {}; ch[e.q] = { ...k0, sessoes: { ...(k0.sessoes || {}), [e.sessao]: e.preset }, ...(k0.dur == null ? { dur: e.dur || 10 } : {}), ...(e.ant ? { ant: 1 } : {}) }; }
     return { ...n, chaves: ch };
   },
   // SIMULA um episódio (subida, segura, descida) quadro a quadro com o desenho real: { ok, motivo, pulo }
@@ -178,6 +178,9 @@ const Gestos = {
     const plano = {}, R = this.R(); if (!P?.rive || !R) return plano;
     const falas = R.falas(P, o).filter(f => f.ate >= f.de), fim = Math.max(0, (P.duracao || 1) - 1), fps = P.fps || 24;
     const tr = new Map();
+    // PUNCHLINE (Fase 2, decisão da dona de 26/11/2026): fala com palavra-chave antes da troca de quem fala (ou a última) = o gesto fica até o corte
+    const quemDe = f => f.quens.length ? f.quens.join('|') : f.quem, punch = [];
+    falas.forEach((f, i) => { const nx = falas[i + 1]; if (!f.pal.some(p => p.chave) || (nx && quemDe(nx) === quemDe(f))) return; punch.push({ de: f.de, ate: f.ate, corte: nx ? nx.de : Math.min(fim, f.ate + 18) }); });
     for (const f of falas) for (const quem of (f.quens.length ? f.quens : [f.quem])) {
       const n = R.noDe(P, quem); if (!n || !P.personagens?.[n.ref]) continue;
       if (this.escondido(P, n, Math.round((f.de + f.ate) / 2))) continue; // voz de fora: não está no palco
@@ -202,7 +205,7 @@ const Gestos = {
         const mesmaVista = q => (Modelo.estadoPersonagem(n, q).vista || null) === (est0.vista || null), base = { ...est0.sessoes, ...Object.fromEntries(B.map(b => [b.id, b.rep])) };
         // momentos: palavras de ênfase a 3+ palavras da anterior; sem palavras, a cada ~1,5 s
         const pal = s.pal.filter(p => p.q0 >= s.de && p.q0 <= s.ate).sort((a, b) => a.q0 - b.q0);
-        const momentos = []; if (pal.length) { let last = -Infinity; for (let i = 0; i < pal.length; i++) if (i - last >= this.CADA && this.enfase(pal, i)) { momentos.push({ q0: pal[i].q0, q1: pal[i].q1 }); last = i; } }
+        const momentos = []; if (pal.length) { let last = -Infinity; for (let i = 0; i < pal.length; i++) if (i - last >= this.CADA && this.enfase(pal, i)) { momentos.push({ q0: pal[i].q0, q1: pal[i].q1, forte: !!pal[i].chave }); last = i; } }
         else for (let q = s.de; q <= s.ate; q += Math.round(fps * 1.5)) momentos.push({ q0: q, q1: q + 6 });
         let vez = this.hash(n.id + ':' + s.de) & 1;
         for (const m of momentos) for (let bi = 0; bi < B.length; bi++) { // o braço da vez; se nenhum gesto dele serve, o outro
@@ -219,8 +222,9 @@ const Gestos = {
             sobe = livre(sobe, durS); if (sobe == null || !mesmaVista(sobe)) break;
             const durD = Math.max(12, durS, this.duracao(P, n, dv, est0, Bv, base, b.id) ?? this.DUR_MAX); // descida nunca mais rápida que a subida e com 12+ q (walt-disney 23/11: pulo de 57 px na descida)
             let desce = Math.max(sobe + this.MIN_BRACO, sobe + this.sorte(chave + ':s', ...this.SEGURA) + durD); if (desce > s.ate + this.FIM) desce = Math.max(sobe + this.MIN_BRACO, s.ate + this.FIM);
+            { const pu = punch.find(x => x.de <= s.ate && x.ate >= s.de && sobe <= x.ate && desce >= x.corte - 18); if (pu && pu.corte > desce) desce = pu.corte; } // punchline: segura até o corte; a volta entra depois dele
             desce = desce <= fim ? livre(desce, durD) : null; if (desce == null || !mesmaVista(desce)) break;
-            const E = [{ q: sobe, sessao: b.id, preset: alvo, braco: b.lado, dur: durS, ep: nEp }, { q: desce, sessao: b.id, preset: b.rep, braco: b.lado, dur: durD, ep: nEp }];
+            const E = [{ q: sobe, sessao: b.id, preset: alvo, braco: b.lado, dur: durS, ep: nEp, ...(m.forte ? { ant: 1 } : {}) }, { q: desce, sessao: b.id, preset: b.rep, braco: b.lado, dur: durD, ep: nEp }];
             if (o.teste) { const r = o.teste(n, [...out, ...E], { sessao: b.id, sobe, durSobe: durS, desce, durDesce: durD }); if (!r.ok) { (o.rejeitados ||= []).push({ no: n.nome, q: sobe, preset: b.nomes[alvo], motivo: r.motivo }); continue; } }
             out.push(...E); nEp++; ocupado.add(sobe); ocupado.add(desce); feito = true; ultG[b.id] = alvo; ultPose = b.nomes[alvo] || alvo; vez++; // o próximo gesto começa pelo OUTRO braço (3 gestos iguais liam como relógio)
             ult = desce; ultB[b.lado] = desce; if (b.lado === 'A') ultB.D = ultB.E = desce;
@@ -265,11 +269,12 @@ const Gestos = {
     for (const [id, L] of Object.entries(plano || {})) {
       const n = Modelo.achar(P, id)?.no; if (!n) continue; n.chaves ||= {}; const novas = new Set(), G2 = G[id] ||= [];
       for (const e of L) {
-        let k = n.chaves[e.q], dur = false;
-        if (!k) { k = n.chaves[e.q] = { sessoes: {}, dur: e.dur || this.DUR }; novas.add(e.q); }
+        let k = n.chaves[e.q], dur = false, ant = false;
+        if (!k) { k = n.chaves[e.q] = { sessoes: {}, dur: e.dur || this.DUR, ...(e.ant ? { ant: 1 } : {}) }; novas.add(e.q); }
         else if (!novas.has(e.q)) { if (k.sessoes && e.sessao in k.sessoes) continue; // já tem essa sessão feita por alguém: não sobrescreve
-          if (k.dur == null) { k.dur = e.dur || this.DUR; dur = true; } }
-        (k.sessoes ||= {})[e.sessao] = e.preset; G2.push({ q: e.q, sessao: e.sessao, preset: e.preset, ...(novas.has(e.q) ? { nova: true } : {}), ...(dur ? { dur: k.dur } : {}), ...(novas.has(e.q) ? { d: k.dur } : {}) }); n0++;
+          if (k.dur == null) { k.dur = e.dur || this.DUR; dur = true; }
+          if (e.ant && k.ant == null) { k.ant = 1; ant = true; } } // gesto forte: antecipação (js/rig.js, curvaViva)
+        (k.sessoes ||= {})[e.sessao] = e.preset; G2.push({ q: e.q, sessao: e.sessao, preset: e.preset, ...(novas.has(e.q) ? { nova: true } : {}), ...(dur ? { dur: k.dur } : {}), ...(novas.has(e.q) ? { d: k.dur } : {}), ...(e.ant ? { ant: 1 } : {}), ...(ant ? { antPus: 1 } : {}) }); n0++;
       }
       if (!G2.length) delete G[id];
     }
@@ -284,12 +289,12 @@ const Gestos = {
       for (const [q, es] of porQ) {
         const k = n.chaves[q]; if (!k) continue; const nova = es.some(e => e.nova), nossas = new Set(es.map(e => e.sessao)), igual = e => !!k.sessoes && e.sessao in k.sessoes && k.sessoes[e.sessao] === e.preset;
         if (nova) { // chave que nós criamos: só sai se ninguém mexeu nela (só as nossas sessões, iguais, e o nosso dur); senão virou da pessoa e fica
-          const dN = es.find(e => e.d)?.d ?? this.DUR, intacta = Object.keys(k).every(c => c === 'sessoes' || (c === 'dur' && k.dur === dN)) && Object.keys(k.sessoes || {}).every(s => nossas.has(s)) && es.every(igual);
+          const dN = es.find(e => e.d)?.d ?? this.DUR, intacta = Object.keys(k).every(c => c === 'sessoes' || (c === 'dur' && k.dur === dN) || (c === 'ant' && es.some(e => e.ant))) && Object.keys(k.sessoes || {}).every(s => nossas.has(s)) && es.every(igual);
           if (intacta) { delete n.chaves[q]; n0 += es.length; } continue; }
         // chave que já existia (boca): tira só as nossas sessões que ainda estão como pusemos, e o dur que pusemos
         let tirou = false; for (const e of es) if (igual(e)) { delete k.sessoes[e.sessao]; n0++; tirou = true; }
         if (k.sessoes && !Object.keys(k.sessoes).length) delete k.sessoes;
-        const dP = es.find(e => e.dur)?.dur; if (tirou && dP != null && k.dur === dP) delete k.dur;
+        const dP = es.find(e => e.dur)?.dur; if (tirou && dP != null && k.dur === dP) delete k.dur; if (tirou && es.some(e => e.antPus)) delete k.ant;
       }
     }
     delete P.gestosAuto; return n0;

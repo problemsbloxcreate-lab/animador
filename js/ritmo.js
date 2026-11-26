@@ -1,7 +1,8 @@
 /* ===================== ritmo.js — RITMO AUTOMÁTICO dos Shorts (pedido da dona, 23/11/2026) =====================
    Numa animação já montada pelo Preparativos (vozes, legendas e personagens na linha do tempo), um botão põe sozinho:
    1. CÂMERA: plano médio (o enquadramento que já está) ⇄ close em CORTE SECO, sempre a MESMA câmera (só a chave de zoom; x, y e giro
-      não mudam). Troca na mudança de fala e, em fala longa, a cada 1,5–2 s num limite de bloco/palavra. Nunca dois cortes a menos de
+      não mudam). Troca SÓ na mudança de QUEM fala e, dentro da fala, um close seco na palavra-chave que fica até o fim dela
+      (decisão da dona, 26/11/2026; antes alternava a cada 1,5–2 s). Nunca dois cortes a menos de
       24 quadros. Close = zoom 1,35–1,6, o maior em que a cabeça de quem fala fica no quadro e a BOCA fica acima da legenda
       (com 1,8 a legenda cobriu a boca). Nenhum zoom serve = aquela fala fica no médio.
    2. LETREIRO + SOM: cada palavra-chave (marca 'd' dos blocos, l.chaves, *palavra* no texto, ou palavra em MAIÚSCULAS com 3+ letras)
@@ -116,20 +117,13 @@ const Ritmo = {
       const f = falas[i], prox = falas[i + 1], limite = prox ? prox.de - this.MIN : fim; // corte dentro da fala não pode segurar o corte da próxima
       const md = medio(f.de), zc = this.zoomClose(P, Pb, f, f.de, f.ate, md);
       const bordas = [f.de, ...f.pal.map(p => p.q0).filter(q => q > f.de && q < f.ate)];
-      // 1) na mudança de fala: alterna (sem close possível = médio); a 1ª fala abre no médio (o plano que já está)
-      const quer = i > 0 && zc && estado === 'medio' ? 'close' : 'medio';
-      if (quer !== estado) { const q = bordas.find(b => pode(b) && b <= f.ate - 6 && (quer === 'medio' || volta(b))); if (q != null) corta(q, quer === 'close' ? zc : medio(q), quer); }
-      // 2) fala longa: troca a cada 1,5–2 s num começo de bloco (ou de palavra)
-      if (!zc) continue;
-      let t0 = Math.max(ult, f.de);
-      for (let guarda = 0; guarda < 40; guarda++) {
-        const a = t0 + Math.round(1.5 * fps), b = t0 + Math.round(2 * fps), cand = bordas.filter(q => q >= a && q <= Math.min(f.ate - 6, limite) && pode(q));
-        if (!cand.length) { const so = f.pal.length ? null : (a <= Math.min(f.ate - 6, limite) && pode(a) ? a : null); if (so == null) break; cand.push(so); }
-        const naJanela = cand.filter(q => q <= b), q = (naJanela.find(x => f.pal.find(p => p.q0 === x)?.bloco) ?? naJanela[0] ?? cand[0]);
-        if (q - t0 > Math.round(2 * fps) + 12) break; // limite de palavra longe demais: segura até a próxima fala
-        const vai = estado === 'medio' ? 'close' : 'medio'; if (vai === 'close' && !volta(q)) break;
-        corta(q, vai === 'close' ? zc : medio(q), vai); t0 = q;
-      }
+      // 1) só na TROCA DE QUEM FALA (decisão da dona, 26/11/2026): alterna médio ⇄ close (sem close possível = médio); a 1ª fala abre no
+      //    médio (o plano que já está); a mesma pessoa continuando = o plano fica
+      const quem = x => x.quens.length ? x.quens.join('|') : (x.quem || ''), mudou = i === 0 || quem(f) !== quem(falas[i - 1]);
+      if (mudou) { const quer = i > 0 && zc && estado === 'medio' ? 'close' : 'medio';
+        if (quer !== estado) { const q = bordas.find(b => pode(b) && b <= f.ate - 6 && (quer === 'medio' || volta(b))); if (q != null) corta(q, quer === 'close' ? zc : medio(q), quer); } }
+      // 2) dentro da fala, só UM close seco na palavra-chave, que fica até o fim da fala (já em close = não fecha mais; nada de alternar a cada 1,5–2 s)
+      if (zc && estado === 'medio') { const pk = f.pal.find(p => p.chave && p.q0 >= f.de && p.q0 <= Math.min(f.ate - 6, limite) && pode(p.q0) && volta(p.q0)); if (pk) corta(pk.q0, zc, 'close'); }
     }
     // chave de zoom feita à mão logo depois de um close: volta ao médio antes dela (ou o close sai)
     for (const k of kZoom) {
