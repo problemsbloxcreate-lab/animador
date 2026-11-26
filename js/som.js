@@ -102,7 +102,7 @@ const Som = {
   },
   // ajusta o ganho de quem está tocando (sem estalo) e pinta o controle da barra da timeline
   aplicaGeral() {
-    const m = this._mestre, v = this.mudoGeral ? 0 : this.geral();
+    const tc = typeof TelaCheia !== 'undefined' && TelaCheia.ativo, m = this._mestre, v = tc ? this.geral() * TelaCheia.ganho() : (this.mudoGeral ? 0 : this.geral()); // TELA CHEIA (js/app.js): volume/mudo do player no lugar do mudo da edição
     if (m && v !== this._gv) { const t = m.context.currentTime; if (this._gv == null) m.gain.value = v; else { m.gain.cancelScheduledValues(t); m.gain.setTargetAtTime(v, t, .015); } this._gv = v; }
     const r = document.getElementById('tl-volg'); if (!r || !App.P) return; const g = this.geral(), pc = Math.round(g * 100), mu = this.mudoGeral, bt = document.getElementById('t-mudo'), b = document.getElementById('tl-volv');
     if (document.activeElement !== r) r.value = pc; if (b && document.activeElement !== b) b.value = pc;
