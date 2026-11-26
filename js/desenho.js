@@ -133,7 +133,8 @@ const Render = {
       const M = base.multiply(mm), k = Math.hypot(M.a, M.b) || 1, w = n.w || P.w, hh = n.h || P.h, cv = typeof Cena3D !== 'undefined' ? Cena3D.quadro(P, n, q, w * k, hh * k) : null;
       if (cv) { ctx.setTransform(M); ctx.drawImage(cv, -w / 2, -hh / 2, w, hh); }
     } else if (n.tipo === 'imagem') {
-      const bm = n.anim ? GifCache.bitmap(P, n, q, () => Render.aoChegarImagem?.()) : this.bm(n.arq); // IMAGEM ANIMADA (GIF/sequência): o quadro do tempo (GifCache, no fim deste arquivo) if (bm) { ctx.setTransform(base.multiply(mm)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, this.nitido(bm, bm.width, bm.height, base.multiply(mm)), -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
+      // IMAGEM ANIMADA (GIF/sequência): o quadro do tempo (GifCache, no fim deste arquivo)
+      const bm = n.anim ? GifCache.bitmap(P, n, q, () => Render.aoChegarImagem?.()) : this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(mm)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, this.nitido(bm, bm.width, bm.height, base.multiply(mm)), -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
     } else if (n.tipo === 'texto' || n.tipo === 'forma') {
       ctx.setTransform(base.multiply(mm));
       if (n.tremulo?.modo === 'ondular') { // ONDULAR também em texto e forma: desenha num canvas à parte (no tamanho da tela, nítido) e passa pela onda
