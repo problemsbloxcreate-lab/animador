@@ -30,7 +30,7 @@
 'use strict';
 const TLP = {
   RG: 44, CABW: 210, HV: 48, HA: 48, HC: 28, HCAM: 20, HDIV: 7, ROLA: 10,
-  pxq: 0, sx: 0, syV: 0, syA: 0, ferr: 'sel', sel: new Set(), foco: false, semAlvo: new Set(), vel: 0, copia: null, lacuna: null,
+  pxq: 0, sx: 0, syV: 0, syA: 0, ferr: 'sel', sel: new Set(), foco: false, semAlvo: new Set(), vel: 0, copia: null, lacuna: null, abertas: new Set(),
   ROT: [['#9b8bd9', 'Violeta'], ['#7d8fe0', 'Íris'], ['#29b896', 'Caribe'], ['#c79be6', 'Lavanda'], ['#3aa0d8', 'Cerúleo'], ['#5c9b3f', 'Floresta'], ['#e889ad', 'Rosa'], ['#e8a040', 'Manga'],
     ['#a35cc9', 'Roxo'], ['#4a68d8', 'Azul'], ['#2e8f91', 'Azul-petróleo'], ['#d14fa3', 'Magenta'], ['#c9a77a', 'Bronzeado'], ['#4ca34c', 'Verde'], ['#8f5f3a', 'Marrom'], ['#d9cc45', 'Amarelo']],
   MARC: [['#3fbf61', 'Verde'], ['#e5534b', 'Vermelho'], ['#e46fbd', 'Rosa'], ['#f0883e', 'Laranja'], ['#e3c341', 'Amarelo'], ['#e8e8e8', 'Branco'], ['#4a7fe0', 'Azul'], ['#3cc6d6', 'Ciano']],
@@ -108,7 +108,15 @@ const TLP = {
   corAudio(a) { return a.corTL || '#29b896'; },
   estT(k, t) { return App.P.trilhas?.[k]?.[t] || {}; },
   poeEstT(k, t, m) { const P = App.P; P.trilhas ||= { v: {}, a: {} }; P.trilhas[k] ||= {}; const o = { ...(P.trilhas[k][t] || {}), ...m }; for (const x in o) if (o[x] == null || o[x] === false || o[x] === '') delete o[x]; if (Object.keys(o).length) P.trilhas[k][t] = o; else delete P.trilhas[k][t]; },
-  travada(c) { return !!this.estT(c.lado, c.tr).trava; },
+  travada(c) { return c.lado === 'f' ? !!this.estT('v', c.pt).trava : !!this.estT(c.lado, c.tr).trava; },
+  // PASTA ABERTA (26/11/2026, dona: "Duplo clique abre a pasta"): só na tela (TLP.abertas), não vai para o projeto
+  ehPasta(n) { return Array.isArray(n?.filhos) && n.filhos.length > 0; },
+  abrePasta(n) { if (this.abertas.has(n.id)) this.abertas.delete(n.id); else this.abertas.add(n.id); this.pinta(); },
+  // o ponto p está em cima do ▸/▾ de um bloco de pasta?
+  naSeta(p) { const c = p.clip; if (c?.k !== 'n' || !this.ehPasta(c.n) || !p.row) return false; const xa = Math.max(this.q2x(c.de), 0), top = this.yr(p.row) + 1, faixa = p.row.h - 3 >= 26 ? 14 : 0;
+    return p.x >= xa + 5 && p.x <= xa + 17 && (!faixa || p.y <= top + faixa); },
+  // tira da lista os blocos que já vão junto com a pasta deles (a pasta escolhida leva os filhos)
+  semDentro(cls) { const nos = new Set(cls.map(c => c.n).filter(Boolean)); return cls.filter(c => c.lado !== 'f' || !Modelo.ancestrais(App.P, c.n.id).some(a => nos.has(a))); },
   // quem fica em qual trilha (ver o cabeçalho). o.movendo: esses vão por último (o.semZ, do arrasto, não muda mais nada: a trilha gravada já manda)
   layout(o = {}) {
     const P = App.P, mov = o.movendo || new Set(), v = [], ocV = {}, ocA = {};
@@ -126,8 +134,15 @@ const TLP = {
     for (const x of la) { const de = x.de || 0, fim = Folha.fimAudio(P, x); let t = +x.trilha || base[Som.tipo(x)] || 1; while (!livre(ocA, t, de, fim)) t++; poe(ocA, t, de, fim); a.push({ k: 'a', lado: 'a', a: x, id: 'a:' + x.id, de, fim, tr: t }); }
     const c = (P.legendas || []).map((g, i) => ({ k: 'g', lado: 'c', g, id: 'g:' + i, de: g.de, fim: g.ate ?? g.de, tr: 1 }));
     const te = (P.efeitos?.tela || []).map((ef, i) => ({ k: 't', lado: 't', ef, id: 't:' + i, de: ef.de ?? 0, fim: ef.ate ?? P.duracao - 1, tr: 1 }));
+    // pasta aberta: os filhos viram blocos em linhas extras logo acima da pasta (lado 'f'; tr = linha dentro da pasta, 1 = colada nela;
+    // pt = trilha da pasta). Primeira linha livre, de trás para a frente (o da frente fica mais alto). Pasta dentro de pasta: um nível por vez
+    const f = [], grupos = [], abre = (n, pt) => { if (!this.abertas?.has(n.id) || !this.ehPasta(n)) return; const oc = {}, g = { pai: n, pt, k: 1 }; grupos.push(g);
+      for (let i = n.filhos.length - 1; i >= 0; i--) { const x = n.filhos[i], de = x.de || 0, fim = Modelo.fimNo(P, x); let t = 1; while (!livre(oc, t, de, fim)) t++; poe(oc, t, de, fim); g.k = Math.max(g.k, t);
+        f.push({ k: 'n', lado: 'f', n: x, pai: n, id: 'n:' + x.id, de, fim, tr: t, pt }); }
+      for (const x of n.filhos) abre(x, pt); };
+    for (const x of v) abre(x.n, x.tr);
     const maxV = Math.max(0, ...v.map(x => x.tr)), maxA = Math.max(0, ...a.map(x => x.tr));
-    return { v, a, c, te, maxV, maxA, nV: Math.max(3, maxV + 1), nA: Math.max(3, maxA + 1), todos: [...v, ...a, ...c, ...te] };
+    return { v, a, c, te, f, grupos, maxV, maxA, nV: Math.max(3, maxV + 1), nA: Math.max(3, maxA + 1), todos: [...v, ...a, ...c, ...te, ...f] };
   },
   alt(k) { return this.pref.alt?.[k] || (k[0] === 'v' ? this.HV : this.HA); },
   // r.sec = parte da tela ('v' vídeo, 'div' divisor, 'a' áudio); r.y = topo da linha DENTRO da sua parte (a posição na tela é yr(r))
@@ -136,7 +151,11 @@ const TLP = {
     if (L.c.length) add({ tipo: 'c', lado: 'c', tr: 1, h: this.HC + 4, lbl: 'C1', nome: 'Legendas' }, 'v');
     if (L.te.length) add({ tipo: 't', lado: 't', tr: 1, h: this.HC + 4, lbl: 'FX', nome: 'Efeitos de tela' }, 'v');
     add({ tipo: 'cam', lado: 'cam', h: this.HCAM, nome: 'Câmera' }, 'v');
-    for (let t = L.nV; t >= 1; t--) add({ tipo: 'v', lado: 'v', tr: t, h: this.alt('v' + t), lbl: 'V' + t, nome: this.estT('v', t).nome || 'Vídeo ' + t }, 'v');
+    for (let t = L.nV; t >= 1; t--) {
+      // linhas dos filhos das pastas abertas desta trilha (só desenho: a trilha não muda de número)
+      for (const g of (L.grupos || []).filter(g => g.pt === t).reverse()) for (let s = g.k; s >= 1; s--) add({ tipo: 'f', lado: 'f', tr: s, pai: g.pai, pt: t, h: this.alt('v' + t), lbl: '↳', nome: '↳ ' + (g.pai.nome || 'Pasta') }, 'v');
+      add({ tipo: 'v', lado: 'v', tr: t, h: this.alt('v' + t), lbl: 'V' + t, nome: this.estT('v', t).nome || 'Vídeo ' + t }, 'v');
+    }
     this.totV = y; y = 0; add({ tipo: 'div', h: this.HDIV }, 'div'); y = 0;
     for (let t = 1; t <= L.nA; t++) add({ tipo: 'a', lado: 'a', tr: t, h: this.alt('a' + t), lbl: 'A' + t, nome: this.estT('a', t).nome || 'Áudio ' + t }, 'a');
     this.totA = y + 30; this.altTotal = this.totV + this.HDIV + this.totA; return rows;
@@ -148,7 +167,7 @@ const TLP = {
   yr(r) { if (r.sec === 'div') return this.faixaY('div')[0]; if (r.sec === 'a') return this.faixaY('a')[0] + r.y - (this.syA || 0);
     return this.faixaY('v')[1] - (this.totV || 0) + r.y + (this.syV || 0); },
   secEm(y) { return y < this.faixaY('div')[0] ? 'v' : 'a'; },
-  linhaDe(c) { return this.rows.find(r => r.lado === c.lado && (r.tr === c.tr || r.lado === 'c' || r.lado === 't')); },
+  linhaDe(c) { return this.rows.find(r => r.lado === c.lado && r.pai === c.pai && (r.tr === c.tr || r.lado === 'c' || r.lado === 't')); },
   // grava a trilha de cada bloco (na 1ª edição do modo Vídeo; depois só confirma)
   congela() { const L = this.layout(); for (const c of L.v) c.n.trilha = c.tr; for (const c of L.a) c.a.trilha = c.tr; },
   // TRILHAS SEM ESCADA (2.0.x, 12/11/2026, dona: "o que de pra usar em uma linha só se mantem nela"): bloco NOVO (sem n.trilha) entra na
@@ -212,7 +231,7 @@ const TLP = {
     if (!this.pxq) return;
     this.L = this.layout(this.arr?.lay || {}); this.rows = this.arr?.rows || this.linhasPR(this.L); // arrastando: as linhas ficam paradas
     // a seleção do palco/hierarquia vira a seleção da timeline
-    if (App.sel !== this._appSel) { this._appSel = App.sel; const k = App.sel && (App.P.raiz.some(n => n.id === App.sel) ? 'n:' + App.sel : (App.P.audios || []).some(a => a.id === App.sel) ? 'a:' + App.sel : null); if (k && !this.sel.has(k)) this.sel = new Set([k]); else if (!App.sel) this.sel.clear(); }
+    if (App.sel !== this._appSel) { this._appSel = App.sel; const k = App.sel && (this.L.todos.some(c => c.k === 'n' && c.n.id === App.sel) ? 'n:' + App.sel : (App.P.audios || []).some(a => a.id === App.sel) ? 'a:' + App.sel : null); if (k && !this.sel.has(k)) this.sel = new Set([k]); else if (!App.sel) this.sel.clear(); }
     // a agulha sempre à vista (tocando: vira a página, como no Premiere)
     const W = this.W(), xp = this.q2x(App.q);
     if (this._qVisto !== App.q && !this.arr && (xp < 0 || xp > W - 20)) { this.sx = App.tocando || this.vel ? Math.max(0, App.q * this.pxq - 20) : Math.max(0, App.q * this.pxq - W / 3); }
@@ -225,11 +244,12 @@ const TLP = {
     const L = this.L, rows = this.rows, P = App.P;
     const est = r => { const cl = r.lado === 'v' ? L.v.filter(c => c.tr === r.tr) : r.lado === 'a' ? L.a.filter(c => c.tr === r.tr) : [];
       return { n: cl.length, oculta: r.lado === 'v' && cl.length && cl.every(c => c.n.vis === false), mudo: r.lado === 'a' && cl.length && cl.every(c => c.a.mudo), solo: r.lado === 'a' && cl.length && cl.every(c => c.a.solo), trava: !!this.estT(r.lado, r.tr).trava, alvo: !this.semAlvo.has(r.lado + r.tr) }; };
-    const sig = rows.map(r => `${r.tipo}${r.tr}|${r.h}|${r.nome}|${JSON.stringify(est(r))}`).join(';');
+    const sig = rows.map(r => `${r.tipo}${r.tr}|${r.pt || ''}|${r.h}|${r.nome}|${JSON.stringify(est(r))}`).join(';');
     if (sig === this._sigCabs) return this.pintaCabsPos(); this._sigCabs = sig;
     const um = (r, i) => {
       const s = est(r), st = `height:${r.h}px`;
       if (r.tipo === 'div') return `<div class="pr-cab div" style="${st}"></div>`;
+      if (r.tipo === 'f') return `<div class="pr-cab f" style="${st};background:#242426;align-items:center;padding:0 8px;font-size:11px" title="Dentro da pasta &quot;${esc(r.pai.nome || '')}&quot; (dois cliques na pasta, ou o ▾ nela, fecham)"><span class="nm" style="color:#9a9aa2;padding:0">${esc(r.nome)}</span></div>`;
       if (r.tipo === 'cam') return `<div class="pr-cab cam" style="${st}" title="Chaves da câmera (mudar no modo Animação ou no palco)">${ic('camera', 11)}<span class="nm">Câmera</span></div>`;
       if (r.tipo === 'c' || r.tipo === 't') return `<div class="pr-cab ${r.tipo} ${s.trava ? 'travada' : ''}" data-r="${i}" style="${st}"><span class="pr-alvo on">${r.lbl}</span><button class="pr-ic ${s.trava ? 'on' : ''}" data-trava title="Bloquear a trilha">${ic(s.trava ? 'lock' : 'unlock', 12)}</button><span class="nm">${esc(r.nome)}</span></div>`;
       const v = r.tipo === 'v', curto = r.h < 34;
@@ -288,7 +308,7 @@ const TLP = {
     for (const sec of ['v', 'a']) { const [z0, z1] = this.faixaY(sec), fora = (y, h) => y > z1 || y + h < z0;
       c.save(); c.beginPath(); c.rect(0, z0, W, z1 - z0); c.clip();
       for (const r of this.rows) { if (r.sec !== sec) continue; const y = this.yr(r); if (fora(y, r.h)) continue;
-        c.fillStyle = r.tipo === 'cam' ? '#242428' : '#202024'; c.fillRect(0, y, W, r.h); c.fillStyle = '#151517'; c.fillRect(0, y + r.h - 1, W, 1);
+        c.fillStyle = r.tipo === 'cam' ? '#242428' : r.tipo === 'f' ? '#1a1a1d' : '#202024'; c.fillRect(0, y, W, r.h); c.fillStyle = '#151517'; c.fillRect(0, y + r.h - 1, W, 1);
         if (xFim < W) { c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(Math.max(0, xFim), y, W, r.h - 1); } } // depois do fim da animação
       // entrada/saída: faixa clara nas trilhas
       if (tr) { c.fillStyle = 'rgba(255,255,255,.035)'; c.fillRect(this.q2x(tr.de), z0, (tr.ate - tr.de + 1) * this.pxq, z1 - z0); }
@@ -324,9 +344,10 @@ const TLP = {
     const [r0, g0, b0] = hexToRgb(cor), mix = (k, a) => `rgb(${Math.round(r0 + (k - r0) * a)},${Math.round(g0 + (k - g0) * a)},${Math.round(b0 + (k - b0) * a)})`;
     c.save(); c.beginPath(); c.rect(Math.max(x0, -2), top, Math.min(w, W + 4 - Math.max(x0, -2)), hh); c.clip(); c.globalAlpha = off ? .45 : 1;
     // corpo: cor do rótulo (escolhido = mais claro, como no Premiere)
-    c.fillStyle = sel ? mix(255, .18) : mix(0, cl.k === 'a' ? .45 : .25); c.fillRect(x0, top, w, hh);
+    const pasta = cl.k === 'n' && this.ehPasta(cl.n), aberta = pasta && this.abertas.has(cl.n.id); // pasta aberta = cabeçalho mais claro
+    c.fillStyle = sel ? mix(255, .18) : aberta ? mix(255, .12) : mix(0, cl.k === 'a' ? .45 : .25); c.fillRect(x0, top, w, hh);
     const faixa = hh >= 26 ? 14 : 0; // faixa do nome em cima
-    if (faixa) { c.fillStyle = sel ? mix(255, .35) : cor; c.fillRect(x0, top, w, faixa); }
+    if (faixa) { c.fillStyle = sel ? mix(255, .35) : aberta ? mix(255, .3) : cor; c.fillRect(x0, top, w, faixa); }
     // miniatura (vídeo) ou onda (áudio)
     if (cl.k === 'n' && hh - faixa >= 12 && !this.pref.semMini) this.mini(c, cl, x0, top + faixa, hh - faixa, w);
     if (cl.k === 'a') this.onda(c, cl, x0, w, top + faixa, hh - faixa, sel ? mix(255, .6) : mix(255, .55), W);
@@ -342,6 +363,8 @@ const TLP = {
     const temFx = cl.k === 'n' && (cl.n.entra || cl.n.sai || cl.n.tremulo || Folha.efeitoDe?.(cl.n));
     // nome
     c.font = '11px Segoe UI'; c.textBaseline = 'middle'; const ty = faixa ? top + 7.5 : top + hh / 2; let tx = Math.max(x0, 0) + 4;
+    // pasta: ▸ fechada / ▾ aberta (clicar nele abre e fecha, como os dois cliques)
+    if (pasta && w > 16) { c.fillStyle = faixa ? '#0b0b0b' : '#fff'; c.fillText(aberta ? '▾' : '▸', tx, ty); tx += 12; }
     if (temFx && w > 30) { c.fillStyle = sel ? '#000' : '#e2c33a'; c.font = 'bold italic 10px Segoe UI'; c.fillText('fx', tx, ty); tx += 14; c.font = '11px Segoe UI'; }
     if (w > 24) { c.fillStyle = faixa ? (sel ? '#000' : '#0b0b0b') : '#fff'; if (!faixa) { c.shadowColor = '#000'; c.shadowBlur = 2; } c.fillText(nome || '', tx, ty); c.shadowBlur = 0; }
     c.restore();
@@ -423,7 +446,7 @@ const TLP = {
     if (y < this.RG) { p.regua = true; return p; }
     p.ri = this.rows.findIndex(r => { const [z0, z1] = this.faixaY(r.sec), y0 = this.yr(r); return y >= z0 && y < z1 && y >= y0 && y < y0 + r.h; }); p.row = this.rows[p.ri];
     if (p.row && p.row.tipo !== 'div' && p.row.tipo !== 'cam') {
-      const cls = this.L.todos.filter(c => c.lado === p.row.lado && (c.tr === p.row.tr || c.lado === 'c' || c.lado === 't') && x >= this.q2x(c.de) - 3 && x <= this.q2x(c.fim + 1) + 3);
+      const cls = this.L.todos.filter(c => c.lado === p.row.lado && c.pai === p.row.pai && (c.tr === p.row.tr || c.lado === 'c' || c.lado === 't') && x >= this.q2x(c.de) - 3 && x <= this.q2x(c.fim + 1) + 3);
       p.clip = cls.find(c => q >= c.de && q < c.fim + 1) || cls[0] || null;
     }
     return p;
@@ -454,6 +477,8 @@ const TLP = {
       vai(p, e); return this.arrastar(e, vai, () => { this.encaixe = null; this.desenha(); });
     }
     const c = p.clip;
+    // o ▸/▾ no começo do bloco da pasta abre e fecha a pasta
+    if (this.naSeta(p)) return this.abrePasta(c.n);
     if (this.ferr === 'navalha') { if (!c || this.travada(c)) return; const q = this.ima ? this.encaixa(p.qr, { forca: false }) : p.qr; this.encaixe = null; this.congela(); const n = e.shiftKey ? this.cortaTudo(q) : this.corta(c, q) ? 1 : 0; if (n) App.commit('Cortar com a navalha'); return; }
     if (!c) { // vazio: lacuna ou laço
       this.lacuna = null; if (!e.shiftKey && !e.ctrlKey) this.escolhe([]);
@@ -502,8 +527,8 @@ const TLP = {
 
   /* ---------- mover (meio do bloco): tempo e trilha; Alt = duplicar ---------- */
   move(e, p, c0) {
-    const P = App.P; let cls = this.escolhidos().filter(c => !this.travada(c)); if (!cls.length) return;
-    this.congela(); this.L = this.layout();
+    const P = App.P; let cls = this.semDentro(this.escolhidos().filter(c => !this.travada(c))); if (!cls.length) return;
+    this.congela(); this.L = this.layout(); cls = cls.map(c => this.clipe(c.id)).filter(Boolean);
     if (e.altKey) { const novos = this.duplica(cls); if (!novos.length) return; this.L = this.layout(); cls = novos.map(id => this.clipe(id)).filter(Boolean); this.sel = new Set(novos); this._dup = true; }
     const fotos = cls.map(c => this.foto(c)), r0 = p.row, ids = new Set(cls.map(c => c.id)), movendo = new Set(cls.map(c => c.n || c.a).filter(Boolean));
     const pontas = cls.flatMap(c => [c.de, c.fim + 1]), minDe = Math.min(...cls.map(c => c.de)), maxFimN = Math.max(-1, ...cls.filter(c => c.k === 'n').map(c => c.fim)), tr0 = new Map(cls.map(c => [c.id, c.k === 'n' ? +c.n.trilha || c.tr : c.k === 'a' ? +c.a.trilha || c.tr : c.tr])); // a trilha gravada (a cópia do Alt nasce na trilha do original)
@@ -516,10 +541,11 @@ const TLP = {
       let ndt = 0; const rr = pp.row; if (rr && r0 && rr.lado === r0.lado && (rr.lado === 'v' || rr.lado === 'a')) ndt = rr.tr - r0.tr;
       else if (this.rows.some(r => r.lado === 'v') && pp.y < this.yr(this.rows.find(r => r.lado === 'v')) && r0?.lado === 'v') ndt = this.L.nV - r0.tr; // acima da trilha de cima = trilha nova
       const doLado = cls.filter(c => c.lado === r0?.lado).map(c => tr0.get(c.id)); ndt = clamp(ndt, 1 - Math.min(...doLado, 99), (r0?.lado === 'a' ? nA0 : nV0) - Math.max(...doLado, 1));
+      if (r0?.lado !== 'v' && r0?.lado !== 'a') ndt = 0; // filho de pasta aberta: só anda no tempo (continua dentro da pasta)
       if (nd === dq && ndt === dt) return; dq = nd; dt = ndt;
-      for (const f of fotos) { this.volta(f); this.anda(f, dq); const c = f.c; if (c.k === 'n' && c.lado === r0?.lado) c.n.trilha = tr0.get(c.id) + dt; if (c.k === 'a' && c.lado === r0?.lado) c.a.trilha = tr0.get(c.id) + dt;
+      for (const f of fotos) { this.volta(f); this.anda(f, dq); const c = f.c; if (c.k === 'n' && c.lado === 'v' && r0?.lado === 'v') c.n.trilha = tr0.get(c.id) + dt; if (c.k === 'a' && c.lado === r0?.lado) c.a.trilha = tr0.get(c.id) + dt;
         if (c.k === 'n' && c.n.ate == null && dq) c.n.ate = Math.min(P.duracao - 1, Modelo.ultimoQuadro(P) + dq); } // bloco "até o fim" passa a ter um tamanho (como no Premiere)
-      this.L = this.layout(this.arr.lay); this.arr.ruim = new Set(cls.filter(c => { const n = this.clipe(c.id); return n && (c.k === 'n' || c.k === 'a') && n.tr !== (c.k === 'n' ? c.n.trilha : c.a.trilha); }).map(c => c.id));
+      this.L = this.layout(this.arr.lay); this.arr.ruim = new Set(cls.filter(c => { const n = this.clipe(c.id); return n && (c.k === 'n' && c.lado === 'v' || c.k === 'a') && n.tr !== (c.k === 'n' ? c.n.trilha : c.a.trilha); }).map(c => c.id));
       this.desenha(); App.pinta();
     }, () => {
       const ruim = this.arr?.ruim?.size; this.arr = null; this.encaixe = null;
@@ -548,16 +574,16 @@ const TLP = {
   // Alt+arrastar: cópia dos blocos escolhidos, no mesmo lugar (o arrasto leva a cópia)
   duplica(cls) { const P = App.P, ids = [];
     for (const c of cls) {
-      if (c.k === 'n') { const n = clone(c.n); Modelo.cada([n], x => { x.id = uid('n'); }); n.nome = c.n.nome; P.raiz.splice(P.raiz.indexOf(c.n), 0, n); ids.push('n:' + n.id); }
+      if (c.k === 'n') { const n = clone(c.n); Modelo.cada([n], x => { x.id = uid('n'); }); n.nome = c.n.nome; const lista = c.pai ? c.pai.filhos : P.raiz; lista.splice(lista.indexOf(c.n), 0, n); ids.push('n:' + n.id); }
       else if (c.k === 'a') { const a = clone(c.a); a.id = uid('au'); P.audios.push(a); ids.push('a:' + a.id); }
     } return ids; },
 
   /* ---------- aparar as pontas (normal ou em ondulação) ---------- */
   apara(e, p, c, ponta, ondula) {
     const P = App.P, fps = P.fps; this.congela(); this.L = this.layout(); c = this.clipe(c.id);
-    const mesma = this.L[{ v: 'v', a: 'a', c: 'c', t: 'te' }[c.lado]].filter(x => x !== c && x.tr === c.tr);
+    const mesma = this.L[{ v: 'v', a: 'a', c: 'c', t: 'te', f: 'f' }[c.lado]].filter(x => x !== c && x.tr === c.tr && x.pai === c.pai);
     const antes = Math.max(-1, ...mesma.filter(x => x.fim < c.de).map(x => x.fim)), depois = Math.min(Infinity, ...mesma.filter(x => x.de > c.fim).map(x => x.de));
-    const f = this.foto(c), depoisDe = ondula ? this.L.todos.filter(x => x !== c && x.de > (ponta === 'ini' ? c.de : c.fim) && !this.travada(x)).map(x => this.foto(x)) : [];
+    const f = this.foto(c), depoisDe = ondula ? this.L.todos.filter(x => x !== c && x.lado !== 'f' && x.de > (ponta === 'ini' ? c.de : c.fim) && !this.travada(x)).map(x => this.foto(x)) : [];
     const marc0 = (P.marcadores || []).map(m => m.q), b = c.k === 'a' ? Som.buf.get(c.a.arq) : null; if (c.k === 'a' && !b) return UI.toast('O som ainda está carregando');
     let d = 0, mexeu = false;
     this.arr = { lay: { semZ: true }, ruim: new Set() };
@@ -595,7 +621,7 @@ const TLP = {
   /* ---------- cortar (navalha / Ctrl+K) ---------- */
   corta(c, q) {
     const P = App.P; if (q <= c.de || q > c.fim) return false;
-    if (c.k === 'n') { const n = c.n, k = clone(n); Modelo.cada([k], x => { x.id = uid('n'); }); k.nome = n.nome; k.de = q; k.ate = n.ate; n.ate = q - 1; delete n.sai; delete k.entra; k.trilha = n.trilha; P.raiz.splice(P.raiz.indexOf(n), 0, k); if (this.sel.has(c.id)) this.sel.add('n:' + k.id); return true; }
+    if (c.k === 'n') { const n = c.n, k = clone(n); Modelo.cada([k], x => { x.id = uid('n'); }); k.nome = n.nome; k.de = q; k.ate = n.ate; n.ate = q - 1; delete n.sai; delete k.entra; k.trilha = n.trilha; const lista = c.pai ? c.pai.filhos : P.raiz; lista.splice(lista.indexOf(n), 0, k); if (this.sel.has(c.id)) this.sel.add('n:' + k.id); return true; }
     if (c.k === 'a') { const a = c.a, b = Som.buf.get(a.arq); if (!b) { UI.toast('O som ainda está carregando'); return false; } if (a.loop) { UI.toast('Som em repetição (↻): tire a repetição para cortar', { kind: 'warn' }); return false; }
       const fps = P.fps, de = a.de || 0, ini = Som.ini(a), comp = Som.compr(a, b), t = (q - de) / fps; if (t <= 0 || t >= comp) return false;
       const k = clone(a); k.id = uid('au'); a.dur = round(t, 3); delete a.fo; k.de = q; k.ini = round(ini + t, 3); k.dur = round(comp - t, 3); delete k.fi; P.audios.splice(P.audios.indexOf(a) + 1, 0, k); if (this.sel.has(c.id)) this.sel.add('a:' + k.id); return true; }
@@ -603,7 +629,7 @@ const TLP = {
     if (c.k === 't') { const k = clone(c.ef); if (k.id) k.id = uid('e'); c.ef.ate = q - 1; k.de = q; P.efeitos.tela.splice(P.efeitos.tela.indexOf(c.ef) + 1, 0, k); return true; }
     return false;
   },
-  cortaTudo(q, soAlvo) { let n = 0; for (const c of this.layout().todos.slice()) { if (this.travada(c)) continue; if (soAlvo && (c.lado === 'v' || c.lado === 'a') && this.semAlvo.has(c.lado + c.tr)) continue; if (this.corta(c, q)) n++; } return n; },
+  cortaTudo(q, soAlvo) { let n = 0; for (const c of this.layout().todos.slice()) { if (c.lado === 'f' || this.travada(c)) continue; if (soAlvo && (c.lado === 'v' || c.lado === 'a') && this.semAlvo.has(c.lado + c.tr)) continue; if (this.corta(c, q)) n++; } return n; },
   // Ctrl+K: na agulha, nas trilhas de destino (ou só nos blocos escolhidos que passam pela agulha)
   adicionaEdicao(todas) { const q = App.q; this.congela(); this.L = this.layout(); let n = 0;
     const esc = this.escolhidos().filter(c => q > c.de && q <= c.fim && !this.travada(c));
@@ -612,7 +638,7 @@ const TLP = {
 
   /* ---------- apagar / ondulação ---------- */
   apaga(cls, o = {}) { const P = App.P;
-    for (const c of cls) { if (c.k === 'n') P.raiz.splice(P.raiz.indexOf(c.n), 1); else if (c.k === 'a') P.audios.splice(P.audios.indexOf(c.a), 1); else if (c.k === 'g') P.legendas.splice(P.legendas.indexOf(c.g), 1); else if (c.k === 't') P.efeitos.tela.splice(P.efeitos.tela.indexOf(c.ef), 1); }
+    for (const c of cls) { if (c.k === 'n') { const lista = c.pai ? c.pai.filhos : P.raiz, i = lista.indexOf(c.n); if (i >= 0) lista.splice(i, 1); } else if (c.k === 'a') P.audios.splice(P.audios.indexOf(c.a), 1); else if (c.k === 'g') P.legendas.splice(P.legendas.indexOf(c.g), 1); else if (c.k === 't') P.efeitos.tela.splice(P.efeitos.tela.indexOf(c.ef), 1); }
     for (const c of cls) this.sel.delete(c.id); if (cls.some(c => (c.n || c.a)?.id === App.sel)) App.sel = null; if (!o.quieto) App.commit(cls.length > 1 ? `Apagar ${cls.length} blocos` : 'Apagar bloco'); },
   // fecha o buraco [de, de+L-1] em todas as trilhas sem cadeado: o que vem depois anda L para a esquerda.
   // Um bloco de outra trilha que passa por cima do buraco impede (como no Premiere, com a sincronia ligada) — menos os que não mexem
@@ -627,7 +653,7 @@ const TLP = {
   fechaBuraco(de, L, ignora = new Set()) {
     const P = App.P, fim = de + L - 1, lay = this.layout(), muda = [], encurta = [];
     const ajusta = [];
-    for (const c of lay.todos) { if (ignora.has(c.id) || this.travada(c)) continue; if (c.fim < de) continue; if (c.de > fim) { muda.push(c); continue; }
+    for (const c of lay.todos) { if (c.lado === 'f' || ignora.has(c.id) || this.travada(c)) continue; if (c.fim < de) continue; if (c.de > fim) { muda.push(c); continue; }
       if (c.k === 'n' && c.de < de && c.fim >= fim && this.parado(c.n, de)) { encurta.push(c); continue; }
       if ((c.k === 'g' || c.k === 't') && !(c.de >= de && c.fim <= fim)) { ajusta.push(c); continue; } // legenda/efeito de tela: encolhe
       return { erro: `${c.lado === 'c' ? 'C1' : c.lado.toUpperCase() + c.tr}: "${(c.n?.nome || c.a?.nome || c.g?.texto || '').slice(0, 30)}" passa por cima do buraco (ponha o cadeado nessa trilha para ela não andar)` }; }
@@ -676,8 +702,8 @@ const TLP = {
     for (const c of cls) { if (c.k === 'n') c.n.vis = liga; else c.a.mudo = !liga; } App.commit(liga ? 'Ativar' : 'Desativar'); },
 
   /* ---------- copiar / colar ---------- */
-  copiar() { const cls = this.escolhidos().filter(c => c.k === 'n' || c.k === 'a' || c.k === 'g'); if (!cls.length) return; const de0 = Math.min(...cls.map(c => c.de));
-    this.copia = cls.map(c => ({ k: c.k, o: clone(c.n || c.a || c.g), tr: c.tr, rel: c.de - de0 })); UI.toast(cls.length > 1 ? `${cls.length} blocos copiados` : 'Bloco copiado'); },
+  copiar() { const cls = this.semDentro(this.escolhidos().filter(c => c.k === 'n' || c.k === 'a' || c.k === 'g')); if (!cls.length) return; const de0 = Math.min(...cls.map(c => c.de));
+    this.copia = cls.map(c => ({ k: c.k, o: clone(c.n || c.a || c.g), tr: c.lado === 'f' ? c.pt : c.tr, rel: c.de - de0 })); UI.toast(cls.length > 1 ? `${cls.length} blocos copiados` : 'Bloco copiado'); },
   colar() { if (!this.copia?.length) return; const P = App.P, q = App.q; this.congela(); const novos = [];
     for (const it of this.copia) { const o = clone(it.o), dq = q + it.rel - (it.o.de || 0);
       if (it.k === 'n') { Modelo.cada([o], x => { x.id = uid('n'); }); P.raiz.unshift(o); o.trilha = it.tr; this.desloca({ k: 'n', n: o }, dq); novos.push('n:' + o.id); }
@@ -725,7 +751,7 @@ const TLP = {
     if (ctrl && !alt && kk === 'x') { if (sh) return feito(() => this.tiraIO('x')); return feito(() => { this.copiar(); const cls = this.escolhidos().filter(c => !c.id.startsWith('x:') && !this.travada(c)); if (cls.length) { this.congela(); this.apaga(cls); } }); }
     if (ctrl && sh && !alt && kk === 'i') return feito(() => this.tiraIO('i'));
     if (ctrl && sh && !alt && kk === 'o') return feito(() => this.tiraIO('o'));
-    if (ctrl && !alt && kk === 'a') return feito(() => sh ? this.escolhe([]) : this.escolhe(this.layout().todos.filter(c => !this.travada(c)).map(c => c.id)));
+    if (ctrl && !alt && kk === 'a') return feito(() => sh ? this.escolhe([]) : this.escolhe(this.layout().todos.filter(c => c.lado !== 'f' && !this.travada(c)).map(c => c.id)));
     if (ctrl && !alt && kk === 'd') return feito(() => this.transicaoPadrao(true, sh));
     if (ctrl && alt && kk === 'm') return feito(() => { const P = App.P; if (sh) { if (P.marcadores?.length) { P.marcadores = []; App.commit('Limpar todos os marcadores', { semLado: true }); } } else { const m = (P.marcadores || []).find(x => x.q === App.q); if (m) { P.marcadores = P.marcadores.filter(x => x !== m); App.commit('Limpar marcador', { semLado: true }); } } });
     if (ctrl && sh && kk === 'm') return feito(() => this.vaiMarcador(-1));
@@ -765,6 +791,7 @@ const TLP = {
     const p = this.ponto(e);
     if (p.regua) { const mk = (App.P.marcadores || []).find(m => Math.abs(this.q2x(m.q) - p.x) < 6); if (mk) this.editaMarcador(mk); return; }
     const c = p.clip; if (!c) return;
+    if (c.k === 'n' && this.ehPasta(c.n)) { if (!this.naSeta(p)) this.abrePasta(c.n); return; } // pasta: dois cliques abrem e fecham (no ▾ os dois cliques simples já fizeram isso)
     if (c.k === 'a') return CorteVoz.abrir(c.a); // como abrir no Monitor de origem
     if (c.k === 'g') return Lado.aba?.('som');
     if (c.k === 'n' && App.P.rive) { // animação nova: o quadro a quadro é só do LEGACY; dois cliques escolhem o bloco e levam a agulha ao começo dele
@@ -786,7 +813,7 @@ const TLP = {
         '-', { label: `Citar o quadro ${q + 1} em mensagens…`, icon: 'chat', action: () => Citacao.animacao(P, q, App.sel) }].filter(Boolean)); }
     const c = p.clip;
     if (!c) { this.lacuna = this.lacunaEm(p); this.desenha(); return UI.ctx(e.clientX, e.clientY, [{ head: this.tc(q) }, this.lacuna && { label: 'Apagar este espaço vazio (o resto anda para trás)', icon: 'ripple', key: 'Delete', action: () => this.exclusaoOndulacao() },
-      this.copia && { label: 'Colar na agulha', icon: 'paste', key: 'Ctrl+V', action: () => this.colar() }, { label: 'Selecionar tudo', icon: 'marquee', key: 'Ctrl+A', action: () => this.escolhe(this.layout().todos.filter(x => !this.travada(x)).map(x => x.id)) }].filter(Boolean)); }
+      this.copia && { label: 'Colar na agulha', icon: 'paste', key: 'Ctrl+V', action: () => this.colar() }, { label: 'Selecionar tudo', icon: 'marquee', key: 'Ctrl+A', action: () => this.escolhe(this.layout().todos.filter(x => x.lado !== 'f' && !this.travada(x)).map(x => x.id)) }].filter(Boolean)); }
     if (this.travada(c)) return;
     const cls = this.escolhidos(), varios = cls.length > 1, nm = c.n?.nome || c.a?.nome || String(c.g?.texto || '').replace(/\*/g, '') || '';
     const rotulo = { label: 'Rótulo', icon: 'palette', sub: this.ROT.map(([cor, n]) => ({ label: n, iconHtml: `<i class="pr-rot" style="background:${cor}"></i>`, action: () => { this.congela(); for (const x of cls) { if (x.k === 'n') x.n.corTL = cor; if (x.k === 'a') x.a.corTL = cor; } App.commit('Rótulo: ' + n, { semLado: true }); } })).concat([{ label: 'Cor padrão', icon: 'x', action: () => { for (const x of cls) delete (x.n || x.a || {}).corTL; App.commit('Rótulo padrão', { semLado: true }); } }]) };
