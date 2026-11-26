@@ -218,12 +218,15 @@ const Vida = {
       if (ol) { const e2 = Modelo.partesNoEstado(dv, { ...est, sessoes: { ...(est.sessoes || {}), [ol.s.id]: ol.preset } });
         const ids = new Set([...(ol.s.partes || []), ...Object.keys((ol.s.presets || []).find(p => p.id === ol.preset)?.estado || {})]);
         for (const pid of ids) { const b = e2[pid]; if (!b) continue; if (ol.tudo) { out[pid] = { ...(out[pid] || {}), img: b.img, vis: b.vis, x: b.x, y: b.y }; continue; }
-          if (!this.ehOlho(porId[pid])) continue; out[pid] = { ...(out[pid] || {}), img: b.img, vis: b.vis }; } } }
+          if (!this.ehOlho(porId[pid])) continue; out[pid] = { ...(out[pid] || {}), img: b.img, vis: b.vis };
+          // PUPILA SOLTA (Fase 3, Problems Frente: "Pupila direita/esquerda" andam por x/y): o "Olhando p/…" só move as pupilas
+          if (/pupila/.test(this.semAcento(porId[pid]?.nome))) { out[pid].x = b.x; out[pid].y = b.y; } } } }
     // piscar (por cima do olhar)
     const pi = this.piscarEm(P, n, q, def, dv, est);
     if (pi) { const e2 = Modelo.partesNoEstado(dv, { ...est, sessoes: { ...(est.sessoes || {}), [pi.s.id]: pi.preset } });
       const ids = new Set([...(pi.s.partes || []), ...Object.keys((pi.s.presets || []).find(p => p.id === pi.preset)?.estado || {})]);
-      // só o desenho do OLHO troca; a sobrancelha (mesma sessão no Problems) fica a da expressão de agora
+      // só o desenho do OLHO troca; a sobrancelha (mesma sessão no Problems) fica a da expressão de agora. Só img/vis: o x/y das pupilas
+      // soltas (Fase 3) fica o de agora — quem olha para o lado não tem a pupila pulando para o meio no piscar
       for (const pid of ids) { const b = e2[pid]; if (!b || !this.ehOlho(porId[pid])) continue; out[pid] = { ...(out[pid] || {}), img: b.img, vis: b.vis }; } }
     return out;
   },
