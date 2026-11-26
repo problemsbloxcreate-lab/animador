@@ -253,7 +253,7 @@ const Render = {
     const maxW = W * .88, larg = b => ctx.measureText(tx(b.map(p => p[0]).join(' '))).width, wmax = Math.max(...B.map(larg)); if (wmax > maxW) { tam = Math.max(8, Math.floor(tam * maxW / wmax)); ctx.font = fonte(tam); }
     const esp = ctx.measureText(' ').width, ws = bl.map(p => ctx.measureText(tx(p[0])).width), tw = ws.reduce((a, b) => a + b, 0) + esp * (bl.length - 1);
     const y = { alto: H * .18, meio: H * .5, baixo: H - H * (H > W ? .2 : .09) }[st.pos || 'baixo'], cor = l.cor || st.cor || '#fff'; let x = (W - tw) / 2;
-    bl.forEach((p, i) => { const m = String(p[3] || ''); ctx.lineWidth = tam * .2; ctx.strokeStyle = '#000'; ctx.strokeText(tx(p[0]), x, y);
+    bl.forEach((p, i) => { const m = String(p[3] || ''); /* sem contorno (dona, 26/11) */
       ctx.fillStyle = m.startsWith('q:') ? (l.qcor?.[m.slice(2)] || cor) : m === 'd' && st.realce ? (st.destaque || '#ffd84a') : cor; ctx.fillText(tx(p[0]), x, y); x += ws[i] + esp; });
     ctx.restore();
   },
@@ -273,7 +273,7 @@ const Render = {
     ctx.translate(W / 2, base - (linhas.length - 1) * lh / 2); ctx.scale(k, k); ctx.translate(-W / 2, -(base - (linhas.length - 1) * lh / 2));
     linhas.forEach((L, li) => { const tw = L.reduce((s2, i) => s2 + larg[i], 0) + esp * (L.length - 1); let xx = (W - tw) / 2; const yy = y0 + li * lh;
       for (const i of L) { const p = ps[i], falando = tempos && q >= tempos[i][0] && q <= tempos[i][1];
-        ctx.lineWidth = tam * .2; ctx.strokeStyle = '#000'; ctx.strokeText(tx(p.w), xx, yy);
+        /* sem contorno (dona, 26/11) */
         ctx.fillStyle = falando ? (l.cor || st.fala || '#5ee0ff') : p.dest ? (st.destaque || '#ffd84a') : (st.cor || '#fff'); ctx.fillText(tx(p.w), xx, yy); xx += larg[i] + esp; } });
     ctx.restore();
   },
