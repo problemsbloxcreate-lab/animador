@@ -67,7 +67,7 @@ const Vida = {
   podePiscar(s, id, modo) { const p = id ? (s.presets || []).find(x => x.id === id) : null; const nm = this.semAcento(p?.nome || 'aberto');
     if (/surpres|assust|espant|inocent|arregal|medo|choc/.test(nm)) return false;
     if (modo === 'meio') return /abert|normal|padrao|neutr|preocup|trist|brav/.test(nm) && !/meio/.test(nm);
-    if (/meio/.test(nm)) return true; // meio fechado: fecha de vez no piscar
+    if (/meio/.test(nm)) return false; // meio fechado não pisca (regra do Livro, "Evitar": piscar a partir de olho meio fechado)
     return !/fech|feliz|rind|piscad|revir|estrel|^\^|marejad|choran|dormi/.test(nm); },
   ehOlho(p) { const nm = this.semAcento(p?.nome); return /olho|eye|palpebra|cilio|pupila/.test(nm) && !/sobrancel|brow/.test(nm); },
   modoPiscar(def) { if (def.vida && 'piscar' in def.vida) return def.vida.piscar; return /clara/.test(this.semAcento(def.nome)) ? 'meio' : 'fecha'; },
