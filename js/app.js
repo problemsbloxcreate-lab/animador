@@ -203,8 +203,8 @@ const App = {
       if (s != null) { modo = 'som'; q = Math.floor(s * fps + 1e-6); }
       else if (modo === 'espera' && agora - t0 < 400) q = q0;
       else { if (modo !== 'tela') { t0 = agora - (this.q - q0) / fps * 1000; modo = 'tela'; } q = q0 + Math.floor((agora - t0) / 1000 * fps); }
-      if (q > Modelo.ultimoQuadro(this.P)) { if (Folha.loop) { this.pausa(); this.q = 0; return this.tocar(); } this.pausa(); q = Modelo.ultimoQuadro(this.P); }
-      if (q !== this.q) { this.q = q; Folha.pinta(); this.pinta(); Lado.aoVivo(); }
+      if (q > Modelo.ultimoQuadro(this.P)) { if (Folha.loop && !TelaCheia.ativo) { this.pausa(); this.q = 0; return this.tocar(); } this.pausa(); q = Modelo.ultimoQuadro(this.P); }
+      if (q !== this.q) { this.q = q; if (TelaCheia.ativo) TelaCheia.suja = true; else { Folha.pinta(); this.pinta(); Lado.aoVivo(); } } // TELA CHEIA: só o player desenha (o editor fica parado por trás)
       requestAnimationFrame(passo);
     };
     requestAnimationFrame(passo);
@@ -624,6 +624,158 @@ const App = {
 };
 addEventListener('keydown', e => App.teclas(e));
 addEventListener('keydown', e => { if (e.key === ' ' && e.target === document.body) e.preventDefault(); });
+
+/* ---------- TELA CHEIA DA PRÉVIA (pedido da dona, 26/11/2026): assistir como um vídeo normal ----------
+   Botão ao lado do play (#b-tela-cheia) ou Shift+F (o F sozinho continua enquadrando). Fullscreen API num player por cima de tudo:
+   só o vídeo (Render.quadro = igual ao MP4, com legendas, sem a Prévia leve), fundo preto, controles que somem parados.
+   Toca pelo MESMO motor da prévia (App.tocar: a imagem segue o relógio do som); enquanto está aberto o editor não desenha.
+   Atalhos do YouTube só aqui (o ouvinte em captura, registrado antes dos outros, engole TODAS as teclas do Animador).
+   Volume/mudo próprios do player (localStorage animador-tc-vol / animador-tc-mudo; o volume geral do projeto continua valendo,
+   o mudo da edição não). Não grava nada no projeto. No fim para e mostra "Assistir de novo". Sair = volta pausado no mesmo quadro. */
+const TelaCheia = {
+  ativo: false, suja: false, el: null,
+  get vol() { const v = parseFloat(localStorage.getItem('animador-tc-vol')); return Number.isFinite(v) ? clamp(v, 0, 1) : 1; },
+  set vol(v) { try { localStorage.setItem('animador-tc-vol', String(clamp(Math.round(v * 100) / 100, 0, 1))); } catch { } },
+  get mudo() { return localStorage.getItem('animador-tc-mudo') === '1'; },
+  set mudo(v) { try { v ? localStorage.setItem('animador-tc-mudo', '1') : localStorage.removeItem('animador-tc-mudo'); } catch { } },
+  ganho() { return this.mudo ? 0 : this.vol; },
+  ult() { return Modelo.ultimoQuadro(App.P); },
+  tempo(q) { const s = Math.max(0, Math.floor(q / (App.P?.fps || 24))), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`; },
+  IC: { cheia: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>', sair: '<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/>' },
+  icone(k, s = 20) { return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${this.IC[k]}</svg>`; },
+  // botão ao lado do play (criado aqui: o index.html fica até 10 min em cache)
+  liga() {
+    const b0 = document.getElementById('b-tocar'); if (!b0 || document.getElementById('b-tela-cheia')) return;
+    const b = document.createElement('button'); b.className = 'ibtn'; b.id = 'b-tela-cheia'; b.title = 'Assistir em tela cheia (Shift+F)'; b.innerHTML = this.icone('cheia', 15);
+    b.onclick = () => this.abrir(); b0.after(b);
+  },
+  estilo() {
+    if (document.getElementById('tc-css')) return; const s = document.createElement('style'); s.id = 'tc-css';
+    s.textContent = `.tc-player{position:fixed;inset:0;z-index:100000;background:#000;color:#fff;font:14px 'Segoe UI',Roboto,Arial,sans-serif;user-select:none;cursor:default}
+.tc-player.tc-quieto{cursor:none}.tc-player canvas.tc-tela{position:absolute;inset:0;width:100%;height:100%;display:block}
+.tc-baixo{position:absolute;left:0;right:0;bottom:0;padding:40px 18px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));transition:opacity .25s}
+.tc-quieto .tc-baixo,.tc-quieto .tc-topo{opacity:0;pointer-events:none}
+.tc-topo{position:absolute;left:0;right:0;top:0;padding:14px 20px 40px;background:linear-gradient(rgba(0,0,0,.6),transparent);font-size:17px;transition:opacity .25s;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc-barra{position:relative;height:16px;cursor:pointer;display:flex;align-items:center}
+.tc-trilho{position:relative;width:100%;height:3px;background:rgba(255,255,255,.25);transition:height .1s}
+.tc-barra:hover .tc-trilho,.tc-barra.tc-arr .tc-trilho{height:5px}
+.tc-feito{position:absolute;left:0;top:0;bottom:0;background:#f00}.tc-sob{position:absolute;left:0;top:0;bottom:0;background:rgba(255,255,255,.35);display:none}
+.tc-barra:hover .tc-sob{display:block}
+.tc-bola{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:#f00;transform:scale(0);transition:transform .1s}
+.tc-barra:hover .tc-bola,.tc-barra.tc-arr .tc-bola{transform:scale(1)}
+.tc-dica{position:absolute;bottom:22px;transform:translateX(-50%);display:none;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
+.tc-barra:hover .tc-dica,.tc-barra.tc-arr .tc-dica{display:flex}
+.tc-dica canvas{border:2px solid #fff;border-radius:4px;background:#000;display:block}.tc-dica span{font-size:13px;text-shadow:0 0 3px #000}
+.tc-linha{display:flex;align-items:center;gap:6px;height:44px}
+.tc-b{background:none;border:0;color:#fff;width:42px;height:40px;display:grid;place-items:center;cursor:pointer;border-radius:6px;opacity:.92}.tc-b:hover{opacity:1;background:rgba(255,255,255,.1)}
+.tc-vol{display:flex;align-items:center}.tc-vol input{width:0;opacity:0;transition:width .15s,opacity .15s;accent-color:#fff;cursor:pointer}
+.tc-vol:hover input,.tc-vol input:focus{width:80px;opacity:1}
+.tc-tempo{font-variant-numeric:tabular-nums;margin-left:8px;opacity:.95}.tc-esp{flex:1}
+.tc-aviso{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.55);border-radius:40px;padding:14px 22px;font-size:20px;display:flex;gap:10px;align-items:center;opacity:0;transition:opacity .35s;pointer-events:none}
+.tc-aviso.tc-on{opacity:1;transition:none}
+.tc-denovo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:none;flex-direction:column;align-items:center;gap:10px;background:none;border:0;color:#fff;font-size:16px;cursor:pointer}
+.tc-denovo div{width:74px;height:74px;border-radius:50%;background:rgba(0,0,0,.6);display:grid;place-items:center}.tc-denovo:hover div{background:rgba(255,255,255,.18)}
+.tc-fim .tc-denovo{display:flex}`;
+    document.head.appendChild(s);
+  },
+  async abrir() {
+    if (this.ativo || !App.P || $('#editor').classList.contains('hidden')) return;
+    const P = App.P; this.estilo(); this.ativo = true; if (App.tocando) App.pausa();
+    const el = this.el = document.createElement('div'); el.className = 'tc-player';
+    el.innerHTML = `<canvas class="tc-tela"></canvas><div class="tc-topo"></div><div class="tc-aviso"></div>
+<button class="tc-denovo" data-tc="denovo"><div>${ic('undo', 34)}</div>Assistir de novo</button>
+<div class="tc-baixo"><div class="tc-barra"><div class="tc-trilho"><div class="tc-sob"></div><div class="tc-feito"></div></div><div class="tc-bola"></div><div class="tc-dica"><canvas></canvas><span></span></div></div>
+<div class="tc-linha"><button class="tc-b" data-tc="play"></button><button class="tc-b" data-tc="reset" title="Recomeçar (Home)">${ic('start', 22)}</button>
+<span class="tc-vol"><button class="tc-b" data-tc="mudo"></button><input type="range" min="0" max="100" step="1"></span><span class="tc-tempo"></span><span class="tc-esp"></span>
+<button class="tc-b" data-tc="sair" title="Sair da tela cheia (F ou Esc)">${this.icone('sair', 22)}</button></div></div>`;
+    $('.tc-topo', el).textContent = P.nome || '';
+    document.body.appendChild(el); this.cv = $('.tc-tela', el);
+    el.addEventListener('click', e => { const b = e.target.closest('[data-tc]'); if (b) { e.stopPropagation(); b.blur(); return this.botao(b.dataset.tc); } if (e.target === this.cv) this.alterna(); });
+    el.addEventListener('dblclick', e => { if (e.target === this.cv) this.sair(); });
+    el.addEventListener('pointermove', () => this.acorda()); el.addEventListener('contextmenu', e => e.preventDefault());
+    el.addEventListener('wheel', e => e.preventDefault(), { passive: false });
+    const r = $('.tc-vol input', el); r.oninput = () => { this.vol = +r.value / 100; if (this.mudo && this.vol > 0) this.mudo = false; this.volMudou(false); }; r.onchange = () => r.blur();
+    this.ligaBarra();
+    this._fs = () => { if (!document.fullscreenElement && this.ativo && this._entrou) this.fecha(); };
+    document.addEventListener('fullscreenchange', this._fs);
+    this._entrou = false; try { await el.requestFullscreen({ navigationUI: 'hide' }); this._entrou = true; } catch (e) { console.warn('[tela cheia]', e); } // sem permissão: fica cobrindo a janela (Esc fecha)
+    this._ro = new ResizeObserver(() => { this.suja = true; }); this._ro.observe(el);
+    Som.aplicaGeral(); this.volMudou(false); this.acorda(); this.suja = true; this.laco();
+    if (App.q >= this.ult()) App.q = 0; App.tocar(); // abre já tocando, do quadro de agora
+  },
+  sair() { if (document.fullscreenElement) document.exitFullscreen().catch(() => this.fecha()); else this.fecha(); },
+  fecha() {
+    if (!this.ativo) return; if (App.tocando) App.pausa(); this.ativo = false; cancelAnimationFrame(this._raf); clearTimeout(this._tq); this._ro?.disconnect();
+    document.removeEventListener('fullscreenchange', this._fs); this.el?.remove(); this.el = null; this.cv = null; this._fin = null;
+    Som.aplicaGeral(); App.setQ(App.q, { forca: true }); Folha.pinta(); Lado.pinta(); App.pinta(); // a prévia comum, pausada no mesmo quadro
+  },
+  botao(k) {
+    if (k === 'play') return this.alterna(); if (k === 'reset' || k === 'denovo') return this.ir(0, true);
+    if (k === 'mudo') { if (this.mudo || this.vol === 0) { this.mudo = false; if (this.vol === 0) this.vol = .5; } else this.mudo = true; return this.volMudou(true); }
+    if (k === 'sair') return this.sair();
+  },
+  alterna() { if (App.tocando) { App.pausa(); this.aviso('pause'); } else { if (App.q >= this.ult()) App.q = 0; App.tocar(); this.aviso('play'); } this.suja = true; this.acorda(); },
+  // vai para o quadro q (tocando continua tocando; toca = começa a tocar)
+  ir(q, toca) { const tocava = App.tocando || toca; if (App.tocando) App.pausa(); App.q = clamp(Math.round(q), 0, this.ult()); this.suja = true; if (tocava && App.q < this.ult()) App.tocar(); this.acorda(); },
+  pula(seg) { this.ir(App.q + seg * App.P.fps); this.aviso(seg < 0 ? 'prev' : 'next', `${Math.abs(seg)} s`); },
+  volMudou(av) { Som.aplicaGeral(); if (!this.el) return; const g = this.ganho(), r = $('.tc-vol input', this.el); if (document.activeElement !== r) r.value = Math.round(this.vol * 100);
+    const b = $('[data-tc="mudo"]', this.el); b.innerHTML = ic(g ? 'vol' : 'mute', 22); b.title = (g ? 'Sem som' : 'Com som') + ' (M)'; if (av) this.aviso(g ? 'vol' : 'mute', g ? Math.round(g * 100) + '%' : ''); },
+  aviso(icn, txt = '') { const a = this.el && $('.tc-aviso', this.el); if (!a) return; a.innerHTML = ic(icn, 26) + (txt ? `<span>${esc(txt)}</span>` : ''); a.classList.add('tc-on'); clearTimeout(this._ta); this._ta = setTimeout(() => a.classList.remove('tc-on'), 450); },
+  // controles somem 2,5 s depois do mouse parar (só tocando, como no YouTube)
+  acorda() { if (!this.el) return; this.el.classList.remove('tc-quieto'); clearTimeout(this._tq); this._tq = setTimeout(() => { if (this.el && App.tocando && !this._arr) this.el.classList.add('tc-quieto'); }, 2500); },
+  ligaBarra() {
+    const br = $('.tc-barra', this.el), dica = $('.tc-dica', br), dcv = $('canvas', dica), sp = $('span', dica);
+    const qDe = x => { const r = br.getBoundingClientRect(); return clamp((x - r.left) / r.width, 0, 1) * this.ult(); };
+    const mostra = x => { const r = br.getBoundingClientRect(), q = Math.round(qDe(x)); $('.tc-sob', br).style.width = (q / Math.max(1, this.ult()) * 100) + '%'; sp.textContent = this.tempo(q);
+      const P = App.P, dt = P.w >= P.h, w = dt ? 176 : Math.max(1, Math.round(176 * P.w / P.h)), h = dt ? Math.max(1, Math.round(176 * P.h / P.w)) : 176; if (dcv.width !== w || dcv.height !== h) { dcv.width = w; dcv.height = h; } // em pé (9:16) a miniatura não passa de 176 px de altura
+      dica.style.left = clamp(x - r.left, w / 2 + 2, r.width - w / 2 - 2) + 'px';
+      // miniatura: só parado ou se não houver vídeo de cenário (desenhar outro quadro tocando faria o vídeo de cenário pular)
+      const temVideo = Modelo.todos(P).some(n => n.tipo === 'video'); dcv.style.display = App.tocando && temVideo ? 'none' : '';
+      if (dcv.style.display === 'none' || this._mq === q) return; this._mq = q; cancelAnimationFrame(this._rm); this._rm = requestAnimationFrame(() => { try { Render.quadro(dcv.getContext('2d'), P, q, w, h, { semLegenda: true }); } catch { } }); };
+    br.addEventListener('pointermove', e => mostra(e.clientX)); br.addEventListener('pointerleave', () => { this._mq = null; });
+    br.addEventListener('pointerdown', e => { e.preventDefault(); br.setPointerCapture(e.pointerId); this._arr = { tocava: App.tocando }; br.classList.add('tc-arr'); if (App.tocando) App.pausa();
+      const mv = ev => { App.q = Math.round(qDe(ev.clientX)); this.suja = true; mostra(ev.clientX); }; mv(e);
+      const up = () => { br.removeEventListener('pointermove', mv); br.removeEventListener('pointerup', up); br.removeEventListener('pointercancel', up); br.classList.remove('tc-arr'); const t = this._arr?.tocava; this._arr = null; this.ir(App.q, t); };
+      br.addEventListener('pointermove', mv); br.addEventListener('pointerup', up); br.addEventListener('pointercancel', up); });
+  },
+  // desenha o vídeo e a barra; o quadro só é refeito quando muda (App.tocar marca this.suja)
+  laco() {
+    if (!this.ativo) return; this._raf = requestAnimationFrame(() => this.laco()); const el = this.el, cv = this.cv, P = App.P; if (!el || !P) return;
+    const fim = !App.tocando && App.q >= this.ult(); el.classList.toggle('tc-fim', fim); if (!App.tocando || fim) el.classList.remove('tc-quieto');
+    const b = $('[data-tc="play"]', el), k = App.tocando ? 'pause' : 'play'; if (b.dataset.ic !== k) { b.innerHTML = ic(k, 24); b.dataset.ic = k; b.title = (App.tocando ? 'Pausar' : 'Tocar') + ' (K)'; }
+    $('.tc-feito', el).style.width = (App.q / Math.max(1, this.ult()) * 100) + '%'; $('.tc-bola', el).style.left = (App.q / Math.max(1, this.ult()) * 100) + '%';
+    const tt = `${this.tempo(App.q)} / ${this.tempo(this.ult() + 1)}`, te = $('.tc-tempo', el); if (te.textContent !== tt) te.textContent = tt;
+    if (!this.suja) return; this.suja = false;
+    const d = devicePixelRatio || 1, W = Math.round(el.clientWidth * d), H = Math.round(el.clientHeight * d); if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const kk = Math.min(W / P.w, H / P.h), w = Math.max(1, Math.round(P.w * kk)), h = Math.max(1, Math.round(P.h * kk));
+    if (!this._fin || this._fin.width !== w || this._fin.height !== h) this._fin = new OffscreenCanvas(w, h);
+    const ctx = cv.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    try { Render.quadro(this._fin.getContext('2d'), P, App.q, w, h); } catch (e) { console.warn('[tela cheia]', e); } ctx.drawImage(this._fin, Math.round((W - w) / 2), Math.round((H - h) / 2));
+  },
+  // ATALHOS DO YOUTUBE: em captura e antes de todos os outros ouvintes; aberto, nenhuma tecla chega ao Animador
+  tecla(e) {
+    if (!this.ativo) {
+      if (e.type === 'keydown' && (e.key === 'F' || e.key === 'f') && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && App.P && !$('#editor').classList.contains('hidden') && !$('#modal-root').children.length && !e.target.closest?.('input,textarea,select,[contenteditable]')) { e.preventDefault(); e.stopImmediatePropagation(); this.abrir(); }
+      return;
+    }
+    if (['F5', 'F11', 'F12'].includes(e.key) || ((e.ctrlKey || e.metaKey) && /^[rl]$/i.test(e.key))) return; // recarregar/ferramentas do navegador continuam
+    e.stopImmediatePropagation(); if (e.type !== 'keydown') { if (e.key === ' ' || e.key === 'Enter') e.preventDefault(); return; } // keyup do Espaço não "clica" o botão em foco
+    if (e.ctrlKey || e.metaKey || e.altKey) return e.preventDefault();
+    const k = e.key, kk = k.toLowerCase(); let ok = true;
+    if (k === ' ' || kk === 'k') { if (!e.repeat) this.alterna(); }
+    else if (kk === 'j') this.pula(-10); else if (kk === 'l') this.pula(10);
+    else if (k === 'ArrowLeft') this.pula(-5); else if (k === 'ArrowRight') this.pula(5);
+    else if (k === 'ArrowUp' || k === 'ArrowDown') { const v = clamp(Math.round((this.vol + (k === 'ArrowUp' ? .05 : -.05)) * 100) / 100, 0, 1); this.vol = v; if (v > 0) this.mudo = false; this.volMudou(true); }
+    else if (kk === 'm') this.botao('mudo');
+    else if (kk === 'f' || k === 'Escape') this.sair();
+    else if (/^[0-9]$/.test(k)) this.ir(Math.round(this.ult() * (+k / 10)));
+    else if (k === 'Home') this.ir(0); else if (k === 'End') this.ir(this.ult());
+    else if (k === ',' || k === '.') { if (!App.tocando) { App.q = clamp(App.q + (k === '.' ? 1 : -1), 0, this.ult()); this.suja = true; } }
+    else ok = false;
+    e.preventDefault(); if (ok) this.acorda();
+  },
+};
+addEventListener('keydown', e => TelaCheia.tecla(e), true); addEventListener('keyup', e => TelaCheia.tecla(e), true);
 
 /* trocar de tela (início, editor, ateliê) */
 const Telas = { mostra(id) { for (const t of ['home', 'editor', 'atelie']) $('#' + t).classList.toggle('hidden', t !== id); this.marca(id); if (id === 'editor' && typeof Midia !== 'undefined') Midia.liga(); },
