@@ -23,15 +23,20 @@ const Midia = {
     pal.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/midia')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; pal.classList.add('drop-midia'); } });
     pal.addEventListener('dragleave', e => { if (!pal.contains(e.relatedTarget)) pal.classList.remove('drop-midia'); });
     pal.addEventListener('drop', e => { const id = e.dataTransfer.getData('text/midia'); pal.classList.remove('drop-midia'); if (!id) return; e.preventDefault(); e.stopPropagation(); const it = this.lista().find(x => x.id === id); if (it) this.porNaCena(it, App.modoVista === 'camera' ? null : App.palco.paraMundo(e)); }, true);
+    // soltar IMAGENS DO COMPUTADOR no palco = entram na cena onde soltou (GIF animado vira UMA camada animada, 26/11/2026)
+    pal.addEventListener('drop', e => { if (e.dataTransfer.types.includes('text/midia')) return; const fs = [...(e.dataTransfer.files || [])].filter(f => /^image\//.test(f.type) || /\.(gif|png|jpe?g|webp|svg)$/i.test(f.name)); if (!fs.length) return;
+      e.preventDefault(); e.stopPropagation(); App.addImagens(fs, App.modoVista === 'camera' ? null : App.palco.paraMundo(e)); });
     this.repinta();
   },
   async porNaCena(it, pos) {
     const P = App.P, bm = await new Promise(ok => { const b = Arq.bitmap(it.arq, ok); if (b) ok(b); });
     if (!bm) return UI.toast('Essa imagem não está mais neste computador.', { kind: 'err' });
     const s = round(Math.min(1, P.w * .8 / bm.width, P.h * .8 / bm.height), 3);
-    const n = Modelo.novoNo('imagem', { arq: it.arq, nome: it.nome.slice(0, 40), s }); n.chaves[0].s = s; if (it.vetor || bm instanceof HTMLImageElement) n.vetor = true; App.inserir(n, 'Imagem da Mídia', pos ? { pos } : {});
+    const n = Modelo.novoNo('imagem', { arq: it.arq, nome: it.nome.slice(0, 40), s }); n.chaves[0].s = s; if (it.vetor || bm instanceof HTMLImageElement) n.vetor = true;
+    if (!n.vetor) await GifCache.marca(n, await Arq.pegaBlob(it.arq)); // GIF animado guardado na Mídia: entra como UMA camada animada
+    App.inserir(n, 'Imagem da Mídia', pos ? { pos } : {});
   },
-  async baixar(it) { const b = await Arq.pegaBlob(it.arq); if (!b) return UI.toast('Essa imagem não está mais neste computador.', { kind: 'err' }); downloadBlob(b, it.nome.replace(/[\\/:*?"<>|]+/g, '-') + (b.type === 'image/svg+xml' ? '.svg' : '.png')); },
+  async baixar(it) { const b = await Arq.pegaBlob(it.arq); if (!b) return UI.toast('Essa imagem não está mais neste computador.', { kind: 'err' }); downloadBlob(b, it.nome.replace(/[\\/:*?"<>|]+/g, '-') + (b.type === 'image/svg+xml' ? '.svg' : b.type === 'image/gif' ? '.gif' : '.png')); },
   async tirar(it) {
     if (!(await UI.confirm({ title: `Tirar "${esc(it.nome)}" da Mídia?`, msg: 'Se ela já está numa animação, continua lá.', ok: 'Tirar', danger: true }))) return;
     this.salva(this.lista().filter(x => x.id !== it.id));

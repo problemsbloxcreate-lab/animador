@@ -26,7 +26,7 @@ const App = {
      (camadas de imagem e as peças dos personagens) iam aparecendo uma a uma. Agora ela espera todas ficarem prontas para desenhar,
      mostrando quantas faltam; no máximo 40 s (se alguma não vier, o editor abre mesmo assim e ela aparece quando chegar). */
   async esperaImagens(P) {
-    const ids = [...new Set([...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq), ...Object.values(P.personagens || {}).flatMap(d => Modelo.chavesImgs(d))].filter(Boolean))];
+    const ids = [...new Set([...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq), ...GifCache.arqs(P) /* quadros das sequências */, ...Object.values(P.personagens || {}).flatMap(d => Modelo.chavesImgs(d))].filter(Boolean))];
     if (ids.length) { NuvemTela.passo(.92, `Preparando as imagens da cena… 0 de ${ids.length}`);
       await Promise.race([Arq.garantir(ids, (n, t) => NuvemTela.passo(.92 + .07 * n / t, `Preparando as imagens da cena… ${n} de ${t}`)), new Promise(r => setTimeout(r, 40000))]); }
     // SOM TAMBÉM (pedido da dona, 09/11/2026): a tela só sai com os áudios abertos, para não abrir mudo nem com a onda aparecendo depois. Máximo de 20 s: arquivo com defeito não prende ninguém (o play avisa e o som entra quando chegar)
@@ -235,13 +235,16 @@ const App = {
     const n = Modelo.novoNo('personagem', { ref: def.id, nome: def.nome, s: round(s, 2) }); n.chaves[0].s = round(s, 2); n.atuacao = { ...Atuacao.PADRAO }; n.suaveP = true;
     this.inserir(n, 'Personagem ' + def.nome); UI.toast(`<b>${esc(def.nome)}</b> entrou no quadro ${this.q + 1}. Os botões das sessões estão no painel da direita.`, { kind: 'ok' });
   },
-  async addImagem() {
-    const fs = await pickFiles('image/*', true); for (const f0 of fs) {
+  async addImagem() { return this.addImagens(await pickFiles('image/*', true)); },
+  // imagens do computador (escolhidas ou soltas no palco, pos = onde soltou). GIF animado entra como UMA camada animada (GifCache, js/desenho.js)
+  async addImagens(fs, pos) {
+    for (const f0 of fs || []) {
       const { blob: f, svg } = await Vetor.blobDeArquivo(f0); // .svg continua VETOR no Animador (desenhado sem perder qualidade no zoom e no MP4)
       const id = await Arq.guardar(f); const bm = await Arq.deBlob(f, id);
       const s = bm ? Math.min(1, this.P.w * .8 / bm.width, this.P.h * .8 / bm.height) : 1;
       const n = Modelo.novoNo('imagem', { arq: id, nome: f0.name.replace(/\.[^.]+$/, '').slice(0, 40), s: round(s, 3) }); n.chaves[0].s = round(s, 3); if (svg) n.vetor = true;
-      Arq.img.set(id, bm); this.inserir(n, 'Imagem');
+      const anim = await GifCache.marca(n, f, id); // GIF com vários quadros: n.anim (o arquivo continua UM só)
+      Arq.img.set(id, bm); this.inserir(n, anim ? 'GIF animado' : 'Imagem', pos ? { pos } : {});
     }
   },
   addForma(forma) {
@@ -339,7 +342,7 @@ const App = {
     const velho = Arq.img.get(n.arq), id = await Arq.guardar(f), bm = await Arq.deBlob(f, id); if (!bm) return UI.toast('Não abri essa imagem.', { kind: 'err' }); Arq.img.set(id, bm);
     const k = velho ? Math.min(velho.width / bm.width, velho.height / bm.height) : 1;
     if (Math.abs(k - 1) > .001) for (const c of Object.values(n.chaves || {})) if (c.s != null) c.s = round(c.s * k, 4);
-    n.arq = id;
+    n.arq = id; await GifCache.marca(n, f, id); // GIF animado: a camada passa a animar; imagem parada: deixa de animar
     const r = Modelo.achar(this.P, n.id), pa = r?.pai; // peça de um cenário: o editor de cenário também passa a usar a imagem nova
     if (n.pecaCen && pa?.cenaEd) { const pc = pa.cenaEd.pecas.find(x => x.id === n.pecaCen); if (pc) { const w = bm.width * Math.min(pc.w / bm.width, pc.h / bm.height), hh = bm.height * Math.min(pc.w / bm.width, pc.h / bm.height);
       Object.assign(pc, { tipo: 'img', k: id, x: pc.x + (pc.w - w) / 2, y: pc.y + pc.h - hh, w, h: hh }); delete pc.camadas; delete pc.idx; delete pa.nuvem; } }

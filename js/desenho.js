@@ -133,7 +133,7 @@ const Render = {
       const M = base.multiply(mm), k = Math.hypot(M.a, M.b) || 1, w = n.w || P.w, hh = n.h || P.h, cv = typeof Cena3D !== 'undefined' ? Cena3D.quadro(P, n, q, w * k, hh * k) : null;
       if (cv) { ctx.setTransform(M); ctx.drawImage(cv, -w / 2, -hh / 2, w, hh); }
     } else if (n.tipo === 'imagem') {
-      const bm = this.bm(n.arq); if (bm) { ctx.setTransform(base.multiply(mm)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, this.nitido(bm, bm.width, bm.height, base.multiply(mm)), -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
+      const bm = n.anim ? GifCache.bitmap(P, n, q, () => Render.aoChegarImagem?.()) : this.bm(n.arq); // IMAGEM ANIMADA (GIF/sequência): o quadro do tempo (GifCache, no fim deste arquivo) if (bm) { ctx.setTransform(base.multiply(mm)); if (n.tremulo?.modo === 'ondular') this.ondulado(ctx, n, q, this.nitido(bm, bm.width, bm.height, base.multiply(mm)), -bm.width / 2, -bm.height / 2, bm.width, bm.height); else ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); }
     } else if (n.tipo === 'texto' || n.tipo === 'forma') {
       ctx.setTransform(base.multiply(mm));
       if (n.tremulo?.modo === 'ondular') { // ONDULAR também em texto e forma: desenha num canvas à parte (no tamanho da tela, nítido) e passa pela onda
@@ -313,5 +313,91 @@ const Render = {
     const H = Math.round(larg * P.h / P.w), c = document.createElement('canvas'); c.width = larg; c.height = H;
     this.quadro(c.getContext('2d'), P, q, larg, H); return c.toDataURL('image/jpeg', .72);
   },
+};
+/* ===================== IMAGEM ANIMADA (GIF e sequência de imagens) como UMA camada (pedido da dona, 26/11/2026) =====================
+   Nó { tipo: 'imagem', arq, anim: { quadros: N, atrasos: [ms…], fps?, loop: true, quadrosArq?: [chaves…] } }.
+   - GIF (ou WebP/PNG animado): n.arq = o arquivo ORIGINAL inteiro (guardado pelo Arq como qualquer imagem, vai junto no .animador e na
+     nuvem). Ao desenhar, o arquivo é aberto UMA vez com o ImageDecoder do navegador (Chrome) e cada quadro vira um ImageBitmap guardado
+     aqui (um cache por arquivo). Sem ImageDecoder (ou se não abrir): aparece o 1º quadro, como uma imagem comum (nunca quebra).
+   - Sequência (por script): anim.quadrosArq = chaves de imagens já guardadas (Arq), uma por quadro, trocando no ritmo de anim.fps;
+     n.arq = a 1ª (para o tamanho e para quem só conhece imagem comum).
+   - Qual quadro: pelo tempo desde n.de, (q − de) / fps do projeto, seguindo os atrasos do próprio GIF (ou anim.fps, se tiver), em laço.
+   - Exportar: `await GifCache.prepara(P)` antes do laço de quadros (todos os quadros prontos: nenhum sai em branco).
+   Por script: `GifCache.sequencia([chaves], { fps: 12, nome })` ou `await GifCache.deArquivos([blobs], { fps, nome })` devolvem o nó
+   (não põem na cena: o script coloca onde quiser, ex.: P.raiz.unshift(n)). */
+const GifCache = {
+  mapa: new Map(), // arquivo → { quadros: [ImageBitmap], atrasos: [ms], ok, pronto: Promise<boolean>, falhou }
+  MAX_QUADROS: 1000,
+  // atraso de 0 a 10 ms num GIF = o navegador mostra a 100 ms (é o que todo mundo vê na internet)
+  atrasoReal(ms) { return ms > 10 ? ms : 100; },
+  // QUAL QUADRO da imagem animada aparece no quadro q da timeline (puro, sem navegador: o teste roda no node)
+  // a = n.anim, de = n.de, fpsP = fps do projeto, atrasos = os do arquivo aberto (senão os guardados em a.atrasos)
+  indice(a, q, de, fpsP, atrasos) {
+    if (!a) return 0; fpsP = fpsP || 24; const ats = atrasos?.length ? atrasos : a.atrasos, N = a.quadrosArq?.length || ats?.length || a.quadros || 1;
+    if (N <= 1) return 0; const dq = Math.max(0, q - (de || 0)), laco = a.loop !== false;
+    if (a.fps > 0 || !ats?.length) { const f = Math.floor(dq * (a.fps > 0 ? a.fps : fpsP) / fpsP + 1e-6); return laco ? f % N : Math.min(f, N - 1); } // ritmo fixo (sequência, ou GIF com fps escolhido)
+    const t = dq * 1000 / fpsP + 1e-6, tot = ats.reduce((s, x) => s + this.atrasoReal(x), 0); // os atrasos do GIF, um por quadro
+    let tt = laco ? t % tot : t; if (!laco && tt >= tot) return N - 1;
+    let f = 0; for (; f < N - 1; f++) { tt -= this.atrasoReal(ats[f]); if (tt < 0) break; }
+    return f;
+  },
+  // tipo pelo começo do arquivo (vindo de um .animador ou da nuvem, o arquivo chega sem tipo)
+  async tipo(b) {
+    if (b.type && b.type !== 'application/octet-stream') return b.type;
+    try { const u = new Uint8Array(await b.slice(0, 16).arrayBuffer()), s = String.fromCharCode(...u);
+      if (s.startsWith('GIF8')) return 'image/gif'; if (s.startsWith('RIFF') && s.slice(8, 12) === 'WEBP') return 'image/webp'; if (u[0] === 0x89 && s.slice(1, 4) === 'PNG') return 'image/png'; } catch { }
+    return 'image/gif';
+  },
+  // abre o arquivo e devolve { quadros: [ImageBitmap], atrasos: [ms], w, h } (null sem ImageDecoder ou se não abrir)
+  async decodifica(blob) {
+    if (!blob || typeof ImageDecoder === 'undefined') return null; let dec = null;
+    try {
+      const type = await this.tipo(blob); if (ImageDecoder.isTypeSupported && !(await ImageDecoder.isTypeSupported(type))) return null;
+      dec = new ImageDecoder({ data: await blob.arrayBuffer(), type }); await dec.tracks.ready; await dec.completed.catch(() => { });
+      const N = Math.min(this.MAX_QUADROS, dec.tracks.selectedTrack?.frameCount || 1); if (N >= this.MAX_QUADROS) console.warn('[imagem animada] muitos quadros: fiquei com os primeiros', N);
+      const quadros = [], atrasos = [];
+      for (let i = 0; i < N; i++) { const { image } = await dec.decode({ frameIndex: i }); try { quadros.push(await createImageBitmap(image)); atrasos.push(Math.round((image.duration || 0) / 1000)); } finally { image.close(); } }
+      return quadros.length ? { quadros, atrasos, w: quadros[0].width, h: quadros[0].height } : null;
+    } catch (e) { console.warn('[imagem animada] não abriu', e); return null; } finally { try { dec?.close(); } catch { } }
+  },
+  // o cache do arquivo (começa a abrir na 1ª vez; avisa aoChegar quando ficar pronto)
+  carrega(arq, aoChegar) {
+    let e = this.mapa.get(arq); if (e) { if (aoChegar && !e.ok && !e.falhou) e.pronto.then(ok => ok && aoChegar()); return e; }
+    e = { quadros: null, atrasos: null, ok: false }; this.mapa.set(arq, e);
+    e.pronto = (async () => { const b = await Arq.pegaBlob(arq).catch(() => null); if (!b) { this.mapa.delete(arq); return false; } // ainda não chegou (nuvem/ao vivo): tenta de novo no próximo desenho
+      const d = await this.decodifica(b); if (!d) { e.falhou = true; return false; } Object.assign(e, d, { ok: true }); return true; })();
+    if (aoChegar) e.pronto.then(ok => ok && aoChegar()); return e;
+  },
+  // a imagem do quadro q (o Render desenha como uma imagem comum: x, y, escala, giro, opacidade e efeitos valem)
+  bitmap(P, n, q, aoChegar) {
+    const a = n.anim; if (!a) return Arq.bitmap(n.arq, aoChegar);
+    if (a.quadrosArq?.length) return Arq.bitmap(a.quadrosArq[this.indice(a, q, n.de, P.fps)] || n.arq, aoChegar) || Arq.bitmap(n.arq, aoChegar); // sequência: cada quadro é uma imagem guardada (enquanto chega, a 1ª)
+    const e = this.carrega(n.arq, aoChegar); if (!e.ok) return Arq.bitmap(n.arq, aoChegar); // abrindo (ou sem ImageDecoder): o 1º quadro
+    return e.quadros[this.indice(a, q, n.de, P.fps, e.atrasos)] || e.quadros[0];
+  },
+  nos(P) { return Modelo.todos(P).filter(n => n.tipo === 'imagem' && n.anim); },
+  // as imagens das sequências (para ir no .animador, subir para a nuvem e esperar antes de desenhar)
+  arqs(P) { return this.nos(P).flatMap(n => n.anim.quadrosArq || []); },
+  // EXPORTAR: todos os quadros de todas as imagens animadas prontos antes de começar
+  async prepara(P) {
+    const L = this.nos(P); if (!L.length) return;
+    await Promise.all([Arq.garantir(this.arqs(P)), ...L.filter(n => !n.anim.quadrosArq?.length && n.arq).map(n => this.carrega(n.arq).pronto.catch(() => false))]);
+  },
+  // IMPORTAR: se o arquivo tem mais de um quadro, a camada vira animada (n.anim) e o cache já fica pronto. Devolve true se é animada
+  async marca(n, blob, arq = n.arq) {
+    delete n.anim; if (!blob || n.vetor) return false;
+    const t = await this.tipo(blob); if (!/^image\/(gif|webp|png|apng)$/.test(t)) return false;
+    const d = await this.decodifica(blob); if (!d || d.quadros.length < 2) { d?.quadros.forEach(b => b.close?.()); return false; }
+    n.anim = { quadros: d.quadros.length, atrasos: d.atrasos, loop: true }; this.solta(arq); this.mapa.set(arq, { ...d, ok: true, pronto: Promise.resolve(true) }); return true;
+  },
+  // SEQUÊNCIA por script: um nó só a partir de imagens já guardadas (Arq.guardar), em vez de uma camada por quadro
+  sequencia(chaves, o = {}) {
+    const L = (chaves || []).filter(Boolean); if (!L.length) throw new Error('sequência sem imagens');
+    const n = Modelo.novoNo('imagem', { arq: L[0], nome: String(o.nome || 'Sequência').slice(0, 40), ...(o.s != null ? { s: o.s } : {}) }); if (o.s != null && n.chaves?.[0]) n.chaves[0].s = o.s;
+    n.anim = { fps: o.fps || 12, quadros: L.length, quadrosArq: L, loop: o.loop !== false }; return n;
+  },
+  async deArquivos(blobs, o = {}) { const ks = []; for (const b of blobs || []) ks.push(await Arq.guardar(b)); return this.sequencia(ks, o); },
+  // tira da memória (ex.: trocou o arquivo da camada)
+  solta(arq) { const e = this.mapa.get(arq); if (!e) return; this.mapa.delete(arq); e.quadros?.forEach(b => { try { b.close?.(); } catch { } }); },
 };
 function dentroPoligono(p, pts) { let d = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const a = pts[i], b = pts[j]; if (((a.y > p.y) !== (b.y > p.y)) && (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x)) d = !d; } return d; }

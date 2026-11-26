@@ -265,6 +265,7 @@ const Exportar = {
     pr?.(.5, nivelar ? 'Nivelando o volume…' : 'Segurando os picos…'); await Som.masteriza(mix, { nivelar, ini: a, fim: z }); // −14 LUFS (opcional) e pico em −1 dBTP
     const ac = new OfflineAudioContext(2, Math.max(1, z - a), 48000), b = ac.createBuffer(2, Math.max(1, z - a), 48000); for (let c = 0; c < 2; c++) b.getChannelData(c).set(mix.getChannelData(Math.min(c, mix.numberOfChannels - 1)).subarray(a, z)); pr?.(1, 'Pronto'); return Som.wav(b); },
   async png(nome) { const P = App.P, c = document.createElement('canvas'); c.width = P.w; c.height = P.h; const comVideo = CenarioVideo.tem(P);
+    await GifCache.prepara(P); // GIF/sequência: o quadro certo, não o 1º (js/desenho.js)
     if (comVideo) await CenarioVideo.prepara(P, App.q); CenarioVideo.emExport = comVideo; try { Render.quadro(c.getContext('2d'), P, App.q, P.w, P.h); } finally { CenarioVideo.emExport = false; CenarioVideo.solta('exp'); } // cenário em vídeo: o quadro exato
     return new Promise(ok => c.toBlob(b => { downloadBlob(b, nome || `${safeName(P.nome)} - quadro ${App.q + 1}.png`); ok(); }, 'image/png')); },
   folga() { return new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); }); },
@@ -287,6 +288,7 @@ const Exportar = {
     let erro = null;
     // imagens de todos os personagens prontas antes de começar
     await Arq.garantir([...Object.values(P.personagens).flatMap(d => Modelo.chavesImgs(d)), ...Modelo.todos(P).filter(n => n.tipo === 'imagem').map(n => n.arq)]);
+    await GifCache.prepara(P); // IMAGENS ANIMADAS (GIF e sequências, js/desenho.js): todos os quadros abertos antes do laço (nenhum sai em branco nem parado no 1º)
     if (acfg) {
       pr?.(0, 'Misturando o áudio…'); const mix = await Som.mistura(P, acfg.sampleRate), ini = Math.round(de / fps * acfg.sampleRate), fim = Math.min(mix.length, Math.round((ate + 1) / fps * acfg.sampleRate));
       pr?.(0, nivelar ? 'Nivelando o volume…' : 'Segurando os picos…'); await Som.masteriza(mix, { nivelar, ini, fim }); // −14 LUFS (opcional) e pico em −1 dBTP (pedido da dona, 12/11/2026)
