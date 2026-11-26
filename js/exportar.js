@@ -57,8 +57,10 @@ const Exportar = {
     $b('[data-mbps]').onchange = e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (Number.isFinite(v) && v > 0) { cfg.mbps = clamp(v, ...this.MBPS); cfg.qual = 'custom'; } e.target.blur(); pinta(); };
     $b('[data-som]').onchange = e => { cfg.som = e.target.checked; pinta(); }; $b('[data-leg]').onchange = e => { cfg.leg = e.target.checked; }; $b('[data-niv]').onchange = e => { cfg.nivelar = e.target.checked; };
     // REVISOR: antes de exportar, mostra quantas coisas achou
-    Revisor.conta(P).then(r => { const el = $b('[data-rv]'); if (!el || !(r.erro + r.aviso + r.dica)) return; el.hidden = false; el.className = 'rv-banner ' + (r.erro ? 'rv-erro' : r.aviso ? 'rv-aviso' : 'rv-dica');
-      el.innerHTML = `${ic(r.erro + r.aviso ? 'alert' : 'info', 15)}<span>O revisor achou ${[r.erro && `${r.erro} erro${r.erro > 1 ? 's' : ''}`, r.aviso && `${r.aviso} aviso${r.aviso > 1 ? 's' : ''}`, r.dica && `${r.dica} dica${r.dica > 1 ? 's' : ''}`].filter(Boolean).join(', ')} antes de exportar.</span><button class="btn sm">Revisar</button>`;
+    // CONFERÊNCIA DO VÍDEO (Fase 4): não trava a exportação; avisa se o vídeo ainda não foi conferido quadro a quadro (ou mudou depois)
+    Revisor.conta(P).then(r => { const el = $b('[data-rv]'), vc = Revisor.videoConferido(P); if (!el || (!(r.erro + r.aviso + r.dica) && vc)) return; el.hidden = false; el.className = 'rv-banner ' + (r.erro ? 'rv-erro' : r.aviso ? 'rv-aviso' : 'rv-dica');
+      const achou = [r.erro && `${r.erro} erro${r.erro > 1 ? 's' : ''}`, r.aviso && `${r.aviso} aviso${r.aviso > 1 ? 's' : ''}`, r.dica && `${r.dica} dica${r.dica > 1 ? 's' : ''}`].filter(Boolean).join(', ');
+      el.innerHTML = `${ic(r.erro + r.aviso ? 'alert' : 'info', 15)}<span>${achou ? `O revisor achou ${achou} antes de exportar.` : 'O revisor não achou nada.'}${vc ? '' : ' O vídeo ainda não foi conferido quadro a quadro.'}</span><button class="btn sm">${vc ? 'Revisar' : 'Conferir'}</button>`;
       $('button', el).onclick = () => Revisor.abrir(); }).catch(() => { });
     let api = null; const o = { title: 'Exportar', icon: 'download', width: 560, saiMs: 200, noFocus: true, body, onOpen: a => { api = a; a.el.classList.add('exp-metro'); const x = $('[data-x]', a.el); x.className = 'btn'; x.textContent = 'Fechar'; botao(); }, buttons: [
       { label: 'Exportar', kind: 'primary', onClick: () => this.rodar(P, cfg, body, api, o) }] };
