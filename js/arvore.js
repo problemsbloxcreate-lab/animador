@@ -60,6 +60,7 @@ const Arvore = {
       { label: 'Renomear', icon: 'edit', action: () => this.renomear(n, $(`.no[data-id="${n.id}"]`)) },
       { label: 'Duplicar', icon: 'dup', key: 'Ctrl+D', action: () => App.duplicar() },
       { label: 'Pôr numa pasta nova', icon: 'folder', key: 'Ctrl+G', action: () => App.addPasta() },
+      { label: 'Organizar tudo em pastas (Cenário, Personagens, Inserts…)', icon: 'layers', action: () => App.organizarPastas() },
       n.filhos && menuCor(n.corPasta, c => { if (c) n.corPasta = c; else delete n.corPasta; App.commit('Cor da pasta'); }),
       n.tipo !== 'efeito' && App.menuTremulo(n),
       n.tipo === 'efeito' && { label: 'Na timeline toda', icon: 'film', action: () => { n.de = 0; n.ate = null; App.commit('Na timeline toda'); } },
@@ -77,3 +78,107 @@ const Arvore = {
     ].filter(Boolean));
   },
 };
+
+/* ===================== ORGANIZAR EM PASTAS (pedido da dona, 26/11/2026: "a hierarquia está completamente bagunçada") =====================
+   Organizar.pastas(P) junta as camadas do NÍVEL DE CIMA em pastas por papel: "Cenário", "Personagens", "Inserts", "Letreiros", "Efeitos".
+   REGRA DE OURO: nada muda na tela. Duas camadas que aparecem ao mesmo tempo continuam na mesma ordem (quem cobre quem); se juntar uma
+   camada à pasta do papel dela mudaria isso (ex.: um insert ATRÁS de um personagem), ela vai para outra pasta do mesmo papel
+   ("Inserts (atrás)" / "Inserts (frente)"). Prova: em cada quadro, a ordem de desenho das camadas visíveis é a mesma de antes.
+   Ficam ONDE ESTÃO (soltas no nível de cima): camadas de efeito (a cor/vinheta A2 do topo vale para tudo o que está embaixo dela na
+   mesma lista; dentro de pasta só valeria para a pasta), o "Fundo padrão", os cenários das ferramentas de cenário (pasta "Cenário: …",
+   cenário 3D, cenário em vídeo: a troca de cenário, o "Tirar da animação" e a timeline procuram por eles no nível de cima) e as pastas
+   feitas por alguém (o que está dentro delas não mexe). As pastas de papel são marcadas com `n.pastaPapel` e não mexem em nada
+   (posição 0, escala 1, sem cor): rodar de novo junta o que entrou depois. Não renomeia camada nenhuma. Quem chama faz o App.commit
+   (um passo só do Ctrl+Z). Teste em node: a ordem de desenho de cada quadro antes e depois (ver o relatório do ramo f1-pastas-auto). */
+const Organizar = {
+  NOMES: { cenario: 'Cenário', personagens: 'Personagens', inserts: 'Inserts', letreiros: 'Letreiros', efeitos: 'Efeitos' },
+  RX_CEN: /^\s*(cen[áa]rio|fundo|c[ée]u|ch[ãa]o|parede)\b/i,
+  RX_EF: /(efeito|explos|flash|brilho|fa[íi]sca|fuma[çc]a|impacto|onomatop|poeira|suor|l[áa]grima|\bpow\b|\bboom\b|\bbam\b|\bzap\b|sfx|choque)/i,
+  // o papel de uma camada do nível de cima (null = fica onde está)
+  papel(n) {
+    if (!n || n.tipo === 'efeito' || n.fundoPadrao || n.cenario || n.cenLib || n.tipo === 'cena3d') return null;
+    if (n.filhos) return null; // pasta feita por alguém (ou pelas ferramentas): fica, com o que tem dentro
+    if (n.tipo === 'personagem') return 'personagens';
+    if (n.tipo === 'texto') return 'letreiros';
+    if (n.tipo === 'video') return n.frente ? 'efeitos' : null;
+    const nm = String(n.nome || '');
+    if (this.RX_CEN.test(nm)) return 'cenario';
+    if (n.tipo === 'forma' || this.RX_EF.test(nm)) return 'efeitos';
+    if (n.tipo === 'imagem') return 'inserts';
+    return null;
+  },
+  // pasta de papel que dá para desmanchar sem mudar a tela (aparece sempre, não move, não esconde, sem cor, sem efeito dentro)
+  neutra(f) {
+    if (!f?.pastaPapel || !Array.isArray(f.filhos) || f.vis === false || (f.de || 0) > 0 || f.ate != null) return false;
+    if (f.recorte || f.tremulo || f.gruda || f.ancora3d || f.entra || f.sai || f.luzBorda) return false;
+    const um = { x: 0, y: 0, r: 0, s: 1, sx: 1, op: 1 };
+    for (const c of Object.values(f.chaves || {})) for (const [k, v] of Object.entries(c || {})) { if (k === 'ir' || k === 'curva') continue; if (!(k in um) || +v !== um[k]) return false; }
+    return !f.filhos.some(x => x.tipo === 'efeito');
+  },
+  // quadros em que a camada existe [de, fim]
+  faixa(P, n) { return [n.de || 0, Modelo.fimNo(P, n)]; },
+  // as camadas soltas do nível de cima + as de dentro das pastas de papel (onde o ritmo e os gestos procuram os personagens)
+  topo(P) { const out = []; for (const n of P?.raiz || []) { if (n.pastaPapel && n.filhos) out.push(...n.filhos); else out.push(n); } return out; },
+  ids(lista) { const f = n => n.filhos ? [n.id, n.nome, n.filhos.map(f)] : n.id; return JSON.stringify(lista.map(f)); },
+  pastas(P) {
+    if (!P || !Array.isArray(P.raiz)) return { mudou: false, pastas: [], fora: [] };
+    const antes = this.ids(P.raiz);
+    // 1) desmancha as pastas de papel neutras (guardando-as pelo nome para reaproveitar: id, aberta/fechada, cadeado, cor)
+    const velhas = new Map(), itens = [];
+    for (const n of P.raiz) { if (this.neutra(n)) { velhas.set(n.nome, n); itens.push(...n.filhos); } else itens.push(n); }
+    // 2) refaz a ordem da frente para trás. Única regra: se A está na frente de B e os dois aparecem juntos em algum quadro, A continua
+    //    na frente de B (quem não aparece junto pode trocar de lugar: nunca estão na tela ao mesmo tempo). A cada passo, pega a camada
+    //    mais da frente que já pode sair e, se ela tem papel, leva junto todas as do mesmo papel que já podem sair (uma pasta só);
+    //    quando uma do mesmo papel ainda tem que ficar atrás de outra coisa, ela vai para outra pasta ("Inserts (atrás)").
+    const fx = itens.map(n => this.faixa(P, n)), pap = itens.map(n => this.papel(n)), N = itens.length;
+    const falta = new Array(N).fill(0), depois = itens.map(() => []); // falta[j] = quantos da frente de j (que aparecem junto) ainda não saíram
+    for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) if (fx[i][0] <= fx[j][1] && fx[j][0] <= fx[i][1]) { falta[j]++; depois[i].push(j); }
+    const saiu = new Array(N).fill(false), sai = j => { saiu[j] = true; for (const k of depois[j]) falta[k]--; }, pode = j => !saiu[j] && !falta[j];
+    const blocos = []; let resta = N;
+    while (resta) {
+      const i0 = saiu.findIndex((s, j) => pode(j)); // sempre existe: o mais da frente que ainda não saiu não tem ninguém pendente na frente dele
+      if (!pap[i0]) { sai(i0); resta--; blocos.push({ papel: null, itens: [itens[i0]] }); continue; }
+      const b = { papel: pap[i0], itens: [] }; let achou = true;
+      while (achou) { achou = false; for (let j = 0; j < N; j++) if (pap[j] === b.papel && pode(j)) { sai(j); resta--; b.itens.push(itens[j]); achou = true; } }
+      blocos.push(b);
+    }
+    // 3) nomes: papel com uma pasta só = "Inserts"; com mais = a maior fica "Inserts" e as outras "Inserts (frente)" / "Inserts (atrás)"
+    const usados = new Set(itens.filter(n => n.filhos).map(n => n.nome));
+    for (const p of Object.keys(this.NOMES)) {
+      const bs = blocos.filter(b => b.papel === p); if (!bs.length) continue;
+      const base = this.NOMES[p], mor = bs.reduce((a, b) => b.itens.length > a.itens.length ? b : a), iM = blocos.indexOf(mor); let nf = 0, na = 0;
+      for (const b of bs) {
+        let nm = b === mor ? base : blocos.indexOf(b) < iM ? `${base} (frente${++nf > 1 ? ' ' + nf : ''})` : `${base} (atrás${++na > 1 ? ' ' + na : ''})`;
+        let k = 2; const nm0 = nm; while (usados.has(nm)) nm = `${nm0} ${k++}`; usados.add(nm); b.nome = nm;
+      }
+    }
+    // 4) monta a lista nova do nível de cima
+    const raiz = [], pastas = [], fora = [];
+    for (const b of blocos) {
+      if (!b.papel) { raiz.push(b.itens[0]); fora.push(b.itens[0]); continue; }
+      let f = velhas.get(b.nome); if (f) velhas.delete(b.nome); else { f = Modelo.novoNo('pasta', { nome: b.nome }); f.aberto = b.itens.length <= 6; }
+      f.pastaPapel = b.papel; f.de = 0; f.ate = null; f.vis = true; f.chaves = { 0: { x: 0, y: 0, r: 0, s: 1, sx: 1, op: 1 } };
+      for (const n of b.itens) delete n.trilha; // dentro de pasta a trilha da timeline não vale (vale a da pasta)
+      f.filhos = b.itens; raiz.push(f); pastas.push(f);
+    }
+    P.raiz.splice(0, P.raiz.length, ...raiz);
+    const mudou = this.ids(P.raiz) !== antes;
+    // 5) TIMELINE (modo Vídeo, js/premiere.js): lá "trilha mais alta = na frente" e a lista é reordenada pela trilha. Se o projeto já
+    //    tem trilhas, elas são refeitas pela ordem do palco (como o "Compactar trilhas"): quem está na frente continua na frente.
+    if (mudou && P.raiz.some(n => +n.trilha)) this.trilhas(P);
+    return { mudou, pastas: pastas.map(f => ({ nome: f.nome, n: f.filhos.length })), fora: fora.map(n => n.nome || n.tipo) };
+  },
+  // trilhas da timeline pela ordem do palco (de trás para a frente: cada um fica acima de quem está atrás dele no mesmo tempo)
+  trilhas(P) {
+    const pl = [], oc = {};
+    for (let i = P.raiz.length - 1; i >= 0; i--) {
+      const n = P.raiz[i], de = n.de || 0, fim = Modelo.fimNo(P, n); let t = 1;
+      for (const c of pl) if (c.de <= fim && c.fim >= de) t = Math.max(t, c.t + 1);
+      while ((oc[t] || []).some(([a, b]) => a <= fim && b >= de)) t++;
+      (oc[t] ||= []).push([de, fim]); pl.push({ de, fim, t }); n.trilha = t;
+    }
+  },
+  // tira as pastas de papel que ficaram vazias (ex.: o ritmo automático tirou os letreiros)
+  limpaVazias(P) { if (!P?.raiz) return; for (let i = P.raiz.length - 1; i >= 0; i--) { const n = P.raiz[i]; if (n.pastaPapel && n.filhos && !n.filhos.length) P.raiz.splice(i, 1); } },
+};
+if (typeof module !== 'undefined') module.exports = { Arvore, Organizar };

@@ -253,6 +253,7 @@ const Prep = {
       meus.forEach((x, j) => { if (!x.fora) return; if (ini == null) ini = x.de; if (meus[j + 1]?.fora) return;
         no.chaves[ini] = { ...(no.chaves[ini] || {}), op: 0, ir: 'corte' }; no.chaves[x.ate + 1] = { op: 1, ir: 'corte' }; ini = null; });
       P.raiz.unshift(no); }); // o 1º de P.raiz fica NA FRENTE (o fundo padrão fica atrás)
+    if (typeof Organizar !== 'undefined') Organizar.pastas(P); // ORGANIZAR EM PASTAS (js/arvore.js): os personagens já nascem na pasta Personagens
     return P;
   },
   deFora(f) { return /de fora|fora do quadro|fora de quadro/.test(String([f?.acao, f?.nota].filter(Boolean).join(' ')).normalize('NFC').toLocaleLowerCase('pt-BR')); },
@@ -260,7 +261,7 @@ const Prep = {
   // boca pela voz de cada fala, no personagem de quem fala (na animação aberta)
   bocas() {
     const P = App.P; if (!P?.prep) return; let nb = 0;
-    for (const n of P.raiz.filter(x => x._prepQuem)) for (const a of P.audios.filter(y => (y._quens || [y._quem]).includes(n._prepQuem))) { try { if (Som.bocaAuto(P, n, a)) nb++; } catch { } }
+    for (const n of Modelo.todos(P).filter(x => x._prepQuem)) for (const a of P.audios.filter(y => (y._quens || [y._quem]).includes(n._prepQuem))) { try { if (Som.bocaAuto(P, n, a)) nb++; } catch { } }
     if (nb) App.commit('Boca pela voz (' + nb + ')');
   },
 };

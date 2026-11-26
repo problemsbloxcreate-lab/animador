@@ -187,7 +187,7 @@ const Short = {
     const movidos = new Set();
     cenas.forEach((cn, ci) => { const ids = Object.keys(nos[ci] || {}); ids.forEach((pid, i) => { const n = nos[ci][pid], def = defs[pid], s = round(clamp(rH.h * .62 / altura(def), .05, 4), 3), k = n.chaves[cn.de];
       const bx = caixa(def); Object.assign(k, { x: Math.round(W * (i + 1) / (ids.length + 1)), y: Math.round(rH.y + rH.h * .93 - (bx.y + bx.h) * s), s }); /* os pés a 93% da metade */ n.nome = `${R.pers.find(p => p.id === pid)?.nome || 'Personagem'} · história${cenas.length > 1 ? ' · cena ' + (ci + 1) : ''}`; movidos.add(n); }); });
-    P.raiz = P.raiz.filter(n => !movidos.has(n)); pH.filhos.push(...movidos);
+    for (const n of movidos) { const r = Modelo.achar(P, n.id); if (r) r.lista.splice(r.lista.indexOf(n), 1); } pH.filhos.push(...movidos); // sai de onde estiver (solto ou numa pasta de papel do Organizar)
     // quem NARRA: um nó só, o vídeo inteiro, de frente para a câmera, com um fundo liso na metade dele
     const dN = defs[narr.id], bN = caixa(dN), sN = round(clamp(rN.h * .86 / bN.h, .05, 4), 3), nN = Modelo.novoNo('personagem', { ref: dN.id, nome: narr.nome + ' · narra', s: sN });
     nN.atuacao = { ...Atuacao.PADRAO }; nN.interp = true; nN.suaveP = true; nN.de = 0; nN.ate = null; nN.chaves = { 0: { x: Math.round(W / 2), y: Math.round(rN.y + rN.h * .98 - (bN.y + bN.h) * sN), r: 0, s: sN, sx: 1, op: 1 } };

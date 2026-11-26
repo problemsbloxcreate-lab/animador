@@ -55,10 +55,13 @@ const Ritmo = {
       if (x) { x.de = Math.min(x.de, a.de); x.ate = Math.max(x.ate, ate); if (a._quem) x.quens.push(a._quem); } else g.set(k, { de: a.de, ate, quem: a._quem || null, quens: a._quens || (a._quem ? [a._quem] : []), cor: '#ffffff', pal: [], vol: a.vol ?? 1 }); }
     return [...g.values()].sort((a, b) => a.de - b.de);
   },
+  // camadas do nível de cima, abrindo as pastas de papel (js/arvore.js, Organizar.topo: posição 0, escala 1, não mexem em nada)
+  topo(P) { return typeof Organizar !== 'undefined' ? Organizar.topo(P) : (P?.raiz || []).flatMap(n => n.pastaPapel && n.filhos ? n.filhos : [n]); },
   // o personagem de quem fala (montagem do Preparativos: n._prepQuem; senão pelo nome da camada ou do personagem)
   noDe(P, quem) {
     if (!quem) return null; const k = s => String(s || '').normalize('NFC').trim().toLocaleLowerCase('pt-BR'), alvo = k(quem);
-    return (P.raiz || []).find(n => n.tipo === 'personagem' && k(n._prepQuem) === alvo) || (P.raiz || []).find(n => n.tipo === 'personagem' && (k(n.nome) === alvo || k(P.personagens?.[n.ref]?.nome) === alvo)) || null;
+    const L = this.topo(P); // soltos no nível de cima ou dentro das pastas de papel (Personagens…), que não mexem em nada
+    return L.find(n => n.tipo === 'personagem' && k(n._prepQuem) === alvo) || L.find(n => n.tipo === 'personagem' && (k(n.nome) === alvo || k(P.personagens?.[n.ref]?.nome) === alvo)) || null;
   },
   // cabeça do personagem no mundo: o terço de cima da caixa dele; a boca a 22% da altura (decisão: sem marcar a cabeça no personagem)
   cabeca(P, n, q) {
@@ -76,7 +79,7 @@ const Ritmo = {
   topoLeg(P) { const e = P.legEstilo?.prep; if (e) return ((e.y ?? .82) - 1.2 * (+e.tamanho || .045)) * P.h; return P.h * .72; },
   // o zoom z deixa a cabeça de todos que falam no quadro e a boca acima da legenda, em todo o trecho [de, ate]?
   serve(P, Pb, f, z, de, ate) {
-    const nos = (f.quens.length ? f.quens : [f.quem]).map(q => this.noDe(P, q)); if (!nos.length || nos.some(n => !n || !(P.raiz || []).includes(n))) return false;
+    const nos = (f.quens.length ? f.quens : [f.quem]).map(q => this.noDe(P, q)); if (!nos.length || nos.some(n => !n || !this.topo(P).includes(n))) return false;
     const m = P.w * .03, topo = this.topoLeg(P) - P.h * .01;
     for (const q of [...new Set([de, Math.round((de + ate) / 2), ate])]) {
       const c = Modelo.camera(Pb, q);
@@ -224,10 +227,12 @@ const Ritmo = {
     // Cada episódio é simulado com o desenho real (Gestos.testador ao escolher, Gestos.valida no fim). Sem o arquivo (cache do site), segue sem eles.
     let g = null; if (this.G()) try { const og = { ...o, teste: Gestos.testador(P), rejeitados: [] }, v = Gestos.valida(P, Gestos.planeja(P, og)); g = Gestos.aplica(P, v.plano);
       const rej = [...og.rejeitados, ...v.rejeitados]; if (rej.length) console.info('[gestos] gestos que não entraram:', rej); } catch (e) { console.warn('gestos', e); }
+    // ORGANIZAR EM PASTAS (js/arvore.js): os letreiros novos entram na pasta Letreiros (sem mudar nada na tela), no mesmo passo do desfazer
+    try { if (typeof Organizar !== 'undefined') Organizar.pastas(P); } catch (e) { console.warn('organizar', e); }
     const gtxt = g?.gestos ? ` · gestos de braço na fala` : '';
     App.commit('Ritmo automático');
     UI.toast(`Ritmo automático${tinha ? ' refeito' : ''}: ${r.cortes} corte${r.cortes === 1 ? '' : 's'} de câmera, ${r.letreiros} letreiro${r.letreiros === 1 ? '' : 's'}${r.sons ? ` com som` : somArq ? '' : ' (sem som: a biblioteca não respondeu)'}${gtxt}${plano.pulados.length ? ` · ${plano.pulados.length} palavra${plano.pulados.length === 1 ? '' : 's'}-chave sem letreiro (menos de 3 s da anterior)` : ''}.`, { kind: 'ok', time: 7000 });
   },
-  tirar() { const P = App.P; if (!P || !this.tem(P)) return; this.tira(P); App.commit('Tirar o ritmo automático'); UI.toast('Ritmo automático tirado (cortes, letreiros, sons e gestos). O resto da animação ficou como estava.', { kind: 'ok' }); },
+  tirar() { const P = App.P; if (!P || !this.tem(P)) return; this.tira(P); if (typeof Organizar !== 'undefined') Organizar.limpaVazias(P); App.commit('Tirar o ritmo automático'); UI.toast('Ritmo automático tirado (cortes, letreiros, sons e gestos). O resto da animação ficou como estava.', { kind: 'ok' }); },
 };
 if (typeof module !== 'undefined') module.exports = Ritmo;

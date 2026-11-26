@@ -353,6 +353,16 @@ const App = {
     if (s && s.tipo !== 'pasta') { const r = Modelo.achar(this.P, s.id); const i = r.lista.indexOf(s); r.lista.splice(i, 1, n); n.filhos.push(s); this.sel = n.id; n.chaves = { [this.q]: { x: 0, y: 0, r: 0, s: 1, sx: 1, op: 1 } }; return this.commit('Nova pasta'); }
     n.chaves = { 0: { x: 0, y: 0, r: 0, s: 1, sx: 1, op: 1 } }; this.P.raiz.unshift(n); this.sel = n.id; this.commit('Nova pasta');
   },
+  // ORGANIZAR EM PASTAS (botão da Hierarquia; Organizar em js/arvore.js): Cenário, Personagens, Inserts, Letreiros, Efeitos.
+  // Não muda nada na tela; um passo só do Ctrl+Z. Diz o que fez e o que ficou solto (no lugar) e por quê.
+  organizarPastas() {
+    const P = this.P; if (!P || typeof Organizar === 'undefined') return;
+    const r = Organizar.pastas(P);
+    if (!r.mudou) return UI.toast('A hierarquia já está organizada em pastas.', { kind: 'ok' });
+    this.commit('Organizar em pastas');
+    const fora = r.fora.length ? `<br>Ficaram soltas, no mesmo lugar, para nada mudar na tela: ${r.fora.slice(0, 6).map(esc).join(', ')}${r.fora.length > 6 ? ` e mais ${r.fora.length - 6}` : ''}.` : '';
+    UI.toast(`Organizei em pastas: ${r.pastas.map(p => `<b>${esc(p.nome)}</b> (${p.n})`).join(', ')}.${fora}<br>Nada mudou no vídeo. Ctrl+Z desfaz.`, { kind: 'ok', time: 9000 });
+  },
   duplicar() {
     const s = this.noSel(); if (!s) return; const r = Modelo.achar(this.P, s.id), c = clone(s);
     Modelo.cada([c], x => { x.id = uid('n'); }); c.nome = s.nome + ' (cópia)'; r.lista.splice(r.lista.indexOf(s), 0, c); this.sel = c.id; this.commit('Duplicar');
