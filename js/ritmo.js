@@ -86,7 +86,7 @@ const Ritmo = {
       const c = Modelo.camera(Pb, q);
       for (const n of nos) { if (!Modelo.aparece(P, n, q) || n.vis === false || (Modelo.transf(n, q).op ?? 1) < .05 /* voz de fora (js/prep.js): escondido */) return false; const h = this.cabeca(P, n, q); if (!h) return false;
         const a = this.naTela(P, c, z, h.x0, h.y0), b = this.naTela(P, c, z, h.x1, h.y1), bo = this.naTela(P, c, z, h.bx, h.boca);
-        if (Math.min(a.x, b.x) < m || Math.max(a.x, b.x) > P.w - m || Math.min(a.y, b.y) < m || bo.y > topo) return false; }
+        if (Math.min(a.x, b.x) < m || Math.max(a.x, b.x) > P.w - m || Math.min(a.y, b.y) < m || bo.y > topo || Math.max(a.y, b.y) > topo) return false; } // do PESCOÇO para cima nunca na legenda (dona, 27/11): a base da cabeça fica acima dela
     }
     return true;
   },

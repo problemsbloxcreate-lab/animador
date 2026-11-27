@@ -202,6 +202,7 @@ const Prep = {
         NuvemTela.passo(.75 + .2 * gi / grupos.length, grupos.length > 1 ? `Montando a animação ${gi + 1} de ${grupos.length}…` : 'Montando a animação…');
         const nome = grupos.length > 1 || grupo.length < (prep.partes || []).length ? `${nomeBase} — ${grupo.map(p => p.nome).join(' + ')}` : nomeBase;
         const P = this.projeto(prep, grupo, o.fmt, nome, aud, qcor, defs); P.nome = await Arquivos.nomeAnimacao(P.nome, P.id);
+        if ((P.legendas || []).length) try { await Short.refazerLegendas(P, { todas: true }); } catch (e) { console.warn('legendas em blocos', e); } // legenda padrão em blocos curtos, como nos Shorts originais
         try { P.autor = { ...(await Autores.eu()), em: Date.now() }; } catch { }
         await DB.put('projetos', JSON.parse(JSON.stringify(P))); feitos.push(P); if (!primeiro) primeiro = P;
       }
@@ -240,7 +241,7 @@ const Prep = {
       const nx = falas[i + 1]; q += nq + (nx ? Math.round(Short.pausa({ personagem: quem, texto: f.texto, acao: f.nota }, { personagem: nx._quem || nx.personagem, texto: nx.texto }) * fps) : 0);
     });
     P.duracao = q + Math.round(fps * .5);
-    if (comLeg) { P.legEstilo = { pos: 'baixo', pop: false, prep: this.estilo(prep) }; P.prep.leg = this.estilo(prep); } // desenhada como no Preparativos (Render.legPrep); muda na aba Voz › Estilo das legendas (Lado.estiloPrep); P.prep.leg = o de lá, para voltar
+    if (comLeg) { P.legEstilo = { pos: 'baixo', blocos: true, karaoke: false, pop: false }; P.prep.leg = this.estilo(prep); } // LEGENDA PADRÃO (dona, 27/11): igual à dos Shorts originais (blocos, contorno preto); o estilo do Preparativos fica em P.prep.leg e volta pela aba Voz › Estilo das legendas // desenhada como no Preparativos (Render.legPrep); muda na aba Voz › Estilo das legendas (Lado.estiloPrep); P.prep.leg = o de lá, para voltar
     // personagens da equipe: cada um do começo ao fim, espalhados na largura (os de quem fala na ordem em que aparecem)
     // VOZ DE FORA (23/11/2026): fala com nota "de fora"/"voz de fora"/"fora do quadro" = esse personagem NÃO entra no palco nela. Quem só fala
     // de fora nem é colocado; quem também fala no quadro fica escondido (chaves de opacidade 0 em corte seco) nas falas de fora seguidas dele
